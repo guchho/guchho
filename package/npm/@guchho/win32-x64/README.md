@@ -8,4 +8,4 @@
   </a>
 </p>
 
-Guchho — Fast web bundler, compiler, and build tool for Windows x64. See (https://github.com/guchho/guchho)[https://github.com/guchho/guchho] for details.
+Guchho — Fast web bundler, compiler, and build tool for Windows x64. See https://github.com/guchho/guchho for details.

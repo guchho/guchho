@@ -12,5 +12,5 @@
   "keywords": ["guchho", "bundler", "build", "javascript", "typescript", "css", "html", "minifier"],
   "os": ["linux"],
   "cpu": ["x64"],
-  "files": ["bin/"]
+  "files": ["bin/", "README.md"]
 }

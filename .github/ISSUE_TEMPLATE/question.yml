@@ -1,0 +1,54 @@
+name: Question
+description: Ask a question about using guchho
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question about using guchho? Please check the [documentation](https://github.com/guchho/guchho#readme) first, then ask below.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What would you like to know?
+      placeholder: How do I...
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What Have You Tried?
+      description: Describe what you've already tried or researched
+      placeholder: I tried looking at the docs and...
+    validations:
+      required: false
+
+  - type: input
+    id: guchho-version
+    attributes:
+      label: Guchho Version
+      description: "Output of `guchho --version`"
+      placeholder: "1.2.3"
+    validations:
+      required: false
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js Version
+      description: "Output of `node --version`"
+      placeholder: "v20.10.0"
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any additional context or code examples
+      placeholder: Here's my configuration...
+    validations:
+      required: false

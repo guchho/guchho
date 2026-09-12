@@ -1,0 +1,13 @@
+name: Blank Issue
+description: Create a blank issue
+title: ""
+labels: []
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe your issue, question, or feature request
+      placeholder: Tell us what you need help with...
+    validations:
+      required: true

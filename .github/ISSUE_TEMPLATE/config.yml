@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://github.com/guchho/guchho#readme
+    about: Read the documentation before opening an issue
+  - name: npm Package
+    url: https://www.npmjs.com/package/guchho
+    about: View the guchho package on npm
+  - name: Sponsor
+    url: https://github.com/sponsors/code-hemu
+    about: Support the development of guchho

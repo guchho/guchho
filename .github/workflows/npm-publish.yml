@@ -104,7 +104,7 @@ jobs:
           - platform: linux-loong64
             runner: ubuntu-latest
             method: docker
-            docker_image: ghcr.io/loong64/loongnix:23
+            docker_image: ghcr.io/loong64/loongnix:25
 
           # ---- Windows MSVC cross-compilation ----
           - platform: win32-ia32
@@ -254,12 +254,12 @@ jobs:
         if: matrix.method == 'docker'
         uses: docker/setup-qemu-action@v4
         with:
-          platforms: linux/loongarch64
+          platforms: linux/loong64
 
       - name: Build (Docker cross-compile)
         if: matrix.method == 'docker'
         run: |
-          docker run --rm --platform linux/loongarch64 \
+          docker run --rm --platform linux/loong64 \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
             ${{ matrix.docker_image }} \

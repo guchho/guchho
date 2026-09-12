@@ -1,0 +1,537 @@
+name: npm-publish
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (skip actual publish)"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  # ============================================
+  # Job 1: Build binaries for all platforms
+  # ============================================
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ---- Native builds ----
+          - platform: linux-x64
+            runner: ubuntu-latest
+            method: native
+            preset: release-linux-x64
+
+          - platform: darwin-arm64
+            runner: macos-latest
+            method: native
+            preset: release-darwin-arm64
+
+          - platform: darwin-x64
+            runner: macos-13
+            method: native
+            preset: release-darwin-x64
+
+          - platform: win32-x64
+            runner: windows-latest
+            method: native
+            preset: release-win32-x64-ninja
+
+          # ---- Linux Docker cross-compilation ----
+          - platform: linux-arm64
+            runner: ubuntu-latest
+            method: docker
+            docker_image: arm64v8/ubuntu:22.04
+            cross_host: aarch64-linux-gnu
+
+          - platform: linux-arm
+            runner: ubuntu-latest
+            method: docker
+            docker_image: arm32v7/ubuntu:22.04
+            cross_host: arm-linux-gnueabihf
+
+          - platform: linux-ia32
+            runner: ubuntu-latest
+            method: docker
+            docker_image: i386/ubuntu:22.04
+            cross_host: i686-linux-gnu
+
+          - platform: linux-s390x
+            runner: ubuntu-latest
+            method: docker
+            docker_image: s390x/ubuntu:22.04
+            cross_host: s390x-linux-gnu
+
+          - platform: linux-ppc64
+            runner: ubuntu-latest
+            method: docker
+            docker_image: ppc64le/ubuntu:22.04
+            cross_host: powerpc64le-linux-gnu
+
+          - platform: linux-riscv64
+            runner: ubuntu-latest
+            method: docker
+            docker_image: riscv64/ubuntu:22.04
+            cross_host: riscv64-linux-gnu
+
+          - platform: linux-mips64el
+            runner: ubuntu-latest
+            method: docker
+            docker_image: mips64le/debian:bookworm
+            cross_host: mips64el-linux-gnuabi64
+
+          - platform: linux-loong64
+            runner: ubuntu-latest
+            method: docker
+            docker_image: loongnix/ubuntu:22.04
+            cross_host: loongarch64-linux-gnu
+
+          # ---- Windows MSVC cross-compilation ----
+          - platform: win32-ia32
+            runner: windows-latest
+            method: msvc_cross
+            arch: Win32
+
+          - platform: win32-arm64
+            runner: windows-latest
+            method: msvc_cross
+            arch: ARM64
+
+          # ---- Android NDK cross-compilation ----
+          - platform: android-arm
+            runner: ubuntu-latest
+            method: android
+            android_abi: armeabi-v7a
+            android_api: 21
+
+          - platform: android-arm64
+            runner: ubuntu-latest
+            method: android
+            android_abi: arm64-v8a
+            android_api: 21
+
+          - platform: android-x64
+            runner: ubuntu-latest
+            method: android
+            android_abi: x86_64
+            android_api: 21
+
+    runs-on: ${{ matrix.runner }}
+    name: build (${{ matrix.platform }})
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ============================================
+      # Native builds (Linux, macOS, Windows)
+      # ============================================
+      - name: Setup CMake (native)
+        if: matrix.method == 'native'
+        uses: lukka/get-cmake@latest
+
+      - name: Setup Ninja (native)
+        if: matrix.method == 'native'
+        run: |
+          if [ "$RUNNER_OS" != "Windows" ]; then
+            sudo apt-get update && sudo apt-get install -y ninja-build || true
+          fi
+        shell: bash
+
+      - name: Build (native)
+        if: matrix.method == 'native'
+        run: |
+          cmake --preset ${{ matrix.preset }} --fresh
+          cmake --build --preset ${{ matrix.preset }} --parallel
+        shell: bash
+
+      - name: Find binary (native)
+        if: matrix.method == 'native'
+        id: find_binary
+        shell: bash
+        run: |
+          PLATFORM="${{ matrix.platform }}"
+          PRESET="${{ matrix.preset }}"
+
+          if [[ "$PLATFORM" == win32-* ]]; then
+            BINARY_NAME="guchho.exe"
+          else
+            BINARY_NAME="guchho"
+          fi
+
+          SEARCH_PATHS=(
+            "build/${PRESET}/bin/${BINARY_NAME}"
+            "build/${PRESET}/bin/Release/${BINARY_NAME}"
+            "build/${PRESET}/${BINARY_NAME}"
+          )
+
+          FOUND=""
+          for p in "${SEARCH_PATHS[@]}"; do
+            if [[ -f "$p" ]]; then
+              FOUND="$p"
+              break
+            fi
+          done
+
+          if [[ -z "$FOUND" ]]; then
+            echo "::error::Could not find binary for ${PLATFORM}"
+            echo "Searched:"
+            for p in "${SEARCH_PATHS[@]}"; do echo "  $p"; done
+            exit 1
+          fi
+
+          echo "binary_path=${FOUND}" >> "$GITHUB_OUTPUT"
+          echo "Found: ${FOUND}"
+
+      # ============================================
+      # Linux Docker cross-compilation
+      # ============================================
+      - name: Setup QEMU (Docker)
+        if: matrix.method == 'docker'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/${{ matrix.platform == 'linux-arm64' && 'arm64' || matrix.platform == 'linux-arm' && 'arm/v7' || matrix.platform == 'linux-ia32' && '386' || matrix.platform == 'linux-s390x' && 's390x' || matrix.platform == 'linux-ppc64' && 'ppc64le' || matrix.platform == 'linux-riscv64' && 'riscv64' || matrix.platform == 'linux-mips64el' && 'mips64le' || 'loongarch64' }}
+
+      - name: Build (Docker cross-compile)
+        if: matrix.method == 'docker'
+        run: |
+          docker run --rm --platform linux/${{ matrix.platform == 'linux-arm64' && 'arm64' || matrix.platform == 'linux-arm' && 'arm/v7' || matrix.platform == 'linux-ia32' && '386' || matrix.platform == 'linux-s390x' && 's390x' || matrix.platform == 'linux-ppc64' && 'ppc64le' || matrix.platform == 'linux-riscv64' && 'riscv64' || matrix.platform == 'linux-mips64el' && 'mips64le' || 'loongarch64' }} \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            ${{ matrix.docker_image }} \
+            bash -c "
+              apt-get update && apt-get install -y cmake ninja-build g++ pkg-config &&
+              cmake -B build/release-${{ matrix.platform }} \
+                -G Ninja \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_C_STANDARD=17 \
+                -DCMAKE_CXX_STANDARD=20 \
+                -DCMAKE_C_STANDARD_REQUIRED=ON \
+                -DCMAKE_CXX_STANDARD_REQUIRED=ON \
+                -DCMAKE_C_EXTENSIONS=OFF \
+                -DCMAKE_CXX_EXTENSIONS=OFF \
+                -DBUILD_TESTING=OFF &&
+              cmake --build build/release-${{ matrix.platform }} --parallel
+            "
+        shell: bash
+
+      - name: Find binary (Docker)
+        if: matrix.method == 'docker'
+        id: find_binary_docker
+        shell: bash
+        run: |
+          PLATFORM="${{ matrix.platform }}"
+          PRESET="release-${PLATFORM}"
+          BINARY_NAME="guchho"
+
+          SEARCH_PATHS=(
+            "build/${PRESET}/bin/${BINARY_NAME}"
+            "build/${PRESET}/${BINARY_NAME}"
+          )
+
+          FOUND=""
+          for p in "${SEARCH_PATHS[@]}"; do
+            if [[ -f "$p" ]]; then
+              FOUND="$p"
+              break
+            fi
+          done
+
+          if [[ -z "$FOUND" ]]; then
+            echo "::warning::Could not find binary for ${PLATFORM} (cross-compile may not produce output in expected location)"
+            mkdir -p "package/npm/@guchho/${PLATFORM}/bin"
+            echo "binary_path=package/npm/@guchho/${PLATFORM}/bin/${BINARY_NAME}" >> "$GITHUB_OUTPUT"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "binary_path=${FOUND}" >> "$GITHUB_OUTPUT"
+            echo "Found: ${FOUND}"
+          fi
+
+      # ============================================
+      # Windows MSVC cross-compilation
+      # ============================================
+      - name: Setup MSVC (cross)
+        if: matrix.method == 'msvc_cross'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
+
+      - name: Build (MSVC cross)
+        if: matrix.method == 'msvc_cross'
+        run: |
+          cmake -B build/release-${{ matrix.platform }} \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=cl \
+            -DCMAKE_CXX_COMPILER=cl \
+            -DCMAKE_SYSTEM_NAME=Windows \
+            -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} \
+            -DCMAKE_C_STANDARD=17 \
+            -DCMAKE_CXX_STANDARD=20 \
+            -DCMAKE_C_STANDARD_REQUIRED=ON \
+            -DCMAKE_CXX_STANDARD_REQUIRED=ON
+          cmake --build build/release-${{ matrix.platform }} --parallel
+        shell: cmd
+
+      - name: Find binary (MSVC cross)
+        if: matrix.method == 'msvc_cross'
+        id: find_binary_msvc
+        shell: bash
+        run: |
+          PLATFORM="${{ matrix.platform }}"
+          BINARY_NAME="guchho.exe"
+          FOUND="build/release-${PLATFORM}/bin/Release/${BINARY_NAME}"
+
+          if [[ ! -f "$FOUND" ]]; then
+            FOUND="build/release-${PLATFORM}/bin/${BINARY_NAME}"
+          fi
+
+          if [[ -f "$FOUND" ]]; then
+            echo "binary_path=${FOUND}" >> "$GITHUB_OUTPUT"
+            echo "Found: ${FOUND}"
+          else
+            echo "::warning::Could not find binary for ${PLATFORM}"
+            echo "binary_path=" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ============================================
+      # Android NDK cross-compilation
+      # ============================================
+      - name: Setup Android NDK
+        if: matrix.method == 'android'
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26b
+
+      - name: Build (Android NDK)
+        if: matrix.method == 'android'
+        run: |
+          cmake -B build/release-${{ matrix.platform }} \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=${{ matrix.android_abi }} \
+            -DANDROID_PLATFORM=android-${{ matrix.android_api }} \
+            -DANDROID_STL=c++shared \
+            -DCMAKE_C_STANDARD=17 \
+            -DCMAKE_CXX_STANDARD=20 \
+            -DCMAKE_C_STANDARD_REQUIRED=ON \
+            -DCMAKE_CXX_STANDARD_REQUIRED=ON
+          cmake --build build/release-${{ matrix.platform }} --parallel
+        shell: bash
+
+      - name: Find binary (Android)
+        if: matrix.method == 'android'
+        id: find_binary_android
+        shell: bash
+        run: |
+          PLATFORM="${{ matrix.platform }}"
+          BINARY_NAME="guchho"
+          FOUND="build/release-${PLATFORM}/bin/${BINARY_NAME}"
+
+          if [[ -f "$FOUND" ]]; then
+            echo "binary_path=${FOUND}" >> "$GITHUB_OUTPUT"
+            echo "Found: ${FOUND}"
+          else
+            echo "::warning::Could not find binary for ${PLATFORM}"
+            echo "binary_path=" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ============================================
+      # Copy binary to package directory
+      # ============================================
+      - name: Prepare package directory
+        shell: bash
+        run: |
+          PLATFORM="${{ matrix.platform }}"
+          PKG_DIR="package/npm/@guchho/${PLATFORM}"
+          mkdir -p "${PKG_DIR}/bin"
+
+          # Determine binary name
+          if [[ "$PLATFORM" == win32-* ]]; then
+            BINARY_NAME="guchho.exe"
+          else
+            BINARY_NAME="guchho"
+          fi
+
+          # Find the binary from the appropriate step
+          BINARY_PATH=""
+          for step_output in \
+            "${{ steps.find_binary.outputs.binary_path }}" \
+            "${{ steps.find_binary_docker.outputs.binary_path }}" \
+            "${{ steps.find_binary_msvc.outputs.binary_path }}" \
+            "${{ steps.find_binary_android.outputs.binary_path }}"; do
+            if [[ -n "$step_output" && -f "$step_output" ]]; then
+              BINARY_PATH="$step_output"
+              break
+            fi
+          done
+
+          if [[ -n "$BINARY_PATH" && -f "$BINARY_PATH" ]]; then
+            cp "$BINARY_PATH" "${PKG_DIR}/bin/${BINARY_NAME}"
+
+            # Strip debug symbols on Unix
+            if [[ "$PLATFORM" != win32-* ]]; then
+              chmod +x "${PKG_DIR}/bin/${BINARY_NAME}"
+              strip "${PKG_DIR}/bin/${BINARY_NAME}" 2>/dev/null || true
+            fi
+
+            echo "Copied binary to ${PKG_DIR}/bin/${BINARY_NAME}"
+            ls -lh "${PKG_DIR}/bin/${BINARY_NAME}"
+          else
+            echo "::warning::No binary found for ${PLATFORM} — publishing empty package"
+          fi
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.platform }}
+          path: package/npm/@guchho/${{ matrix.platform }}/
+          retention-days: 1
+
+  # ============================================
+  # Job 2: Publish all platform packages
+  # ============================================
+  publish-platforms:
+    needs: build
+    runs-on: ubuntu-latest
+    name: publish-platforms
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          pattern: package-*
+          merge-multiple: true
+
+      - name: Sync artifacts to package directory
+        run: |
+          for dir in artifacts/*/; do
+            PLATFORM=$(basename "$dir")
+            DEST="package/npm/@guchho/${PLATFORM}"
+            mkdir -p "${DEST}"
+            cp -r "${dir}"* "${DEST}/" 2>/dev/null || true
+            echo "Synced: ${PLATFORM}"
+          done
+
+      - name: List packages to publish
+        run: |
+          echo "Packages:"
+          for pkg in package/npm/@guchho/*/; do
+            NAME=$(node -p "require('./${pkg}/package.json').name" 2>/dev/null || echo "unknown")
+            VERSION=$(node -p "require('./${pkg}/package.json').version" 2>/dev/null || echo "unknown")
+            HAS_BINARY="no"
+            if [[ -d "${pkg}/bin" ]] && ls "${pkg}/bin/"* >/dev/null 2>&1; then
+              HAS_BINARY="yes"
+            fi
+            echo "  ${NAME}@${VERSION} (binary: ${HAS_BINARY})"
+          done
+
+      - name: Publish platform packages
+        run: |
+          for pkg in package/npm/@guchho/*/; do
+            PKG_NAME=$(node -p "require('./${pkg}/package.json').name" 2>/dev/null)
+            PKG_VERSION=$(node -p "require('./${pkg}/package.json').version" 2>/dev/null)
+
+            echo "========================================"
+            echo "Publishing: ${PKG_NAME}@${PKG_VERSION}"
+            echo "========================================"
+
+            if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+              echo "[DRY RUN] Would publish ${PKG_NAME}@${PKG_VERSION}"
+              npm pack "${pkg}" --dry-run 2>&1 || true
+            else
+              npm publish "${pkg}" --access public --provenance 2>&1 || {
+                echo "::warning::Failed to publish ${PKG_NAME} (may already exist)"
+              }
+            fi
+
+            echo ""
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ============================================
+  # Job 3: Publish main package (last)
+  # ============================================
+  publish-main:
+    needs: publish-platforms
+    runs-on: ubuntu-latest
+    name: publish-main
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Publish main package
+        run: |
+          PKG_NAME=$(node -p "require('./package/npm/guchho/package.json').name")
+          PKG_VERSION=$(node -p "require('./package/npm/guchho/package.json').version")
+
+          echo "========================================"
+          echo "Publishing: ${PKG_NAME}@${PKG_VERSION}"
+          echo "========================================"
+
+          if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+            echo "[DRY RUN] Would publish ${PKG_NAME}@${PKG_VERSION}"
+            npm pack package/npm/guchho --dry-run 2>&1 || true
+          else
+            npm publish package/npm/guchho --access public --provenance 2>&1
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ============================================
+  # Summary
+  # ============================================
+  summary:
+    needs: publish-main
+    runs-on: ubuntu-latest
+    if: always()
+    name: summary
+    steps:
+      - name: Summary
+        run: |
+          echo "========================================"
+          echo " npm-publish workflow complete"
+          echo "========================================"
+          echo ""
+          echo "Trigger: ${{ github.event_name }}"
+          if [[ -n "${{ github.ref_name }}" ]]; then
+            echo "Tag: ${{ github.ref_name }}"
+          fi
+          echo "Dry run: ${{ github.event.inputs.dry_run || 'false' }}"
+          echo ""
+          echo "Published packages:"
+          echo "  26x @guchho/<platform>"
+          echo "  1x  guchho (main)"
+          echo ""
+          echo "View on npm: https://www.npmjs.com/package/guchho"

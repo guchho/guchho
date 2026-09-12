@@ -208,6 +208,63 @@
     },
 
     {
+      "name": "debug-darwin-x64",
+      "displayName": "macOS x64 Debug",
+      "inherits": "base-ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_OSX_ARCHITECTURES": "x86_64"
+      }
+    },
+    {
+      "name": "release-darwin-x64",
+      "displayName": "macOS x64 Release",
+      "inherits": "base-ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_OSX_ARCHITECTURES": "x86_64"
+      }
+    },
+    {
+      "name": "relwithdebinfo-darwin-x64",
+      "displayName": "macOS x64 RelWithDebInfo",
+      "inherits": "base-ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_OSX_ARCHITECTURES": "x86_64"
+      }
+    },
+    {
+      "name": "minsizerel-darwin-x64",
+      "displayName": "macOS x64 MinSizeRel",
+      "inherits": "base-ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel",
+        "CMAKE_OSX_ARCHITECTURES": "x86_64"
+      }
+    },
+
+    {
       "name": "asan-linux-x64",
       "displayName": "Linux x64 ASan",
       "inherits": "debug-linux-x64",
@@ -335,6 +392,31 @@
       "name": "minsizerel-darwin-arm64",
       "displayName": "Build macOS ARM64 MinSizeRel",
       "configurePreset": "minsizerel-darwin-arm64",
+      "configuration": "MinSizeRel"
+    },
+
+    {
+      "name": "debug-darwin-x64",
+      "displayName": "Build macOS x64 Debug",
+      "configurePreset": "debug-darwin-x64",
+      "configuration": "Debug"
+    },
+    {
+      "name": "release-darwin-x64",
+      "displayName": "Build macOS x64 Release",
+      "configurePreset": "release-darwin-x64",
+      "configuration": "Release"
+    },
+    {
+      "name": "relwithdebinfo-darwin-x64",
+      "displayName": "Build macOS x64 RelWithDebInfo",
+      "configurePreset": "relwithdebinfo-darwin-x64",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "minsizerel-darwin-x64",
+      "displayName": "Build macOS x64 MinSizeRel",
+      "configurePreset": "minsizerel-darwin-x64",
       "configuration": "MinSizeRel"
     },
 

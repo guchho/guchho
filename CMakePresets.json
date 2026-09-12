@@ -1,0 +1,747 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Visual Studio 17 2022",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_C_STANDARD": "17",
+        "CMAKE_C_STANDARD_REQUIRED": "ON",
+        "CMAKE_C_EXTENSIONS": "OFF",
+
+        "CMAKE_CXX_STANDARD": "20",
+        "CMAKE_CXX_STANDARD_REQUIRED": "ON",
+        "CMAKE_CXX_EXTENSIONS": "OFF",
+
+        "BUILD_TESTING": "ON"
+      }
+    },
+
+    {
+      "name": "base-ninja",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_C_STANDARD": "17",
+        "CMAKE_C_STANDARD_REQUIRED": "ON",
+        "CMAKE_C_EXTENSIONS": "OFF",
+
+        "CMAKE_CXX_STANDARD": "20",
+        "CMAKE_CXX_STANDARD_REQUIRED": "ON",
+        "CMAKE_CXX_EXTENSIONS": "OFF",
+
+        "BUILD_TESTING": "ON",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+
+    {
+      "name": "debug-win32-x64",
+      "displayName": "Windows x64 Debug",
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "release-win32-x64",
+      "displayName": "Windows x64 Release",
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "relwithdebinfo-win32-x64",
+      "displayName": "Windows x64 RelWithDebInfo",
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "minsizerel-win32-x64",
+      "displayName": "Windows x64 MinSizeRel",
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel"
+      }
+    },
+
+    {
+      "name": "debug-linux-x64",
+      "displayName": "Linux x64 Debug",
+      "inherits": "base-ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "release-linux-x64",
+      "displayName": "Linux x64 Release",
+      "inherits": "base-ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "relwithdebinfo-linux-x64",
+      "displayName": "Linux x64 RelWithDebInfo",
+      "inherits": "base-ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "minsizerel-linux-x64",
+      "displayName": "Linux x64 MinSizeRel",
+      "inherits": "base-ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel"
+      }
+    },
+
+    {
+      "name": "debug-darwin-arm64",
+      "displayName": "macOS ARM64 Debug",
+      "inherits": "base-ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_OSX_ARCHITECTURES": "arm64"
+      }
+    },
+    {
+      "name": "release-darwin-arm64",
+      "displayName": "macOS ARM64 Release",
+      "inherits": "base-ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_OSX_ARCHITECTURES": "arm64"
+      }
+    },
+    {
+      "name": "relwithdebinfo-darwin-arm64",
+      "displayName": "macOS ARM64 RelWithDebInfo",
+      "inherits": "base-ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_OSX_ARCHITECTURES": "arm64"
+      }
+    },
+    {
+      "name": "minsizerel-darwin-arm64",
+      "displayName": "macOS ARM64 MinSizeRel",
+      "inherits": "base-ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel",
+        "CMAKE_OSX_ARCHITECTURES": "arm64"
+      }
+    },
+
+    {
+      "name": "asan-linux-x64",
+      "displayName": "Linux x64 ASan",
+      "inherits": "debug-linux-x64",
+      "cacheVariables": {
+        "GUCHHO_ENABLE_ASAN": "ON"
+      }
+    },
+    {
+      "name": "ubsan-linux-x64",
+      "displayName": "Linux x64 UBSan",
+      "inherits": "debug-linux-x64",
+      "cacheVariables": {
+        "GUCHHO_ENABLE_UBSAN": "ON"
+      }
+    },
+
+    {
+      "name": "ci",
+      "displayName": "Continuous Integration",
+      "inherits": "release-win32-x64",
+      "cacheVariables": {
+        "GUCHHO_ENABLE_STRICT_WARNINGS": "ON",
+        "GUCHHO_WARNINGS_AS_ERRORS": "ON"
+      }
+    },
+
+    {
+      "name": "debug-win32-x64-ninja",
+      "displayName": "Windows x64 Debug (Ninja)",
+      "inherits": "base-ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "release-win32-x64-ninja",
+      "displayName": "Windows x64 Release (Ninja)",
+      "inherits": "base-ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    }
+  ],
+
+  "buildPresets": [
+    {
+      "name": "debug-win32-x64",
+      "displayName": "Build Windows x64 Debug",
+      "configurePreset": "debug-win32-x64",
+      "configuration": "Debug"
+    },
+    {
+      "name": "release-win32-x64",
+      "displayName": "Build Windows x64 Release",
+      "configurePreset": "release-win32-x64",
+      "configuration": "Release"
+    },
+    {
+      "name": "relwithdebinfo-win32-x64",
+      "displayName": "Build Windows x64 RelWithDebInfo",
+      "configurePreset": "relwithdebinfo-win32-x64",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "minsizerel-win32-x64",
+      "displayName": "Build Windows x64 MinSizeRel",
+      "configurePreset": "minsizerel-win32-x64",
+      "configuration": "MinSizeRel"
+    },
+
+    {
+      "name": "debug-linux-x64",
+      "displayName": "Build Linux x64 Debug",
+      "configurePreset": "debug-linux-x64",
+      "configuration": "Debug"
+    },
+    {
+      "name": "release-linux-x64",
+      "displayName": "Build Linux x64 Release",
+      "configurePreset": "release-linux-x64",
+      "configuration": "Release"
+    },
+    {
+      "name": "relwithdebinfo-linux-x64",
+      "displayName": "Build Linux x64 RelWithDebInfo",
+      "configurePreset": "relwithdebinfo-linux-x64",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "minsizerel-linux-x64",
+      "displayName": "Build Linux x64 MinSizeRel",
+      "configurePreset": "minsizerel-linux-x64",
+      "configuration": "MinSizeRel"
+    },
+
+    {
+      "name": "debug-darwin-arm64",
+      "displayName": "Build macOS ARM64 Debug",
+      "configurePreset": "debug-darwin-arm64",
+      "configuration": "Debug"
+    },
+    {
+      "name": "release-darwin-arm64",
+      "displayName": "Build macOS ARM64 Release",
+      "configurePreset": "release-darwin-arm64",
+      "configuration": "Release"
+    },
+    {
+      "name": "relwithdebinfo-darwin-arm64",
+      "displayName": "Build macOS ARM64 RelWithDebInfo",
+      "configurePreset": "relwithdebinfo-darwin-arm64",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "minsizerel-darwin-arm64",
+      "displayName": "Build macOS ARM64 MinSizeRel",
+      "configurePreset": "minsizerel-darwin-arm64",
+      "configuration": "MinSizeRel"
+    },
+
+    {
+      "name": "asan-linux-x64",
+      "displayName": "Build Linux x64 ASan",
+      "configurePreset": "asan-linux-x64",
+      "configuration": "Debug"
+    },
+    {
+      "name": "ubsan-linux-x64",
+      "displayName": "Build Linux x64 UBSan",
+      "configurePreset": "ubsan-linux-x64",
+      "configuration": "Debug"
+    },
+
+    {
+      "name": "ci",
+      "displayName": "Build CI",
+      "configurePreset": "ci",
+      "configuration": "Release"
+    },
+
+    {
+      "name": "debug-win32-x64-ninja",
+      "displayName": "Build Windows x64 Debug (Ninja)",
+      "configurePreset": "debug-win32-x64-ninja"
+    },
+    {
+      "name": "release-win32-x64-ninja",
+      "displayName": "Build Windows x64 Release (Ninja)",
+      "configurePreset": "release-win32-x64-ninja"
+    }
+  ],
+
+  "testPresets": [
+    {
+      "name": "debug-win32-x64",
+      "displayName": "Test Windows x64 Debug",
+      "configurePreset": "debug-win32-x64",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true
+      }
+    },
+    {
+      "name": "release-win32-x64",
+      "displayName": "Test Windows x64 Release",
+      "configurePreset": "release-win32-x64",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true
+      }
+    },
+    {
+      "name": "relwithdebinfo-win32-x64",
+      "displayName": "Test Windows x64 RelWithDebInfo",
+      "configurePreset": "relwithdebinfo-win32-x64",
+      "configuration": "RelWithDebInfo",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true
+      }
+    },
+    {
+      "name": "minsizerel-win32-x64",
+      "displayName": "Test Windows x64 MinSizeRel",
+      "configurePreset": "minsizerel-win32-x64",
+      "configuration": "MinSizeRel",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true
+      }
+    },
+
+    {
+      "name": "debug-linux-x64",
+      "displayName": "Test Linux x64 Debug",
+      "configurePreset": "debug-linux-x64",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true
+      }
+    },
+    {
+      "name": "release-linux-x64",
+      "displayName": "Test Linux x64 Release",
+      "configurePreset": "release-linux-x64",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true
+      }
+    },
+    {
+      "name": "relwithdebinfo-linux-x64",
+      "displayName": "Test Linux x64 RelWithDebInfo",
+      "configurePreset": "relwithdebinfo-linux-x64",
+      "configuration": "RelWithDebInfo",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true
+      }
+    },
+    {
+      "name": "minsizerel-linux-x64",
+      "displayName": "Test Linux x64 MinSizeRel",
+      "configurePreset": "minsizerel-linux-x64",
+      "configuration": "MinSizeRel",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true
+      }
+    },
+
+    {
+      "name": "debug-darwin-arm64",
+      "displayName": "Test macOS ARM64 Debug",
+      "configurePreset": "debug-darwin-arm64",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true
+      }
+    },
+    {
+      "name": "release-darwin-arm64",
+      "displayName": "Test macOS ARM64 Release",
+      "configurePreset": "release-darwin-arm64",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true
+      }
+    },
+    {
+      "name": "relwithdebinfo-darwin-arm64",
+      "displayName": "Test macOS ARM64 RelWithDebInfo",
+      "configurePreset": "relwithdebinfo-darwin-arm64",
+      "configuration": "RelWithDebInfo",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true
+      }
+    },
+    {
+      "name": "minsizerel-darwin-arm64",
+      "displayName": "Test macOS ARM64 MinSizeRel",
+      "configurePreset": "minsizerel-darwin-arm64",
+      "configuration": "MinSizeRel",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true
+      }
+    },
+
+    {
+      "name": "asan-linux-x64",
+      "displayName": "Test Linux x64 ASan",
+      "configurePreset": "asan-linux-x64",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true
+      }
+    },
+    {
+      "name": "ubsan-linux-x64",
+      "displayName": "Test Linux x64 UBSan",
+      "configurePreset": "ubsan-linux-x64",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true
+      }
+    },
+
+    {
+      "name": "ci",
+      "configurePreset": "ci",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true,
+        "noTestsAction": "error"
+      }
+    },
+
+    {
+      "name": "debug-win32-x64-ninja",
+      "displayName": "Test Windows x64 Debug (Ninja)",
+      "configurePreset": "debug-win32-x64-ninja",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true
+      }
+    },
+    {
+      "name": "release-win32-x64-ninja",
+      "displayName": "Test Windows x64 Release (Ninja)",
+      "configurePreset": "release-win32-x64-ninja",
+"output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true
+      }
+    }
+  ],
+
+  "workflowPresets": [
+    {
+      "name": "debug-win32-x64",
+      "displayName": "Windows x64 Debug Workflow",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "debug-win32-x64"
+        },
+        {
+          "type": "build",
+          "name": "debug-win32-x64"
+        },
+        {
+          "type": "test",
+          "name": "debug-win32-x64"
+        }
+      ]
+    },
+    {
+      "name": "release-win32-x64",
+      "displayName": "Windows x64 Release Workflow",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "release-win32-x64"
+        },
+        {
+          "type": "build",
+          "name": "release-win32-x64"
+        },
+        {
+          "type": "test",
+          "name": "release-win32-x64"
+        }
+      ]
+    },
+    {
+      "name": "debug-linux-x64",
+      "displayName": "Linux x64 Debug Workflow",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "debug-linux-x64"
+        },
+        {
+          "type": "build",
+          "name": "debug-linux-x64"
+        },
+        {
+          "type": "test",
+          "name": "debug-linux-x64"
+        }
+      ]
+    },
+    {
+      "name": "release-linux-x64",
+      "displayName": "Linux x64 Release Workflow",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "release-linux-x64"
+        },
+        {
+          "type": "build",
+          "name": "release-linux-x64"
+        },
+        {
+          "type": "test",
+          "name": "release-linux-x64"
+        }
+      ]
+    },
+    {
+      "name": "debug-darwin-arm64",
+      "displayName": "macOS ARM64 Debug Workflow",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "debug-darwin-arm64"
+        },
+        {
+          "type": "build",
+          "name": "debug-darwin-arm64"
+        },
+        {
+          "type": "test",
+          "name": "debug-darwin-arm64"
+        }
+      ]
+    },
+    {
+      "name": "release-darwin-arm64",
+      "displayName": "macOS ARM64 Release Workflow",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "release-darwin-arm64"
+        },
+        {
+          "type": "build",
+          "name": "release-darwin-arm64"
+        },
+        {
+          "type": "test",
+          "name": "release-darwin-arm64"
+        }
+      ]
+    },
+    {
+      "name": "ci",
+      "displayName": "CI Workflow",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ci"
+        },
+        {
+          "type": "build",
+          "name": "ci"
+        },
+        {
+          "type": "test",
+          "name": "ci"
+        }
+      ]
+    },
+    {
+      "name": "debug-win32-x64-ninja",
+      "displayName": "Windows x64 Debug Workflow (Ninja)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "debug-win32-x64-ninja"
+        },
+        {
+          "type": "build",
+          "name": "debug-win32-x64-ninja"
+        },
+        {
+          "type": "test",
+          "name": "debug-win32-x64-ninja"
+        }
+      ]
+    },
+    {
+      "name": "release-win32-x64-ninja",
+      "displayName": "Windows x64 Release Workflow (Ninja)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "release-win32-x64-ninja"
+        },
+        {
+          "type": "build",
+          "name": "release-win32-x64-ninja"
+        },
+        {
+          "type": "test",
+          "name": "release-win32-x64-ninja"
+        }
+      ]
+    }
+  ]
+}

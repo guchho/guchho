@@ -47,7 +47,7 @@ jobs:
             preset: release-darwin-arm64
 
           - platform: darwin-x64
-            runner: macos-13
+            runner: macos-15-intel
             method: native
             preset: release-darwin-x64
 

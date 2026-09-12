@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC
+    "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+
+<plist version="1.0">
+<dict>
+
+    <!-- Application identity -->
+    <key>CFBundleName</key>
+    <string>Guchho</string>
+
+    <key>CFBundleDisplayName</key>
+    <string>Guchho</string>
+
+    <key>CFBundleIdentifier</key>
+    <string>in.codehemu.guchho</string>
+
+    <!-- Executable -->
+    <key>CFBundleExecutable</key>
+    <string>guchho</string>
+
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+    <!-- Version -->
+    <key>CFBundleShortVersionString</key>
+    <string>@PROJECT_VERSION@</string>
+
+    <key>CFBundleVersion</key>
+    <string>@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@</string>
+
+    <!-- Application information -->
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+
+    <key>CFBundleSignature</key>
+    <string>GCHO</string>
+
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © CodeHemu</string>
+
+</dict>
+</plist>

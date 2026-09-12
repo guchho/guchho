@@ -151,6 +151,59 @@
     },
 
     {
+      "name": "debug-linux-arm64",
+      "displayName": "Linux ARM64 Debug",
+      "inherits": "base-ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "release-linux-arm64",
+      "displayName": "Linux ARM64 Release",
+      "inherits": "base-ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "relwithdebinfo-linux-arm64",
+      "displayName": "Linux ARM64 RelWithDebInfo",
+      "inherits": "base-ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "minsizerel-linux-arm64",
+      "displayName": "Linux ARM64 MinSizeRel",
+      "inherits": "base-ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel"
+      }
+    },
+
+    {
       "name": "debug-darwin-arm64",
       "displayName": "macOS ARM64 Debug",
       "inherits": "base-ninja",
@@ -367,6 +420,31 @@
       "name": "minsizerel-linux-x64",
       "displayName": "Build Linux x64 MinSizeRel",
       "configurePreset": "minsizerel-linux-x64",
+      "configuration": "MinSizeRel"
+    },
+
+    {
+      "name": "debug-linux-arm64",
+      "displayName": "Build Linux ARM64 Debug",
+      "configurePreset": "debug-linux-arm64",
+      "configuration": "Debug"
+    },
+    {
+      "name": "release-linux-arm64",
+      "displayName": "Build Linux ARM64 Release",
+      "configurePreset": "release-linux-arm64",
+      "configuration": "Release"
+    },
+    {
+      "name": "relwithdebinfo-linux-arm64",
+      "displayName": "Build Linux ARM64 RelWithDebInfo",
+      "configurePreset": "relwithdebinfo-linux-arm64",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "minsizerel-linux-arm64",
+      "displayName": "Build Linux ARM64 MinSizeRel",
+      "configurePreset": "minsizerel-linux-arm64",
       "configuration": "MinSizeRel"
     },
 

@@ -464,12 +464,12 @@ jobs:
         with:
           path: artifacts/
           pattern: package-*
-          merge-multiple: true
 
       - name: Sync artifacts to package directory
         run: |
           for dir in artifacts/*/; do
-            PLATFORM=$(basename "$dir")
+            NAME=$(basename "$dir")
+            PLATFORM="${NAME#package-}"
             DEST="package/npm/@guchho/${PLATFORM}"
             mkdir -p "${DEST}"
             cp -r "${dir}"* "${DEST}/" 2>/dev/null || true
@@ -480,6 +480,7 @@ jobs:
         run: |
           echo "Packages:"
           for pkg in package/npm/@guchho/*/; do
+            [[ -f "${pkg}package.json" ]] || { echo "  (skipped: ${pkg} has no package.json)"; continue; }
             NAME=$(node -p "require('./${pkg}/package.json').name" 2>/dev/null || echo "unknown")
             VERSION=$(node -p "require('./${pkg}/package.json').version" 2>/dev/null || echo "unknown")
             HAS_BINARY="no"
@@ -492,12 +493,24 @@ jobs:
       - name: Publish platform packages
         run: |
           for pkg in package/npm/@guchho/*/; do
+            [[ -f "${pkg}package.json" ]] || { echo "Skipping ${pkg} (no package.json)"; continue; }
             PKG_NAME=$(node -p "require('./${pkg}/package.json').name" 2>/dev/null)
             PKG_VERSION=$(node -p "require('./${pkg}/package.json').version" 2>/dev/null)
 
             echo "========================================"
             echo "Publishing: ${PKG_NAME}@${PKG_VERSION}"
             echo "========================================"
+
+            HAS_BINARY="no"
+            if [[ -d "${pkg}/bin" ]] && ls "${pkg}/bin/"* >/dev/null 2>&1; then
+              HAS_BINARY="yes"
+            fi
+
+            if [[ "${HAS_BINARY}" != "yes" ]]; then
+              echo "::warning::Skipping ${PKG_NAME}@${PKG_VERSION} — package has no binary"
+              echo ""
+              continue
+            fi
 
             if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
               echo "[DRY RUN] Would publish ${PKG_NAME}@${PKG_VERSION}"

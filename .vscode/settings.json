@@ -1,0 +1,96 @@
+{
+  // ─────────────────────────────────────────────
+  // Clangd
+  // ─────────────────────────────────────────────
+  "clangd.arguments": [
+    "--background-index",
+    "--compile-commands-dir=${workspaceFolder}/build/debug-win32-x64-ninja",
+    "--header-insertion=iwyu",
+    "--completion-style=detailed",
+    "--clang-tidy",
+    "--clang-tidy-checks=*",
+    "--function-arg-placeholders",
+    "--header-insertion-decorators",
+    "--query-driver=cl.exe"
+  ],
+
+  // ─────────────────────────────────────────────
+  // Microsoft C/C++ extension
+  // Use clangd as the primary C++ language server
+  // ─────────────────────────────────────────────
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "C_Cpp.errorSquiggles": "disabled",
+
+  // ─────────────────────────────────────────────
+  // CMake
+  // ─────────────────────────────────────────────
+  "cmake.buildDirectory":
+    "${workspaceFolder}/build/debug-win32-x64-ninja",
+
+  "cmake.configureOnOpen": false,
+  "cmake.generator": "Ninja",
+
+  // ─────────────────────────────────────────────
+  // CMake Tools
+  // ─────────────────────────────────────────────
+  "cmake.showOptionsMovedNotification": false,
+  "cmake.showAdvanced": true,
+
+  // ─────────────────────────────────────────────
+  // C++ files
+  // ─────────────────────────────────────────────
+  "files.associations": {
+    "*.tpp": "cpp",
+    "*.ipp": "cpp",
+    "*.inl": "cpp",
+    "*.inc": "cpp"
+  },
+
+  // ─────────────────────────────────────────────
+  // Editor
+  // ─────────────────────────────────────────────
+  "editor.formatOnSave": false,
+  "editor.formatOnType": false,
+
+  // ─────────────────────────────────────────────
+  // C/C++ formatting
+  // clang-format is preferred
+  // ─────────────────────────────────────────────
+  "[cpp]": {
+    "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+    "editor.formatOnSave": false
+  },
+
+  "[c]": {
+    "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+    "editor.formatOnSave": false
+  },
+
+  // ─────────────────────────────────────────────
+  // Search exclusions
+  // Prevent VS Code from indexing build output
+  // ─────────────────────────────────────────────
+  "files.exclude": {
+    "**/.git": true,
+    "**/build": true,
+    "**/node_modules": true
+  },
+
+  "search.exclude": {
+    "**/build": true,
+    "**/node_modules": true
+  },
+
+  // ─────────────────────────────────────────────
+  // File watcher
+  // ─────────────────────────────────────────────
+  "files.watcherExclude": {
+    "**/build/**": true,
+    "**/node_modules/**": true
+  },
+
+  // ─────────────────────────────────────────────
+  // Terminal
+  // ─────────────────────────────────────────────
+  "terminal.integrated.defaultProfile.windows": "PowerShell"
+}

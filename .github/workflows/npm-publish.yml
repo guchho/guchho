@@ -104,7 +104,7 @@ jobs:
           - platform: linux-loong64
             runner: ubuntu-latest
             method: docker
-            docker_image: ghcr.io/loong64/openeuler:24
+            docker_image: ghcr.io/loong64/loongnix:23
 
           # ---- Windows MSVC cross-compilation ----
           - platform: win32-ia32
@@ -141,7 +141,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # ============================================
       # Native builds (Linux, macOS, Windows)
@@ -252,7 +252,7 @@ jobs:
       # ============================================
       - name: Setup QEMU (Docker)
         if: matrix.method == 'docker'
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
         with:
           platforms: linux/loongarch64
 
@@ -264,7 +264,7 @@ jobs:
             -w /workspace \
             ${{ matrix.docker_image }} \
             bash -c "
-              zypper install -y cmake ninja gcc-c++ &&
+              apt-get update && apt-get install -y cmake ninja-build g++ pkg-config &&
               cmake -B build/release-${{ matrix.platform }} \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_C_STANDARD=17 \
@@ -313,27 +313,17 @@ jobs:
       # ============================================
       # Windows MSVC cross-compilation
       # ============================================
-      - name: Setup MSVC (cross)
-        if: matrix.method == 'msvc_cross'
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: ${{ matrix.arch }}
-
       - name: Build (MSVC cross)
         if: matrix.method == 'msvc_cross'
         run: |
           cmake -B build/release-${{ matrix.platform }} \
-            -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_COMPILER=cl \
-            -DCMAKE_CXX_COMPILER=cl \
-            -DCMAKE_SYSTEM_NAME=Windows \
-            -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} \
+            -G "Visual Studio 17 2022" \
+            -A ${{ matrix.arch }} \
             -DCMAKE_C_STANDARD=17 \
             -DCMAKE_CXX_STANDARD=20 \
             -DCMAKE_C_STANDARD_REQUIRED=ON \
             -DCMAKE_CXX_STANDARD_REQUIRED=ON
-          cmake --build build/release-${{ matrix.platform }} --parallel
+          cmake --build build/release-${{ matrix.platform }} --config Release --parallel
         shell: bash
 
       - name: Find binary (MSVC cross)
@@ -446,7 +436,7 @@ jobs:
           fi
 
       - name: Upload package artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: package-${{ matrix.platform }}
           path: package/npm/@guchho/${{ matrix.platform }}/
@@ -461,7 +451,7 @@ jobs:
     name: publish-platforms
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -470,7 +460,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: artifacts/
           pattern: package-*
@@ -532,7 +522,7 @@ jobs:
     name: publish-main
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

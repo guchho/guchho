@@ -264,7 +264,7 @@ jobs:
             -w /workspace \
             ${{ matrix.docker_image }} \
             bash -c "
-              apt-get update && apt-get install -y cmake ninja-build g++ pkg-config &&
+              apt-get -o Acquire::https::Verify-Peer=false update && apt-get -o Acquire::https::Verify-Peer=false install -y cmake ninja-build g++ pkg-config &&
               cmake -B build/release-${{ matrix.platform }} \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_C_STANDARD=17 \

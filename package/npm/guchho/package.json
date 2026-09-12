@@ -1,0 +1,48 @@
+{
+  "name": "guchho",
+  "version": "1.0.1",
+  "description": "Fast build system for web applications",
+  "bin": {
+    "guchho": "bin/guchho.js"
+  },
+  "main": "lib/main.js",
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "install.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "bundler",
+    "build",
+    "javascript",
+    "typescript",
+    "css",
+    "html",
+    "minifier",
+    "bundler",
+    "guchho"
+  ],
+  "author": "Hemanta Gayen",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guchho/guchho.git"
+  },
+  "bugs": {
+    "url": "https://github.com/guchho/guchho/issues"
+  },
+  "homepage": "https://github.com/guchho/guchho#readme",
+  "optionalDependencies": {
+    "@guchho/win32-x64": "1.0.1",
+    "@guchho/linux-x64": "1.0.1",
+    "@guchho/darwin-arm64": "1.0.1"
+  }
+}

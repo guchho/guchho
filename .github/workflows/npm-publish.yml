@@ -317,7 +317,7 @@ jobs:
         if: matrix.method == 'msvc_cross'
         run: |
           cmake -B build/release-${{ matrix.platform }} \
-            -G "Visual Studio 17 2022" \
+            -G "Visual Studio 18 2026" \
             -A ${{ matrix.arch }} \
             -DCMAKE_C_STANDARD=17 \
             -DCMAKE_CXX_STANDARD=20 \

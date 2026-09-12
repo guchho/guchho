@@ -1,33 +1,16 @@
 {
   "name": "@guchho/linux-x64",
-  "version": "0.1.0",
-  "description": "The Linux 64-bit binary for guchho,  a fast web bundler, compiler, and build tool.",
+  "version": "1.0.1",
+  "description": "The Linux 64-bit binary for guchho, a fast build system for web applications.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/code-hemu/guchho.git"
+    "url": "git+https://github.com/guchho/guchho.git"
   },
   "license": "MIT",
   "preferUnplugged": true,
-  "engines": {
-    "node": ">=18"
-  },
-  "keywords": [
-    "guchho",
-    "bundler",
-    "build",
-    "javascript",
-    "typescript",
-    "css",
-    "html",
-    "minifier"
-  ],
-  "os": [
-    "linux"
-  ],
-  "cpu": [
-    "x64"
-  ],
-  "files": [
-    "bin/"
-  ]
+  "engines": { "node": ">=18" },
+  "keywords": ["guchho", "bundler", "build", "javascript", "typescript", "css", "html", "minifier"],
+  "os": ["linux"],
+  "cpu": ["x64"],
+  "files": ["bin/"]
 }

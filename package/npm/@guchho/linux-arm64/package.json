@@ -1,7 +1,7 @@
 {
-  "name": "@guchho/darwin-arm64",
+  "name": "@guchho/linux-arm64",
   "version": "1.0.1",
-  "description": "The macOS ARM64 binary for guchho, a fast build system for web applications.",
+  "description": "The Linux ARM64 binary for guchho, a fast build system for web applications.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/guchho/guchho.git"
@@ -10,7 +10,7 @@
   "preferUnplugged": true,
   "engines": { "node": ">=18" },
   "keywords": ["guchho", "bundler", "build", "javascript", "typescript", "css", "html", "minifier"],
-  "os": ["darwin"],
+  "os": ["linux"],
   "cpu": ["arm64"],
   "files": ["bin/"]
 }

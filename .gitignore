@@ -48,7 +48,6 @@ package/npm/node_modules/
 
 # Native npm package binaries
 package/npm/@guchho/*/bin/
-package/npm/guchho/bin/
 
 
 # ------------------------------------------------------------

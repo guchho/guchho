@@ -24,7 +24,7 @@ env:
 
 jobs:
   # ============================================
-  # Job 1: Build binaries for all platforms
+  # Job 1: Build binaries for core platforms
   # ============================================
   build:
     strategy:
@@ -37,105 +37,106 @@ jobs:
             method: native
             preset: release-linux-x64
 
-          - platform: linux-arm64
-            runner: ubuntu-24.04-arm
-            method: native
-            preset: release-linux-arm64
-
           - platform: darwin-arm64
             runner: macos-latest
             method: native
             preset: release-darwin-arm64
-
-          - platform: darwin-x64
-            runner: macos-15-intel
-            method: native
-            preset: release-darwin-x64
 
           - platform: win32-x64
             runner: windows-latest
             method: native
             preset: release-win32-x64-ninja
 
+          # ---- Native builds (optional) ----
+          # - platform: linux-arm64
+          #   runner: ubuntu-24.04-arm
+          #   method: native
+          #   preset: release-linux-arm64
+          #
+          # - platform: darwin-x64
+          #   runner: macos-15-intel
+          #   method: native
+          #   preset: release-darwin-x64
+
           # ---- GCC cross-compilers ----
-          - platform: linux-arm
-            runner: ubuntu-latest
-            method: cross
-            cc: arm-linux-gnueabihf-gcc
-            cxx: arm-linux-gnueabihf-g++
-            cross_packages: gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
-
-          - platform: linux-ia32
-            runner: ubuntu-latest
-            method: cross
-            cc: gcc
-            cxx: g++
-            cross_packages: gcc-multilib g++-multilib
-            cmake_flags: -DCMAKE_C_FLAGS=-m32 -DCMAKE_CXX_FLAGS=-m32
-
-          - platform: linux-s390x
-            runner: ubuntu-latest
-            method: cross
-            cc: s390x-linux-gnu-gcc
-            cxx: s390x-linux-gnu-g++
-            cross_packages: gcc-s390x-linux-gnu g++-s390x-linux-gnu
-
-          - platform: linux-ppc64
-            runner: ubuntu-latest
-            method: cross
-            cc: powerpc64le-linux-gnu-gcc
-            cxx: powerpc64le-linux-gnu-g++
-            cross_packages: gcc-powerpc64le-linux-gnu g++-powerpc64le-linux-gnu
-
-          - platform: linux-riscv64
-            runner: ubuntu-latest
-            method: cross
-            cc: riscv64-linux-gnu-gcc
-            cxx: riscv64-linux-gnu-g++
-            cross_packages: gcc-riscv64-linux-gnu g++-riscv64-linux-gnu
-
-          - platform: linux-mips64el
-            runner: ubuntu-latest
-            method: cross
-            cc: mips64el-linux-gnuabi64-gcc
-            cxx: mips64el-linux-gnuabi64-g++
-            cross_packages: gcc-mips64el-linux-gnuabi64 g++-mips64el-linux-gnuabi64
+          # - platform: linux-arm
+          #   runner: ubuntu-latest
+          #   method: cross
+          #   cc: arm-linux-gnueabihf-gcc
+          #   cxx: arm-linux-gnueabihf-g++
+          #   cross_packages: gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
+          #
+          # - platform: linux-ia32
+          #   runner: ubuntu-latest
+          #   method: cross
+          #   cc: gcc
+          #   cxx: g++
+          #   cross_packages: gcc-multilib g++-multilib
+          #   cmake_flags: -DCMAKE_C_FLAGS=-m32 -DCMAKE_CXX_FLAGS=-m32
+          #
+          # - platform: linux-s390x
+          #   runner: ubuntu-latest
+          #   method: cross
+          #   cc: s390x-linux-gnu-gcc
+          #   cxx: s390x-linux-gnu-g++
+          #   cross_packages: gcc-s390x-linux-gnu g++-s390x-linux-gnu
+          #
+          # - platform: linux-ppc64
+          #   runner: ubuntu-latest
+          #   method: cross
+          #   cc: powerpc64le-linux-gnu-gcc
+          #   cxx: powerpc64le-linux-gnu-g++
+          #   cross_packages: gcc-powerpc64le-linux-gnu g++-powerpc64le-linux-gnu
+          #
+          # - platform: linux-riscv64
+          #   runner: ubuntu-latest
+          #   method: cross
+          #   cc: riscv64-linux-gnu-gcc
+          #   cxx: riscv64-linux-gnu-g++
+          #   cross_packages: gcc-riscv64-linux-gnu g++-riscv64-linux-gnu
+          #
+          # - platform: linux-mips64el
+          #   runner: ubuntu-latest
+          #   method: cross
+          #   cc: mips64el-linux-gnuabi64-gcc
+          #   cxx: mips64el-linux-gnuabi64-g++
+          #   cross_packages: gcc-mips64el-linux-gnuabi64 g++-mips64el-linux-gnuabi64
 
           # ---- Docker (only where no cross-compiler exists) ----
-          - platform: linux-loong64
-            runner: ubuntu-latest
-            method: docker
-            docker_image: ghcr.io/loong64/loongnix:25
+          # - platform: linux-loong64
+          #   runner: ubuntu-latest
+          #   method: docker
+          #   docker_image: ghcr.io/loong64/loongnix:25
 
           # ---- Windows MSVC cross-compilation ----
-          - platform: win32-ia32
-            runner: windows-latest
-            method: msvc_cross
-            arch: Win32
-
-          - platform: win32-arm64
-            runner: windows-latest
-            method: msvc_cross
-            arch: ARM64
+          # - platform: win32-ia32
+          #   runner: windows-latest
+          #   method: msvc_cross
+          #   arch: Win32
+          #
+          # - platform: win32-arm64
+          #   runner: windows-latest
+          #   method: msvc_cross
+          #   arch: ARM64
 
           # ---- Android NDK cross-compilation ----
-          - platform: android-arm
-            runner: ubuntu-latest
-            method: android
-            android_abi: armeabi-v7a
-            android_api: 21
-
-          - platform: android-arm64
-            runner: ubuntu-latest
-            method: android
-            android_abi: arm64-v8a
-            android_api: 21
-
-          - platform: android-x64
-            runner: ubuntu-latest
-            method: android
-            android_abi: x86_64
-            android_api: 21
+          # - platform: android-arm
+          #   runner: ubuntu-latest
+          #   method: android
+          #   android_abi: armeabi-v7a
+          #   android_api: 21
+          #
+          # - platform: android-arm64
+          #   runner: ubuntu-latest
+          #   method: android
+          #   android_abi: arm64-v8a
+          #   android_api: 21
+          #
+          # - platform: android-x64
+          #   runner: ubuntu-latest
+          #   method: android
+          #   android_abi: x86_64
+          #   android_api: 21
 
     runs-on: ${{ matrix.runner }}
     name: build (${{ matrix.platform }})
@@ -584,7 +585,7 @@ jobs:
           echo "Dry run: ${{ github.event.inputs.dry_run || 'false' }}"
           echo ""
           echo "Published packages:"
-          echo "  26x @guchho/<platform>"
+          echo "  3x @guchho/<platform>"
           echo "  1x  guchho (main)"
           echo ""
           echo "View on npm: https://www.npmjs.com/package/guchho"

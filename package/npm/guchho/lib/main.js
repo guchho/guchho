@@ -4,34 +4,7 @@ const child_process = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
-const PLATFORM_PACKAGES = {
-  "aix-ppc64": "@guchho/aix-ppc64",
-  "android-arm": "@guchho/android-arm",
-  "android-arm64": "@guchho/android-arm64",
-  "android-x64": "@guchho/android-x64",
-  "darwin-arm64": "@guchho/darwin-arm64",
-  "darwin-x64": "@guchho/darwin-x64",
-  "freebsd-arm64": "@guchho/freebsd-arm64",
-  "freebsd-x64": "@guchho/freebsd-x64",
-  "linux-arm": "@guchho/linux-arm",
-  "linux-arm64": "@guchho/linux-arm64",
-  "linux-ia32": "@guchho/linux-ia32",
-  "linux-loong64": "@guchho/linux-loong64",
-  "linux-mips64el": "@guchho/linux-mips64el",
-  "linux-ppc64": "@guchho/linux-ppc64",
-  "linux-riscv64": "@guchho/linux-riscv64",
-  "linux-s390x": "@guchho/linux-s390x",
-  "linux-x64": "@guchho/linux-x64",
-  "netbsd-arm64": "@guchho/netbsd-arm64",
-  "netbsd-x64": "@guchho/netbsd-x64",
-  "openbsd-arm64": "@guchho/openbsd-arm64",
-  "openbsd-x64": "@guchho/openbsd-x64",
-  "openharmony-arm64": "@guchho/openharmony-arm64",
-  "sunos-x64": "@guchho/sunos-x64",
-  "win32-arm64": "@guchho/win32-arm64",
-  "win32-ia32": "@guchho/win32-ia32",
-  "win32-x64": "@guchho/win32-x64",
-};
+const { PLATFORM_PACKAGES } = require("./platforms");
 
 function getPlatformKey() {
   const platform = process.platform;
@@ -65,14 +38,25 @@ function getBinaryPath() {
   // When installed via npm, __dirname is node_modules/guchho/lib/
   // When running from source, __dirname is package/npm/guchho/lib/
   const projectRoot = path.resolve(__dirname, "..", "..", "..", "..");
+  const buildDir = path.join(projectRoot, "build");
   const localPaths = [
     path.join(__dirname, "..", "bin", binaryName),
-    path.join(projectRoot, "build", "release-win32-x64-ninja", "bin", binaryName),
-    path.join(projectRoot, "build", "release-win32-x64", "bin", "Release", binaryName),
-    path.join(projectRoot, "build", "release-linux-x64", "bin", binaryName),
-    path.join(projectRoot, "build", "release-darwin-arm64", "bin", binaryName),
-    path.join(projectRoot, "build", "debug-win32-x64-ninja", "bin", binaryName),
   ];
+
+  // Dynamically search build directories for the current platform
+  if (fs.existsSync(buildDir)) {
+    const prefix = `${process.platform === "win32" ? "win32" : process.platform}-${process.arch}`;
+    const entries = fs.readdirSync(buildDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name.includes(prefix)) {
+        // Windows MSVC layout: build/<preset>/bin/Release/guchho.exe
+        localPaths.push(path.join(buildDir, entry.name, "bin", "Release", binaryName));
+        // Ninja/Unix layout: build/<preset>/bin/guchho
+        localPaths.push(path.join(buildDir, entry.name, "bin", binaryName));
+      }
+    }
+  }
+
   for (const p of localPaths) {
     if (fs.existsSync(p)) {
       return p;
@@ -82,7 +66,7 @@ function getBinaryPath() {
   throw new Error(
     `Could not find guchho binary for ${platformKey}.\n` +
       `Please install the platform-specific package:\n` +
-      `  npm install @guchho/${platformKey}\n` +
+      `  npm install ${platformPkg || `@guchho/${platformKey}`}\n` +
       `Or build from source: https://github.com/guchho/guchho#readme`
   );
 }

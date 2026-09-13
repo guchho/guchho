@@ -2,6 +2,7 @@
 
 add_library(guchho_helpers_test_objects OBJECT
     utf8_test.cpp
+    base64_test.cpp
 )
 
 target_include_directories(

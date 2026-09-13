@@ -6,7 +6,7 @@ set -uo pipefail
 # Guchho Test System
 # ========================================
 
-PRESET="release-win32-x64-ninja"
+PRESET="release-win32-x64"
 TEST_FILTER=""
 TEST_TIMEOUT=""
 

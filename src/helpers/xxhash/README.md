@@ -1,0 +1,1 @@
+This C++ implementation of xxHash is from https://github.com/Cyan4973/xxHash.

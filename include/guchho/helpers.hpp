@@ -78,4 +78,27 @@ namespace guchho::helpers {
 
     // Encodes using the RFC 4648 base32 alphabet (A-Z, 2-7) with padding.
     std::string Base32StdEncode(std::string_view src);
+
+
+    //---------------------------------------
+    // ------------ xxhash.cpp --------------
+    //---------------------------------------
+    // The 64-bit variant of xxHash.
+    class Xxh64 {
+    public:
+        Xxh64();
+
+        void     Reset();
+        void     Write(const void* data, size_t len);
+        uint64_t Sum64() const;
+
+    private:
+        uint64_t v1_ = 0;
+        uint64_t v2_ = 0;
+        uint64_t v3_ = 0;
+        uint64_t v4_ = 0;
+        size_t   total_ = 0;
+        uint8_t  n_ = 0;
+        std::array<uint8_t, 32> mem_{};
+    };
 }

@@ -448,7 +448,7 @@ namespace guchho::helpers {
             result.append(buffer, static_cast<size_t>(width));
         }
 
-        return {result, 0, true};
+        return {result, static_cast<char16_t>(0), true};
     }
 
     // Compares a UTF-16 string with a WTF-8 string for equality.

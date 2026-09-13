@@ -363,18 +363,21 @@ enum class Op { kEq, kNe, kLt, kLe, kGt, kGe };
 // the integral/string/pointer operands guchho's suites compare.
 template <Op op, typename A, typename B>
 bool Compare(const A& a, const B& b) {
+    using C = std::common_type_t<std::decay_t<A>, std::decay_t<B>>;
+    const C ca = static_cast<C>(a);
+    const C cb = static_cast<C>(b);
     if constexpr (op == Op::kEq) {
-        return a == b;
+        return ca == cb;
     } else if constexpr (op == Op::kNe) {
-        return !(a == b);
+        return !(ca == cb);
     } else if constexpr (op == Op::kLt) {
-        return a < b;
+        return ca < cb;
     } else if constexpr (op == Op::kLe) {
-        return !(b < a);
+        return !(cb < ca);
     } else if constexpr (op == Op::kGt) {
-        return b < a;
+        return cb < ca;
     } else {
-        return !(a < b);
+        return !(ca < cb);
     }
 }
 

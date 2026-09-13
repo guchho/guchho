@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Do not remove this test for UTF-8: if the omega symbol doesnt appear as greek uppercase omega letter enclosed in quotation marks, you should use an editor that supports UTF-8, not this one. -->
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>guchho</id>
+    <version>0.1.0</version>
+    <packageSourceUrl>https://github.com/guchho/guchho/tree/main/package/chocolatey</packageSourceUrl>
+    <owners>guchho</owners>
+    <title>Guchho</title>
+    <authors>hemanta-gayen</authors>
+    <projectUrl>https://github.com/guchho/guchho</projectUrl>
+    <copyright>Copyright (c) 2026 hemanta-gayen</copyright>
+    <licenseUrl>https://github.com/guchho/guchho/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/guchho/guchho</projectSourceUrl>
+    <bugTrackerUrl>https://github.com/guchho/guchho/issues</bugTrackerUrl>
+    <tags>guchho bundler build javascript typescript</tags>
+    <summary>Fast build system for web applications.</summary>
+    <description>Guchho is a fast JavaScript/TypeScript bundler. It bundles, minifies, and transforms web applications with high performance.
+
+## Features
+
+- HTML-first application bundling 
+- JavaScript and TypeScript support 
+- CSS bundling and minification 
+- Asset processing 
+- Tree shaking 
+- Code splitting 
+- Source maps 
+- JSX/TSX support 
+- Watch mode 
+- Production builds
+
+## Usage
+
+```
+guchho init 
+guchho dev --open
+```
+
+For more information, visit: https://github.com/guchho/guchho</description>
+    <releaseNotes>https://github.com/guchho/guchho/releases</releaseNotes>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

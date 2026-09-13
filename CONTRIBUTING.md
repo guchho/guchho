@@ -427,6 +427,42 @@ Updates the version in `CMakeLists.txt`, `package/npm/guchho/package.json`, and 
 bash scripts/bump-version.sh 1.2.3
 ```
 
+### 6.6 `scripts/build-chocolatey.sh` - Build the Chocolatey package (.nupkg)
+
+Builds the Windows native binary (if needed), embeds it into `package/chocolatey/guchho/tools/guchho.exe`, syncs the version in `guchho.nuspec` + `VERIFICATION.txt`, and runs `choco pack`.
+
+**Requirements:** Chocolatey (`choco`), Node.js, CMake (only if the binary is not already built).
+
+```bash
+bash scripts/build-chocolatey.sh
+```
+
+- Reuses an existing `guchho.exe` from `build/release-win32-x64-ninja` / `build/release-win32-x64` if present; otherwise builds the `release-win32-x64-ninja` preset automatically.
+- Output: `package/chocolatey/guchho/guchho-<version>.nupkg` (gitignored).
+
+Test the package locally:
+
+```bash
+choco install guchho --source 'package/chocolatey/guchho'
+```
+
+### 6.7 `scripts/publish-chocolatey.sh` - Publish to the Chocolatey community feed
+
+Pushes the built `.nupkg` to `https://push.chocolatey.org/`.
+
+```bash
+bash scripts/publish-chocolatey.sh              # publish
+bash scripts/publish-chocolatey.sh --dry-run    # simulate without pushing
+```
+
+**Requirements:** Chocolatey, Node.js, and a Chocolatey API key. Provide the key via the `CHOCO_API_KEY` environment variable, or configure it once:
+
+```bash
+choco apikey add -s https://push.chocolatey.org/ -k <API_KEY>
+```
+
+Requires the package to exist first (`bash scripts/build-chocolatey.sh`). Users install it with `choco install guchho`.
+
 
 ## 7. Manual CMake Commands
 
@@ -493,6 +529,8 @@ Special presets:
 | Compile database (Ninja presets)  | `build/<preset>/compile_commands.json`          |
 | Install location                  | `cmake --install` (default `<prefix>/bin`)      |
 | npm platform binary               | `package/npm/@guchho/<platform>/bin/guchho[.exe]`|
+| Chocolatey package                | `package/chocolatey/guchho/guchho-<version>.nupkg`|
+| Chocolatey embedded binary        | `package/chocolatey/guchho/tools/guchho.exe`       |
 
 CPack generators:
 
@@ -500,6 +538,8 @@ CPack generators:
 - **macOS / Linux / Unix:** `TGZ` → `guchho-<version>-<platform>.tar.gz`.
 
 Package file naming: `guchho-<version>-<platform>` (e.g. `guchho-1.0.1-linux-x64`).
+
+Chocolatey distribution is handled separately by `scripts/build-chocolatey.sh` and `scripts/publish-chocolatey.sh` (see [Sections 6.6/6.7](#66-scriptsbuild-chocolateysh---build-the-chocolatey-package-nupkg)); it embeds the binary from the `win32-x64` release rather than downloading at install time.
 
 
 ## 9. Quick Reference - "Build Everything"

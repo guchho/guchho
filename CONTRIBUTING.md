@@ -2,7 +2,6 @@
 
 This guide explains how to build **Guchho** from source, run the test suite, and produce npm binaries. It covers the per-OS toolchain requirements, how to install them, and every build script - so you can build everything on your platform.
 
----
 
 ## 1. Project Overview
 
@@ -34,7 +33,6 @@ The npm distribution additionally ships prebuilt binary packages for many platfo
 (AIX, Android, BSDs, Solaris, OpenHarmony, and all Linux/Windows architectures).
 See [Section 5](#5-building-for-other-npm-distribution-platforms).
 
----
 
 ## 2. Common Requirements (All Operating Systems)
 
@@ -47,7 +45,6 @@ The following are needed on every OS:
 
 > Optional: **Ninja** is only required if you use a `*-ninja` preset or the Linux/macOS presets. It is auto-detected by CMake if the Ninja generator is selected.
 
----
 
 ## 3. Requirements by Operating System
 
@@ -104,7 +101,6 @@ bash scripts/build.sh --preset release-win32-x64-ninja
 
 Binary output: `build/<preset>/bin/guchho.exe`
 
----
 
 ### 3.2 Linux (x64 and ARM64)
 
@@ -167,7 +163,6 @@ bash scripts/build.sh --preset ubsan-linux-x64
 
 Binary output: `build/<preset>/bin/guchho`
 
----
 
 ### 3.3 macOS (Apple Silicon ARM64 and Intel x64)
 
@@ -204,7 +199,6 @@ bash scripts/build.sh --preset release-darwin-x64
 
 Binary output: `build/<preset>/bin/guchho`
 
----
 
 ### 3.4 FreeBSD / OpenBSD / NetBSD / Solaris (SunOS) / AIX
 
@@ -224,7 +218,6 @@ cmake --build build/release --parallel
 
 Binary output: `build/release/bin/guchho`
 
----
 
 ## 4. Install the Toolchain - Quick Script
 
@@ -257,7 +250,6 @@ ninja --version     # if using Ninja presets
 g++ --version       # or clang++ --version
 ```
 
----
 
 ## 5. Building for Other / npm-Distribution Platforms
 
@@ -342,7 +334,6 @@ npm install guchho
 
 The `install.js` postinstall hook copies the correct `@guchho/<platform>` binary into `package/npm/guchho/bin/`.
 
----
 
 ## 6. Build Scripts (Reference)
 
@@ -436,7 +427,6 @@ Updates the version in `CMakeLists.txt`, `package/npm/guchho/package.json`, and 
 bash scripts/bump-version.sh 1.2.3
 ```
 
----
 
 ## 7. Manual CMake Commands
 
@@ -492,7 +482,6 @@ Special presets:
 
 > Note: UBSan is ignored under MSVC (unsupported); ASan works on MSVC, GCC, and Clang.
 
----
 
 ## 8. Build Outputs & Packaging
 
@@ -512,7 +501,6 @@ CPack generators:
 
 Package file naming: `guchho-<version>-<platform>` (e.g. `guchho-1.0.1-linux-x64`).
 
----
 
 ## 9. Quick Reference - "Build Everything"
 

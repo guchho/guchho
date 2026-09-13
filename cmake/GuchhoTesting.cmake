@@ -107,8 +107,7 @@ function(guchho_discover_tests TARGET)
 
     set(
         gdt_base
-        "${CMAKE_CURRENT_BINARY_DIR}/"
-        "${TARGET}_${gdt_hash}"
+        "${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_${gdt_hash}"
     )
 
 

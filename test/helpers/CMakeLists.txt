@@ -1,0 +1,14 @@
+# Helpers test sources.
+
+add_library(guchho_helpers_test_objects OBJECT
+    utf8_test.cpp
+)
+
+target_include_directories(
+    guchho_helpers_test_objects
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+guchho_set_warnings(guchho_helpers_test_objects)
+guchho_enable_sanitizers(guchho_helpers_test_objects)

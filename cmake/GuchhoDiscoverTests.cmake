@@ -273,10 +273,7 @@ foreach(line IN LISTS discovery_lines)
     )
 
 
-    math(
-        EXPR
-        "discovered_count = ${discovered_count} + 1"
-    )
+    math(EXPR discovered_count "${discovered_count} + 1")
 
 endforeach()
 

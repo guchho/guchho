@@ -16,6 +16,7 @@
 
 
 namespace guchho::helpers {
+
     //---------------------------------------
     // ------------ utf8.cpp ----------------
     //---------------------------------------
@@ -65,4 +66,16 @@ namespace guchho::helpers {
     bool UTF16EqualsUTF16(
         std::span<const char16_t> a,
         std::span<const char16_t> b);
+
+    //---------------------------------------
+    // ------------- base64.cpp -------------
+    //---------------------------------------
+    // Encodes using the standard base64 alphabet (A-Z, a-z, 0-9, +, /).
+    std::string Base64StdEncode(std::string_view src);
+
+    // Encodes using the URL-safe base64 alphabet (A-Z, a-z, 0-9, -, _).
+    std::string Base64URLEncode(std::string_view src);
+
+    // Encodes using the RFC 4648 base32 alphabet (A-Z, 2-7) with padding.
+    std::string Base32StdEncode(std::string_view src);
 }

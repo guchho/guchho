@@ -3,6 +3,7 @@
 set(GUCHHO_COMMON_SOURCES
     # helpers
     helpers/utf8.cpp
+    helpers/base64.cpp
 )
 
 

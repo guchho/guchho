@@ -40,10 +40,10 @@ add_executable(guchho
     main.cpp
 )
 
-# target_link_libraries(guchho
-#     PRIVATE
-#         guchho_bundler
-# )
+target_link_libraries(guchho
+    PRIVATE
+        guchho_common
+)
 
 guchho_set_warnings(guchho)
 guchho_enable_sanitizers(guchho)

@@ -10,7 +10,7 @@ official GitHub release binary:
 And can be verified by doing the following:
 
 1. Download the official release archive from:
-   https://github.com/guchho/guchho/releases/download/v{VERSION}/guchho-{VERSION}-win32-x64.zip
+   https://github.com/guchho/guchho/releases/download/v1.0.1/guchho-1.0.1-win32-x64.zip
 
 2. Extract the zip and compare the guchho.exe binary with the one embedded
    in this package (tools/guchho.exe) using a SHA256 hash comparison.

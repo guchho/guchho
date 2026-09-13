@@ -27,6 +27,20 @@ BINARY_NAME="guchho.exe"
 # Helpers
 # ========================================
 
+# Node on Windows cannot resolve MSYS POSIX paths (/c/...).
+# cygpath -m converts them to native paths (C:/Users/...).
+to_winpath() {
+    local p="$1"
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -m "${p}"
+    else
+        echo "${p}"
+    fi
+}
+
+ROOT_DIR_WIN="$(to_winpath "${ROOT_DIR}")"
+CHOCO_DIR_WIN="$(to_winpath "${CHOCO_DIR}")"
+
 log() {
     echo "[Guchho] $*"
 }
@@ -54,7 +68,7 @@ fi
 # Read version
 # ========================================
 
-VERSION=$(node -p "require('${ROOT_DIR}/package/npm/guchho/package.json').version")
+VERSION=$(node -p "require('${ROOT_DIR_WIN}/package/npm/guchho/package.json').version")
 echo "Building Chocolatey package: guchho@${VERSION}"
 echo
 
@@ -133,6 +147,7 @@ echo "========================================"
 echo
 
 NUSPEC="${CHOCO_DIR}/guchho.nuspec"
+NUSPEC_WIN="$(to_winpath "${NUSPEC}")"
 
 if [[ ! -f "${NUSPEC}" ]]; then
     error "nuspec not found at ${NUSPEC}"
@@ -143,7 +158,7 @@ node -e "
     let content = fs.readFileSync(process.argv[1], 'utf8');
     content = content.replace(/<version>.*?<\/version>/, '<version>${VERSION}</version>');
     fs.writeFileSync(process.argv[1], content);
-" "${NUSPEC}"
+" "${NUSPEC_WIN}"
 
 echo "  Updated nuspec version -> ${VERSION}"
 
@@ -152,6 +167,7 @@ echo "  Updated nuspec version -> ${VERSION}"
 # ========================================
 
 VERIFY="${TOOLS_DIR}/VERIFICATION.txt"
+VERIFY_WIN="$(to_winpath "${VERIFY}")"
 
 if [[ -f "${VERIFY}" ]]; then
     node -e "
@@ -160,7 +176,7 @@ if [[ -f "${VERIFY}" ]]; then
         content = content.replace(/v\{VERSION\}/g, 'v${VERSION}');
         content = content.replace(/\{VERSION\}/g, '${VERSION}');
         fs.writeFileSync(process.argv[1], content);
-    " "${VERIFY}"
+    " "${VERIFY_WIN}"
     echo "  Updated VERIFICATION.txt version -> ${VERSION}"
 fi
 
@@ -175,14 +191,9 @@ echo "[3/4] Running choco pack"
 echo "========================================"
 echo
 
-echo "========================================"
-echo "[3/4] Running choco pack"
-echo "========================================"
-echo
-
 # choco pack writes the .nupkg next to the nuspec (which is gitignored).
 cd "${CHOCO_DIR}"
-choco pack "${NUSPEC}"
+choco pack "${NUSPEC_WIN}"
 
 NUPKG="${CHOCO_DIR}/guchho.${VERSION}.nupkg"
 
@@ -200,7 +211,7 @@ echo
 echo "Package: ${FINAL_NUPKG}"
 echo
 echo "To test locally:"
-echo "  choco install guchho --source '${CHOCO_DIR}'"
+echo "  choco install guchho --source '${CHOCO_DIR_WIN}'"
 echo
 echo "To publish:"
 echo "  bash scripts/publish-chocolatey.sh"

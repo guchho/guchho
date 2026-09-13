@@ -20,6 +20,24 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 CHOCO_DIR="${ROOT_DIR}/package/chocolatey/guchho"
 
+# ========================================
+# Helpers
+# ========================================
+
+# Node on Windows cannot resolve MSYS POSIX paths (/c/...).
+# cygpath -m converts them to native paths (C:/Users/...).
+to_winpath() {
+    local p="$1"
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -m "${p}"
+    else
+        echo "${p}"
+    fi
+}
+
+ROOT_DIR_WIN="$(to_winpath "${ROOT_DIR}")"
+CHOCO_DIR_WIN="$(to_winpath "${CHOCO_DIR}")"
+
 DRY_RUN=""
 if [[ "${1:-}" == "--dry-run" ]]; then
     DRY_RUN="true"
@@ -43,7 +61,7 @@ if ! command -v node >/dev/null 2>&1; then
     exit 1
 fi
 
-VERSION=$(node -p "require('${ROOT_DIR}/package/npm/guchho/package.json').version")
+VERSION=$(node -p "require('${ROOT_DIR_WIN}/package/npm/guchho/package.json').version")
 echo "Publishing version: ${VERSION}"
 echo
 
@@ -57,6 +75,7 @@ echo "========================================"
 echo
 
 NUPKG="${CHOCO_DIR}/guchho.${VERSION}.nupkg"
+NUPKG_WIN="$(to_winpath "${NUPKG}")"
 
 if [[ ! -f "${NUPKG}" ]]; then
     echo "  MISSING: ${NUPKG}"
@@ -88,7 +107,7 @@ echo "Publishing to Chocolatey"
 echo "========================================"
 echo
 
-PUSH_CMD=(choco push "${NUPKG}" --source https://push.chocolatey.org/)
+PUSH_CMD=(choco push "${NUPKG_WIN}" --source https://push.chocolatey.org/)
 
 if [[ -n "${CHOCO_API_KEY:-}" ]]; then
     PUSH_CMD+=(--api-key "${CHOCO_API_KEY}")

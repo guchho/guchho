@@ -3,7 +3,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>guchho</id>
-    <version>0.1.0</version>
+    <version>1.0.1</version>
     <packageSourceUrl>https://github.com/guchho/guchho/tree/main/package/chocolatey</packageSourceUrl>
     <owners>guchho</owners>
     <title>Guchho</title>

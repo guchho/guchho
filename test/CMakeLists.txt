@@ -20,9 +20,6 @@ target_include_directories(test_assertions PRIVATE "${GUCHHO_TEST_INCLUDE_DIR}")
 guchho_set_warnings(test_assertions)
 guchho_enable_sanitizers(test_assertions)
 
-# Whole-suite CTest entry.
-add_test(NAME test_assertions COMMAND test_assertions)
-
 # ------------------------------------------------------------
 # Per-test CTest discovery
 #

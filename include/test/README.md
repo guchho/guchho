@@ -1,0 +1,1 @@
+This C++ implementation of guchho test is from https://github.com/google/googletest.

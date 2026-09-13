@@ -30,7 +30,7 @@ TEST(Assertions, EqualityStrings) {
     EXPECT_EQ(std::string("abc"), std::string("abc"));
     EXPECT_NE(std::string("a"), std::string("b"));
     EXPECT_EQ(std::string_view("hi"), std::string_view("hi"));
-    EXPECT_NE(std::string_view("x"), std::string_view("y"));
+    EXPECT_NE(std::string_view("x"), std::string_view("x\n"));
     ASSERT_EQ(std::string("same"), std::string("same"));
 }
 

@@ -2,7 +2,6 @@
 #include "guchho/helpers.hpp"
 
 #include <string>
-#include <utility>
 #include <vector>
 
 using guchho::helpers::IsInsideNodeModules;

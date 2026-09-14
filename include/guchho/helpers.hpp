@@ -361,7 +361,7 @@ namespace guchho::helpers {
     std::string GlobPatternToString(const std::vector<GlobPart>& pattern);
 
 
-    
+
     //---------------------------------------
     // ---------- glob.cpp ------------------
     //---------------------------------------
@@ -371,5 +371,15 @@ namespace guchho::helpers {
     // Hashes a string and combines the result into the seed.
     uint32_t HashCombineString(uint32_t seed, std::string_view text);
 
+
+    //---------------------------------------
+    // ------------- sha.cpp ----------------
+    //---------------------------------------
+    // SHA-2 cryptographic digests (FIPS 180-4). Each returns the raw digest
+    // bytes: 32 for SHA-256, 48 for SHA-384, 64 for SHA-512. Feed the returned
+    // bytes through Base64StdEncode() for e.g. `integrity` attribute values.
+    std::vector<uint8_t> Sha256(std::string_view data);
+    std::vector<uint8_t> Sha384(std::string_view data);
+    std::vector<uint8_t> Sha512(std::string_view data);
 
 }

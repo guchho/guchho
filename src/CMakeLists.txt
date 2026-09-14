@@ -5,6 +5,7 @@ set(GUCHHO_COMMON_SOURCES
     helpers/utf8.cpp
     helpers/base64.cpp
     helpers/joiner.cpp
+    helpers/path.cpp
     helpers/strings.cpp
     helpers/typo.cpp
     helpers/url.cpp

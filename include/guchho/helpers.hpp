@@ -359,4 +359,17 @@ namespace guchho::helpers {
 
     // Recombines parsed GlobParts back into a single glob pattern string.
     std::string GlobPatternToString(const std::vector<GlobPart>& pattern);
+
+
+    
+    //---------------------------------------
+    // ---------- glob.cpp ------------------
+    //---------------------------------------
+    // Combines two hash values into a new hash.
+    uint32_t HashCombine(uint32_t seed, uint32_t hash);
+
+    // Hashes a string and combines the result into the seed.
+    uint32_t HashCombineString(uint32_t seed, std::string_view text);
+
+
 }

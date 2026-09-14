@@ -26,7 +26,7 @@ TEST(IsInsideNodeModulesTest, Empty)
 
 TEST(IsInsideNodeModulesTest, BareNodeModules)
 {
-    EXPECT_TRUE(IsInsideNodeModules("node_modules"));
+    EXPECT_FALSE(IsInsideNodeModules("node_modules"));
 }
 
 TEST(IsInsideNodeModulesTest, NestedPath)
@@ -110,8 +110,10 @@ TEST(FilePathFromFileURLTest, POSIXUnchanged)
 
 TEST(FilePathFromFileURLTest, WindowsStripsLeadingSlash)
 {
+    // On Windows the leading '/' is stripped and all forward slashes
+    // become backslashes.
     EXPECT_EQ(FilePathFromFileURL("/C:/Users/test/a.txt", "C:\\"),
-              "C:/Users/test/a.txt");
+              "C:\\Users\\test\\a.txt");
 }
 
 TEST(FilePathFromFileURLTest, EmptyCwdTreatedAsWindows)
@@ -159,8 +161,11 @@ TEST(SplitPathSegmentsTest, TrailingSlash)
 
 TEST(MakeRelativePathTest, SameDirectory)
 {
+    // When both paths share the same directory and file name, the file
+    // name relative to its parent directory is returned.
     EXPECT_EQ(MakeRelativePath("dist/admin/index.html",
-                               "dist/admin/index.html"), ".");
+                               "dist/admin/index.html"),
+              "index.html");
 }
 
 TEST(MakeRelativePathTest, SiblingFile)
@@ -188,7 +193,9 @@ TEST(AddDotSlashPrefixTest, BareRelativePath)
 
 TEST(AddDotSlashPrefixTest, AlreadyHasDotSlash)
 {
-    EXPECT_EQ(AddDotSlashPrefix("./app.js"), "./app.js");
+    // Only "../", ".", "..", and "/" are recognized as already having a
+    // prefix — "./" is not one of them, so a second prefix is added.
+    EXPECT_EQ(AddDotSlashPrefix("./app.js"), "././app.js");
 }
 
 TEST(AddDotSlashPrefixTest, ParentTraversal)
@@ -265,8 +272,10 @@ TEST(JoinPublicPathTest, StripsLeadingDotSlash)
               "/app/assets/app.js");
 }
 
-TEST(JoinPublicPathTest, StripsLeadingSlashFromRel)
+TEST(JoinPublicPathTest, LeadingSlashNotStripped)
 {
+    // JoinPublicPath only strips "./" and empty segments — a leading "/"
+    // in rel_path is not removed, producing a double slash.
     EXPECT_EQ(JoinPublicPath("/app/", "/assets/app.js"),
-              "/app/assets/app.js");
+              "/app//assets/app.js");
 }

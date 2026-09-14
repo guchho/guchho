@@ -16,8 +16,6 @@
 
 
 namespace guchho::helpers {
-
-
     //---------------------------------------
     // -------------- timer.cpp -------------
     //---------------------------------------
@@ -96,6 +94,8 @@ namespace guchho::helpers {
             uint32_t                  length_   = 0;
             uint8_t                   lastByte_ = 0;
     };
+
+
 
     //---------------------------------------
     // ------------ comment.cpp -------------
@@ -306,4 +306,21 @@ namespace guchho::helpers {
     // std::nullopt on invalid escapes. QueryUnescape also converts '+' to ' '.
     std::optional<std::string> PathUnescape(std::string_view s);
     std::optional<std::string> QueryUnescape(std::string_view s);
+
+    //---------------------------------------
+    // ---------- dataurl.cpp ---------------
+    //---------------------------------------
+    // Looks up the MIME type for a file extension; returns an empty view if none.
+    std::string_view MimeTypeByExtension(std::string_view ext);
+
+    // Tries to encode text as a percent-escaped data URL. Returns {empty, false}
+    // when the text is not valid UTF-8.
+    std::pair<std::string, bool> EncodeStringAsPercentEscapedDataURL(
+        std::string_view mime_type,
+        std::string_view text);
+
+    // Builds both percent-escaped and base64 data URLs and picks the shorter one.
+    std::string EncodeStringAsShortestDataURL(
+        std::string_view mime_type,
+        std::string_view text);
 }

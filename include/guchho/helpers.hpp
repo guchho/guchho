@@ -16,6 +16,72 @@
 
 
 namespace guchho::helpers {
+
+    // A simple data structure for storing a fixed number of bits.
+    class BitSet {
+        public:
+            // Creates a bit set that can hold "bit_count" bits, all initialised false.
+            explicit BitSet(uint32_t bit_count = 0)
+                : bits_((static_cast<size_t>(bit_count) + 63) >> 6, 0) {}
+
+            // True when the bit at index i is set.
+            bool HasBit(uint32_t i) const {
+                return (bits_[i >> 6] & (uint64_t{1} << (i & 63))) != 0;
+            }
+
+            // Sets or clears the bit at index i.
+            void SetBit(uint32_t i, bool value) {
+                uint64_t bit = uint64_t{1} << (i & 63);
+                if (value) {
+                    bits_[i >> 6] |= bit;
+                } else {
+                    bits_[i >> 6] &= ~bit;
+                }
+            }
+
+            // ORs every bit of other into this set.
+            void Union(const BitSet& other) {
+                for (size_t i = 0; i < bits_.size(); i++) {
+                    bits_[i] |= other.bits_[i];
+                }
+            }
+
+            // True when no bit is set.
+            bool IsEmpty() const {
+                for (uint64_t x : bits_) {
+                    if (x != 0) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            // Serializes the packed bits into a string, least-significant byte first.
+            std::string ToString() const {
+                std::string result;
+                result.reserve(bits_.size() * 8);
+                for (uint64_t x : bits_) {
+                    for (int i = 0; i < 8; i++) {
+                        result.push_back(static_cast<char>((x >> (i * 8)) & 0xFF));
+                    }
+                }
+                return result;
+            }
+
+            // True when both sets hold the same bits.
+            bool operator==(const BitSet& other) const {
+                if (bits_.size() != other.bits_.size()) return false;
+                for (size_t i = 0; i < bits_.size(); i++) {
+                    if (bits_[i] != other.bits_[i]) return false;
+                }
+                return true;
+            }
+
+        private:
+            std::vector<uint64_t> bits_;
+    };
+
+
     //---------------------------------------
     // -------------- timer.cpp -------------
     //---------------------------------------

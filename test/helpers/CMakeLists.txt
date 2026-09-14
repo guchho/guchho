@@ -9,6 +9,7 @@ add_library(guchho_helpers_test_objects OBJECT
     joiner_test.cpp
     typo_test.cpp
     path_test.cpp
+    timer_test.cpp
 )
 
 target_include_directories(

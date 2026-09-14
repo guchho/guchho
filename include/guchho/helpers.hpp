@@ -17,6 +17,69 @@
 
 namespace guchho::helpers {
 
+    class Joiner {
+        public:
+            void AddString(std::string_view data);
+            void AddBytes(std::span<const char> data);
+
+            uint8_t  LastByte() const { return lastByte_; }
+            uint32_t Length()   const { return length_; }
+
+            void EnsureNewlineAtEnd();
+
+            std::string Done() const;
+
+            bool Contains(std::string_view s, std::span<const char> b) const;
+
+        private:
+            struct JoinerString {
+                std::string data;
+                uint32_t    offset;
+            };
+            struct JoinerBytes {
+                std::span<const char> data;
+                uint32_t              offset;
+            };
+
+            std::vector<JoinerString> strings_;
+            std::vector<JoinerBytes>  bytes_;
+            uint32_t                  length_   = 0;
+            uint8_t                   lastByte_ = 0;
+    };
+
+    std::string EscapeClosingTag(std::string_view text, std::string_view slashTag);
+
+    bool        IsInsideNodeModules(std::string_view path);
+    bool        IsFileURL(std::string_view scheme, std::string_view host, std::string_view path);
+    std::string FileURLFromFilePath(std::string_view filePath);
+    std::string FilePathFromFileURL(std::string_view urlPath, std::string_view cwd);
+
+    // Splits a "/"-separated path into its segments, dropping empty and "."
+    // segments ("a//b/./c" -> {"a","b","c"}); ".." segments are kept as-is.
+    // Shared by the relative-path resolver and the CSS asset path matcher.
+    std::vector<std::string> SplitPathSegments(std::string_view path);
+
+    // Computes the "/"-separated path from "from_file"'s directory to "to_file"
+    // ("dist/admin/index.html" -> "dist/assets/admin.js" yields
+    // "../assets/admin.js"). Returns "." when the target is the source
+    // directory itself. Used to rewrite HTML resources relative to the output.
+    std::string MakeRelativePath(std::string_view from_file, std::string_view to_file);
+
+    // Ensures a relative resource path carries its leading "./" so browsers
+    // treat it as a relative URL, unless it already has a path prefix ("../",
+    // ".") or starts with "/" (server-root-relative). "app.js" -> "./app.js".
+    std::string AddDotSlashPrefix(std::string_view rel_path);
+
+    // True when a PublicPath is configured. Empty, "." and "./" count as "no
+    // base", meaning the HTML keeps its current relative resource URLs.
+    bool IsPublicPathConfigured(std::string_view public_path);
+
+    // Joins "rel_path" (relative to the output directory) onto a configured
+    // PublicPath ("/app/" or "https://cdn.example.com/"), stripping redundant
+    // "./" and empty segments from the joined result like the linker does.
+    // When no PublicPath is configured, "rel_path" is returned unchanged.
+    std::string JoinPublicPath(std::string_view public_path, std::string_view rel_path);
+
     //---------------------------------------
     // ------------ strings.cpp -------------
     //---------------------------------------

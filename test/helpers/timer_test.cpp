@@ -18,13 +18,22 @@ namespace {
         const char* tmpname = "timer_test_cap.tmp";
 
 #ifdef _WIN32
-        int saved_fd = _dup(1);
-        FILE* tmpf = std::fopen(tmpname, "w");
-        _dup2(_fileno(tmpf), 1);
+
+    int saved_fd = _dup(1);
+
+    FILE* tmpf = nullptr;
+    fopen_s(&tmpf, tmpname, "w");
+
+    _dup2(_fileno(tmpf), 1);
+
 #else
-        int saved_fd = dup(1);
-        FILE* tmpf = std::fopen(tmpname, "w");
-        dup2(fileno(tmpf), 1);
+
+    int saved_fd = dup(1);
+
+    FILE* tmpf = std::fopen(tmpname, "w");
+
+    dup2(fileno(tmpf), 1);
+
 #endif
 
         fn();

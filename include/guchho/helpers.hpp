@@ -81,6 +81,168 @@ namespace guchho::helpers {
             std::vector<uint64_t> bits_;
     };
 
+    
+    // F64 wraps a double so every floating-point operation flows through one
+    // interface and each result is stored back in another F64. Wrapping each
+    // arithmetic step this way keeps behavior stable and predictable across
+    // operations.
+    class F64 {
+        public:
+            // Default constructor initialises the value to 0.0.
+            F64() : value_(0.0) {}
+
+            // Builds an F64 from a double, storing it as a plain double.
+            explicit F64(double a) : value_(static_cast<double>(a)) {}
+
+            // Returns the stored double value.
+            double Value() const { return value_; }
+
+            // Allows explicit conversion of an F64 to double when needed.
+            explicit operator double() const { return value_; }
+
+            // True when the value is NaN (Not a Number).
+            bool IsNaN() const { return std::isnan(value_); }
+
+            // Returns a new F64 with the sign flipped.
+            F64 Neg() const { return F64(-value_); }
+
+            // Returns the absolute value.
+            F64 Abs() const { return F64(std::abs(value_)); }
+
+            // Returns the sine of the value.
+            F64 Sin() const { return F64(std::sin(value_)); }
+
+            // Returns the cosine of the value.
+            F64 Cos() const { return F64(std::cos(value_)); }
+
+            // Returns the base-2 logarithm of the value.
+            F64 Log2() const { return F64(std::log2(value_)); }
+
+            // Rounds the value to the nearest integer.
+            F64 Round() const { return F64(std::round(value_)); }
+
+            // Returns the largest integer value not above the value.
+            F64 Floor() const { return F64(std::floor(value_)); }
+
+            // Returns the smallest integer value not below the value.
+            F64 Ceil() const { return F64(std::ceil(value_)); }
+
+            // Multiplies the value by itself to yield its square.
+            F64 Squared() const { return Mul(*this); }
+
+            // Multiplies the value by itself twice to yield its cube.
+            F64 Cubed() const { return Mul(*this).Mul(*this); }
+
+            // Returns the square root of the value.
+            F64 Sqrt() const { return F64(std::sqrt(value_)); }
+
+            // Returns the cube root of the value.
+            F64 Cbrt() const { return F64(std::cbrt(value_)); }
+
+            // Adds two F64 values and returns a new F64.
+            F64 Add(const F64& b) const {
+                return F64(value_ + b.value_);
+            }
+
+            // Subtracts two F64 values and returns a new F64.
+            F64 Sub(const F64& b) const {
+                return F64(value_ - b.value_);
+            }
+
+            // Multiplies two F64 values and returns a new F64.
+            F64 Mul(const F64& b) const {
+                return F64(value_ * b.value_);
+            }
+
+            // Divides two F64 values and returns a new F64.
+            F64 Div(const F64& b) const {
+                return F64(value_ / b.value_);
+            }
+
+            // Raises this value to the power of another F64 value.
+            F64 Pow(const F64& b) const {
+                return F64(std::pow(value_, b.value_));
+            }
+
+            // Computes the arc tangent of value/b.
+            F64 Atan2(const F64& b) const {
+                return F64(std::atan2(value_, b.value_));
+            }
+
+            // Adds a double constant directly to the F64.
+            F64 AddConst(double b) const {
+                return F64(value_ + b);
+            }
+
+            // Subtracts a double constant directly from the F64.
+            F64 SubConst(double b) const {
+                return F64(value_ - b);
+            }
+
+            // Multiplies the F64 by a double constant.
+            F64 MulConst(double b) const {
+                return F64(value_ * b);
+            }
+
+            // Divides the F64 by a double constant.
+            F64 DivConst(double b) const {
+                return F64(value_ / b);
+            }
+
+            // Raises the F64 value to the power of a double constant.
+            F64 PowConst(double b) const {
+                return F64(std::pow(value_, b));
+            }
+
+            // Keeps this value's magnitude but takes the sign from the other value.
+            F64 WithSignFrom(const F64& b) const {
+                return F64(std::copysign(value_, b.value_));
+            }
+
+        private:
+            // The underlying floating-point value.
+            double value_;
+    };
+
+
+    // Returns the smaller of two F64 values.
+    inline F64 Min2(const F64& a, const F64& b) {
+        return F64(std::min(a.Value(), b.Value()));
+    }
+
+    // Returns the larger of two F64 values.
+    inline F64 Max2(const F64& a, const F64& b) {
+        return F64(std::max(a.Value(), b.Value()));
+    }
+
+    // Returns the smallest of three F64 values.
+    inline F64 Min3(
+        const F64& a,
+        const F64& b,
+        const F64& c)
+    {
+        return Min2(Min2(a, b), c);
+    }
+
+    // Returns the largest of three F64 values.
+    inline F64 Max3(
+        const F64& a,
+        const F64& b,
+        const F64& c)
+    {
+        return Max2(Max2(a, b), c);
+    }
+
+    // Linearly interpolates between two values: t = 0 yields a, t = 1 yields b.
+    // Computed as a + (b - a) * t through F64 methods.
+    inline F64 Lerp(
+        const F64& a,
+        const F64& b,
+        const F64& t)
+    {
+        return b.Sub(a).Mul(t).Add(a);
+    }
+
 
     //---------------------------------------
     // -------------- timer.cpp -------------

@@ -97,7 +97,12 @@ namespace guchho::helpers {
             uint8_t                   lastByte_ = 0;
     };
 
+    //---------------------------------------
+    // ------------ comment.cpp -------------
+    //---------------------------------------   
     std::string EscapeClosingTag(std::string_view text, std::string_view slashTag);
+
+
 
     bool        IsInsideNodeModules(std::string_view path);
     bool        IsFileURL(std::string_view scheme, std::string_view host, std::string_view path);
@@ -209,7 +214,7 @@ namespace guchho::helpers {
         std::span<const char16_t> a,
         std::span<const char16_t> b);
 
-        
+
     //---------------------------------------
     // ------------- base64.cpp -------------
     //---------------------------------------

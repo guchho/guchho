@@ -17,24 +17,53 @@
 
 namespace guchho::helpers {
     //---------------------------------------
+    // -------------- timer.cpp -------------
+    //---------------------------------------
+    // Simple timing helper.
+    class Timer {
+    public:
+        explicit Timer(std::string name);
+
+        void Log(std::string_view message) const;
+
+        // Nested timers can be created with Fork and combined with Join.
+        // The result is that a joined timer starts at the earliest start
+        // time among all of its parts.
+        Timer Fork() const;
+        void Join(const Timer& other);
+
+        void Begin(const std::string& name);
+        void End(const std::string& name);
+
+    private:
+        std::string name_;
+        std::chrono::steady_clock::time_point start_;
+        std::chrono::steady_clock::time_point last_time_;
+    };
+
+    //---------------------------------------
     // ------------ typo.cpp ----------------
     //---------------------------------------
     // Detects a probable typo among a known set of valid words.
     class TypoDetector {
-    public:
-        // Builds the typo lookup table from a list of valid words.
-        explicit TypoDetector(const std::vector<std::string>& valid);
+        public:
+            // Builds the typo lookup table from a list of valid words.
+            explicit TypoDetector(const std::vector<std::string>& valid);
 
-        // If the given typo closely matches a valid word, returns that correct
-        // word; otherwise returns std::nullopt.
-        std::optional<std::string> MaybeCorrectTypo(
-            std::string_view typo) const;
+            // If the given typo closely matches a valid word, returns that correct
+            // word; otherwise returns std::nullopt.
+            std::optional<std::string> MaybeCorrectTypo(
+                std::string_view typo) const;
 
-    private:
-        // Maps a one-character-lost typo back to its correct word.
-        std::unordered_map<std::string, std::string> oneCharTypos_;
+        private:
+            // Maps a one-character-lost typo back to its correct word.
+            std::unordered_map<std::string, std::string> oneCharTypos_;
     };
 
+
+    //---------------------------------------
+    // ------------ joiner.cpp --------------
+    //---------------------------------------
     class Joiner {
         public:
             void AddString(std::string_view data);

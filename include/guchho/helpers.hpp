@@ -18,6 +18,32 @@
 namespace guchho::helpers {
 
     //---------------------------------------
+    // ------------ strings.cpp -------------
+    //---------------------------------------
+    // Lowers every ASCII capital letter in the text.
+    std::string ToLowerASCII(std::string_view text);
+
+    // True when two string lists are identical, in order.
+    bool StringArraysEqual(const std::vector<std::string>& a,
+                        const std::vector<std::string>& b);
+
+    // True when two lists of string lists are identical at both levels.
+    bool StringArrayArraysEqual(
+        const std::vector<std::vector<std::string>>& a,
+        const std::vector<std::vector<std::string>>& b);
+
+    // Render a string list as comma-separated, quoted text.
+    std::string StringArrayToQuotedCommaSeparatedString(
+        const std::vector<std::string>& a);
+    
+    // True when two strings match ignoring ASCII case.
+    bool EqualFoldASCII(std::string_view a, std::string_view b);
+
+    std::string QuoteSingle(std::string_view text, bool asciiOnly);
+    std::string QuoteForJSON(std::string_view text, bool asciiOnly);
+    std::string quoteString(std::string_view text);
+
+    //---------------------------------------
     // ------------ utf8.cpp ----------------
     //---------------------------------------
 
@@ -101,4 +127,61 @@ namespace guchho::helpers {
         uint8_t  n_ = 0;
         std::array<uint8_t, 32> mem_{};
     };
+
+
+    //---------------------------------------
+    // --------------- url.cpp --------------
+    //---------------------------------------
+    // Minimal URL representation covering the needs of the bundler
+    // (scheme/host/path/query/fragment). Opaque URLs and user info are not modelled.
+    struct URL {
+        // Scheme is always stored in lowercase.
+        std::string scheme;
+        std::string host;
+        // Path and query stay percent-encoded as given ("as-is" form).
+        std::string path;
+        std::string query;     // Without the leading '?'
+        std::string fragment;  // Without the leading '#'
+
+        // Reassembles the URL into a URL string (RFC 3986 section 5.3).
+        std::string String() const;
+
+        // Resolves a URI reference relative to this base URL
+        // (RFC 3986 section 5.2.2).
+        URL ResolveReference(const URL& ref) const;
+    };
+
+    // Parses a raw URL string. Returns std::nullopt on malformed input.
+    std::optional<URL> ParseURL(std::string_view raw_url);
+
+    // How a resource reference (an HTML "src"/"href", a CSS "url()", ...) should
+    // be treated by the URL resolver. "kRelative" includes query strings
+    // ("app.js?v=2"); "kAbsolute" covers every "scheme:..." reference, matched
+    // by scanning up to the first '/' or '?' exactly like the alias resolver.
+    enum class URLKind {
+        kEmpty,            // ""
+        kFragment,         // "#anchor"
+        kRelative,         // "app.js", "./a/b.css", "../x.css", "a.css?v=2"
+        kRootRelative,     // "/assets/app.js"
+        kProtocolRelative, // "//cdn.example.com/app.js"
+        kAbsolute,         // any "scheme:..." ("https:", "data:", "mailto:", ...)
+    };
+
+    // Classifies a raw URL string for the bundler: which URLs must be bundled
+    // and rewritten (relative/root-relative) and which must be left untouched
+    // (absolute, protocol-relative, fragment-only, empty).
+    URLKind ClassifyURL(std::string_view raw_url);
+
+    // True when the URL must never be bundled or rewritten: absolute with a
+    // scheme ("https://...", "data:...", ...) or protocol-relative ("//host").
+    bool IsExternalURL(std::string_view raw_url);
+
+    // True when the URL is a "data:" URL (matched case-sensitively like the
+    // existing inlining checks).
+    bool IsDataURL(std::string_view raw_url);
+
+    // Percent-decodes each 3-byte substring of the form "%AB". Returns
+    // std::nullopt on invalid escapes. QueryUnescape also converts '+' to ' '.
+    std::optional<std::string> PathUnescape(std::string_view s);
+    std::optional<std::string> QueryUnescape(std::string_view s);
 }

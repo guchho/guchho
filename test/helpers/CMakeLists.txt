@@ -6,6 +6,7 @@ add_library(guchho_helpers_test_objects OBJECT
     xxhash_test.cpp
     strings_test.cpp
     url_test.cpp
+    joiner_test.cpp
 )
 
 target_include_directories(

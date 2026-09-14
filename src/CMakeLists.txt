@@ -4,6 +4,7 @@ set(GUCHHO_COMMON_SOURCES
     # helpers
     helpers/utf8.cpp
     helpers/base64.cpp
+    helpers/joiner.cpp
     helpers/strings.cpp
     helpers/url.cpp
     helpers/xxhash/xxhash.cpp

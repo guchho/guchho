@@ -16,6 +16,8 @@
 
 
 namespace guchho::helpers {
+
+
     //---------------------------------------
     // -------------- timer.cpp -------------
     //---------------------------------------
@@ -40,6 +42,7 @@ namespace guchho::helpers {
         std::chrono::steady_clock::time_point start_;
         std::chrono::steady_clock::time_point last_time_;
     };
+
 
     //---------------------------------------
     // ------------ typo.cpp ----------------
@@ -127,6 +130,8 @@ namespace guchho::helpers {
     // When no PublicPath is configured, "rel_path" is returned unchanged.
     std::string JoinPublicPath(std::string_view public_path, std::string_view rel_path);
 
+
+
     //---------------------------------------
     // ------------ strings.cpp -------------
     //---------------------------------------
@@ -153,10 +158,11 @@ namespace guchho::helpers {
     std::string QuoteForJSON(std::string_view text, bool asciiOnly);
     std::string quoteString(std::string_view text);
 
+
+
     //---------------------------------------
     // ------------ utf8.cpp ----------------
     //---------------------------------------
-
     // Decodes one Unicode code point at the start of text.
     // Returns the decoded code point and how many bytes it consumed.
     std::pair<char32_t, int> DecodeWTF8Rune(std::string_view text);
@@ -203,6 +209,7 @@ namespace guchho::helpers {
         std::span<const char16_t> a,
         std::span<const char16_t> b);
 
+        
     //---------------------------------------
     // ------------- base64.cpp -------------
     //---------------------------------------

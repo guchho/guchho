@@ -135,7 +135,7 @@ namespace guchho::helpers {
                         }
                     }
                 } else {
-                    if (!first) {
+                    if (!first && dst.back() != '/') {
                         dst += '/';
                     }
                     dst += elem;
@@ -147,7 +147,7 @@ namespace guchho::helpers {
                 }
             }
 
-            if (elem == "." || elem == "..") {
+            if ((elem == "." || elem == "..") && dst != "/") {
                 dst += '/';
             }
 

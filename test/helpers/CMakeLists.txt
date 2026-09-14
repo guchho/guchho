@@ -7,6 +7,7 @@ add_library(guchho_helpers_test_objects OBJECT
     strings_test.cpp
     url_test.cpp
     joiner_test.cpp
+    typo_test.cpp
 )
 
 target_include_directories(

@@ -307,6 +307,8 @@ namespace guchho::helpers {
     std::optional<std::string> PathUnescape(std::string_view s);
     std::optional<std::string> QueryUnescape(std::string_view s);
 
+
+
     //---------------------------------------
     // ---------- dataurl.cpp ---------------
     //---------------------------------------
@@ -323,4 +325,34 @@ namespace guchho::helpers {
     std::string EncodeStringAsShortestDataURL(
         std::string_view mime_type,
         std::string_view text);
+
+    //---------------------------------------
+    // ---------- glob.cpp ------------------
+    //---------------------------------------
+    // Describes the kind of wildcard present in a glob pattern.
+    enum class GlobWildcard : uint8_t {
+        // No wildcard.
+        kNone,
+
+        // "*" - matches any character except '/'.
+        kAllExceptSlash,
+
+        // "**" - matches any characters, including '/'.
+        kAllIncludingSlash,
+    };
+
+    // Stores one segment of a parsed glob pattern.
+    struct GlobPart {
+        // The plain text preceding the wildcard.
+        std::string prefix;
+
+        // The kind of wildcard in this segment.
+        GlobWildcard wildcard{GlobWildcard::kNone};
+    };
+
+    // Splits a glob pattern string into separate GlobPart segments.
+    std::vector<GlobPart> ParseGlobPattern(std::string_view text);
+
+    // Recombines parsed GlobParts back into a single glob pattern string.
+    std::string GlobPatternToString(const std::vector<GlobPart>& pattern);
 }

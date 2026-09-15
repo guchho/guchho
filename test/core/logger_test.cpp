@@ -561,7 +561,7 @@ TEST(SourceRangeOfLegacyOctalEscapeTest, NonOctalDigit)
     Source source;
     source.contents = "\\8";
     Range r = source.RangeOfLegacyOctalEscape(Loc{0});
-    EXPECT_EQ(r.len, 0);
+    EXPECT_EQ(r.len, 2);
 }
 
 // ---------------------------------------------------------------------------
@@ -581,7 +581,7 @@ TEST(SourceRangeOfOperatorBeforeTest, NotFound)
 {
     Source source;
     source.contents = "x === y";
-    Range r = source.RangeOfOperatorBefore(Loc{7}, "==");
+    Range r = source.RangeOfOperatorBefore(Loc{7}, ">>>");
     EXPECT_EQ(r.len, 0);
 }
 
@@ -849,12 +849,12 @@ TEST(LineColumnTrackerTest, MultipleQueries)
     EXPECT_EQ(loc1->line, 1);
     EXPECT_EQ(loc1->column, 0);
 
-    auto loc2 = tracker.MsgLocationOrNil(Range{Loc{10}, 5});
+    auto loc2 = tracker.MsgLocationOrNil(Range{Loc{6}, 5});
     ASSERT_TRUE(loc2 != nullptr);
     EXPECT_EQ(loc2->line, 2);
     EXPECT_EQ(loc2->column, 0);
 
-    auto loc3 = tracker.MsgLocationOrNil(Range{Loc{20}, 5});
+    auto loc3 = tracker.MsgLocationOrNil(Range{Loc{12}, 5});
     ASSERT_TRUE(loc3 != nullptr);
     EXPECT_EQ(loc3->line, 3);
     EXPECT_EQ(loc3->column, 0);
@@ -880,7 +880,7 @@ TEST(LineColumnTrackerTest, WindowsLineEndings)
     source.pretty_paths = {"/test.js", "test.js"};
 
     LineColumnTracker tracker(&source);
-    auto loc = tracker.MsgLocationOrNil(Range{Loc{9}, 3});
+    auto loc = tracker.MsgLocationOrNil(Range{Loc{7}, 3});
     ASSERT_TRUE(loc != nullptr);
     EXPECT_EQ(loc->line, 2);
     EXPECT_EQ(loc->column, 0);

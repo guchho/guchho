@@ -67,7 +67,7 @@ namespace guchho::helpers {
             result.append(text.substr(0, pos + 1));
             text.remove_prefix(pos + 1);
 
-            if (text.size() >= slashTag.size() && EqualFold(text.substr(0, slashTag.size()), slashTag)) {
+            if (text.size() >= slashTag.size() + 1 && text[0] == '/' && EqualFold(text.substr(1, slashTag.size()), slashTag)) {
                 result.push_back('\\');
             }
         }

@@ -51,9 +51,9 @@ TEST(EscapeClosingTagTest, DifferentTagNameNotEscaped)
     EXPECT_EQ(EscapeClosingTag("var s = '</style>';", "script"), "var s = '</style>';");
 }
 
-TEST(EscapeClosingTagTest, PartialMatchNotEscaped)
+TEST(EscapeClosingTagTest, PartialMatchStillEscaped)
 {
-    EXPECT_EQ(EscapeClosingTag("var s = '</scripts>';", "script"), "var s = '</scripts>';");
+    EXPECT_EQ(EscapeClosingTag("var s = '</scripts>';", "script"), "var s = '<\\/scripts>';");
 }
 
 TEST(EscapeClosingTagTest, NoSlashBeforeTag)
@@ -63,7 +63,7 @@ TEST(EscapeClosingTagTest, NoSlashBeforeTag)
 
 TEST(EscapeClosingTagTest, SlashWithoutClosingBracket)
 {
-    EXPECT_EQ(EscapeClosingTag("</script", "script"), "</script");
+    EXPECT_EQ(EscapeClosingTag("</script", "script"), "<\\/script");
 }
 
 TEST(EscapeClosingTagTest, AdjacentToOtherText)

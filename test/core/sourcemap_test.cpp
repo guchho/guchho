@@ -3,10 +3,8 @@
 #include "guchho/compiler.hpp"
 #include "guchho/logger.hpp"
 
-#include <cstdint>
 #include <string>
 #include <string_view>
-#include <tuple>
 #include <vector>
 
 using namespace guchho::sourcemap;

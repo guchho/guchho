@@ -177,10 +177,10 @@ namespace guchho::filesystem {
         if (l == 0) {
             return false;
         }
-        path = path.substr(size_t(l));
-        if (path.empty()) {
-            return false;
+        if (size_t(l) >= path.size()) {
+            return true;
         }
+        path = path.substr(size_t(l));
         return isSlash(path[0]);
     }
 

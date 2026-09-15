@@ -95,8 +95,7 @@ namespace guchho::filesystem {
     DirEntries MakeEmptyDirEntries(const std::string& dir)
     {
         DirEntries entries;
-        entries.dir  = dir;
-        entries.data = std::map<std::string, std::shared_ptr<Entry>>{};
+        entries.dir = dir;
         return entries;
     }
 
@@ -846,6 +845,7 @@ namespace guchho::filesystem {
                 }
 
                 if (!canonical_error) {
+                    dir_entries.data = std::map<std::string, std::shared_ptr<Entry>>{};
                     for (const std::string& name : names) {
                         // Call "stat" lazily for performance. The "@material-ui/icons" package
                         // contains a directory with over 11,000 entries in it and running "stat"

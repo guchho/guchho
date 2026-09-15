@@ -1041,7 +1041,7 @@ TEST(GoFilepathTest, AbsUnix)
     fp.cwd         = "/project";
     fp.is_windows  = false;
     fp.path_separator = '/';
-    EXPECT_EQ(fp.Abs("src/main.cpp"), "/src/main.cpp");
+    EXPECT_EQ(fp.Abs("src/main.cpp"), "/project/src/main.cpp");
     EXPECT_EQ(fp.Abs("/etc/passwd"), "/etc/passwd");
 }
 

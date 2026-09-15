@@ -605,6 +605,13 @@ namespace guchho::helpers {
 
 
     //---------------------------------------
+    // ------------ mime.cpp ----------------
+    //---------------------------------------
+    // Implements content sniffing (WHATWG mimesniff) and always returns a valid MIME type.
+    std::string DetectContentType(std::string_view data);
+
+
+    //---------------------------------------
     // ------------- sha.cpp ----------------
     //---------------------------------------
     // SHA-2 cryptographic digests (FIPS 180-4). Each returns the raw digest

@@ -22,6 +22,10 @@ set(GUCHHO_COMMON_SOURCES
     # core/unicode/
     core/unicode/unicode.cpp
     core/unicode/range_table.cpp
+
+    # core/entities/
+    core/entities/entities.cpp
+    core/entities/entities_table.cpp
 )
 
 

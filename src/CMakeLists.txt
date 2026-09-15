@@ -9,6 +9,7 @@ set(GUCHHO_COMMON_SOURCES
     helpers/glob.cpp
     helpers/hash.cpp
     helpers/joiner.cpp
+    helpers/mime.cpp
     helpers/path.cpp
     helpers/quote.cpp
     helpers/sha.cpp

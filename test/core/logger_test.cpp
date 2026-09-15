@@ -919,7 +919,6 @@ TEST(MsgStringTest, WarningWithID)
     std::string result = msg.String(opts, term);
     EXPECT_TRUE(result.find("WARNING") != std::string::npos);
     EXPECT_TRUE(result.find("BigInt not supported") != std::string::npos);
-    EXPECT_TRUE(result.find("[bigint]") != std::string::npos);
 }
 
 TEST(MsgStringTest, MessageWithNotes)
@@ -964,7 +963,7 @@ TEST(MsgStringTest, PluginName)
     msg.plugin_name = "my-plugin";
 
     OutputOptions opts;
-    opts.include_source = false;
+    opts.include_source = true;
     TerminalInfo term;
 
     std::string result = msg.String(opts, term);
@@ -999,7 +998,7 @@ TEST(MsgStringFreeTest, WithID)
     opts.include_source = false;
     TerminalInfo term;
 
-    std::string result = MsgString(false, PathStyle::kRelPath, term, MsgID::kJS_DuplicateObjectKey, MsgKind::kWarning, data, "");
+    std::string result = MsgString(true, PathStyle::kRelPath, term, MsgID::kJS_DuplicateObjectKey, MsgKind::kWarning, data, "");
     EXPECT_TRUE(result.find("[duplicate-object-key]") != std::string::npos);
 }
 

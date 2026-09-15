@@ -539,8 +539,8 @@ namespace guchho::filesystem {
     // path, it is returned unchanged.
     //
     // Example:
-    //   MangleYarnPnPVirtualPath("a/b/__virtual__/1/c") => "a/c"
-    //   MangleYarnPnPVirtualPath("a/b/c")                => "a/b/c"
+    //   MangleYarnPnPVirtualPath("a/b/__virtual__/abc/1/c") => "a/c"
+    //   MangleYarnPnPVirtualPath("a/b/c")                   => "a/b/c"
     std::string MangleYarnPnPVirtualPath(const std::string& path)
     {
         if (auto parsed = ParseYarnPnPVirtualPath(path)) {

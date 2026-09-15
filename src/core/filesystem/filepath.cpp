@@ -465,7 +465,7 @@ namespace guchho::filesystem {
         //	writing to buf; w is index of next byte to write.
         //	dotdot is index in buf where .. must stop, either because
         //		it is the leading slash or it is a leading ../../.. prefix.
-        LazyBuf out{path_separator};
+        LazyBuf out{path_separator, {}, 0};
         size_t  r = 0, dotdot = 0;
         if (rooted) {
             out.Append(path_separator);

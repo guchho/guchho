@@ -1158,7 +1158,7 @@ TEST(YarnPnPVirtualPathTest, ParseDunderVirtual)
 {
     auto result = ParseYarnPnPVirtualPath("/a/b/__virtual__/abc123/2/c/d.js");
     EXPECT_TRUE(result.has_value());
-    EXPECT_EQ(result->prefix, "/a/c/d.js");
+    EXPECT_EQ(result->prefix, "/");
     EXPECT_EQ(result->suffix, "c/d.js");
 }
 
@@ -1166,7 +1166,7 @@ TEST(YarnPnPVirtualPathTest, ParseDoubleVirtual)
 {
     auto result = ParseYarnPnPVirtualPath("/a/b/$$virtual/abc123/2/c/d.js");
     EXPECT_TRUE(result.has_value());
-    EXPECT_EQ(result->prefix, "/a/c/d.js");
+    EXPECT_EQ(result->prefix, "/");
     EXPECT_EQ(result->suffix, "c/d.js");
 }
 
@@ -1174,7 +1174,7 @@ TEST(YarnPnPVirtualPathTest, ParseDepthZero)
 {
     auto result = ParseYarnPnPVirtualPath("/a/b/__virtual__/hash/0/c/d.js");
     EXPECT_TRUE(result.has_value());
-    EXPECT_EQ(result->prefix, "/a/b");
+    EXPECT_EQ(result->prefix, "/a/b/");
     EXPECT_EQ(result->suffix, "c/d.js");
 }
 
@@ -1190,7 +1190,7 @@ TEST(YarnPnPVirtualPathTest, ParseEmptySuffix)
 {
     auto result = ParseYarnPnPVirtualPath("/a/b/__virtual__/hash/2");
     EXPECT_TRUE(result.has_value());
-    EXPECT_EQ(result->prefix, "/a");
+    EXPECT_EQ(result->prefix, "/");
     EXPECT_EQ(result->suffix, "");
 }
 
@@ -1198,7 +1198,7 @@ TEST(YarnPnPVirtualPathTest, ParseWindowsStyle)
 {
     auto result = ParseYarnPnPVirtualPath("C:\\a\\b\\__virtual__\\hash\\2\\c\\d.js");
     EXPECT_TRUE(result.has_value());
-    EXPECT_EQ(result->prefix, "C:\\a\\c\\d.js");
+    EXPECT_EQ(result->prefix, "C:\\");
     EXPECT_EQ(result->suffix, "c\\d.js");
 }
 
@@ -1206,7 +1206,7 @@ TEST(YarnPnPVirtualPathTest, ParseRelativePath)
 {
     auto result = ParseYarnPnPVirtualPath("a/b/__virtual__/hash/1/c/d.js");
     EXPECT_TRUE(result.has_value());
-    EXPECT_EQ(result->prefix, "a/c/d.js");
+    EXPECT_EQ(result->prefix, "a/");
     EXPECT_EQ(result->suffix, "c/d.js");
 }
 
@@ -1227,12 +1227,12 @@ TEST(YarnPnPVirtualPathTest, ParseNonNumericDepth)
 
 TEST(YarnPnPVirtualPathTest, MangleVirtualPath)
 {
-    EXPECT_EQ(MangleYarnPnPVirtualPath("/a/b/__virtual__/abc123/2/c/d.js"), "/a/c/d.js");
+    EXPECT_EQ(MangleYarnPnPVirtualPath("/a/b/__virtual__/abc123/2/c/d.js"), "/c/d.js");
 }
 
 TEST(YarnPnPVirtualPathTest, MangleDoubleVirtualPath)
 {
-    EXPECT_EQ(MangleYarnPnPVirtualPath("/a/b/$$virtual/abc123/2/c/d.js"), "/a/c/d.js");
+    EXPECT_EQ(MangleYarnPnPVirtualPath("/a/b/$$virtual/abc123/2/c/d.js"), "/c/d.js");
 }
 
 TEST(YarnPnPVirtualPathTest, MangleNonVirtualPath)

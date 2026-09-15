@@ -361,12 +361,13 @@ namespace guchho::filesystem {
     void AfterFileClose();
 
     // Yarn PnP virtual paths look like:
-    //   <prefix>/__virtual__/<hash>/<depth>/<suffix>
+    //   <parent>/__virtual__/<hash>/<depth>/<suffix>
     //
-    // where <depth> is a decimal count of how many ".." operations must be
-    // applied to <prefix> to reach the real location.  For example:
+    // where <depth> is a decimal count of how many dirname operations must be
+    // applied to <parent> to reach the real location.  For example:
     //   "/a/b/__virtual__/abc123/2/c/d.js"
-    //   prefix = "/a/b"  (after applying 2× ".."  →  "/a")
+    //   parent = "/a/b"  (after applying 2× dirname  →  "/")
+    //   prefix = "/"
     //   suffix = "c/d.js"
     //
     // ParseYarnPnPVirtualPath returns std::nullopt for paths that do not

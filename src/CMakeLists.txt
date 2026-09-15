@@ -40,6 +40,9 @@ set(GUCHHO_COMMON_SOURCES
     core/filesystem/filesystem.cpp
     core/filesystem/filesystem_zip.cpp
     core/filesystem/miniz/miniz.cpp
+
+    # core/sourcemap/
+    core/sourcemap/sourcemap.cpp
 )
 
 

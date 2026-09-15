@@ -26,6 +26,10 @@ set(GUCHHO_COMMON_SOURCES
     # core/entities/
     core/entities/entities.cpp
     core/entities/entities_table.cpp
+
+    # core/logger/
+    core/logger/logger.cpp
+    core/logger/terminal.cpp
 )
 
 

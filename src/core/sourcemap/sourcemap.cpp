@@ -635,7 +635,6 @@ std::vector<LineOffsetTable> GenerateLineOffsetTables(std::string_view contents,
     std::vector<int32_t> columns_for_non_ascii;
     int32_t byte_offset_to_first_non_ascii = 0;
     int line_byte_offset = 0;
-    int column_byte_offset = 0;
     int32_t column = 0;
     size_t i = 0;
 
@@ -650,21 +649,23 @@ std::vector<LineOffsetTable> GenerateLineOffsetTables(std::string_view contents,
         }
 
         // Lazily initialize the per-byte column mapping when the first
-        // non-ASCII character is encountered on this line.
-        if (c > 0x7F && columns_for_non_ascii.empty()) {
-            column_byte_offset = static_cast<int>(i) - line_byte_offset;
-            byte_offset_to_first_non_ascii = static_cast<int32_t>(column_byte_offset);
-            columns_for_non_ascii = std::vector<int32_t>{};
-        }
-
-        // Fill in column values for each byte consumed by the current
-        // character. Multi-byte characters produce multiple entries, all
-        // mapping to the same column number.
-        if (!columns_for_non_ascii.empty()) {
-            int line_bytes_so_far = static_cast<int>(i) - line_byte_offset;
-            while (column_byte_offset <= line_bytes_so_far) {
-                columns_for_non_ascii.push_back(column);
-                column_byte_offset++;
+        // non-ASCII character is encountered on this line, then record the
+        // logical column of every byte consumed by the current character.
+        // ASCII bytes map 1:1 to their column; each byte of a multi-byte
+        // character maps to the same column as the first byte.
+        bool is_line_break = c == '\r' || c == '\n' || c == 0x2028 || c == 0x2029;
+        if (!is_line_break) {
+            if (c > 0x7F && columns_for_non_ascii.empty()) {
+                byte_offset_to_first_non_ascii = static_cast<int32_t>(static_cast<int>(i) - line_byte_offset);
+                columns_for_non_ascii = std::vector<int32_t>{};
+            }
+            // Record the logical column of every byte consumed by the current
+            // character. This runs for the first non-ASCII character too (it
+            // starts the table, so the table is still empty at this point).
+            if (c > 0x7F || !columns_for_non_ascii.empty()) {
+                for (int b = 0; b < width; b++) {
+                    columns_for_non_ascii.push_back(column);
+                }
             }
         }
 
@@ -681,7 +682,6 @@ std::vector<LineOffsetTable> GenerateLineOffsetTables(std::string_view contents,
                 .byte_offset_to_first_non_ascii = byte_offset_to_first_non_ascii,
                 .byte_offset_to_start_of_line = static_cast<int32_t>(line_byte_offset),
             });
-            column_byte_offset = 0;
             byte_offset_to_first_non_ascii = 0;
             columns_for_non_ascii = {};
             column = 0;
@@ -701,14 +701,6 @@ std::vector<LineOffsetTable> GenerateLineOffsetTables(std::string_view contents,
 
     if (column == 0) {
         line_byte_offset = static_cast<int>(contents.size());
-    }
-
-    if (!columns_for_non_ascii.empty()) {
-        int line_bytes_so_far = static_cast<int>(contents.size()) - line_byte_offset;
-        while (column_byte_offset <= line_bytes_so_far) {
-            columns_for_non_ascii.push_back(column);
-            column_byte_offset++;
-        }
     }
 
     line_offset_tables.push_back(LineOffsetTable{
@@ -818,8 +810,12 @@ void ChunkBuilder::AddSourceMapping(logger::Loc original_loc, std::string_view o
     int original_column = static_cast<int>(original_loc.start - line.byte_offset_to_start_of_line);
 
     if (!line.columns_for_non_ascii.empty() && original_column >= static_cast<int>(line.byte_offset_to_first_non_ascii)) {
-        original_column = static_cast<int>(line.columns_for_non_ascii[static_cast<size_t>(
-            original_column - static_cast<int>(line.byte_offset_to_first_non_ascii))]);
+        size_t index = static_cast<size_t>(original_column - static_cast<int>(line.byte_offset_to_first_non_ascii));
+        if (index < line.columns_for_non_ascii.size()) {
+            original_column = line.columns_for_non_ascii[index];
+        } else {
+            original_column = line.columns_for_non_ascii.back();
+        }
     }
 
     UpdateGeneratedLineAndColumn(output);
@@ -849,8 +845,9 @@ void ChunkBuilder::AddSourceMapping(logger::Loc original_loc, std::string_view o
 
 // Finalizes the chunk builder and returns a Chunk containing the
 // accumulated source-map data, quoted names, end state, and a flag
-// indicating whether the source map is all semicolons (meaning it can
-// be ignored during finalization).
+// indicating whether the chunk output is free of user-visible code
+// (only semicolons, whitespace, and line terminators), meaning it can
+// be ignored during finalization.
 //
 // The end_state reflects the generated line/column position after
 // processing all output, which the caller uses as the prev_end_state
@@ -866,12 +863,20 @@ void ChunkBuilder::AddSourceMapping(logger::Loc original_loc, std::string_view o
 Chunk ChunkBuilder::GenerateChunk(const std::string& output) {
     UpdateGeneratedLineAndColumn(output);
 
+    // A chunk can be ignored when it contains no user-visible code, i.e.
+    // only semicolons, whitespace, and line terminators. Such chunks still
+    // contribute semicolons for line boundaries but nothing meaningful.
     bool should_ignore = true;
-    for (char c : source_map) {
-        if (c != ';') {
+    std::string_view output_view(output);
+    size_t rune_pos = 0;
+    while (rune_pos < output_view.size()) {
+        auto [c, width] = helpers::DecodeWTF8Rune(output_view.substr(rune_pos));
+        if (c != ';' && c != ' ' && c != '\t' && c != '\r' && c != '\n' &&
+            c != 0x2028 && c != 0x2029) {
             should_ignore = false;
             break;
         }
+        rune_pos += static_cast<size_t>(width);
     }
 
     return Chunk{
@@ -906,6 +911,13 @@ Chunk ChunkBuilder::GenerateChunk(const std::string& output) {
 //   => after processing: generated_line=2, generated_column=3,
 //     source_map = ";;;AAAA;AACA;AACA"  (semicolons for line breaks)
 void ChunkBuilder::UpdateGeneratedLineAndColumn(const std::string& output) {
+    // The cursor may already be past the end of the supplied output when the
+    // caller provides incremental fragments rather than the full accumulated
+    // text. In that case there is nothing new to scan, so return early.
+    if (static_cast<size_t>(last_generated_update) > output.size()) {
+        return;
+    }
+
     auto view = std::string_view(output).substr(static_cast<size_t>(last_generated_update));
     size_t i = 0;
 

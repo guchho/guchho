@@ -31,10 +31,10 @@ namespace guchho::filesystem {
         // considered reserved.
         //
         // Example:
-        //   isReservedName("CON")   → true
-        //   isReservedName("con")   → true
-        //   isReservedName("CON2")  → false
-        //   isReservedName("")      → false
+        //   isReservedName("CON")   => true
+        //   isReservedName("con")   => true
+        //   isReservedName("CON2")  => false
+        //   isReservedName("")      => false
         bool isReservedName(std::string_view path)
         {
             if (path.empty()) {
@@ -84,8 +84,8 @@ namespace guchho::filesystem {
         // between elements, never before the first or after the last.
         //
         // Example:
-        //   JoinWithSeparator('/', {"a","b","c"}, 1) → "b/c"
-        //   JoinWithSeparator('/', {"x"}, 0)         → "x"
+        //   JoinWithSeparator('/', {"a","b","c"}, 1) => "b/c"
+        //   JoinWithSeparator('/', {"x"}, 0)         => "x"
         std::string JoinWithSeparator(char separator, const std::vector<std::string>& elem, size_t first = 0)
         {
             std::string joined;
@@ -114,8 +114,8 @@ namespace guchho::filesystem {
         // drive-relative path — the result is kept relative to the C: drive.
         //
         // Example (Windows):
-        //   joinNonEmpty(fp, {"C:", "", "foo", "bar"}) → "C:foo\\bar"
-        //   joinNonEmpty(fp, {"C:\\", "foo", "bar"})   → "C:\\foo\\bar"
+        //   joinNonEmpty(fp, {"C:", "", "foo", "bar"}) => "C:foo\\bar"
+        //   joinNonEmpty(fp, {"C:\\", "foo", "bar"})   => "C:\\foo\\bar"
         std::string joinNonEmpty(const GoFilepath& fp, const std::vector<std::string>& elem)
         {
             if (elem[0].size() == 2 && elem[0][1] == ':') {
@@ -161,10 +161,10 @@ namespace guchho::filesystem {
     // are treated as absolute because Windows treats them as device paths.
     //
     // Example:
-    //   IsAbs("/src/main.cpp")   → true   (Unix mode)
-    //   IsAbs("src/main.cpp")    → false  (Unix mode)
-    //   IsAbs("C:\\Windows")     → true   (Windows mode)
-    //   IsAbs("C:foo")           → false  (Windows mode, relative to C:)
+    //   IsAbs("/src/main.cpp")   => true   (Unix mode)
+    //   IsAbs("src/main.cpp")    => false  (Unix mode)
+    //   IsAbs("C:\\Windows")     => true   (Windows mode)
+    //   IsAbs("C:foo")           => false  (Windows mode, relative to C:)
     bool GoFilepath::IsAbs(std::string_view path) const
     {
         if (!is_windows) {
@@ -192,8 +192,8 @@ namespace guchho::filesystem {
     //
     // Example:
     //   cwd = "/project"
-    //   Abs("src/main.cpp")  → "/project/src/main.cpp"
-    //   Abs("/etc/passwd")   → "/etc/passwd"
+    //   Abs("src/main.cpp")  => "/project/src/main.cpp"
+    //   Abs("/etc/passwd")   => "/etc/passwd"
     std::string GoFilepath::Abs(std::string_view path) const
     {
         if (IsAbs(path)) {
@@ -214,17 +214,17 @@ namespace guchho::filesystem {
     // of "path".  On Unix this is always 0 because Unix has no concept of
     // volume prefixes.  On Windows two forms are recognised:
     //
-    //   1. Drive-letter prefix: "C:" → length 2.
-    //   2. UNC prefix: "\\server\share" → length includes the server and
+    //   1. Drive-letter prefix: "C:" => length 2.
+    //   2. UNC prefix: "\\server\share" => length includes the server and
     //      share components (e.g. 16 for "\\server\share").
     //
     // A trailing slash immediately after the volume prefix is not part of
     // the prefix and is not counted.
     //
     // Example:
-    //   VolumeNameLen("C:\\src\\main.cpp") → 2
-    //   VolumeNameLen("\\\\server\\share") → 16
-    //   VolumeNameLen("/usr/bin")          → 0
+    //   VolumeNameLen("C:\\src\\main.cpp") => 2
+    //   VolumeNameLen("\\\\server\\share") => 16
+    //   VolumeNameLen("/usr/bin")          => 0
     int GoFilepath::VolumeNameLen(std::string_view path) const
     {
         if (!is_windows) {
@@ -277,8 +277,8 @@ namespace guchho::filesystem {
     //   - A symlink target cannot be read.
     //
     // Example:
-    //   /usr/local/bin/gcc → /usr/bin/gcc-12
-    //   EvalSymlinks("/usr/local/bin/gcc") → "/usr/bin/gcc-12"
+    //   /usr/local/bin/gcc => /usr/bin/gcc-12
+    //   EvalSymlinks("/usr/local/bin/gcc") => "/usr/bin/gcc-12"
     std::optional<std::string> GoFilepath::EvalSymlinks(std::string_view path_input) const
     {
         std::string path(path_input);
@@ -439,10 +439,10 @@ namespace guchho::filesystem {
     // would be empty, "." is returned.
     //
     // Example:
-    //   Clean("/a/b/../c/./d") → "/a/c/d"
-    //   Clean("a//b")          → "a/b"
-    //   Clean("../../a")       → "../../a"
-    //   Clean("/")             → "/"
+    //   Clean("/a/b/../c/./d") => "/a/c/d"
+    //   Clean("a//b")          => "a/b"
+    //   Clean("../../a")       => "../../a"
+    //   Clean("/")             => "/"
     std::string GoFilepath::Clean(std::string_view original_path) const
     {
         int         vol_len = VolumeNameLen(original_path);
@@ -522,9 +522,9 @@ namespace guchho::filesystem {
     // On Windows it includes the drive letter or UNC server-and-share.
     //
     // Example:
-    //   VolumeName("C:\\foo\\bar")      → "C:"
-    //   VolumeName("\\\\host\\share")   → "\\\\host\\share"
-    //   VolumeName("/usr/bin")          → ""
+    //   VolumeName("C:\\foo\\bar")      => "C:"
+    //   VolumeName("\\\\host\\share")   => "\\\\host\\share"
+    //   VolumeName("/usr/bin")          => ""
     std::string GoFilepath::VolumeName(std::string_view path) const
     {
         return std::string(path.substr(0, size_t(VolumeNameLen(path))));
@@ -537,10 +537,10 @@ namespace guchho::filesystem {
     // extracting the last element.
     //
     // Example:
-    //   Base("/src/main.cpp") → "main.cpp"
-    //   Base("/usr/bin/")     → "bin"
-    //   Base("C:\\")          → "\\"
-    //   Base("")              → "."
+    //   Base("/src/main.cpp") => "main.cpp"
+    //   Base("/usr/bin/")     => "bin"
+    //   Base("C:\\")          => "\\"
+    //   Base("")              => "."
     std::string GoFilepath::Base(std::string_view path_input) const
     {
         if (path_input.empty()) {
@@ -576,10 +576,10 @@ namespace guchho::filesystem {
     // root directory itself.
     //
     // Example:
-    //   Dir("/src/main.cpp")  → "/src"
-    //   Dir("/a/b/c")         → "/a/b"
-    //   Dir("/")              → "/"
-    //   Dir("C:\\")           → "C:\\"
+    //   Dir("/src/main.cpp")  => "/src"
+    //   Dir("/a/b/c")         => "/a/b"
+    //   Dir("/")              => "/"
+    //   Dir("C:\\")           => "C:\\"
     std::string GoFilepath::Dir(std::string_view path) const
     {
         std::string vol = VolumeName(path);
@@ -600,10 +600,10 @@ namespace guchho::filesystem {
     // empty string is returned.
     //
     // Example:
-    //   Ext("/src/main.cpp")  → ".cpp"
-    //   Ext("/src/Makefile")  → ""
-    //   Ext("archive.tar.gz") → ".gz"
-    //   Ext("/a.b/c")         → ""
+    //   Ext("/src/main.cpp")  => ".cpp"
+    //   Ext("/src/Makefile")  => ""
+    //   Ext("archive.tar.gz") => ".gz"
+    //   Ext("/a.b/c")         => ""
     std::string GoFilepath::Ext(std::string_view path) const
     {
         for (size_t i = path.size(); i > 0;) {
@@ -626,9 +626,9 @@ namespace guchho::filesystem {
     // element is already UNC — this prevents accidental UNC path creation.
     //
     // Example:
-    //   Join({"", "src", "main.cpp"}) → "src/main.cpp"    (Unix)
-    //   Join({"C:", "foo", "bar"})    → "C:foo\\bar"       (Windows)
-    //   Join({""})                    → ""
+    //   Join({"", "src", "main.cpp"}) => "src/main.cpp"    (Unix)
+    //   Join({"C:", "foo", "bar"})    => "C:foo\\bar"       (Windows)
+    //   Join({""})                    => ""
     std::string GoFilepath::Join(const std::vector<std::string>& elem) const
     {
         for (size_t i = 0; i < elem.size(); i++) {
@@ -652,10 +652,10 @@ namespace guchho::filesystem {
     // because one is absolute and the other is not.
     //
     // Example:
-    //   Rel("/a/b", "/a/b/c/d") → "c/d"
-    //   Rel("/a/b", "/a/b")     → "."
-    //   Rel("/a/b", "/x/y")     → "../../x/y"
-    //   Rel("C:\\a", "D:\\b")   → std::nullopt  (different volumes)
+    //   Rel("/a/b", "/a/b/c/d") => "c/d"
+    //   Rel("/a/b", "/a/b")     => "."
+    //   Rel("/a/b", "/x/y")     => "../../x/y"
+    //   Rel("C:\\a", "D:\\b")   => std::nullopt  (different volumes)
     std::optional<std::string> GoFilepath::Rel(std::string_view basepath, std::string_view targpath) const
     {
         std::string base_vol = VolumeName(basepath);
@@ -724,9 +724,9 @@ namespace guchho::filesystem {
     // Windows it is a case-insensitive ASCII comparison.
     //
     // Example:
-    //   SameWord("README.md", "readme.md") → true   (Windows mode)
-    //   SameWord("README.md", "readme.md") → false  (Unix mode)
-    //   SameWord("/a/b", "/a/b")           → true   (both modes)
+    //   SameWord("README.md", "readme.md") => true   (Windows mode)
+    //   SameWord("README.md", "readme.md") => false  (Unix mode)
+    //   SameWord("/a/b", "/a/b")           => true   (both modes)
     bool GoFilepath::SameWord(std::string_view a, std::string_view b) const
     {
         if (!is_windows) {
@@ -741,8 +741,8 @@ namespace guchho::filesystem {
     // replaced individually.
     //
     // Example:
-    //   FromSlash("src/main.cpp")           → "src\\main.cpp"  (Windows)
-    //   FromSlash("src/main.cpp")           → "src/main.cpp"   (Unix)
+    //   FromSlash("src/main.cpp")           => "src\\main.cpp"  (Windows)
+    //   FromSlash("src/main.cpp")           => "src/main.cpp"   (Unix)
     std::string GoFilepath::FromSlash(std::string_view path) const
     {
         if (!is_windows) {

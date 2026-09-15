@@ -564,9 +564,9 @@ namespace guchho::filesystem {
 
         // Describes how the watch-mode closure for a given path should detect
         // changes.  The state transitions are:
-        //   kNone → kFileNeedModKey → kFileHasModKey / kFileUnusableModKey
-        //   kNone → kFileMissing
-        //   kNone → kDirHasAccessedEntries / kDirUnreadable
+        //   kNone => kFileNeedModKey => kFileHasModKey / kFileUnusableModKey
+        //   kNone => kFileMissing
+        //   kNone => kDirHasAccessedEntries / kDirUnreadable
         enum class WatchState : uint8_t {
             kNone,
             kDirHasAccessedEntries, // Compare "accessed_entries"
@@ -650,7 +650,7 @@ namespace guchho::filesystem {
         //
         // Example:
         //   auto [contents, ec] = ReadWholeFile("/etc/hosts");
-        //   ec == std::errc{}  →  true on success
+        //   ec == std::errc{}  =>  true on success
         std::pair<std::string, std::error_code> ReadWholeFile(const std::string& path)
         {
             std::ifstream stream(PathFromUTF8(path), std::ios_base::binary);
@@ -678,8 +678,8 @@ namespace guchho::filesystem {
         //
         // Example:
         //   ModKeyResult r = ModKeyImpl("C:\\src\\main.cpp");
-        //   r.Ok()          →  true if file exists and mtime is trustworthy
-        //   r.unusable      →  true if mtime is zero or too fresh
+        //   r.Ok()          =>  true if file exists and mtime is trustworthy
+        //   r.unusable      =>  true if mtime is zero or too fresh
         ModKeyResult ModKeyImpl(const std::string& path)
         {
             ModKeyResult result;
@@ -726,9 +726,9 @@ namespace guchho::filesystem {
         //
         // Example:
         //   ModKeyResult r = ModKeyImpl("/src/main.cpp");
-        //   r.value.inode      →  inode number
-        //   r.value.mtime_sec  →  seconds since epoch
-        //   r.value.mtime_nsec →  nanosecond remainder
+        //   r.value.inode      =>  inode number
+        //   r.value.mtime_sec  =>  seconds since epoch
+        //   r.value.mtime_nsec =>  nanosecond remainder
         ModKeyResult ModKeyImpl(const std::string& path)
         {
             ModKeyResult result;
@@ -809,8 +809,8 @@ namespace guchho::filesystem {
             //
             // Example:
             //   auto result = ReadDirectory("/src");
-            //   result.Ok()           →  true if directory was readable
-            //   result.value.PeekEntryCount()  →  number of entries
+            //   result.Ok()           =>  true if directory was readable
+            //   result.value.PeekEntryCount()  =>  number of entries
             FsResult<DirEntries> ReadDirectory(const std::string& dir) override
             {
                 if (!do_not_cache_) {
@@ -894,8 +894,8 @@ namespace guchho::filesystem {
             //
             // Example:
             //   auto result = ReadFile("/src/main.cpp");
-            //   result.Ok()    →  true on success
-            //   result.value   →  file contents as a string
+            //   result.Ok()    =>  true on success
+            //   result.value   =>  file contents as a string
             FsResult<std::string> ReadFile(const std::string& path) override
             {
                 BeforeFileOpen();
@@ -931,8 +931,8 @@ namespace guchho::filesystem {
             //
             // Example:
             //   auto result = OpenFile("/src/main.cpp");
-            //   result.Ok()              →  true on success
-            //   result.value->Len()      →  file size in bytes
+            //   result.Ok()              =>  true on success
+            //   result.value->Len()      =>  file size in bytes
             FsResult<std::shared_ptr<OpenedFile>> OpenFile(const std::string& path) override
             {
                 BeforeFileOpen();
@@ -975,8 +975,8 @@ namespace guchho::filesystem {
             //
             // Example:
             //   ModKeyResult r = ModKey("/src/main.cpp");
-            //   r.Ok()     →  true if key is trustworthy
-            //   r.unusable →  true if mtime is zero or too fresh
+            //   r.Ok()     =>  true if key is trustworthy
+            //   r.unusable =>  true if mtime is zero or too fresh
             ModKeyResult ModKey(const std::string& path) override
             {
                 ModKeyResult result = ModKeyImpl(path);
@@ -1059,7 +1059,7 @@ namespace guchho::filesystem {
             // cannot be resolved.
             //
             // Example:
-            //   Kind("/usr/lib", "libfoo.so") → ("/usr/lib/libfoo.so.1", kFile)
+            //   Kind("/usr/lib", "libfoo.so") => ("/usr/lib/libfoo.so.1", kFile)
             std::pair<std::string, EntryKind> Kind(std::string_view dir, std::string_view base) override
             {
                 std::string entry_path = fp_.Join({std::string(dir), std::string(base)});
@@ -1261,8 +1261,8 @@ namespace guchho::filesystem {
             //
             // Example:
             //   auto [names, ec, msg] = ReadDir("/src");
-            //   ec == std::errc{}  →  true on success
-            //   names              →  {"main.cpp", "util.cpp"}
+            //   ec == std::errc{}  =>  true on success
+            //   names              =>  {"main.cpp", "util.cpp"}
             std::tuple<std::vector<std::string>, std::error_code, std::string> ReadDir(const std::string& dirname)
             {
                 BeforeFileOpen();
@@ -1326,7 +1326,7 @@ namespace guchho::filesystem {
     // Example:
     //   std::string error;
     //   auto fs = MakeRealFS({.abs_working_dir = "/project"}, error);
-    //   fs != nullptr  →  true on success
+    //   fs != nullptr  =>  true on success
     std::unique_ptr<Fs> MakeRealFS(const RealFsOptions& options, std::string& error)
     {
         GoFilepath fp;

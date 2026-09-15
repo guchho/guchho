@@ -188,7 +188,7 @@ TEST(AllowOverrideTest, InfoOverride)
 TEST(OutputOptionsForArgsTest, DefaultValues)
 {
     OutputOptions opts = OutputOptionsForArgs({});
-    EXPECT_EQ(opts.log_level, LogLevel::kWarning);
+    EXPECT_EQ(opts.log_level, LogLevel::kNone);
 }
 
 TEST(OutputOptionsForArgsTest, ColorFalse)
@@ -224,7 +224,7 @@ TEST(OutputOptionsForArgsTest, LogLevelSilent)
 TEST(OutputOptionsForArgsTest, UnknownArgIgnored)
 {
     OutputOptions opts = OutputOptionsForArgs({"--unknown-flag"});
-    EXPECT_EQ(opts.log_level, LogLevel::kWarning);
+    EXPECT_EQ(opts.log_level, LogLevel::kNone);
 }
 
 // ---------------------------------------------------------------------------

@@ -390,7 +390,7 @@ namespace guchho::css {
     //   2. Validate that the declaration has 1-2 numeric tokens.
     //   3. Track unit safety across both tokens.
     //   4. Collapse "0px" to "0" if units are safe.
-    //   5. Merge two identical tokens into one (e.g., "10px 10px" → "10px").
+    //   5. Merge two identical tokens into one (e.g., "10px 10px" => "10px").
     //   6. Update the corner and attempt to compact other corners.
     //
     // Input:  decl = "10px" (single radius)

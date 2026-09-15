@@ -293,6 +293,8 @@ namespace guchho::filesystem {
     //   CanonicalizeError(true, ec) => std::errc::no_such_file_or_directory
     std::optional<std::errc> CanonicalizeError(bool is_windows, const std::error_code& ec)
     {
+        (void) is_windows;
+
         if (!ec) {
             return std::nullopt;
         }
@@ -623,7 +625,7 @@ namespace guchho::filesystem {
                 size_t total = 0;
                 while (total < bytes.size()) {
                     stream_.read(bytes.data() + ptrdiff_t(total), std::streamsize(bytes.size() - total));
-                    total += size_t(stream.gcount());
+                    total += size_t(stream_.gcount());
                     if (!stream_.good()) {
                         break;
                     }

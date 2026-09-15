@@ -35,7 +35,10 @@ set(GUCHHO_COMMON_SOURCES
     # core/compiler/
     core/compiler/compiler.cpp
 
-    # core/filesystem/miniz/
+    # core/filesystem/
+    core/filesystem/filepath.cpp
+    core/filesystem/filesystem.cpp
+    core/filesystem/filesystem_zip.cpp
     core/filesystem/miniz/miniz.cpp
 )
 

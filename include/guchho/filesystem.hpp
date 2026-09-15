@@ -44,7 +44,7 @@ namespace guchho::filesystem {
         kWindows,
     };
 
-    class Fs;
+    struct Fs;
 
 
     // Entry / DirEntries

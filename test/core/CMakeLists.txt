@@ -6,6 +6,7 @@ add_library(guchho_core_test_objects OBJECT
     logger_test.cpp
     compiler_test.cpp
     miniz_test.cpp
+    filesystem_test.cpp
 )
 
 target_include_directories(

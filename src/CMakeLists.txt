@@ -11,6 +11,10 @@ set(GUCHHO_COMMON_SOURCES
     helpers/typo.cpp
     helpers/url.cpp
     helpers/xxhash/xxhash.cpp
+
+    # core/unicode/
+    core/unicode/unicode.cpp
+    core/unicode/range_table.cpp
 )
 
 

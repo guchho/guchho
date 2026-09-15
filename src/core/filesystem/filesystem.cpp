@@ -4,16 +4,25 @@
 #include <algorithm>
 #include <cstdlib>
 #include <semaphore>
+#include <ctime>
+#include <fstream>
+#include <tuple>
+
+#ifndef _WIN32
+#include <sys/stat.h>
+#include <sys/types.h>
+#endif
 
 namespace guchho::filesystem {
 
     namespace {
 
-        // A counting semaphore that caps the number of simultaneously open file
-        // descriptors. Each call to BeforeFileOpen() decrements the semaphore
-        // (blocking if zero), and each call to AfterFileClose() increments it.
-        // This prevents hitting the OS ulimit on systems that allow only a
-        // limited number of open files.
+        // Counting semaphore that limits how many files can be open at the
+        // same time across the entire process.  Some operating systems impose
+        // a per-process limit on open file descriptors (e.g. 256 on older
+        // macOS, 1024 on many Linux kernels).  By acquiring a permit before
+        // every open and releasing it after every close, we guarantee the
+        // process never exceeds 32 concurrent file handles.
         std::counting_semaphore<32> file_open_limit{32};
 
         // Converts a string to lowercase using ASCII-only rules (no locale).
@@ -537,5 +546,835 @@ namespace guchho::filesystem {
             return parsed->prefix + parsed->suffix;
         }
         return path;
+    }
+
+
+    // Returns true when the current process is running on Windows.  Used to
+    // select path-convention rules at construction time.
+    bool CheckIfWindows()
+    {
+        #ifdef _WIN32
+                return true;
+        #else
+                return false;
+        #endif
+    }
+
+    namespace {
+
+        // Describes how the watch-mode closure for a given path should detect
+        // changes.  The state transitions are:
+        //   kNone → kFileNeedModKey → kFileHasModKey / kFileUnusableModKey
+        //   kNone → kFileMissing
+        //   kNone → kDirHasAccessedEntries / kDirUnreadable
+        enum class WatchState : uint8_t {
+            kNone,
+            kDirHasAccessedEntries, // Compare "accessed_entries"
+            kDirUnreadable,         // Compare directory readability
+            kFileHasModKey,         // Compare "mod_key"
+            kFileNeedModKey,        // Need to transition to "kFileHasModKey" or "kFileUnusableModKey" before watch data is returned
+            kFileMissing,           // Compare file presence
+            kFileUnusableModKey,    // Compare "file_contents"
+        };
+
+        struct EntriesOrErr {
+            DirEntries                entries;
+            std::optional<std::errc>  canonical_error;
+            std::string               original_error;
+        };
+
+        struct PrivateWatchData {
+            std::shared_ptr<AccessedEntries> accessed_entries;
+            std::string                      file_contents;
+            ModKey                           mod_key;
+            WatchState                       state = WatchState::kNone;
+        };
+
+        // Opens a real file on disk for random-access reads.  The file is
+        // kept open for the lifetime of the object; Close() releases the
+        // underlying ifstream.
+        class RealOpenedFile : public OpenedFile {
+        public:
+            RealOpenedFile(std::ifstream stream, int len)
+                : stream_(std::move(stream)),
+                  len_(len)
+            {
+            }
+
+            int Len() const override
+            {
+                return len_;
+            }
+
+            // Reads bytes in the range [start, end) from the file.  The
+            // stream is seeked to the start offset and read in a loop until
+            // all requested bytes are obtained or EOF is reached.
+            std::string Read(int start, int end) override
+            {
+                std::string bytes(size_t(end - start), '\0');
+                if (bytes.empty()) {
+                    return bytes;
+                }
+                stream_.clear();
+                stream_.seekg(std::streamoff(start));
+                if (!stream_) {
+                    return {};
+                }
+                size_t total = 0;
+                while (total < bytes.size()) {
+                    stream_.read(bytes.data() + ptrdiff_t(total), std::streamsize(bytes.size() - total));
+                    total += size_t(stream.gcount());
+                    if (!stream_.good()) {
+                        break;
+                    }
+                }
+                bytes.resize(total);
+                return bytes;
+            }
+
+            bool Close() override
+            {
+                stream_.close();
+                return true;
+            }
+
+        private:
+            std::ifstream stream_;
+            int           len_;
+        };
+
+        // Reads the entire contents of a file into a string.  The file is
+        // opened in binary mode and read in 32 KB chunks.  Returns the
+        // contents and an empty error code on success, or an empty string
+        // and the OS error code on failure.
+        //
+        // Example:
+        //   auto [contents, ec] = ReadWholeFile("/etc/hosts");
+        //   ec == std::errc{}  →  true on success
+        std::pair<std::string, std::error_code> ReadWholeFile(const std::string& path)
+        {
+            std::ifstream stream(PathFromUTF8(path), std::ios_base::binary);
+            if (!stream.is_open()) {
+                return {"", std::error_code(errno, std::generic_category())};
+            }
+            std::string contents;
+            char        buffer[32768];
+            while (stream) {
+                stream.read(buffer, sizeof(buffer));
+                contents.append(buffer, size_t(stream.gcount()));
+            }
+            if (stream.bad()) {
+                return {"", std::error_code(EIO, std::generic_category())};
+            }
+            return {contents, {}};
+        }
+
+#ifdef _WIN32
+
+        // Computes a metadata fingerprint for a file on Windows using _wstat64.
+        // Returns a ModKeyResult with the file's size, mtime, and mode.  If
+        // the mtime is zero or the file is too new (within kModKeySafetyGap
+        // seconds of the current time), the result is marked as unusable.
+        //
+        // Example:
+        //   ModKeyResult r = ModKeyImpl("C:\\src\\main.cpp");
+        //   r.Ok()          →  true if file exists and mtime is trustworthy
+        //   r.unusable      →  true if mtime is zero or too fresh
+        ModKeyResult ModKeyImpl(const std::string& path)
+        {
+            ModKeyResult result;
+
+            BeforeFileOpen();
+            struct _stat64 st;
+            std::wstring   wide_path = PathFromUTF8(path).wstring();
+            if (_wstat64(wide_path.c_str(), &st) != 0) {
+                std::error_code ec(errno, std::generic_category());
+                AfterFileClose();
+                result.canonical_error = CanonicalizeError(true, ec);
+                result.original_error  = ec.message();
+                return result;
+            }
+
+            // We can't detect changes if the file system zeros out the modification time
+            if (st.st_mtime == 0) {
+                AfterFileClose();
+                result.unusable = true;
+                return result;
+            }
+
+            // Don't generate a modification key if the file is too new
+            if (st.st_mtime + kModKeySafetyGap > time(nullptr)) {
+                AfterFileClose();
+                result.unusable = true;
+                return result;
+            }
+
+            result.value.size      = st.st_size;
+            result.value.mtime_sec = int64_t(st.st_mtime);
+            result.value.mode      = uint32_t(st.st_mode);
+
+            AfterFileClose();
+            return result;
+        }
+
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__) || defined(__FreeBSD__)
+
+        // Computes a metadata fingerprint for a file on Unix using stat(2).
+        // Returns a ModKeyResult with the file's inode, size, mtime (with
+        // nanosecond precision), mode, and uid.  If the mtime is zero or the
+        // file is too new, the result is marked as unusable.
+        //
+        // Example:
+        //   ModKeyResult r = ModKeyImpl("/src/main.cpp");
+        //   r.value.inode      →  inode number
+        //   r.value.mtime_sec  →  seconds since epoch
+        //   r.value.mtime_nsec →  nanosecond remainder
+        ModKeyResult ModKeyImpl(const std::string& path)
+        {
+            ModKeyResult result;
+
+            BeforeFileOpen();
+            struct stat st;
+            if (::stat(path.c_str(), &st) != 0) {
+                std::error_code ec(errno, std::generic_category());
+                AfterFileClose();
+                result.canonical_error = CanonicalizeError(false, ec);
+                result.original_error  = ec.message();
+                return result;
+            }
+
+#if defined(__APPLE__)
+            long mtime_sec  = long(st.st_mtimespec.tv_sec);
+            long mtime_nsec = long(st.st_mtimespec.tv_nsec);
+#else
+            long mtime_sec  = long(st.st_mtim.tv_sec);
+            long mtime_nsec = long(st.st_mtim.tv_nsec);
+#endif
+
+            // We can't detect changes if the file system zeros out the modification time
+            if (mtime_sec == 0 && mtime_nsec == 0) {
+                AfterFileClose();
+                result.unusable = true;
+                return result;
+            }
+
+            // Don't generate a modification key if the file is too new
+            struct timespec now;
+            clock_gettime(CLOCK_REALTIME, &now);
+            if (mtime_sec + kModKeySafetyGap > now.tv_sec ||
+                (mtime_sec + kModKeySafetyGap == now.tv_sec && mtime_nsec > now.tv_nsec)) {
+                AfterFileClose();
+                result.unusable = true;
+                return result;
+            }
+
+            result.value.inode      = uint64_t(st.st_ino);
+            result.value.size       = st.st_size;
+            result.value.mtime_sec  = int64_t(mtime_sec);
+            result.value.mtime_nsec = int64_t(mtime_nsec);
+            result.value.mode       = uint32_t(st.st_mode);
+            result.value.uid        = uint32_t(st.st_uid);
+
+            AfterFileClose();
+            return result;
+        }
+
+#else
+
+#error Unsupported platform: no ModKey implementation
+
+#endif
+
+        // Real file system implementation backed by the host OS.  All file
+        // and directory operations delegate to std::filesystem or platform-
+        // specific APIs.  An optional directory-entry cache avoids redundant
+        // stat() calls when the same directory is listed multiple times.
+        class RealFS : public Fs {
+        public:
+            RealFS(GoFilepath fp, const RealFsOptions& options)
+                : fp_(std::move(fp)),
+                  do_not_cache_(options.do_not_cache)
+            {
+                // Only allocate memory for watch data if necessary
+                if (options.want_watch_data) {
+                    watch_data_.emplace();
+                }
+            }
+
+            // Lists directory entries for "dir".  When caching is enabled,
+            // a cache hit returns the stored result immediately.  On a cache
+            // miss the directory is read via directory_iterator, entries are
+            // created with lazy stat (need_stat = true), and the result is
+            // stored for future lookups.
+            //
+            // Example:
+            //   auto result = ReadDirectory("/src");
+            //   result.Ok()           →  true if directory was readable
+            //   result.value.PeekEntryCount()  →  number of entries
+            FsResult<DirEntries> ReadDirectory(const std::string& dir) override
+            {
+                if (!do_not_cache_) {
+                    // First, check the cache
+                    std::lock_guard<std::mutex> lock(entries_mutex_);
+                    auto                        found = entries_.find(dir);
+                    if (found != entries_.end()) {
+                        // Cache hit: stop now
+                        FsResult<DirEntries> result;
+                        result.value           = found->second.entries;
+                        result.canonical_error = found->second.canonical_error;
+                        result.original_error  = found->second.original_error;
+                        return result;
+                    }
+                }
+
+                // Cache miss: read the directory entries
+                auto [names, canonical_ec, original_error] = ReadDir(dir);
+                DirEntries dir_entries                     = MakeEmptyDirEntries(dir);
+
+                // Preserve ENOTDIR from readdir (file-as-directory) instead of mapping to ENOENT,
+                // mirroring Go where readdir's ENOTDIR is not passed through canonicalizeError.
+                std::optional<std::errc> canonical_error;
+                if (canonical_ec == std::errc::not_a_directory) {
+                    canonical_error = std::errc::not_a_directory;
+                } else {
+                    canonical_error = CanonicalizeError(fp_.is_windows, canonical_ec);
+                    if (canonical_error == std::errc::invalid_argument) {
+                        canonical_error = std::errc::not_a_directory;
+                    }
+                }
+
+                if (!canonical_error) {
+                    for (const std::string& name : names) {
+                        // Call "stat" lazily for performance. The "@material-ui/icons" package
+                        // contains a directory with over 11,000 entries in it and running "stat"
+                        // for each entry was a big performance issue for that package.
+                        auto entry        = std::make_shared<Entry>();
+                        entry->dir        = dir;
+                        entry->base       = name;
+                        entry->need_stat  = true;
+                        dir_entries.data->emplace(helpers::ToLowerASCII(name), std::move(entry));
+                    }
+                }
+
+                // Store data for watch mode
+                if (watch_data_) {
+                    std::lock_guard<std::mutex>  lock(watch_mutex_);
+                    PrivateWatchData             data;
+                    data.state = canonical_error ? WatchState::kDirUnreadable : WatchState::kDirHasAccessedEntries;
+                    dir_entries.accessed_entries = std::make_shared<AccessedEntries>();
+                    data.accessed_entries        = dir_entries.accessed_entries;
+                    (*watch_data_)[dir]          = std::move(data);
+                }
+
+                // Update the cache unconditionally. Even if the read failed, we don't want to
+                // retry again later. The directory is inaccessible so trying again is wasted.
+                if (canonical_error) {
+                    dir_entries.data.reset();
+                }
+                if (!do_not_cache_) {
+                    std::lock_guard<std::mutex> lock(entries_mutex_);
+                    EntriesOrErr cached;
+                    cached.entries         = dir_entries;
+                    cached.canonical_error = canonical_error;
+                    cached.original_error  = original_error;
+                    entries_[dir]          = std::move(cached);
+                }
+
+                FsResult<DirEntries> result;
+                result.value           = dir_entries;
+                result.canonical_error = canonical_error;
+                result.original_error  = original_error;
+                return result;
+            }
+
+            // Reads the entire file at "path" into a string.  When watch
+            // mode is active the file contents are stored so that future
+            // change-detection can compare against them (for files whose
+            // mtime is unreliable).
+            //
+            // Example:
+            //   auto result = ReadFile("/src/main.cpp");
+            //   result.Ok()    →  true on success
+            //   result.value   →  file contents as a string
+            FsResult<std::string> ReadFile(const std::string& path) override
+            {
+                BeforeFileOpen();
+                auto [contents, ec] = ReadWholeFile(path);
+                AfterFileClose();
+
+                std::optional<std::errc> canonical_error = CanonicalizeError(fp_.is_windows, ec);
+
+                // Store data for watch mode
+                if (watch_data_) {
+                    std::lock_guard<std::mutex> lock(watch_mutex_);
+                    PrivateWatchData&           data = (*watch_data_)[path];
+                    if (canonical_error) {
+                        data.state = WatchState::kFileMissing;
+                    } else if (data.state == WatchState::kNone || data.state == WatchState::kDirUnreadable) {
+                        // Note: If "ReadDirectory" is called before "ReadFile" with this same
+                        // path, then "data.state" will be "kDirUnreadable". In that case
+                        // we want to transition to "kFileNeedModKey" because it's a file.
+                        data.state = WatchState::kFileNeedModKey;
+                    }
+                    data.file_contents = contents;
+                }
+
+                FsResult<std::string> result;
+                result.value           = std::move(contents);
+                result.canonical_error = canonical_error;
+                result.original_error  = ec.message();
+                return result;
+            }
+
+            // Opens the file at "path" for random-access reads.  The returned
+            // handle keeps the file open until Close() is called.
+            //
+            // Example:
+            //   auto result = OpenFile("/src/main.cpp");
+            //   result.Ok()              →  true on success
+            //   result.value->Len()      →  file size in bytes
+            FsResult<std::shared_ptr<OpenedFile>> OpenFile(const std::string& path) override
+            {
+                BeforeFileOpen();
+
+                errno = 0;
+                std::ifstream stream(PathFromUTF8(path), std::ios_base::binary);
+                if (!stream.is_open()) {
+                    std::error_code ec(errno, std::generic_category());
+                    AfterFileClose();
+                    FsResult<std::shared_ptr<OpenedFile>> result;
+                    result.canonical_error = CanonicalizeError(fp_.is_windows, ec);
+                    result.original_error  = ec.message();
+                    return result;
+                }
+
+                stream.seekg(0, std::ios_base::end);
+                std::streamoff size = stream.tellg();
+                stream.clear();
+                stream.seekg(0, std::ios_base::beg);
+                if (size < 0) {
+                    std::error_code ec(EIO, std::generic_category());
+                    AfterFileClose();
+                    FsResult<std::shared_ptr<OpenedFile>> result;
+                    result.canonical_error = CanonicalizeError(fp_.is_windows, ec);
+                    result.original_error  = ec.message();
+                    return result;
+                }
+
+                AfterFileClose();
+
+                FsResult<std::shared_ptr<OpenedFile>> result;
+                result.value = std::make_shared<RealOpenedFile>(std::move(stream), int(size));
+                return result;
+            }
+
+            // Computes a metadata fingerprint for "path" via the platform-
+            // specific ModKeyImpl.  When watch mode is active the key is
+            // stored so GetWatchData() can later produce a closure that
+            // compares against it.
+            //
+            // Example:
+            //   ModKeyResult r = ModKey("/src/main.cpp");
+            //   r.Ok()     →  true if key is trustworthy
+            //   r.unusable →  true if mtime is zero or too fresh
+            ModKeyResult ModKey(const std::string& path) override
+            {
+                ModKeyResult result = ModKeyImpl(path);
+
+                // Store data for watch mode
+                if (watch_data_) {
+                    std::lock_guard<std::mutex> lock(watch_mutex_);
+                    PrivateWatchData&           data = (*watch_data_)[path];
+                    if (data.state == WatchState::kNone) {
+                        if (result.unusable) {
+                            data.state = WatchState::kFileUnusableModKey;
+                        } else if (!result.Ok()) {
+                            data.state = WatchState::kFileMissing;
+                        } else {
+                            data.state = WatchState::kFileHasModKey;
+                        }
+                    } else if (data.state == WatchState::kFileNeedModKey) {
+                        data.state = WatchState::kFileHasModKey;
+                    }
+                    data.mod_key = result.value;
+                }
+
+                return result;
+            }
+
+            bool IsAbs(std::string_view p) override
+            {
+                return fp_.IsAbs(p);
+            }
+
+            std::optional<std::string> Abs(std::string_view p) override
+            {
+                return fp_.Abs(p);
+            }
+
+            std::string Dir(std::string_view p) override
+            {
+                return fp_.Dir(p);
+            }
+
+            std::string Base(std::string_view p) override
+            {
+                return fp_.Base(p);
+            }
+
+            std::string Ext(std::string_view p) override
+            {
+                return fp_.Ext(p);
+            }
+
+            std::string Join(std::initializer_list<std::string_view> parts) override
+            {
+                std::vector<std::string> converted;
+                converted.reserve(parts.size());
+                for (std::string_view part : parts) {
+                    converted.emplace_back(part);
+                }
+                return fp_.Clean(fp_.Join(converted));
+            }
+
+            std::string Cwd() override
+            {
+                return fp_.cwd;
+            }
+
+            std::optional<std::string> Rel(std::string_view base, std::string_view target) override
+            {
+                return fp_.Rel(base, target);
+            }
+
+            std::optional<std::string> EvalSymlinks(std::string_view path) override
+            {
+                return fp_.EvalSymlinks(path);
+            }
+
+            // Classifies the entry at (dir, base) as a file or directory.
+            // If the entry is a symlink, the target is resolved and the
+            // symlink target path is returned as the first element of the
+            // pair.  Returns kInvalid if the stat fails or the symlink
+            // cannot be resolved.
+            //
+            // Example:
+            //   Kind("/usr/lib", "libfoo.so") → ("/usr/lib/libfoo.so.1", kFile)
+            std::pair<std::string, EntryKind> Kind(std::string_view dir, std::string_view base) override
+            {
+                std::string entry_path = fp_.Join({std::string(dir), std::string(base)});
+
+                std::error_code ec;
+                // Use "symlink_status" since we want information about symbolic links
+                BeforeFileOpen();
+                auto status = std::filesystem::symlink_status(PathFromUTF8(entry_path), ec);
+                AfterFileClose();
+                if (ec) {
+                    return {"", EntryKind::kInvalid};
+                }
+
+                std::string symlink;
+
+                // Follow symlinks now so the cache contains the translation
+                if (status.type() == std::filesystem::file_type::symlink) {
+                    auto link = fp_.EvalSymlinks(entry_path);
+                    if (!link) {
+                        return {"", EntryKind::kInvalid}; // Skip over this entry
+                    }
+
+                    // Re-run "lstat" on the symlink target to see if it's a file or not
+                    std::error_code ec2;
+                    BeforeFileOpen();
+                    status = std::filesystem::symlink_status(PathFromUTF8(*link), ec2);
+                    AfterFileClose();
+                    if (ec2) {
+                        return {"", EntryKind::kInvalid}; // Skip over this entry
+                    }
+                    if (status.type() == std::filesystem::file_type::symlink) {
+                        return {"", EntryKind::kInvalid}; // This should no longer be a symlink, so this is unexpected
+                    }
+                    symlink = *link;
+                }
+
+                // We consider the entry either a directory or a file
+                EntryKind kind = status.type() == std::filesystem::file_type::directory
+                                     ? EntryKind::kDir
+                                     : EntryKind::kFile;
+                return {symlink, kind};
+            }
+
+            // Builds and returns the full set of watch-mode closures.  Each
+            // entry in the returned WatchData maps a file-system path to a
+            // thunk that, when called, returns a non-empty path if the entry
+            // has been modified since the last build, or an empty string if
+            // the entry is unchanged.
+            //
+            // The closure strategy depends on the WatchState:
+            //   - kDirHasAccessedEntries: re-lists the directory and
+            //     compares against the recorded accessed_entries snapshot.
+            //   - kFileHasModKey: re-computes the ModKey and compares.
+            //   - kFileUnusableModKey: re-reads the file and compares.
+            //   - kFileMissing: checks whether the file now exists.
+            //   - kDirUnreadable: checks whether the directory is now
+            //     readable.
+            WatchData GetWatchData() override
+            {
+                WatchData result;
+
+                if (!watch_data_) {
+                    return result;
+                }
+
+                std::lock_guard<std::mutex> lock(watch_mutex_);
+
+                for (auto& [path, stored] : *watch_data_) {
+                    PrivateWatchData data = stored; // Each closure needs its own copy
+
+                    if (data.state == WatchState::kFileNeedModKey) {
+                        ModKeyResult key_result = ModKeyImpl(path);
+                        if (key_result.unusable) {
+                            data.state = WatchState::kFileUnusableModKey;
+                        } else if (!key_result.Ok()) {
+                            data.state = WatchState::kFileMissing;
+                        } else {
+                            data.state    = WatchState::kFileHasModKey;
+                            data.mod_key  = key_result.value;
+                        }
+                    }
+
+                    switch (data.state) {
+                    case WatchState::kDirUnreadable: {
+                        std::string watched = path;
+                        result.paths.emplace(watched, [this, watched]() -> std::string {
+                            auto [names, ec, original_error] = ReadDir(watched);
+                            if (!ec) {
+                                return watched;
+                            }
+                            return "";
+                        });
+                        break;
+                    }
+
+                    case WatchState::kDirHasAccessedEntries: {
+                        std::string     watched  = path;
+                        PrivateWatchData captured = data;
+                        result.paths.emplace(watched, [this, watched, captured]() -> std::string {
+                            auto [names, ec, original_error] = ReadDir(watched);
+                            if (ec) {
+                                return watched;
+                            }
+                            auto accessed = captured.accessed_entries;
+                            std::lock_guard<std::mutex> entries_lock(accessed->mutex);
+                            if (accessed->all_entries) {
+                                // Check all entries
+                                const std::vector<std::string>& all_entries = *accessed->all_entries;
+                                if (names.size() != all_entries.size()) {
+                                    return watched;
+                                }
+                                std::vector<std::string> sorted(names);
+                                std::sort(sorted.begin(), sorted.end());
+                                for (size_t i = 0; i < sorted.size(); i++) {
+                                    if (sorted[i] != all_entries[i]) {
+                                        return watched;
+                                    }
+                                }
+                            } else {
+                                // Check individual entries
+                                std::unordered_map<std::string, std::string> lookup;
+                                lookup.reserve(names.size());
+                                for (const std::string& name : names) {
+                                    lookup.emplace(helpers::ToLowerASCII(name), name);
+                                }
+                                for (const auto& [name, was_present] : accessed->was_present) {
+                                    auto found = lookup.find(name);
+                                    bool is_present = found != lookup.end();
+                                    if (was_present != is_present) {
+                                        if (is_present) {
+                                            return Join({watched, found->second});
+                                        } else {
+                                            return watched;
+                                        }
+                                    }
+                                }
+                            }
+                            return "";
+                        });
+                        break;
+                    }
+
+                    case WatchState::kFileMissing: {
+                        std::string watched = path;
+                        result.paths.emplace(watched, [watched]() -> std::string {
+                            std::error_code ec;
+                            auto            status = std::filesystem::status(PathFromUTF8(watched), ec);
+                            if (!ec && status.type() != std::filesystem::file_type::directory &&
+                                status.type() != std::filesystem::file_type::not_found &&
+                                status.type() != std::filesystem::file_type::none) {
+                                return watched;
+                            }
+                            return "";
+                        });
+                        break;
+                    }
+
+                    case WatchState::kFileHasModKey: {
+                        std::string watched = path;
+                        auto        key     = data.mod_key;
+                        result.paths.emplace(watched, [watched, key]() -> std::string {
+                            ModKeyResult current = ModKeyImpl(watched);
+                            if (!current.Ok() || !(current.value == key)) {
+                                return watched;
+                            }
+                            return "";
+                        });
+                        break;
+                    }
+
+                    case WatchState::kFileUnusableModKey: {
+                        std::string watched    = path;
+                        std::string contents_of = data.file_contents;
+                        result.paths.emplace(watched, [watched, contents_of]() -> std::string {
+                            auto [buffer, ec] = ReadWholeFile(watched);
+                            if (ec || buffer != contents_of) {
+                                return watched;
+                            }
+                            return "";
+                        });
+                        break;
+                    }
+
+                    case WatchState::kNone:
+                    case WatchState::kFileNeedModKey:
+                        break;
+                    }
+                }
+
+                return result;
+            }
+
+        private:
+            // Reads the names inside a directory using directory_iterator.
+            // Returns the names, an error code (empty on success), and the
+            // original OS-level message.  EINVAL from the iterator is
+            // canonicalized to ENOTDIR so path resolution continues
+            // traversing instead of aborting.
+            //
+            // Example:
+            //   auto [names, ec, msg] = ReadDir("/src");
+            //   ec == std::errc{}  →  true on success
+            //   names              →  {"main.cpp", "util.cpp"}
+            std::tuple<std::vector<std::string>, std::error_code, std::string> ReadDir(const std::string& dirname)
+            {
+                BeforeFileOpen();
+
+                std::error_code          ec;
+                std::filesystem::directory_iterator iterator(PathFromUTF8(dirname), ec);
+                if (ec) {
+                    if (ec == std::errc::invalid_argument) {
+                        ec = std::make_error_code(std::errc::not_a_directory);
+                    }
+                    std::string message = ec.message();
+                    AfterFileClose();
+                    return {{}, ec, message};
+                }
+
+                std::vector<std::string>             names;
+                std::filesystem::directory_iterator  end;
+                for (; iterator != end; iterator.increment(ec)) {
+                    if (ec) {
+                        break;
+                    }
+                    names.push_back(PathToUTF8(iterator->path().filename()));
+                }
+
+                if (ec == std::errc::invalid_argument) {
+                    ec = std::make_error_code(std::errc::not_a_directory);
+                }
+
+                std::string message = ec ? ec.message() : "";
+                AfterFileClose();
+                return {names, ec, message};
+            }
+
+            // Stores the file entries for directories we've listed before
+            std::unordered_map<std::string, EntriesOrErr> entries_;
+            std::mutex                                    entries_mutex_;
+
+            // This stores data that will end up being returned by "GetWatchData()"
+            std::optional<std::unordered_map<std::string, PrivateWatchData>> watch_data_;
+            std::mutex                                                       watch_mutex_;
+
+            GoFilepath fp_;
+
+            // If true, do not use the "entries_" cache
+            bool do_not_cache_;
+        };
+
+    } // namespace
+
+    // Creates a real file system backed by the host OS.  "options" must
+    // provide an absolute working directory; passing a relative path causes
+    // this function to return nullptr and set "error".
+    //
+    // When "want_watch_data" is true, every ReadDirectory and ReadFile call
+    // records the path into WatchData so GetWatchData() can later report the
+    // full dependency set.
+    //
+    // The result is wrapped with a zip-aware overlay so that Yarn PnP
+    // ".zip" archives are served transparently.
+    //
+    // Example:
+    //   std::string error;
+    //   auto fs = MakeRealFS({.abs_working_dir = "/project"}, error);
+    //   fs != nullptr  →  true on success
+    std::unique_ptr<Fs> MakeRealFS(const RealFsOptions& options, std::string& error)
+    {
+        GoFilepath fp;
+        if (CheckIfWindows()) {
+            fp.is_windows     = true;
+            fp.path_separator = '\\';
+        } else {
+            fp.is_windows     = false;
+            fp.path_separator = '/';
+        }
+
+        // Come up with a default working directory if one was not specified
+        fp.cwd = options.abs_working_dir;
+        if (fp.cwd.empty()) {
+            std::error_code ec;
+            std::string     cwd = PathToUTF8(std::filesystem::current_path(ec));
+            if (!ec) {
+                fp.cwd = cwd;
+            } else if (fp.is_windows) {
+                fp.cwd = "C:\\";
+            } else {
+                fp.cwd = "/";
+            }
+        } else if (!fp.IsAbs(fp.cwd)) {
+            error = "The working directory \"" + fp.cwd + "\" is not an absolute path";
+            return nullptr;
+        }
+
+        // Resolve symlinks in the current working directory. Symlinks are resolved
+        // when input file paths are converted to absolute paths because we need to
+        // recognize an input file as unique even if it has multiple symlinks
+        // pointing to it. The build will generate relative paths from the current
+        // working directory to the absolute input file paths for error messages,
+        // so the current working directory should be processed the same way. Not
+        // doing this causes test failures with esbuild when run from inside a
+        // symlinked directory.
+        //
+        // This deliberately ignores errors due to e.g. infinite loops. If there is
+        // an error, we will just use the original working directory and likely
+        // encounter an error later anyway. And if we don't encounter an error
+        // later, then the current working directory didn't even matter and the
+        // error is unimportant.
+        if (auto resolved = fp.EvalSymlinks(fp.cwd)) {
+            fp.cwd = *resolved;
+        }
+
+        auto real = std::make_unique<RealFS>(std::move(fp), options);
+        // Wrap with ZipFS to support Yarn PnP ".zip" overlays, mirroring Go's RealFS.
+        return MakeZipFS(std::move(real));
     }
 }

@@ -1,0 +1,1 @@
+This C++ implementation of miniz is from https://github.com/richgel999/miniz/.

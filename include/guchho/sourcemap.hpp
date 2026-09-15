@@ -378,8 +378,8 @@ namespace guchho::sourcemap {
     //   DecodeVLQ("A", 0) -> (0, 1)     // single digit, value 0
     //   DecodeVLQ("C", 0) -> (1, 1)     // single digit, value 1
     //   DecodeVLQ("D", 0) -> (-1, 1)    // single digit, sign bit set
-    //   DecodeVLQ("gC", 0) -> (64, 2)   // two digits: (0<<5|2) * 2 = 64
-    //   DecodeVLQ("abc", 1) -> (2, 3)   // decode starting at index 1
+    //   DecodeVLQ("gC", 0) -> (32, 2)   // two digits: (2 << 5 | 0) >> 1 = 32
+    //   DecodeVLQ("xgB", 1) -> (16, 3)  // decode starting at index 1
     std::pair<int, int> DecodeVLQ(std::string_view encoded, int start);
 
     // Decodes a single Base64-VLQ value from a UTF-16 character span. This

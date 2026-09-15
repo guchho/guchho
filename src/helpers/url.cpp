@@ -76,9 +76,9 @@ namespace guchho::helpers {
         // CSS import, or asset reference is made absolute against a base path.
         //
         // Merge rules (RFC 3986 Section 5.2.2):
-        //   - Empty ref → base is kept unchanged.
-        //   - Ref not starting with '/' → appended after base's last '/'.
-        //   - Ref starting with '/' → replaces base entirely.
+        //   - Empty ref => base is kept unchanged.
+        //   - Ref not starting with '/' => appended after base's last '/'.
+        //   - Ref starting with '/' => replaces base entirely.
         //
         // Dot-segment removal walks the merged path element by element:
         //   - "." is silently consumed.

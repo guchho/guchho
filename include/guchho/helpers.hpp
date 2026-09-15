@@ -389,6 +389,10 @@ namespace guchho::helpers {
     // True when two strings match ignoring ASCII case.
     bool EqualFoldASCII(std::string_view a, std::string_view b);
 
+
+    //---------------------------------------
+    // ------------ quote.cpp ---------------
+    //---------------------------------------
     std::string QuoteSingle(std::string_view text, bool asciiOnly);
     std::string QuoteForJSON(std::string_view text, bool asciiOnly);
     std::string quoteString(std::string_view text);

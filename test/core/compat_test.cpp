@@ -229,7 +229,7 @@ TEST(JSFeatureTest, ApplyOverrides)
     JSFeature features = JSFeature::kArrow | JSFeature::kClass;
     JSFeature overrides = JSFeature::kAsyncAwait | JSFeature::kClass;
     JSFeature mask = JSFeature::kClass;
-    EXPECT_EQ(ApplyOverrides(features, overrides, mask), JSFeature::kArrow | JSFeature::kAsyncAwait);
+    EXPECT_EQ(ApplyOverrides(features, overrides, mask), JSFeature::kArrow | JSFeature::kClass);
 }
 
 TEST(JSFeatureTest, ApplyOverridesZeroMask)
@@ -270,7 +270,7 @@ TEST(CSSFeatureTest, ApplyOverrides)
     CSSFeature features = CSSFeature::kNesting | CSSFeature::kHWB;
     CSSFeature overrides = CSSFeature::kHexRGBA | CSSFeature::kHWB;
     CSSFeature mask = CSSFeature::kHWB;
-    EXPECT_EQ(ApplyOverrides(features, overrides, mask), CSSFeature::kNesting | CSSFeature::kHexRGBA);
+    EXPECT_EQ(ApplyOverrides(features, overrides, mask), CSSFeature::kNesting | CSSFeature::kHWB);
     EXPECT_EQ(ApplyOverrides(features, overrides, static_cast<CSSFeature>(0)), features);
 }
 

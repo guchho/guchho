@@ -7,6 +7,7 @@ add_library(guchho_core_test_objects OBJECT
     compiler_test.cpp
     miniz_test.cpp
     filesystem_test.cpp
+    sourcemap_test.cpp
 )
 
 target_include_directories(

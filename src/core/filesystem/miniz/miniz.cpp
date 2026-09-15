@@ -3207,12 +3207,19 @@ static int mz_stat64(const char *path, struct __stat64 *buffer) {
 }
 #endif
 
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4505)
+#endif
 static int mz_mkdir(const char *pDirname) {
   WCHAR *wDirname = mz_utf8z_to_widechar(pDirname);
   int res = _wmkdir(wDirname);
   free(wDirname);
   return res;
 }
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 #ifndef MINIZ_NO_TIME
 #include <sys/utime.h>

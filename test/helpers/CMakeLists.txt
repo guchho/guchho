@@ -14,6 +14,7 @@ add_library(guchho_helpers_test_objects OBJECT
     comment_test.cpp
     dataurl_test.cpp
     glob_test.cpp
+    hash_test.cpp
 )
 
 target_include_directories(

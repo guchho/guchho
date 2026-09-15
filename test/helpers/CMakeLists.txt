@@ -13,6 +13,7 @@ add_library(guchho_helpers_test_objects OBJECT
     quote_test.cpp
     comment_test.cpp
     dataurl_test.cpp
+    glob_test.cpp
 )
 
 target_include_directories(

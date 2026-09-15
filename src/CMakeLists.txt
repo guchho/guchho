@@ -43,6 +43,11 @@ set(GUCHHO_COMMON_SOURCES
 
     # core/sourcemap/
     core/sourcemap/sourcemap.cpp
+
+    # core/compat/
+    core/compat/compat.cpp
+    core/compat/css_table.cpp
+    core/compat/js_table.cpp
 )
 
 

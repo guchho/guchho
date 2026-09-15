@@ -282,7 +282,7 @@ namespace guchho::logger{
     // Output: "✘"  (or "X" on Windows Command Prompt)
     std::string_view MsgKindToIcon(MsgKind kind)
     {
-        // Windows Command Prompt-এ কিছু Unicode character সমর্থিত নয়।
+        
         if (IsProbablyWindowsCommandPrompt()) {
             switch (kind) {
                 case MsgKind::kError:

@@ -19,11 +19,11 @@ namespace guchho::unicode {
     // against the appropriate Unicode range tables for the current spec.
     //
     // Example:
-    //   IsIdentifier("abc123")  → true
-    //   IsIdentifier("123abc")  → false  (starts with digit)
-    //   IsIdentifier("_foo")    → true
-    //   IsIdentifier("$bar")    → true
-    //   IsIdentifier("")        → false  (empty string)
+    //   IsIdentifier("abc123")  => true
+    //   IsIdentifier("123abc")  => false  (starts with digit)
+    //   IsIdentifier("_foo")    => true
+    //   IsIdentifier("$bar")    => true
+    //   IsIdentifier("")        => false  (empty string)
     //
     // Edge cases:
     //   - Returns false for empty strings immediately.
@@ -74,10 +74,10 @@ namespace guchho::unicode {
     // ES5 does not support supplementary plane characters.
     //
     // Example:
-    //   IsIdentifierES5AndESNext("abc")      → true
-    //   IsIdentifierES5AndESNext("café")     → true  (if é is in both ES5 & ESNext)
-    //   IsIdentifierES5AndESNext("foo🎉")   → false  (emoji above U+FFFF)
-    //   IsIdentifierES5AndESNext("")          → false  (empty string)
+    //   IsIdentifierES5AndESNext("abc")      => true
+    //   IsIdentifierES5AndESNext("café")     => true  (if é is in both ES5 & ESNext)
+    //   IsIdentifierES5AndESNext("foo🎉")   => false  (emoji above U+FFFF)
+    //   IsIdentifierES5AndESNext("")          => false  (empty string)
     //
     // Edge cases:
     //   - Returns false for empty strings immediately.

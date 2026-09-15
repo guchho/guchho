@@ -4,6 +4,7 @@ add_library(guchho_core_test_objects OBJECT
     unicode_test.cpp
     entities_test.cpp
     logger_test.cpp
+    compiler_test.cpp
 )
 
 target_include_directories(

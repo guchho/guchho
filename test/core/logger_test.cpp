@@ -1129,12 +1129,7 @@ TEST(DeferLogTest, OverrideSuppressesMessage)
     Log log = NewDeferLog(DeferLogKind::kDeferLogAll, overrides);
     log.level = LogLevel::kInfo;
 
-    Msg msg;
-    msg.kind = MsgKind::kWarning;
-    msg.id = MsgID::kJS_BigInt;
-    msg.data.text = "BigInt warning";
-    log.add_msg(msg);
-
+    log.AddID(MsgID::kJS_BigInt, MsgKind::kWarning, nullptr, Range{Loc{0}, 3}, "BigInt warning");
     auto msgs = log.peek();
     EXPECT_TRUE(msgs.empty());
 }

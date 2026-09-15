@@ -30,6 +30,7 @@ set(GUCHHO_COMMON_SOURCES
     # core/logger/
     core/logger/logger.cpp
     core/logger/terminal.cpp
+    core/logger/messages.cpp
 
     # core/compiler/
     core/compiler/compiler.cpp

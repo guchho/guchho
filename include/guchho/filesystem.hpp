@@ -324,22 +324,6 @@ namespace guchho::filesystem {
     };
 
 
-    // Mock FS (fs_mock.cpp)
-
-    // Creates a mock file system that serves data exclusively from "input"
-    // without touching the real disk.  "kind" selects whether paths follow
-    // Unix or Windows conventions.  "abs_working_dir" is the synthetic
-    // working directory that Abs() and Cwd() return.
-    //
-    // Example:
-    //   auto fs = MakeMockFS({{"/src/main.cpp", "int main(){}"}},
-    //                        MockKind::kUnix, "/src");
-    //   fs->ReadFile("/src/main.cpp") → "int main(){}"
-    //   fs->Cwd()                     → "/src"
-    std::unique_ptr<Fs> MakeMockFS(const std::unordered_map<std::string, std::string>& input,
-                                   MockKind                                            kind,
-                                   const std::string&                                  abs_working_dir);
-
     // Real FS (fs_real.cpp)
 
     struct RealFsOptions {

@@ -4,6 +4,31 @@
 #include <mutex>
 
 namespace guchho::css {
+
+    // Lookup table mapping CSS property name strings to their corresponding
+    // Declarations enum values. This table is the authoritative source for
+    // which CSS property names Guchho recognizes during parsing and lowering.
+    // Every standard CSS property that Guchho handles has an entry here; any
+    // property not in this table is treated as unknown or custom (prefixed
+    // with "--").
+    //
+    // The map is keyed by the exact property name as it appears in CSS source
+    // (lowercase, hyphen-separated). Values are the Declarations enum constants
+    // defined in the css_properties header.
+    //
+    // Example:
+    //   KnownDeclarations.at("display")      -> kDDisplay
+    //   KnownDeclarations.at("border-radius") -> kDBorderRadius
+    //   KnownDeclarations.at("z-index")       -> kDZIndex
+    //
+    // Edge cases:
+    //   - Property names are case-sensitive; "Display" or "DISPLAY" would
+    //     not match.
+    //   - Custom properties (e.g., "--my-color") are not in this table;
+    //     callers must handle them separately.
+    //   - Shorthand properties (e.g., "margin", "background") are listed
+    //     alongside their longhand equivalents; the compiler decides how
+    //     to expand shorthands.
     const std::unordered_map<std::string_view, Declarations> KnownDeclarations = {
         {"align-content", kDAlignContent},
         {"align-items", kDAlignItems},
@@ -335,6 +360,35 @@ namespace guchho::css {
         {"zoom", kDZoom},
     };
 
+    // Attempts to detect and correct a typo in a CSS property declaration name.
+    // If the input text looks like a misspelling of a known CSS property, this
+    // function returns the corrected name. Otherwise it returns std::nullopt.
+    //
+    // This function is used during CSS parsing to provide helpful diagnostics
+    // when a user mistypes a property name. It uses a TypoDetector that is
+    // lazily initialized on first call, built from all entries in
+    // KnownDeclarations.
+    //
+    // The detector is initialized exactly once and cached in a static local
+    // variable guarded by a mutex, so this function is safe to call from
+    // multiple threads.
+    //
+    // Example:
+    //   MaybeCorrectDeclarationTypo("dispaly")  -> std::optional{"display"}
+    //   MaybeCorrectDeclarationTypo("colro")    -> std::optional{"color"}
+    //   MaybeCorrectDeclarationTypo("display")  -> std::nullopt (already correct)
+    //   MaybeCorrectDeclarationTypo("foo-bar")  -> std::nullopt (no close match)
+    //
+    // Edge cases:
+    //   - Custom properties (names starting with "--") are always returned
+    //     as std::nullopt without consulting the detector, since custom
+    //     property names are arbitrary and should not be "corrected".
+    //   - The first call pays the cost of building the TypoDetector from
+    //     all ~330 known declarations; subsequent calls reuse the cached
+    //     instance.
+    //   - If no sufficiently close match is found (beyond the detector's
+    //     edit-distance threshold), std::nullopt is returned even for
+    //     non-custom property names.
     std::optional<std::string> MaybeCorrectDeclarationTypo(std::string_view text) {
         if (text.starts_with("--")) {
             return std::nullopt;

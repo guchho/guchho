@@ -12,6 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Test subdirectories
 
 add_subdirectory(helpers)
+add_subdirectory(core)
 
 
 
@@ -39,4 +40,29 @@ guchho_set_warnings(guchho_helpers_tests)
 guchho_enable_sanitizers(guchho_helpers_tests)
 
 guchho_discover_tests(guchho_helpers_tests PREFIX "helpers.")
+
+
+# core test executable
+
+add_executable(guchho_core_tests
+    test_assertions.cpp
+    $<TARGET_OBJECTS:guchho_core_test_objects>
+)
+
+target_link_libraries(
+    guchho_core_tests
+    PRIVATE
+        guchho_common
+)
+
+target_include_directories(
+    guchho_core_tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+guchho_set_warnings(guchho_core_tests)
+guchho_enable_sanitizers(guchho_core_tests)
+
+guchho_discover_tests(guchho_core_tests PREFIX "core.")
 

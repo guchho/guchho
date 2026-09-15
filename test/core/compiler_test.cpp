@@ -422,10 +422,9 @@ TEST(CharFreqIncludeTest, EmptySourceAddsNothing)
     CharFreq b;
 
     a.Include(b);
-    EXPECT_EQ(a.freq[19], 1);  // t
+    EXPECT_EQ(a.freq[19], 2);  // t (appears twice in "test")
     EXPECT_EQ(a.freq[4], 1);   // e
     EXPECT_EQ(a.freq[18], 1);  // s
-    EXPECT_EQ(a.freq[19], 1);  // t (total 2)
 }
 
 // ---------------------------------------------------------------------------

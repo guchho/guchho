@@ -168,11 +168,11 @@ namespace guchho::css {
         //   - Surrogates (U+D800–U+DFFF) and U+0000 are replaced with U+FFFD.
         //   - A trailing backslash at EOF produces U+FFFD.
         //
-        // Input → Output examples:
-        //   decodeEscapesInToken("foo\\2Dbar")  → "foo-bar"
-        //   decodeEscapesInToken("\\41")         → "A"
-        //   decodeEscapesInToken("a\\0b")        → "a\uFFFD"  (null → replacement)
-        //   decodeEscapesInToken("x\\A\n")       → "x"        (line continuation)
+        // Input => Output examples:
+        //   decodeEscapesInToken("foo\\2Dbar")  => "foo-bar"
+        //   decodeEscapesInToken("\\41")         => "A"
+        //   decodeEscapesInToken("a\\0b")        => "a\uFFFD"  (null => replacement)
+        //   decodeEscapesInToken("x\\A\n")       => "x"        (line continuation)
         // -------------------------------------------------------------------------
         std::string decodeEscapesInToken(std::string_view inner) {
             size_t i = 0;
@@ -320,9 +320,9 @@ namespace guchho::css {
             //
             // Example:
             //   Given source "ab" with current == 0:
-            //     step() → code_point == 'a', current == 1
-            //     step() → code_point == 'b', current == 2
-            //     step() → code_point == kEOF, current == 2
+            //     step() => code_point == 'a', current == 1
+            //     step() => code_point == 'b', current == 2
+            //     step() => code_point == kEOF, current == 2
             // -------------------------------------------------------------------------
             void step() {
                 auto& contents = source->contents;
@@ -355,9 +355,9 @@ namespace guchho::css {
             // method peeks ahead without consuming characters.
             //
             // Example:
-            //   Source "\41" at backslash → isValidEscape() == true
-            //   Source "\"  at backslash  → isValidEscape() == false (EOF)
-            //   Source "\\" at backslash  → isValidEscape() == false (newline follows)
+            //   Source "\41" at backslash => isValidEscape() == true
+            //   Source "\"  at backslash  => isValidEscape() == false (EOF)
+            //   Source "\\" at backslash  => isValidEscape() == false (newline follows)
             // -------------------------------------------------------------------------
             bool isValidEscape() {
                 if (code_point != '\\') return false;
@@ -386,10 +386,10 @@ namespace guchho::css {
             // between different token types when encountering '-' or '#'.
             //
             // Example:
-            //   Source "foo" at 'f' → wouldStartIdentifier() == true
-            //   Source "-a"  at '-' → wouldStartIdentifier() == true
-            //   Source "--"  at '-' → wouldStartIdentifier() == true
-            //   Source "123" at '1' → wouldStartIdentifier() == false
+            //   Source "foo" at 'f' => wouldStartIdentifier() == true
+            //   Source "-a"  at '-' => wouldStartIdentifier() == true
+            //   Source "--"  at '-' => wouldStartIdentifier() == true
+            //   Source "123" at '1' => wouldStartIdentifier() == false
             // -------------------------------------------------------------------------
             bool wouldStartIdentifier() {
                 if (code_point == kEOF) return false;
@@ -428,11 +428,11 @@ namespace guchho::css {
             // This is a lookahead predicate; it does not consume characters.
             //
             // Example:
-            //   Source "42"   at '4' → wouldStartNumber() == true
-            //   Source ".5"   at '.' → wouldStartNumber() == true
-            //   Source "+3"   at '+' → wouldStartNumber() == true
-            //   Source "-.1"  at '-' → wouldStartNumber() == true
-            //   Source "abc"  at 'a' → wouldStartNumber() == false
+            //   Source "42"   at '4' => wouldStartNumber() == true
+            //   Source ".5"   at '.' => wouldStartNumber() == true
+            //   Source "+3"   at '+' => wouldStartNumber() == true
+            //   Source "-.1"  at '-' => wouldStartNumber() == true
+            //   Source "abc"  at 'a' => wouldStartNumber() == false
             // -------------------------------------------------------------------------
             bool wouldStartNumber() {
                 if (code_point >= '0' && code_point <= '9') return true;
@@ -475,9 +475,9 @@ namespace guchho::css {
             //     replaced with U+FFFD.
             //
             // Example:
-            //   Source "\41x" → consumeEscape() == 'A', current advanced past "41"
-            //   Source "\2D"  → consumeEscape() == '-'
-            //   Source "\0"   → consumeEscape() == 0xFFFD
+            //   Source "\41x" => consumeEscape() == 'A', current advanced past "41"
+            //   Source "\2D"  => consumeEscape() == '-'
+            //   Source "\0"   => consumeEscape() == 0xFFFD
             // -------------------------------------------------------------------------
             char32_t consumeEscape() {
                 step();
@@ -524,9 +524,9 @@ namespace guchho::css {
             // processing to handle escapes.
             //
             // Example:
-            //   Source "foo" → consumeName() == "foo"
-            //   Source "foo\\2Dbar" → consumeName() == "foo-bar"
-            //   Source "\\41" → consumeName() == "A"
+            //   Source "foo" => consumeName() == "foo"
+            //   Source "foo\\2Dbar" => consumeName() == "foo-bar"
+            //   Source "\\41" => consumeName() == "A"
             // -------------------------------------------------------------------------
             std::string consumeName() {
                 auto& contents = source->contents;
@@ -579,10 +579,10 @@ namespace guchho::css {
             //   - Otherwise, the token is a plain identifier.
             //
             // Example:
-            //   Source "rgba(" → function token "rgba("
+            //   Source "rgba(" => function token "rgba("
             //   Source "url(https://example.com/img.png)"
-            //     → URL token with value "https://example.com/img.png"
-            //   Source "div" → identifier token "div"
+            //     => URL token with value "https://example.com/img.png"
+            //   Source "div" => identifier token "div"
             // -------------------------------------------------------------------------
             TokenType consumeIdentLike() {
                 auto name = consumeName();
@@ -637,13 +637,13 @@ namespace guchho::css {
             //     chars, invalid escapes), the token is tagged as kBadUrl and
             //     the lexer skips to the next ')' or EOF.
             //
-            // Input → Output example:
+            // Input => Output example:
             //   Source: "url(  https://x.com/img.png  )"
-            //   → TokenType::kUrl, raw range covers the full url(...)
+            //   => TokenType::kUrl, raw range covers the full url(...)
             //
             // Edge cases:
-            //   - Empty url(): "url()" → kUrl with empty value.
-            //   - Unterminated url(): "url(foo" → diagnostic + kUrl.
+            //   - Empty url(): "url()" => kUrl with empty value.
+            //   - Unterminated url(): "url(foo" => diagnostic + kUrl.
             //   - url("foo"): quotes cause kBadUrl (quotes not allowed bare).
             // -------------------------------------------------------------------------
             TokenType consumeURL(guchho::logger::Loc matching_loc) {
@@ -748,9 +748,9 @@ namespace guchho::css {
             //     token range (it is part of the delimiter).
             //
             // Example:
-            //   Source "'hello world'" → kString, raw range "'hello world'"
-            //   Source "\"line1\\nline2\"" → kString with embedded newline
-            //   Source "'unterminated"  → kUnterminatedString + diagnostic
+            //   Source "'hello world'" => kString, raw range "'hello world'"
+            //   Source "\"line1\\nline2\"" => kString with embedded newline
+            //   Source "'unterminated"  => kUnterminatedString + diagnostic
             // -------------------------------------------------------------------------
             TokenType consumeString() {
                 auto quote = code_point;
@@ -801,10 +801,10 @@ namespace guchho::css {
             //   - Otherwise, the token is a plain number.
             //
             // Example:
-            //   Source "42px"   → kDimension, number "42", unit "px"
-            //   Source "3.14"   → kNumber
-            //   Source "50%"    → kPercentage
-            //   Source "+1e3em" → kDimension, number "+1e3", unit "em"
+            //   Source "42px"   => kDimension, number "42", unit "px"
+            //   Source "3.14"   => kNumber
+            //   Source "50%"    => kPercentage
+            //   Source "+1e3em" => kDimension, number "+1e3", unit "em"
             // -------------------------------------------------------------------------
             TokenType consumeNumeric() {
                 if (code_point == '+' || code_point == '-') step();
@@ -860,9 +860,9 @@ namespace guchho::css {
             //     is emitted and the method returns.
             //
             // Example:
-            //   Source "/* @license MIT */" → legal_comments entry added.
+            //   Source "/* @license MIT */" => legal_comments entry added.
             //   Source "/*# sourceMappingURL=app.css.map */"
-            //     → source_mapping_url set to "app.css.map".
+            //     => source_mapping_url set to "app.css.map".
             // -------------------------------------------------------------------------
             void consumeToEndOfMultiLineComment(guchho::logger::Range start_range) {
                 auto start_of_source_mapping_url = 0;
@@ -957,7 +957,7 @@ namespace guchho::css {
             //     that appear between whitespace runs.
             //
             // Example:
-            //   Source "color: red;" → sequence of kIdent, kColon, kWhitespace,
+            //   Source "color: red;" => sequence of kIdent, kColon, kWhitespace,
             //     kIdent, kSemicolon tokens.
             // -------------------------------------------------------------------------
             void next() {
@@ -1338,10 +1338,10 @@ namespace guchho::css {
     //   - If the identifier ends with a whitespace character, that whitespace
     //     is excluded from the returned range (it is not part of the name).
     //
-    // Input → Output example:
+    // Input => Output example:
     //   Source: "foo\\2Dbar rest"
     //   loc pointing at 'f'
-    //   → Range covers "foo\\2Dbar" (the 'r' at the end of "bar"),
+    //   => Range covers "foo\\2Dbar" (the 'r' at the end of "bar"),
     //     not including the trailing space.
     //
     // Edge case:
@@ -1444,9 +1444,9 @@ namespace guchho::css {
     //
     // Example:
     //   IsValidEscapeAt(source, loc) where source[loc] is '\\' and the next
-    //   character is 'A' → true.
+    //   character is 'A' => true.
     //   IsValidEscapeAt(source, loc) where source[loc] is '\\' and the next
-    //   character is '\n' → false (line continuation, not a real escape).
+    //   character is '\n' => false (line continuation, not a real escape).
     // -------------------------------------------------------------------------
     bool IsValidEscapeAt(const guchho::logger::Source& source, guchho::logger::Loc loc) {
         Lexer lexer;
@@ -1576,13 +1576,13 @@ namespace guchho::css {
         //
         // Example:
         //   Source "a { color: red; }"
-        //   → tokens: [kIdent("a"), kWhitespace, kOpenBrace, kWhitespace,
+        //   => tokens: [kIdent("a"), kWhitespace, kOpenBrace, kWhitespace,
         //             kIdent("color"), kColon, kWhitespace, kIdent("red"),
         //             kSemicolon, kWhitespace, kCloseBrace, kEndOfFile]
         //
         // Edge cases:
-        //   - Empty source → single kEndOfFile token.
-        //   - Unterminated constructs → best-effort tokens + diagnostics.
+        //   - Empty source => single kEndOfFile token.
+        //   - Unterminated constructs => best-effort tokens + diagnostics.
         // -------------------------------------------------------------------------
         TokenizeResult Tokenize(guchho::logger::Log& log, const guchho::logger::Source& source, const Options& options) {
             Lexer lexer;

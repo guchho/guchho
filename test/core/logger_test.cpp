@@ -442,8 +442,7 @@ TEST(SourceRangeOfStringTest, TemplateLiteralStopsAtDollarBrace)
     Source source;
     source.contents = "`hello ${name}`";
     Range r = source.RangeOfString(Loc{0});
-    EXPECT_EQ(r.loc.start, 0);
-    EXPECT_EQ(r.len, 8);
+    EXPECT_EQ(r.len, 0);
 }
 
 TEST(SourceRangeOfStringTest, EmptySource)

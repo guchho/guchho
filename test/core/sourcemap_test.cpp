@@ -58,8 +58,10 @@ TEST(DecodeVLQTest, NegativeFifteen)
 
 TEST(DecodeVLQTest, StartOffset)
 {
-    auto [value, next] = DecodeVLQ("xAC", 1);
-    EXPECT_EQ(value, 1);
+    // Decodes "gB" (value 16, two characters) beginning at index 1,
+    // confirming that the start offset skips the leading character.
+    auto [value, next] = DecodeVLQ("xgB", 1);
+    EXPECT_EQ(value, 16);
     EXPECT_EQ(next, 3);
 }
 

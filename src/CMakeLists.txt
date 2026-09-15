@@ -46,8 +46,6 @@ set(GUCHHO_COMMON_SOURCES
 
     # core/compat/
     core/compat/compat.cpp
-    core/compat/css_table.cpp
-    core/compat/js_table.cpp
 )
 
 
@@ -74,6 +72,58 @@ guchho_enable_sanitizers(guchho_common)
 if(WIN32)
     target_link_libraries(guchho_common PRIVATE dbghelp)
 endif()
+
+
+
+# CSS library
+
+set(GUCHHO_CSS_SOURCES
+    language/css/css_lexer.cpp
+    language/css/css_ast.cpp
+    language/css/css_parser.cpp
+    language/css/css_selectors.cpp
+    language/css/css_properties.cpp
+    language/css/css_nesting.cpp
+    language/css/css_media.cpp
+    language/css/css_animation.cpp
+    language/css/css_border.cpp
+    language/css/css_box.cpp
+    language/css/css_spaces.cpp
+    language/css/css_color.cpp
+    language/css/css_shadow.cpp
+    language/css/css_calc.cpp
+    language/css/css_container.cpp
+    language/css/css_gradient.cpp
+    language/css/css_helpers.cpp
+    language/css/css_font.cpp
+    language/css/css_transform.cpp
+    language/css/css_composes.cpp
+    language/css/css_list.cpp
+    language/css/css_printer.cpp
+
+    # CSS-only compat tables
+    core/compat/css_table.cpp
+)
+
+add_library(guchho_css STATIC)
+
+target_sources(guchho_css
+    PRIVATE
+        ${GUCHHO_CSS_SOURCES}
+)
+
+target_include_directories(guchho_css
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(guchho_css
+    PUBLIC
+        guchho_common
+)
+
+guchho_set_warnings(guchho_css)
+guchho_enable_sanitizers(guchho_css)
 
 # ============================================================
 # Guchho executable

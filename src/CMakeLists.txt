@@ -2,16 +2,21 @@
 
 set(GUCHHO_COMMON_SOURCES
     # helpers
-    helpers/utf8.cpp
+    helpers/xxhash/xxhash.cpp
     helpers/base64.cpp
+    helpers/comment.cpp
+    helpers/dataurl.cpp
+    helpers/glob.cpp
+    helpers/hash.cpp
     helpers/joiner.cpp
     helpers/path.cpp
-    helpers/strings.cpp
     helpers/quote.cpp
+    helpers/sha.cpp
+    helpers/strings.cpp
     helpers/timer.cpp
     helpers/typo.cpp
     helpers/url.cpp
-    helpers/xxhash/xxhash.cpp
+    helpers/utf8.cpp
 
     # core/unicode/
     core/unicode/unicode.cpp

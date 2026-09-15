@@ -1,10 +1,10 @@
 #include "guchho/helpers.hpp"
+#include "guchho/unicode.hpp"
 
 #include <array>
 #include <cstdint>
 #include <format>
 
-#include "guchho/unicode.hpp"
 
 namespace guchho::helpers {
 

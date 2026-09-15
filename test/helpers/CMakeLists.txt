@@ -10,6 +10,7 @@ add_library(guchho_helpers_test_objects OBJECT
     typo_test.cpp
     path_test.cpp
     timer_test.cpp
+    quote_test.cpp
 )
 
 target_include_directories(

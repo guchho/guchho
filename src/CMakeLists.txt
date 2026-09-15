@@ -7,6 +7,7 @@ set(GUCHHO_COMMON_SOURCES
     helpers/joiner.cpp
     helpers/path.cpp
     helpers/strings.cpp
+    helpers/quote.cpp
     helpers/timer.cpp
     helpers/typo.cpp
     helpers/url.cpp

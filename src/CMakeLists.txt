@@ -46,6 +46,10 @@ set(GUCHHO_COMMON_SOURCES
 
     # core/compat/
     core/compat/compat.cpp
+
+    # core/config/
+    core/config/config.cpp
+    core/config/globals.cpp
 )
 
 

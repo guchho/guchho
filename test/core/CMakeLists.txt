@@ -9,6 +9,7 @@ add_library(guchho_core_test_objects OBJECT
     filesystem_test.cpp
     sourcemap_test.cpp
     compat_test.cpp
+    config_test.cpp
 )
 
 target_include_directories(

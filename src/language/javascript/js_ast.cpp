@@ -345,11 +345,11 @@ bool EIndex::HasSameFlagsAs(const EIndex& b) const {
 //   // Scope tree: root (sloppy) -> child (sloppy) -> grandchild (strict)
 //   root.RecursiveSetStrictMode(kExplicitStrictMode)
 //   // After: root (strict) -> child (strict) -> grandchild (strict, unchanged)
-void Scope::RecursiveSetStrictMode(StrictModeKind kind) {
+void Scope::RecursiveSetStrictMode(StrictModeKind new_kind) {
     if (strict_mode == StrictModeKind::kSloppyMode) {
-        strict_mode = kind;
+        strict_mode = new_kind;
         for (Scope* child : children) {
-            child->RecursiveSetStrictMode(kind);
+            child->RecursiveSetStrictMode(new_kind);
         }
     }
 }
@@ -419,20 +419,20 @@ ConstValue ExprToConstValue(const Expr& expr) {
     return std::visit([](const auto& e) -> ConstValue {
         using T = std::decay_t<decltype(e)>;
         if constexpr (std::is_same_v<T, std::shared_ptr<ENull>>) {
-            return ConstValue{.kind = ConstValueKind::kNull};
+            return ConstValue{.number = 0, .string = {}, .kind = ConstValueKind::kNull};
         } else if constexpr (std::is_same_v<T, std::shared_ptr<EUndefined>>) {
-            return ConstValue{.kind = ConstValueKind::kUndefined};
+            return ConstValue{.number = 0, .string = {}, .kind = ConstValueKind::kUndefined};
         } else if constexpr (std::is_same_v<T, std::shared_ptr<EBoolean>>) {
-            return e->value ? ConstValue{.kind = ConstValueKind::kTrue}
-                            : ConstValue{.kind = ConstValueKind::kFalse};
+            return e->value ? ConstValue{.number = 0, .string = {}, .kind = ConstValueKind::kTrue}
+                            : ConstValue{.number = 0, .string = {}, .kind = ConstValueKind::kFalse};
         } else if constexpr (std::is_same_v<T, std::shared_ptr<ENumber>>) {
             double value = e->value;
             if (IsInlinableInteger(value) || ShortestFloatLength(value) <= 8) {
-                return ConstValue{.number = value, .kind = ConstValueKind::kNumber};
+                return ConstValue{.number = value, .string = {}, .kind = ConstValueKind::kNumber};
             }
         } else if constexpr (std::is_same_v<T, std::shared_ptr<EString>>) {
             if (e->value.size() <= 3) {
-                return ConstValue{.string = e->value, .kind = ConstValueKind::kString};
+                return ConstValue{.number = 0, .string = e->value, .kind = ConstValueKind::kString};
             }
         } else if constexpr (std::is_same_v<T, std::shared_ptr<EBigInt>>) {
             // BigInts are deliberately not inlined because they can be
@@ -472,7 +472,7 @@ Expr ConstValueToExpr(logger::Loc loc, const ConstValue& value) {
             return Expr{std::make_shared<ENumber>(ENumber{value.number}), loc};
 
         case ConstValueKind::kString:
-            return Expr{std::make_shared<EString>(EString{value.string}), loc};
+            return Expr{std::make_shared<EString>(EString{value.string, {}, {}, {}, {}}), loc};
 
         default:
             throw std::runtime_error("Internal error: invalid constant value");
@@ -535,7 +535,7 @@ std::string EnsureValidIdentifier(const std::string& base) {
     bool needs_gap = false;
     for (std::string_view s = base; !s.empty();) {
         auto [c, size] = helpers::DecodeWTF8Rune(s);
-        s = s.substr(size > 0 ? size : 1);
+        s = s.substr(size > 0 ? static_cast<size_t>(size) : 1);
         if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
             (!result.empty() && c >= '0' && c <= '9')) {
             if (needs_gap) {

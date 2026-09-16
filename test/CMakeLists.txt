@@ -53,6 +53,8 @@ target_link_libraries(
     guchho_core_tests
     PRIVATE
         guchho_common
+        guchho_css
+        guchho_js
 )
 
 target_include_directories(

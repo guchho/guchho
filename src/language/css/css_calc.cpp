@@ -468,6 +468,7 @@ namespace guchho::css {
         //   - Returns std::nullopt if the number cannot be exactly represented
         //     as a string (see FloatToStringForCalc).
     std::optional<Token> CalcNumeric::ConvertToToken(WhitespaceFlags whitespace) {
+        (void)whitespace;
         auto text = FloatToStringForCalc(number);
         if (!text.has_value()) {
             return std::nullopt;
@@ -504,6 +505,7 @@ namespace guchho::css {
         // Edge cases:
         //   - Always succeeds (returns the stored token).
     std::optional<Token> CalcValue::ConvertToToken(WhitespaceFlags whitespace) {
+        (void)whitespace;
         Token result = token;
         result.whitespace = WhitespaceFlags::kNone;
         return result;

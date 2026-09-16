@@ -129,6 +129,56 @@ target_link_libraries(guchho_css
 guchho_set_warnings(guchho_css)
 guchho_enable_sanitizers(guchho_css)
 
+
+
+# JavaScript library
+
+set(GUCHHO_JS_SOURCES
+    language/javascript/js_identifier.cpp
+    language/javascript/js_lexer.cpp
+    language/javascript/js_ast.cpp
+    language/javascript/js_helpers.cpp
+    language/javascript/js_runtime.cpp
+    language/javascript/js_renamer.cpp
+    language/javascript/js_printer.cpp
+    language/javascript/js_bind.cpp
+    language/javascript/js_parser.cpp
+    language/javascript/js_parser_expression.cpp
+    language/javascript/js_parser_import.cpp
+    language/javascript/js_parser_lower.cpp
+    language/javascript/js_parser_lower_class.cpp
+    language/javascript/js_parser_mangle.cpp
+    language/javascript/js_parser_statement.cpp
+    language/javascript/js_sourcemap.cpp
+    language/javascript/json_parser.cpp
+    language/javascript/ts_parser.cpp
+
+    # JS-only compat tables
+    core/compat/js_table.cpp
+)
+
+add_library(guchho_js STATIC)
+
+target_sources(guchho_js
+    PRIVATE
+        ${GUCHHO_JS_SOURCES}
+)
+
+target_include_directories(guchho_js
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(guchho_js
+    PUBLIC
+        guchho_common
+)
+
+guchho_set_warnings(guchho_js)
+guchho_enable_sanitizers(guchho_js)
+
+
+
 # ============================================================
 # Guchho executable
 # ============================================================

@@ -1,1 +1,1 @@
-This C++ implementation of CSS is from https://github.com/evanw/esbuild.
+This C++ implementation of JavaScript is from https://github.com/evanw/esbuild.

@@ -13,7 +13,33 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_subdirectory(helpers)
 add_subdirectory(core)
+add_subdirectory(css)
 
+
+# CSS test executable
+
+add_executable(guchho_css_tests
+    test_assertions.cpp
+    $<TARGET_OBJECTS:guchho_css_test_objects>
+)
+
+target_link_libraries(
+    guchho_css_tests
+    PRIVATE
+        guchho_css
+        guchho_common
+)
+
+target_include_directories(
+    guchho_css_tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+guchho_set_warnings(guchho_css_tests)
+guchho_enable_sanitizers(guchho_css_tests)
+
+guchho_discover_tests(guchho_css_tests PREFIX "css." WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/css")
 
 
 # helpers test executable

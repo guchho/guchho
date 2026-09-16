@@ -1565,7 +1565,7 @@ struct Scope {
     StrictModeKind strict_mode{};
     ScopeKind kind{};
 
-    void RecursiveSetStrictMode(StrictModeKind kind);
+    void RecursiveSetStrictMode(StrictModeKind new_kind);
 };
 
 // ============================================================================

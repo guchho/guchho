@@ -110,7 +110,7 @@ detect_platform() {
 #
 # Only Ninja-based presets are used because
 # they export compile_commands.json. The
-# release variants carry the validated
+# debug variants carry the validated
 # toolchain for each platform.
 # ========================================
 
@@ -119,15 +119,15 @@ platform_to_preset() {
 
     case "${platform}" in
         win32-x64)
-            echo "release-win32-x64-ninja"
+            echo "debug-win32-x64-ninja"
             ;;
 
         linux-x64)
-            echo "release-linux-x64"
+            echo "debug-linux-x64"
             ;;
 
         darwin-arm64)
-            echo "release-darwin-arm64"
+            echo "debug-darwin-arm64"
             ;;
 
         *)

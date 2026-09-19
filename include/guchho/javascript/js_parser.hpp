@@ -1442,7 +1442,7 @@ namespace guchho::javascript {
         void lowerFunction(bool *isAsync, bool *isGenerator, std::vector<Arg> *args, logger::Loc bodyLoc, SBlock *body, bool *preferExpr, bool *hasRestArg, bool isArrow);
 
         // Lowers a class declaration/expression, generating the compiled form.
-        std::pair<Expr, Stmt> lowerClass(Stmt stmt, Expr expr, visitClassResult info, std::string nameToKeep);
+        std::pair<std::vector<Stmt>, Expr> lowerClass(Stmt stmt, Expr expr, visitClassResult info, std::string nameToKeep);
 
         // Lowers a private field assignment operator (e.g., #x += 1).
         Expr lowerPrivateSetBinOp(Expr target, logger::Loc loc, EPrivateIdentifier *priv, OpCode op, Expr value);

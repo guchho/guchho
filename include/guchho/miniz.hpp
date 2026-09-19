@@ -603,84 +603,84 @@ typedef void (*free_func)(void *opaque, void *address);
 
 #ifndef MINIZ_NO_DEFLATE_APIS
 /* Compatibility with zlib API. See called functions for documentation */
-static MZ_FORCEINLINE int deflateInit(mz_streamp pStream, int level) {
+[[maybe_unused]] static MZ_FORCEINLINE int deflateInit(mz_streamp pStream, int level) {
   return mz_deflateInit(pStream, level);
 }
-static MZ_FORCEINLINE int deflateInit2(mz_streamp pStream, int level,
+[[maybe_unused]] static MZ_FORCEINLINE int deflateInit2(mz_streamp pStream, int level,
                                        int method, int window_bits,
                                        int mem_level, int strategy) {
   return mz_deflateInit2(pStream, level, method, window_bits, mem_level,
                          strategy);
 }
-static MZ_FORCEINLINE int deflateReset(mz_streamp pStream) {
+[[maybe_unused]] static MZ_FORCEINLINE int deflateReset(mz_streamp pStream) {
   return mz_deflateReset(pStream);
 }
-static MZ_FORCEINLINE int deflate(mz_streamp pStream, int flush) {
+[[maybe_unused]] static MZ_FORCEINLINE int deflate(mz_streamp pStream, int flush) {
   return mz_deflate(pStream, flush);
 }
-static MZ_FORCEINLINE int deflateEnd(mz_streamp pStream) {
+[[maybe_unused]] static MZ_FORCEINLINE int deflateEnd(mz_streamp pStream) {
   return mz_deflateEnd(pStream);
 }
-static MZ_FORCEINLINE mz_ulong deflateBound(mz_streamp pStream,
+[[maybe_unused]] static MZ_FORCEINLINE mz_ulong deflateBound(mz_streamp pStream,
                                             mz_ulong source_len) {
   return mz_deflateBound(pStream, source_len);
 }
-static MZ_FORCEINLINE int compress(unsigned char *pDest, mz_ulong *pDest_len,
+[[maybe_unused]] static MZ_FORCEINLINE int compress(unsigned char *pDest, mz_ulong *pDest_len,
                                    const unsigned char *pSource,
                                    mz_ulong source_len) {
   return mz_compress(pDest, pDest_len, pSource, source_len);
 }
-static MZ_FORCEINLINE int compress2(unsigned char *pDest, mz_ulong *pDest_len,
+[[maybe_unused]] static MZ_FORCEINLINE int compress2(unsigned char *pDest, mz_ulong *pDest_len,
                                     const unsigned char *pSource,
                                     mz_ulong source_len, int level) {
   return mz_compress2(pDest, pDest_len, pSource, source_len, level);
 }
-static MZ_FORCEINLINE mz_ulong compressBound(mz_ulong source_len) {
+[[maybe_unused]] static MZ_FORCEINLINE mz_ulong compressBound(mz_ulong source_len) {
   return mz_compressBound(source_len);
 }
 #endif /*#ifndef MINIZ_NO_DEFLATE_APIS*/
 
 #ifndef MINIZ_NO_INFLATE_APIS
 /* Compatibility with zlib API. See called functions for documentation */
-static MZ_FORCEINLINE int inflateInit(mz_streamp pStream) {
+[[maybe_unused]] static MZ_FORCEINLINE int inflateInit(mz_streamp pStream) {
   return mz_inflateInit(pStream);
 }
 
-static MZ_FORCEINLINE int inflateInit2(mz_streamp pStream, int window_bits) {
+[[maybe_unused]] static MZ_FORCEINLINE int inflateInit2(mz_streamp pStream, int window_bits) {
   return mz_inflateInit2(pStream, window_bits);
 }
 
-static MZ_FORCEINLINE int inflateReset(mz_streamp pStream) {
+[[maybe_unused]] static MZ_FORCEINLINE int inflateReset(mz_streamp pStream) {
   return mz_inflateReset(pStream);
 }
 
-static MZ_FORCEINLINE int inflate(mz_streamp pStream, int flush) {
+[[maybe_unused]] static MZ_FORCEINLINE int inflate(mz_streamp pStream, int flush) {
   return mz_inflate(pStream, flush);
 }
 
-static MZ_FORCEINLINE int inflateEnd(mz_streamp pStream) {
+[[maybe_unused]] static MZ_FORCEINLINE int inflateEnd(mz_streamp pStream) {
   return mz_inflateEnd(pStream);
 }
 
-static MZ_FORCEINLINE int uncompress(unsigned char *pDest, mz_ulong *pDest_len,
+[[maybe_unused]] static MZ_FORCEINLINE int uncompress(unsigned char *pDest, mz_ulong *pDest_len,
                                      const unsigned char *pSource,
                                      mz_ulong source_len) {
   return mz_uncompress(pDest, pDest_len, pSource, source_len);
 }
 
-static MZ_FORCEINLINE int uncompress2(unsigned char *pDest, mz_ulong *pDest_len,
-                                      const unsigned char *pSource,
-                                      mz_ulong *pSource_len) {
+[[maybe_unused]] static MZ_FORCEINLINE int uncompress2(unsigned char *pDest, mz_ulong *pDest_len,
+                                       const unsigned char *pSource,
+                                       mz_ulong *pSource_len) {
   return mz_uncompress2(pDest, pDest_len, pSource, pSource_len);
 }
 #endif /*#ifndef MINIZ_NO_INFLATE_APIS*/
 
-static MZ_FORCEINLINE mz_ulong crc32(mz_ulong crc, const unsigned char *ptr,
+[[maybe_unused]] static MZ_FORCEINLINE mz_ulong crc32(mz_ulong crc, const unsigned char *ptr,
                                      size_t buf_len) {
   return mz_crc32(crc, ptr, buf_len);
 }
 
-static MZ_FORCEINLINE mz_ulong adler32(mz_ulong adler, const unsigned char *ptr,
+[[maybe_unused]] static MZ_FORCEINLINE mz_ulong adler32(mz_ulong adler, const unsigned char *ptr,
                                        size_t buf_len) {
   return mz_adler32(adler, ptr, buf_len);
 }
@@ -688,7 +688,7 @@ static MZ_FORCEINLINE mz_ulong adler32(mz_ulong adler, const unsigned char *ptr,
 #define MAX_WBITS 15
 #define MAX_MEM_LEVEL 9
 
-static MZ_FORCEINLINE const char *zError(int err) { return mz_error(err); }
+[[maybe_unused]] static MZ_FORCEINLINE const char *zError(int err) { return mz_error(err); }
 #define ZLIB_VERSION MZ_VERSION
 #define ZLIB_VERNUM MZ_VERNUM
 #define ZLIB_VER_MAJOR MZ_VER_MAJOR
@@ -1103,7 +1103,7 @@ MINIZ_EXPORT void *tinfl_decompress_mem_to_heap(const void *pSrc_buf,
  * in memory. */
 /* Returns TINFL_DECOMPRESS_MEM_TO_MEM_FAILED on failure, or the number of bytes
  * written on success. */
-#define TINFL_DECOMPRESS_MEM_TO_MEM_FAILED ((size_t)(-1))
+#define TINFL_DECOMPRESS_MEM_TO_MEM_FAILED (static_cast<size_t>(-1))
 MINIZ_EXPORT size_t tinfl_decompress_mem_to_mem(void *pOut_buf,
                                                 size_t out_buf_len,
                                                 const void *pSrc_buf,

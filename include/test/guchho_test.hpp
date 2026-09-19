@@ -315,13 +315,18 @@ std::string ValueText(const T& value) {
     } else if constexpr (std::is_same_v<D, std::string> ||
                          std::is_same_v<D, std::string_view>) {
         return Quote(std::string(value));
+    } else if constexpr (std::is_array_v<T> && !std::is_same_v<std::remove_extent_t<T>, char16_t>) {
+        return Quote(std::string(value));
+    } else if constexpr (std::is_same_v<D, char16_t*> ||
+                         std::is_same_v<D, const char16_t*>) {
+        return value ? Quote(FromUTF16(value)) : std::string("null");
     } else if constexpr (std::is_same_v<D, const char*> ||
                          std::is_same_v<D, char*>) {
         return value ? Quote(std::string(value)) : std::string("null");
     } else if constexpr (std::is_same_v<D, std::nullptr_t>) {
         return std::string("null");
     } else if constexpr (std::is_pointer_v<D>) {
-        if (value == nullptr) {
+        if (!value) {
             return std::string("null");
         }
         std::ostringstream os;

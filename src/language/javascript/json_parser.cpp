@@ -46,10 +46,10 @@ namespace guchho::javascript {
             // found, signaling the caller to stop parsing further elements.
             //
             // Examples:
-            //   [1, 2, 3]     → comma consumed, returns true  (next element expected)
-            //   [1, 2, 3,]    → trailing comma in JSON  → error, returns false
-            //   [1, 2, 3,]    → trailing comma in JSONC → accepted,  returns false
-            //   {"a":1,"b":2}  → comma consumed, returns true
+            //   [1, 2, 3]     => comma consumed, returns true  (next element expected)
+            //   [1, 2, 3,]    => trailing comma in JSON  => error, returns false
+            //   [1, 2, 3,]    => trailing comma in JSONC => accepted,  returns false
+            //   {"a":1,"b":2}  => comma consumed, returns true
             bool ParseMaybeTrailingComma(T close_token) {
                 logger::Range comma_range = lexer_.Range();
                 lexer_.Expect(T::kComma);
@@ -69,14 +69,14 @@ namespace guchho::javascript {
             // arrays and objects call back into it for each child element.
             //
             // Supported value types and their AST representations:
-            //   false / true    → EBoolean
-            //   null            → ENull
-            //   string literal  → EString
-            //   numeric literal → ENumber
-            //   - numeric literal→ ENumber (negated)
-            //   [...]           → EArray  (children parsed recursively)
-            //   {...}           → EObject (key-value properties parsed recursively)
-            //   bigint literal  → EBigInt (only permitted in define contexts)
+            //   false / true    => EBoolean
+            //   null            => ENull
+            //   string literal  => EString
+            //   numeric literal => ENumber
+            //   - numeric literal=> ENumber (negated)
+            //   [...]           => EArray  (children parsed recursively)
+            //   {...}           => EObject (key-value properties parsed recursively)
+            //   bigint literal  => EBigInt (only permitted in define contexts)
             //
             // Both EArray and EObject record whether they were written on a
             // single line (no newlines between tokens), which the printer uses
@@ -336,10 +336,10 @@ namespace guchho::javascript {
     // held type using std::holds_alternative / std::get_if.
     //
     // Examples:
-    //   IsValidJSON(ENumber{42})         → true
-    //   IsValidJSON(EBoolean{true})      → true
-    //   IsValidJSON(EArray{items: []})   → true
-    //   IsValidJSON(EObject{computed: …})→ false (computed key not allowed)
+    //   IsValidJSON(ENumber{42})         => true
+    //   IsValidJSON(EBoolean{true})      => true
+    //   IsValidJSON(EArray{items: []})   => true
+    //   IsValidJSON(EObject{computed: …})=> false (computed key not allowed)
     bool IsValidJSON(const Expr& value) {
         if (std::holds_alternative<std::shared_ptr<EString>>(value.data) ||
             std::holds_alternative<std::shared_ptr<ENumber>>(value.data) ||
@@ -383,8 +383,8 @@ namespace guchho::javascript {
     //   - The "import.meta" meta-property: "import.meta"
     //
     // Returns a vector of path segments.  For example,
-    //   "a.b['c']"  →  {"a", "b", "c"}
-    //   "import.meta.url" → {"import", "meta", "url"}
+    //   "a.b['c']"  =>  {"a", "b", "c"}
+    //   "import.meta.url" => {"import", "meta", "url"}
     //
     // If the input is not a valid global-name expression (e.g. it
     // contains a syntax error), the lexer panics, which is caught here

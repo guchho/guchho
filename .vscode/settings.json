@@ -19,7 +19,7 @@
   // Use clangd as the primary C++ language server
   // ─────────────────────────────────────────────
   "C_Cpp.intelliSenseEngine": "disabled",
-  "C_Cpp.errorSquiggles": "disabled",
+  "C_Cpp.errorSquiggles": "enabled",
 
   // ─────────────────────────────────────────────
   // CMake

@@ -95,27 +95,27 @@ TEST(SemverToStringTest, SinglePart)
 
 TEST(CompareVersionsTest, EqualVersions)
 {
-    EXPECT_EQ((CompareVersions(Version{1, 2, 3}, Semver{.parts = {1, 2, 3}})), 0);
+    EXPECT_EQ((CompareVersions(Version{1, 2, 3}, Semver{.parts = {1, 2, 3}, .pre_release = {}})), 0);
 }
 
 TEST(CompareVersionsTest, NewerVersion)
 {
-    EXPECT_GT((CompareVersions(Version{1, 2, 4}, Semver{.parts = {1, 2, 3}})), 0);
-    EXPECT_GT((CompareVersions(Version{2, 0, 0}, Semver{.parts = {1, 9, 9}})), 0);
-    EXPECT_GT((CompareVersions(Version{1, 2, 0}, Semver{.parts = {1, 1, 5}})), 0);
+    EXPECT_GT((CompareVersions(Version{1, 2, 4}, Semver{.parts = {1, 2, 3}, .pre_release = {}})), 0);
+    EXPECT_GT((CompareVersions(Version{2, 0, 0}, Semver{.parts = {1, 9, 9}, .pre_release = {}})), 0);
+    EXPECT_GT((CompareVersions(Version{1, 2, 0}, Semver{.parts = {1, 1, 5}, .pre_release = {}})), 0);
 }
 
 TEST(CompareVersionsTest, OlderVersion)
 {
-    EXPECT_LT((CompareVersions(Version{1, 2, 3}, Semver{.parts = {1, 2, 4}})), 0);
-    EXPECT_LT((CompareVersions(Version{1, 0, 0}, Semver{.parts = {2, 0, 0}})), 0);
+    EXPECT_LT((CompareVersions(Version{1, 2, 3}, Semver{.parts = {1, 2, 4}, .pre_release = {}})), 0);
+    EXPECT_LT((CompareVersions(Version{1, 0, 0}, Semver{.parts = {2, 0, 0}, .pre_release = {}})), 0);
 }
 
 TEST(CompareVersionsTest, MissingPartsTreatedAsZero)
 {
-    EXPECT_EQ((CompareVersions(Version{0, 0, 0}, Semver{.parts = {}})), 0);
-    EXPECT_GT((CompareVersions(Version{1, 0, 0}, Semver{.parts = {}})), 0);
-    EXPECT_GT((CompareVersions(Version{1, 0, 0}, Semver{.parts = {0, 9}})), 0);
+    EXPECT_EQ((CompareVersions(Version{0, 0, 0}, Semver{.parts = {}, .pre_release = {}})), 0);
+    EXPECT_GT((CompareVersions(Version{1, 0, 0}, Semver{.parts = {}, .pre_release = {}})), 0);
+    EXPECT_GT((CompareVersions(Version{1, 0, 0}, Semver{.parts = {0, 9}, .pre_release = {}})), 0);
 }
 
 TEST(CompareVersionsTest, PreReleaseLosesTieBreak)
@@ -132,8 +132,8 @@ TEST(IsVersionSupportedTest, InsideRange)
     const std::vector<VersionRange> ranges = {
         {Version{1, 0, 0}, Version{2, 0, 0}},
     };
-    EXPECT_TRUE((IsVersionSupported(ranges, Semver{.parts = {1, 5, 0}})));
-    EXPECT_TRUE((IsVersionSupported(ranges, Semver{.parts = {1, 0, 0}})));
+    EXPECT_TRUE((IsVersionSupported(ranges, Semver{.parts = {1, 5, 0}, .pre_release = {}})));
+    EXPECT_TRUE((IsVersionSupported(ranges, Semver{.parts = {1, 0, 0}, .pre_release = {}})));
 }
 
 TEST(IsVersionSupportedTest, ExclusiveUpperBound)
@@ -141,8 +141,8 @@ TEST(IsVersionSupportedTest, ExclusiveUpperBound)
     const std::vector<VersionRange> ranges = {
         {Version{1, 0, 0}, Version{2, 0, 0}},
     };
-    EXPECT_FALSE((IsVersionSupported(ranges, Semver{.parts = {2, 0, 0}})));
-    EXPECT_FALSE((IsVersionSupported(ranges, Semver{.parts = {0, 9, 0}})));
+    EXPECT_FALSE((IsVersionSupported(ranges, Semver{.parts = {2, 0, 0}, .pre_release = {}})));
+    EXPECT_FALSE((IsVersionSupported(ranges, Semver{.parts = {0, 9, 0}, .pre_release = {}})));
 }
 
 TEST(IsVersionSupportedTest, UnboundedRange)
@@ -150,13 +150,13 @@ TEST(IsVersionSupportedTest, UnboundedRange)
     const std::vector<VersionRange> ranges = {
         {Version{1, 0, 0}, Version{}},
     };
-    EXPECT_TRUE((IsVersionSupported(ranges, Semver{.parts = {99, 0, 0}})));
-    EXPECT_FALSE((IsVersionSupported(ranges, Semver{.parts = {0, 9, 0}})));
+    EXPECT_TRUE((IsVersionSupported(ranges, Semver{.parts = {99, 0, 0}, .pre_release = {}})));
+    EXPECT_FALSE((IsVersionSupported(ranges, Semver{.parts = {0, 9, 0}, .pre_release = {}})));
 }
 
 TEST(IsVersionSupportedTest, EmptyRanges)
 {
-    EXPECT_FALSE((IsVersionSupported({}, Semver{.parts = {1, 0, 0}})));
+    EXPECT_FALSE((IsVersionSupported({}, Semver{.parts = {1, 0, 0}, .pre_release = {}})));
 }
 
 TEST(IsVersionSupportedTest, MultipleRangesShortCircuit)
@@ -165,9 +165,9 @@ TEST(IsVersionSupportedTest, MultipleRangesShortCircuit)
         {Version{3, 0, 0}, Version{4, 0, 0}},
         {Version{1, 0, 0}, Version{2, 0, 0}},
     };
-    EXPECT_TRUE((IsVersionSupported(ranges, Semver{.parts = {3, 5, 0}})));
-    EXPECT_TRUE((IsVersionSupported(ranges, Semver{.parts = {1, 5, 0}})));
-    EXPECT_FALSE((IsVersionSupported(ranges, Semver{.parts = {2, 5, 0}})));
+    EXPECT_TRUE((IsVersionSupported(ranges, Semver{.parts = {3, 5, 0}, .pre_release = {}})));
+    EXPECT_TRUE((IsVersionSupported(ranges, Semver{.parts = {1, 5, 0}, .pre_release = {}})));
+    EXPECT_FALSE((IsVersionSupported(ranges, Semver{.parts = {2, 5, 0}, .pre_release = {}})));
 }
 
 TEST(IsVersionSupportedTest, PreReleaseBelowRangeStart)
@@ -371,7 +371,7 @@ TEST(UnsupportedJSFeaturesTest, EmptyConstraints)
 TEST(UnsupportedJSFeaturesTest, VeryOldChrome)
 {
     const std::unordered_map<Engine, Semver> constraints = {
-        {Engine::kChrome, Semver{.parts = {48, 0, 0}}},
+        {Engine::kChrome, Semver{.parts = {48, 0, 0}, .pre_release = {}}},
     };
     JSFeature unsupported = UnsupportedJSFeatures(constraints);
     EXPECT_TRUE(Has(unsupported, JSFeature::kArrow));
@@ -382,7 +382,7 @@ TEST(UnsupportedJSFeaturesTest, VeryOldChrome)
 TEST(UnsupportedJSFeaturesTest, ModernChrome)
 {
     const std::unordered_map<Engine, Semver> constraints = {
-        {Engine::kChrome, Semver{.parts = {140, 0, 0}}},
+        {Engine::kChrome, Semver{.parts = {140, 0, 0}, .pre_release = {}}},
     };
     JSFeature unsupported = UnsupportedJSFeatures(constraints);
     EXPECT_FALSE(Has(unsupported, JSFeature::kArrow));
@@ -392,7 +392,7 @@ TEST(UnsupportedJSFeaturesTest, ModernChrome)
 TEST(UnsupportedJSFeaturesTest, ModernNode)
 {
     const std::unordered_map<Engine, Semver> constraints = {
-        {Engine::kNode, Semver{.parts = {26, 0, 0}}},
+        {Engine::kNode, Semver{.parts = {26, 0, 0}, .pre_release = {}}},
     };
     JSFeature unsupported = UnsupportedJSFeatures(constraints);
     EXPECT_FALSE(Has(unsupported, JSFeature::kArrow));
@@ -411,7 +411,7 @@ TEST(UnsupportedCSSFeaturesTest, EmptyConstraints)
 TEST(UnsupportedCSSFeaturesTest, NonBrowserIgnored)
 {
     const std::unordered_map<Engine, Semver> constraints = {
-        {Engine::kNode, Semver{.parts = {26, 0, 0}}},
+        {Engine::kNode, Semver{.parts = {26, 0, 0}, .pre_release = {}}},
     };
     EXPECT_EQ(UnsupportedCSSFeatures(constraints), static_cast<CSSFeature>(0));
 }
@@ -419,7 +419,7 @@ TEST(UnsupportedCSSFeaturesTest, NonBrowserIgnored)
 TEST(UnsupportedCSSFeaturesTest, Chrome120SupportsAll)
 {
     const std::unordered_map<Engine, Semver> constraints = {
-        {Engine::kChrome, Semver{.parts = {120, 0, 0}}},
+        {Engine::kChrome, Semver{.parts = {120, 0, 0}, .pre_release = {}}},
     };
     EXPECT_EQ(UnsupportedCSSFeatures(constraints), static_cast<CSSFeature>(0));
 }
@@ -427,7 +427,7 @@ TEST(UnsupportedCSSFeaturesTest, Chrome120SupportsAll)
 TEST(UnsupportedCSSFeaturesTest, Chrome119LacksNesting)
 {
     const std::unordered_map<Engine, Semver> constraints = {
-        {Engine::kChrome, Semver{.parts = {119, 0, 0}}},
+        {Engine::kChrome, Semver{.parts = {119, 0, 0}, .pre_release = {}}},
     };
     EXPECT_EQ(UnsupportedCSSFeatures(constraints), CSSFeature::kNesting);
 }
@@ -444,7 +444,7 @@ TEST(CSSPrefixDataTest, EmptyConstraints)
 TEST(CSSPrefixDataTest, NonBrowserIgnored)
 {
     const std::unordered_map<Engine, Semver> constraints = {
-        {Engine::kNode, Semver{.parts = {26, 0, 0}}},
+        {Engine::kNode, Semver{.parts = {26, 0, 0}, .pre_release = {}}},
     };
     EXPECT_TRUE(CSSPrefixData(constraints).empty());
 }
@@ -452,7 +452,7 @@ TEST(CSSPrefixDataTest, NonBrowserIgnored)
 TEST(CSSPrefixDataTest, Chrome80StillNeedsWebkit)
 {
     const std::unordered_map<Engine, Semver> constraints = {
-        {Engine::kChrome, Semver{.parts = {80, 0, 0}}},
+        {Engine::kChrome, Semver{.parts = {80, 0, 0}, .pre_release = {}}},
     };
     auto result = CSSPrefixData(constraints);
     EXPECT_EQ(result.at(kDAppearance), CSSPrefix::kWebkitPrefix);
@@ -464,7 +464,7 @@ TEST(CSSPrefixDataTest, Chrome80StillNeedsWebkit)
 TEST(CSSPrefixDataTest, Firefox40NeedsMoz)
 {
     const std::unordered_map<Engine, Semver> constraints = {
-        {Engine::kFirefox, Semver{.parts = {40, 0, 0}}},
+        {Engine::kFirefox, Semver{.parts = {40, 0, 0}, .pre_release = {}}},
     };
     auto result = CSSPrefixData(constraints);
     EXPECT_EQ(result.at(kDAppearance), CSSPrefix::kMozPrefix);
@@ -477,7 +477,7 @@ TEST(CSSPrefixDataTest, Firefox40NeedsMoz)
 TEST(CSSPrefixDataTest, IE11AlwaysMs)
 {
     const std::unordered_map<Engine, Semver> constraints = {
-        {Engine::kIE, Semver{.parts = {11, 0, 0}}},
+        {Engine::kIE, Semver{.parts = {11, 0, 0}, .pre_release = {}}},
     };
     auto result = CSSPrefixData(constraints);
     EXPECT_EQ(result.at(kDHyphens), CSSPrefix::kMsPrefix);
@@ -487,8 +487,8 @@ TEST(CSSPrefixDataTest, IE11AlwaysMs)
 TEST(CSSPrefixDataTest, MultipleEnginesCombine)
 {
     const std::unordered_map<Engine, Semver> constraints = {
-        {Engine::kFirefox, Semver{.parts = {40, 0, 0}}},
-        {Engine::kChrome, Semver{.parts = {80, 0, 0}}},
+        {Engine::kFirefox, Semver{.parts = {40, 0, 0}, .pre_release = {}}},
+        {Engine::kChrome, Semver{.parts = {80, 0, 0}, .pre_release = {}}},
     };
     auto result = CSSPrefixData(constraints);
     EXPECT_EQ(result.at(kDAppearance), CSSPrefix::kMozPrefix | CSSPrefix::kWebkitPrefix);

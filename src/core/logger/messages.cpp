@@ -98,6 +98,11 @@ namespace guchho::logger {
         case MsgCat::kJS_UnexpectedInterface: return "Unexpected \"interface\"";
         case MsgCat::kJS_ExpressionNotReturned: return "The following expression is not returned because of an automatically-inserted semicolon";
         case MsgCat::kJS_DecoratorsOnConstructors: return "Decorators are not allowed on class constructors";
+        case MsgCat::kJS_DecoratorsOnlyClassDeclarations: return "TypeScript experimental decorators can only be used with class declarations";
+        case MsgCat::kJS_DecoratorsNotClassExpression: return "This is a class expression, not a class declaration:";
+        case MsgCat::kJS_EnableExperimentalDecoratorsNote: return "You can enable experimental decorators by adding \"experimentalDecorators\": true to your \"tsconfig.json\" file.";
+        case MsgCat::kJS_WrapDecoratorInParensNote: return "Wrap this decorator in parentheses to allow arbitrary expressions:";
+        case MsgCat::kJS_DotNotAllowedAfterDecoratorCall: return "JavaScript decorator syntax does not allow \".\" after a call expression";
         case MsgCat::kJS_MultipleConstructors: return "Classes cannot contain more than one constructor";
         case MsgCat::kJS_AwaitAsIdentifier: return "Cannot use \"await\" as an identifier here:";
         case MsgCat::kJS_CannotUseNameIdentifier_2: return "Cannot use \"{}\" as an identifier here:";
@@ -188,6 +193,7 @@ namespace guchho::logger {
         case MsgCat::kJS_DuplicateCaseNever: return "This case clause will never be evaluated because it duplicates an earlier case clause";
         case MsgCat::kJS_DuplicateCaseMay: return "This case clause may never be evaluated because it likely duplicates an earlier case clause";
         case MsgCat::kJS_DuplicateCaseEarlierNote: return "The earlier case clause is here:";
+        case MsgCat::kJS_AssignToDefineNote: return "The expression \"{}\" has been configured to be replaced with a constant using the \"define\" feature. If this expression is supposed to be a compile-time constant, then it doesn't make sense to assign to it here. Or if this expression is supposed to change at run-time, this \"define\" substitution should be removed.";
         case MsgCat::kJS_DuplicateProperty: return "Duplicate {} \"{}\" in {}";
         case MsgCat::kJS_DuplicatePropertyOriginalNote: return "The original {} \"{}\" is here:";
         case MsgCat::kJS_PrivateNameNotInEnclosing: return "Private name \"{}\" must be declared in an enclosing class";
@@ -220,6 +226,10 @@ namespace guchho::logger {
         case MsgCat::kJS_UnexpectedParenInRegexp: return "Unexpected \")\" in regular expression";
         case MsgCat::kJS_UnsupportedRegexp: return "{} in {}";
         case MsgCat::kJS_UnsupportedRegexpNote: return "This regular expression literal has been converted to a \"new RegExp()\" constructor to avoid generating code with a syntax error. However, you will need to include a polyfill for \"RegExp\" for your code to have the correct behavior at run-time.";
+        case MsgCat::kJS_UnsupportedRegexpFlag: return "The regular expression flag \"{}\" is not available";
+        case MsgCat::kJS_UnsupportedRegexpUnicodePropertyEscape: return "Unicode property escapes in regular expressions are not available";
+        case MsgCat::kJS_UnsupportedRegexpNamedCaptureGroup: return "Named capture groups in regular expressions are not available";
+        case MsgCat::kJS_UnsupportedRegexpLookbehind: return "Lookbehind assertions in regular expressions are not available";
         case MsgCat::kJS_NonDefaultJSONImportUndefined: return "Non-default import \"{}\" is undefined with a JSON import assertion";
         case MsgCat::kJS_UseStrictNonSimpleParamList: return "Cannot use a \"use strict\" directive in a function with a non-simple parameter list";
         case MsgCat::kJS_CannotAssignToImport: return "Cannot assign to import \"{}\"";
@@ -227,6 +237,8 @@ namespace guchho::logger {
         case MsgCat::kJS_AssignToImportWillThrow: return "This assignment will throw because \"{}\" is an import";
         case MsgCat::kJS_IndirectRequire: return "Indirect calls to \"require\" will not be bundled";
         case MsgCat::kJS_TopLevelThisUndefined: return "Top-level \"this\" will be replaced with undefined since this file is an ECMAScript module";
+        case MsgCat::kJS_DuplicateFnDeclNested: return "Duplicate function declarations are not allowed in nested blocks {}. ";
+        case MsgCat::kJS_DuplicateFnDeclModule: return "Duplicate top-level function declarations are not allowed in an ECMAScript module. ";
         case MsgCat::kJS_CannotAccessName: return "Cannot access \"{}\" here:";
         case MsgCat::kJS_NoContainingLabel: return "There is no containing label named \"{}\"";
         case MsgCat::kJS_LegacyHTMLCommentInESM: return "Legacy HTML single-line comments are not allowed in ECMAScript modules";
@@ -238,6 +250,8 @@ namespace guchho::logger {
         case MsgCat::kJS_InvalidJSXFragment: return "Invalid JSX fragment: {}";
         case MsgCat::kJS_JSXImportSourceAutomatic: return "The JSX import source cannot be set without also enabling React's \"automatic\" JSX transform";
         case MsgCat::kJS_JSXImportSourceAutomaticNote: return "You can enable React's \"automatic\" JSX transform for this file by using a \"@jsxRuntime automatic\" comment.";
+        case MsgCat::kJS_JSXRuntimeInvalid: return "Invalid JSX runtime: \"{}\"";
+        case MsgCat::kJS_JSXRuntimeInvalidNote: return "The JSX runtime can only be set to either \"classic\" or \"automatic\".";
         case MsgCat::kJS_CannotUseNameIdentifier: return "Cannot use \"{}\" as an identifier here:";
         case MsgCat::kJS_DecoratorError: return "JavaScript decorator syntax does not allow \"?.\" here";
         case MsgCat::kJS_DecoratorErrorCall: return "JavaScript decorator syntax does not allow \".\" after a call expression";
@@ -260,6 +274,7 @@ namespace guchho::logger {
         case MsgCat::kJS_LegacyOctalInTemplate: return "Legacy octal escape sequences cannot be used in template literals";
         case MsgCat::kJS_ImportMetaNotAvailable: return "\"import.meta\" is not available with the \"{}\" output format and will be empty";
         case MsgCat::kJS_ImportMetaNotAvailableNote: return "You need to set the output format to \"esm\" for \"import.meta\" to work correctly.";
+        case MsgCat::kJS_KeyShorthandNotAllowedNote: return "Using \"key\" as a shorthand for \"key={true}\" is not allowed when using React's \"automatic\" JSX transform.";
         case MsgCat::kJS_ClassNameBeforeInit: return "Accessing class \"{}\" before initialization will throw";
         case MsgCat::kJS_AssignToConstant: return "Cannot assign to \"{}\" because it is a constant";
         case MsgCat::kJS_AssignToConstantThrowNote: return "The symbol \"{}\" was declared a constant here:";

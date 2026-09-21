@@ -1218,9 +1218,9 @@ namespace guchho::css {
                         }
                     }
 
-                    conditions.queries = ParseMediaQueryListUntil([](TokenType kind) {
-                        return kind == TokenType::kSemicolon || kind == TokenType::kOpenBrace || kind == TokenType::kCloseBrace ||
-                            kind == TokenType::kEndOfFile;
+                    conditions.queries = ParseMediaQueryListUntil([](TokenType token) {
+                        return token == TokenType::kSemicolon || token == TokenType::kOpenBrace || token == TokenType::kCloseBrace ||
+                            token == TokenType::kEndOfFile;
                     });
                     if (Peek(TokenType::kOpenBrace)) {
                         break;
@@ -1558,8 +1558,8 @@ namespace guchho::css {
                 break;
             }
         } else if (lower_at_token == "media") {
-            std::vector<MediaQuery> queries = ParseMediaQueryListUntil([](TokenType kind) {
-                return kind == TokenType::kOpenBrace;
+            std::vector<MediaQuery> queries = ParseMediaQueryListUntil([](TokenType token) {
+                return token == TokenType::kOpenBrace;
             });
 
             guchho::logger::Loc matching_loc = Current().range.loc;

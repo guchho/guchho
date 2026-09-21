@@ -151,8 +151,8 @@ set(GUCHHO_JS_SOURCES
     language/javascript/js_parser_statement.cpp
     language/javascript/js_sourcemap.cpp
     language/javascript/json_parser.cpp
-    language/javascript/ts_parser.cpp
-
+    language/typescript/ts_parser.cpp
+    
     # JS-only compat tables
     core/compat/js_table.cpp
 )

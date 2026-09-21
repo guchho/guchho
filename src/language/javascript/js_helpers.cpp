@@ -3179,7 +3179,7 @@ namespace guchho::javascript {
                 //   }
                 //
                 // This happens in TypeScript when "useDefineForClassFields" is disabled
-                // because TypeScript (and esbuild) transforms the above class into this:
+                // because TypeScript transforms the above class into this:
                 //
                 //   class Foo {
                 //     static set foo(x) { importantSideEffect(x); }
@@ -3274,8 +3274,7 @@ namespace guchho::javascript {
             //
             // They could technically have side effects if the imported module is a
             // CommonJS module and the import item was translated to a property access
-            // (which esbuild's bundler does) and the property has a getter with side
-            // effects.
+            // and the property has a getter with side effects.
             //
             // But this is very unlikely and respecting this edge case would mean
             // disabling tree shaking of all code that references an export from a

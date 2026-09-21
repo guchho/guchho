@@ -21,7 +21,7 @@ add_subdirectory(css)
 # JavaScript test executable
 
 add_executable(guchho_js_tests
-    main.cpp
+    test_assertions.cpp
     $<TARGET_OBJECTS:guchho_js_test_objects>
 )
 

@@ -375,7 +375,7 @@ namespace guchho::logger {
         case MsgCat::kJS_ImportNamespaceESModuleInteropNote: return "Make sure to enable TypeScript's \"esModuleInterop\" setting so that TypeScript's type checker generates an error when you try to do this. You can read more about this setting here: https://www.typescriptlang.org/tsconfig#esModuleInterop";
 
         // -------------------------------------------------------------------
-        // TypeScript parser (ts_parser.cpp)
+        // TypeScript parser (language/typescript/ts_parser.cpp)
         // -------------------------------------------------------------------
         case MsgCat::kTS_UnexpectedConst: return "Unexpected \"const\"";
         case MsgCat::kTS_UnexpectedToken: return "Unexpected \"{}\"";

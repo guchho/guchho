@@ -3,6 +3,7 @@
 add_library(guchho_css_test_objects OBJECT
     css_printer_test.cpp
     css_lexer_test.cpp
+    css_helpers_test.cpp
 )
 
 target_include_directories(

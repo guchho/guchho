@@ -2415,7 +2415,7 @@ namespace guchho::javascript {
         }
 
         // Introduce a fake block scope for function declarations inside if statements
-        int ifStmtScopeIndex;
+        int ifStmtScopeIndex = 0;
         bool hasIfScope = opts.lexicalDecl == lexicalDeclAllowFnInsideIf;
         if (hasIfScope) {
             ifStmtScopeIndex = this->pushScopeForParsePass(ScopeKind::kBlock, loc);

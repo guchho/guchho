@@ -807,20 +807,20 @@ namespace guchho::javascript {
 
     // Constructs a Lexer with default options. This is the standard constructor
     // used for parsing JavaScript and TypeScript source files.
-    Lexer::Lexer(logger::Log log, logger::Source source, config::TSOptions ts)
-        : Lexer(std::move(log), std::move(source), std::move(ts), InitOptions{}) {}
+    Lexer::Lexer(logger::Log log, logger::Source source, config::TSOptions ts_opts)
+        : Lexer(std::move(log), std::move(source), std::move(ts_opts), InitOptions{}) {}
 
     // Constructs a Lexer with explicit options. The `error_suffix` is appended
     // to error messages (e.g. " in file.js"). The `json` flag enables JSON
     // parsing mode which disallows comments, trailing commas, and other
     // non-JSON syntax. The `for_global_name` flag enables a special mode for
     // parsing global names where '/' is treated as a division operator.
-    Lexer::Lexer(logger::Log log, logger::Source source, config::TSOptions ts, InitOptions options)
+    Lexer::Lexer(logger::Log log, logger::Source source, config::TSOptions ts_opts, InitOptions options)
         : error_suffix(std::move(options.error_suffix)),
         fn_or_arrow_start_loc(logger::Loc{-1}),
         prev_error_loc(logger::Loc{-1}),
         json(options.json),
-        ts(std::move(ts)),
+        ts(std::move(ts_opts)),
         for_global_name(options.for_global_name),
         log_(std::move(log)),
         source_(std::move(source)),

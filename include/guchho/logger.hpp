@@ -1083,7 +1083,7 @@ namespace guchho::logger {
         kJS_ImportNamespaceESModuleInteropNote,
 
         // -------------------------------------------------------------------
-        // TypeScript parser (language/typescript/ts_parser.cpp)
+        // TypeScript parser (ts_parser.cpp)
         // -------------------------------------------------------------------
         kTS_UnexpectedConst,
         kTS_UnexpectedToken,

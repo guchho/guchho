@@ -137,6 +137,20 @@ endif()
 
 
 # ------------------------------------------------------------
+# MinGW (GCC/Clang on Windows)
+# ------------------------------------------------------------
+
+if(MINGW)
+
+    # Allow more sections in large translation units (equivalent to MSVC /bigobj).
+    add_compile_options(
+        -Wa,-mbig-obj
+    )
+
+endif()
+
+
+# ------------------------------------------------------------
 # Organize targets in IDEs
 # ------------------------------------------------------------
 

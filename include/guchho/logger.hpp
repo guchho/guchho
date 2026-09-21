@@ -941,8 +941,10 @@ namespace guchho::logger {
         kJS_DirectEvalNote,
         kJS_ConvertingRequireToESM,
         kJS_RequireNotBundledNotStringLiteral,
+        kJS_RequireCallNotBundledNotStringLiteral,
         kJS_RequireNotBundledArgCount,
         kJS_RequireNotBundledArgCountNote,
+        kJS_RequireArgCountNote,
 
         // -------------------------------------------------------------------
         // JavaScript parser (js_parser.cpp)

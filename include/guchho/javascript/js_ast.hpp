@@ -1151,7 +1151,7 @@ struct EJSXElement {
     std::vector<Expr> nullable_children;
 
     logger::Loc close_loc;
-    bool is_single_line{};
+    bool is_tag_single_line{};
 };
 
 // Raw JSX text content, stored verbatim. The JSX specification does not

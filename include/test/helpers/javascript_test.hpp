@@ -550,3 +550,280 @@ inline void expectPrintedJSXAutomatic(const JSXAutomaticTestOptions& options, co
     config_options.JSX.SideEffects = options.SideEffects;
     expectPrintedCommon(contents, expected, &config_options);
 }
+
+
+// ---------------------------------------------------------------------------
+// TypeScript parser test helpers for Guchho
+//
+// This header provides inline helper functions for testing Guchho's
+// TypeScript parser.  Every helper builds a config::Options struct with
+// TS.Parse enabled, feeds source code through the parser (and optionally
+// the printer), and then asserts against expected results using Google Test.
+//
+// These helpers are separated from the JavaScript helpers so that
+// TypeScript-specific test files can include only what they need without
+// pulling in unnecessary dependencies.
+// ---------------------------------------------------------------------------
+
+#include "test/helpers/javascript_test.hpp"
+
+// ---------------------------------------------------------------------------
+// Parse-error assertions (TypeScript)
+// ---------------------------------------------------------------------------
+
+// Parses TypeScript source code and asserts that the resulting diagnostic
+// output exactly matches the expected string.  This is the most basic
+// TypeScript parse helper — it enables TS.Parse with all other options at
+// their defaults.
+//
+// Example:
+//   expectParseErrorTS("let x: number = 'str';",
+//       "error: Type 'string' is not assignable to type 'number'\n");
+inline void expectParseErrorTS(const std::string& contents, const std::string& expected) {
+    config::Options options{};
+    options.TS.Parse = true;
+    expectParseErrorCommon(contents, expected, &options);
+}
+
+
+// Parses TypeScript source with experimental decorators enabled and asserts
+// the diagnostic output.  This tests the legacy decorator syntax (the one
+// that uses the "experimentalDecorators" tsconfig flag), not the TC39 Stage 3
+// decorators.
+//
+// Example:
+//   expectParseErrorExperimentalDecoratorTS(
+//       "@sealed\nclass Foo {}",
+//       "");
+inline void expectParseErrorExperimentalDecoratorTS(const std::string& contents, const std::string& expected) {
+    config::Options options{};
+    options.TS.Parse = true;
+    options.TS.Config.ExperimentalDecorators = config::MaybeBool::kTrue;
+    expectParseErrorCommon(contents, expected, &options);
+}
+
+
+// ---------------------------------------------------------------------------
+// Print-and-compare assertions (TypeScript)
+// ---------------------------------------------------------------------------
+
+// Parses and prints TypeScript source code with specific JS features marked
+// as unsupported.  This tests that the printer correctly lowers or transforms
+// TypeScript syntax that depends on features unavailable in the target
+// environment.
+//
+// Example:
+//   expectPrintedWithUnsupportedFeaturesTS(
+//       compat::JSFeature::kTopLevelAwait,
+//       "await fetch('/')",
+//       ...);
+inline void expectPrintedWithUnsupportedFeaturesTS(compat::JSFeature unsupported_features, const std::string& contents, const std::string& expected) {
+    config::Options options{};
+    options.TS.Parse = true;
+    options.UnsupportedJSFeatures = unsupported_features;
+    expectPrintedCommon(contents, expected, &options);
+}
+
+// Parses and prints TypeScript source as though targeting a specific
+// ECMAScript version.  The version is converted to a Semver and stored in
+// UnsupportedJSFeatures so the printer can downgrade syntax accordingly.
+//
+// Example:
+//   expectPrintedTargetTS(2015, "const x = 1;", "const x = 1;\n");
+inline void expectParseErrorTargetTS(int es_version, const std::string& contents, const std::string& expected) {
+    compat::Semver semver;
+    semver.parts = {static_cast<uint32_t>(es_version)};
+    config::Options options{};
+    options.TS.Parse = true;
+    options.UnsupportedJSFeatures = compat::UnsupportedJSFeatures({{compat::Engine::kES, semver}});
+    expectParseErrorCommon(contents, expected, &options);
+}
+
+// Parses and prints TypeScript source with default options.  This is the
+// TypeScript equivalent of expectPrinted — it verifies that valid TypeScript
+// round-trips correctly through the parser and printer.
+//
+// Example:
+//   expectPrintedTS("let x: number = 1;", "let x = 1;\n");
+inline void expectPrintedTS(const std::string& contents, const std::string& expected) {
+    config::Options options{};
+    options.TS.Parse = true;
+    expectPrintedCommon(contents, expected, &options);
+}
+
+// Parses and prints TypeScript source with UseDefineForClassFields set to
+// false.  This simulates the TypeScript "assign" semantics for class fields,
+// where class fields are emitted as simple assignments in the constructor
+// rather than using Object.defineProperty.
+//
+// Example:
+//   expectPrintedAssignSemanticsTS(
+//       "class Foo { x = 1 }",
+//       "class Foo {\n  constructor() {\n    this.x = 1;\n  }\n}\n");
+inline void expectPrintedAssignSemanticsTS(const std::string& contents, const std::string& expected) {
+    config::Options options{};
+    options.TS.Parse = true;
+    options.TS.Config.UseDefineForClassFields = config::MaybeBool::kFalse;
+    expectPrintedCommon(contents, expected, &options);
+}
+
+// Same as expectPrintedAssignSemanticsTS but also targeting a specific
+// ECMAScript version.  Useful for testing that class field lowering
+// interacts correctly with other ES-version-dependent transforms.
+//
+// Example:
+//   expectPrintedAssignSemanticsTargetTS(2015, "class Foo { x = 1 }", ...);
+inline void expectPrintedAssignSemanticsTargetTS(int es_version, const std::string& contents, const std::string& expected) {
+    compat::Semver semver;
+    semver.parts = {static_cast<uint32_t>(es_version)};
+    config::Options options{};
+    options.TS.Parse = true;
+    options.TS.Config.UseDefineForClassFields = config::MaybeBool::kFalse;
+    options.UnsupportedJSFeatures = compat::UnsupportedJSFeatures({{compat::Engine::kES, semver}});
+    expectPrintedCommon(contents, expected, &options);
+}
+
+// Parses and prints TypeScript source with experimental decorators enabled.
+// This tests that the legacy decorator transform produces the expected
+// output for decorated classes, methods, and properties.
+//
+// Example:
+//   expectPrintedExperimentalDecoratorTS(
+//       "function sealed() {}\n@sealed\nclass Foo {}",
+//       "function sealed() {}\nlet Foo = class Foo {};\nFoo = __decorate([sealed], Foo);\n");
+inline void expectPrintedExperimentalDecoratorTS(const std::string& contents, const std::string& expected) {
+    config::Options options{};
+    options.TS.Parse = true;
+    options.TS.Config.ExperimentalDecorators = config::MaybeBool::kTrue;
+    expectPrintedCommon(contents, expected, &options);
+}
+
+// Parses and prints TypeScript source with MinifySyntax enabled.  This
+// verifies that the syntax minifier handles TypeScript-specific constructs
+// (type annotations, interfaces, etc.) correctly, stripping them and
+// producing compact output.
+//
+// Example:
+//   expectPrintedMangleTS("let x: number = 1;", "let x=1;\n");
+inline void expectPrintedMangleTS(const std::string& contents, const std::string& expected) {
+    config::Options options{};
+    options.TS.Parse = true;
+    options.MinifySyntax = true;
+    expectPrintedCommon(contents, expected, &options);
+}
+
+
+// Parses and prints TypeScript source with both MinifySyntax enabled and
+// UseDefineForClassFields set to false.  This tests the interaction between
+// syntax minification and the "assign" class field semantics.
+//
+// Example:
+//   expectPrintedMangleAssignSemanticsTS(
+//       "class Foo { x = 1 }",
+//       "class Foo{constructor(){this.x=1}}\n");
+inline void expectPrintedMangleAssignSemanticsTS(const std::string& contents, const std::string& expected) {
+    config::Options options{};
+    options.TS.Parse = true;
+    options.TS.Config.UseDefineForClassFields = config::MaybeBool::kFalse;
+    options.MinifySyntax = true;
+    expectPrintedCommon(contents, expected, &options);
+}
+
+// Parses and prints TypeScript source targeting a specific ECMAScript
+// version.  This tests syntax lowering for TypeScript constructs that depend
+// on ES features (e.g. enum downlevel, namespace emission).
+//
+// Example:
+//   expectPrintedTargetTS(5, "enum Foo { A, B }", ...);
+inline void expectPrintedTargetTS(int es_version, const std::string& contents, const std::string& expected) {
+    compat::Semver semver;
+    semver.parts = {static_cast<uint32_t>(es_version)};
+    config::Options options{};
+    options.TS.Parse = true;
+    options.UnsupportedJSFeatures = compat::UnsupportedJSFeatures({{compat::Engine::kES, semver}});
+    expectPrintedCommon(contents, expected, &options);
+}
+
+// Parses and prints TypeScript source targeting a specific ECMAScript version
+// with experimental decorators enabled.  This tests that decorator lowering
+// interacts correctly with ES-version-dependent transforms (e.g. decorators
+// on ES5 vs ES2015 targets).
+//
+// Example:
+//   expectPrintedTargetExperimentalDecoratorTS(
+//       2015, "@sealed class Foo {}", ...);
+inline void expectPrintedTargetExperimentalDecoratorTS(int es_version, const std::string& contents, const std::string& expected) {
+    compat::Semver semver;
+    semver.parts = {static_cast<uint32_t>(es_version)};
+    config::Options options{};
+    options.TS.Parse = true;
+    options.TS.Config.ExperimentalDecorators = config::MaybeBool::kTrue;
+    options.UnsupportedJSFeatures = compat::UnsupportedJSFeatures({{compat::Engine::kES, semver}});
+    expectPrintedCommon(contents, expected, &options);
+}
+
+// ---------------------------------------------------------------------------
+// NoAmbiguousLessThan helpers
+// ---------------------------------------------------------------------------
+
+// Parses TypeScript source with NoAmbiguousLessThan enabled and asserts the
+// diagnostic output.  When NoAmbiguousLessThan is true, the parser resolves
+// the ambiguity between the "<" operator and the start of a type parameter
+// list in favor of the type parameter.  This can cause parse errors on code
+// that would otherwise be valid JavaScript.
+//
+// Example:
+//   expectParseErrorTSNoAmbiguousLessThan(
+//       "a < b > (c)",
+//       "error: unexpected \"(\" in expression\n");
+inline void expectParseErrorTSNoAmbiguousLessThan(const std::string& contents, const std::string& expected) {
+    config::Options options{};
+    options.TS.Parse = true;
+    options.TS.NoAmbiguousLessThan = true;
+    expectParseErrorCommon(contents, expected, &options);
+}
+
+
+// Parses and prints TypeScript source with NoAmbiguousLessThan enabled.
+// Verifies that expressions containing "<" and ">" that are ambiguous
+// between operators and type parameters are correctly resolved and printed.
+//
+// Example:
+//   expectPrintedTSNoAmbiguousLessThan("a < b > c", "a < b > c;\n");
+inline void expectPrintedTSNoAmbiguousLessThan(const std::string& contents, const std::string& expected) {
+    config::Options options{};
+    options.TS.Parse = true;
+    options.TS.NoAmbiguousLessThan = true;
+    expectPrintedCommon(contents, expected, &options);
+}
+
+// ---------------------------------------------------------------------------
+// TSX (TypeScript + JSX) helpers
+// ---------------------------------------------------------------------------
+
+// Parses TypeScript source with JSX enabled and asserts the diagnostic
+// output.  This tests the TSX syntax where JSX elements can appear in
+// TypeScript files, combining type checking with JSX transformation.
+//
+// Example:
+//   expectParseErrorTSX("<div>{x</div>",
+//       "error: Unexpected \"<\" in expression\n");
+inline void expectParseErrorTSX(const std::string& contents, const std::string& expected) {
+    config::Options options{};
+    options.TS.Parse = true;
+    options.JSX.Parse = true;
+    expectParseErrorCommon(contents, expected, &options);
+}
+
+// Parses and prints TypeScript source with JSX enabled.  This verifies that
+// TSX files are correctly parsed, type-stripped, and printed back to
+// JavaScript with the JSX syntax preserved.
+//
+// Example:
+//   expectPrintedTSX("let x: number = <div />;", "let x = <div />;\n");
+inline void expectPrintedTSX(const std::string& contents, const std::string& expected) {
+    config::Options options{};
+    options.TS.Parse = true;
+    options.JSX.Parse = true;
+    expectPrintedCommon(contents, expected, &options);
+}

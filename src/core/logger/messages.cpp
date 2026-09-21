@@ -279,11 +279,13 @@ namespace guchho::logger {
         case MsgCat::kJS_ImportExpressionNotRecognized: return "This \"import()\" was not recognized because {}";
         case MsgCat::kJS_ImportNotBundledNotStringLiteral: return "This \"import\" expression will not be bundled because the argument is not a string literal";
         case MsgCat::kJS_DirectEval: return "Using direct eval with a bundler is not recommended and may cause problems";
-        case MsgCat::kJS_DirectEvalNote: return "See the documentation for more information about direct eval and bundling";
+        case MsgCat::kJS_DirectEvalNote: return "You can read more about direct eval and bundling in the documentation";
         case MsgCat::kJS_ConvertingRequireToESM: return "Converting require() calls to ESM is not supported";
         case MsgCat::kJS_RequireNotBundledNotStringLiteral: return "This \"require\" expression will not be bundled because the argument is not a string literal";
+        case MsgCat::kJS_RequireCallNotBundledNotStringLiteral: return "This call to \"require\" will not be bundled because the argument is not a string literal";
         case MsgCat::kJS_RequireNotBundledArgCount: return "Calling require() with the wrong number of arguments is not supported";
         case MsgCat::kJS_RequireNotBundledArgCountNote: return "You must call require() with exactly one string argument";
+        case MsgCat::kJS_RequireArgCountNote: return "To be bundled, a \"require\" call must have exactly 1 argument.";
 
         // -------------------------------------------------------------------
         // JavaScript parser (js_parser.cpp)

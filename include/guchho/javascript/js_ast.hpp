@@ -634,6 +634,11 @@ struct Expr {
     E data;
     logger::Loc loc;
 
+    Expr() = default;
+    Expr(E data, logger::Loc loc) : data(std::move(data)), loc(loc) {}
+    Expr(const Expr&) = default;
+    Expr(Expr&&) = default;
+
     Expr& operator=(const Expr& other) {
         E copy = other.data;
         data = std::move(copy);

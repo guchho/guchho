@@ -537,7 +537,7 @@ namespace guchho::javascript {
         if (this->currentScope->contains_direct_eval) {
             for (auto &entry : this->currentScope->members) {
                 // Using direct eval when bundling is not a good idea in general because
-                // esbuild must assume that it can potentially reach anything in any of
+                // guchho must assume that it can potentially reach anything in any of
                 // the containing scopes. We try to make it work but this isn't possible
                 // in some cases.
                 //
@@ -2274,7 +2274,7 @@ namespace guchho::javascript {
         p->jsxLegacyImports = {};
 
         // Add "/* @__KEY__ */" comments when mangling properties to support
-        // running esbuild (or other tools like Terser) again on the output. This
+        // running guchho (or other tools like Terser) again on the output. This
         // checks both "--mangle-props" and "--reserve-props" so that you can turn
         // this on with just "--reserve-props=." if you want to.
         p->shouldAddKeyComment = ((options->mangleProps != nullptr) || (options->reserveProps != nullptr));

@@ -1690,12 +1690,12 @@ namespace guchho::javascript {
                 }
             } else if (auto *sLoc = Get<SLocal>(stmt.data); sLoc != nullptr) {
                 if (sLoc->is_export) {
-                    ForEachIdentifierBindingInDecls(sLoc->decls, [this, exportedMembers](logger::Loc loc, BIdentifier &b) {
-                        std::string name = this->symbols[b.ref.inner_index].original_name;
+                    ForEachIdentifierBindingInDecls(sLoc->decls, [this, exportedMembers](logger::Loc bindingLoc, BIdentifier &b) {
+                        std::string memberName = this->symbols[b.ref.inner_index].original_name;
                         TSNamespaceMember member;
-                        member.loc = loc;
+                        member.loc = bindingLoc;
                         member.data = std::make_shared<TSNamespaceMemberProperty>(TSNamespaceMemberProperty{});
-                        (*exportedMembers)[name] = member;
+                        (*exportedMembers)[memberName] = member;
                         this->refToTSNamespaceMemberData[b.ref] = member.data;
                     });
                 }

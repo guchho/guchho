@@ -467,7 +467,8 @@ namespace guchho::javascript {
                     for (const logger::Range &token : invalidLog.invalidTokens) {
                         this->log.AddError(&this->tracker, token, logger::FormatMsg(logger::MsgCat::kJS_InvalidBindingPattern));
                     }
-                    std::fprintf(stderr, "PANICAT %s:%d\n", __FILE__, __LINE__); throw LexerPanic();
+
+                    throw LexerPanic();
                 }
 
                 for (const syntaxFeature &entry : invalidLog.syntaxFeatures) {
@@ -489,7 +490,7 @@ namespace guchho::javascript {
 
         if (typeColonRange.len > 0) {
             this->log.AddError(&this->tracker, typeColonRange, logger::FormatMsg(logger::MsgCat::kJS_UnexpectedColon));
-            std::fprintf(stderr, "PANICAT %s:%d\n", __FILE__, __LINE__); throw LexerPanic();
+            throw LexerPanic();
         }
 
         if (isAsync) {
@@ -507,7 +508,7 @@ namespace guchho::javascript {
             this->logExprErrors(&errors);
             if (spreadRange.len > 0) {
                 this->log.AddError(&this->tracker, spreadRange, logger::FormatMsg(logger::MsgCat::kJS_UnexpectedEllipsis));
-                std::fprintf(stderr, "PANICAT %s:%d\n", __FILE__, __LINE__); throw LexerPanic();
+                throw LexerPanic();
             }
             Expr value = JoinAllWithComma(items);
             this->markExprAsParenthesized(value, loc, isAsync);
@@ -566,7 +567,7 @@ namespace guchho::javascript {
                             r.loc = asyncRange.loc;
                             r.len = this->lexer.Range().End() - asyncRange.loc.start;
                             this->log.AddError(&this->tracker, r, logger::FormatMsg(logger::MsgCat::kJS_ForLoopAsyncOf));
-                            std::fprintf(stderr, "PANICAT %s:%d\n", __FILE__, __LINE__); throw LexerPanic();
+                            throw LexerPanic();
                         }
                     } else if (this->options.optionsThatSupportStructuralEquality.ts.Parse && this->lexer.token == T::kIdentifier) {
                         isArrowFn = this->checkForArrowAfterTheCurrentToken();

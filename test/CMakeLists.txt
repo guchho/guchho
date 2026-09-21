@@ -11,9 +11,37 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Test subdirectories
 
+add_subdirectory(javascript)
 add_subdirectory(helpers)
 add_subdirectory(core)
 add_subdirectory(css)
+
+
+
+# JavaScript test executable
+
+add_executable(guchho_js_tests
+    main.cpp
+    $<TARGET_OBJECTS:guchho_js_test_objects>
+)
+
+target_link_libraries(
+    guchho_js_tests
+    PRIVATE
+        guchho_js
+        guchho_common
+)
+
+target_include_directories(
+    guchho_js_tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+guchho_set_warnings(guchho_js_tests)
+guchho_enable_sanitizers(guchho_js_tests)
+
+guchho_discover_tests(guchho_js_tests PREFIX "js." WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/javascript")
 
 
 # CSS test executable

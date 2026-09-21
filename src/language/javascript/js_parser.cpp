@@ -1093,7 +1093,7 @@ namespace guchho::javascript {
             // way we'll catch cases where we've forgotten to call loadNameFromRef().
             // The length is the negative part because we know it's non-zero.
             compiler::Ref ref;
-            ref.source_index = -(static_cast<uint32_t>(name.str.size()));
+            ref.source_index = -static_cast<int32_t>(name.str.size());
             ref.inner_index = name.start;
             return ref;
         }

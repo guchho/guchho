@@ -387,7 +387,7 @@ namespace guchho::javascript {
                         if ((prevKey.kind == keyGet && nextKey.kind == keySet) || (prevKey.kind == keySet && nextKey.kind == keyGet)) {
                             nextKey.kind = keyGetAndSet;
                         } else {
-                            logger::MsgID id;
+                            logger::MsgID id = {};
                             std::string what;
                             std::string where;
                             switch (in) {

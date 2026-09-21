@@ -315,6 +315,8 @@ std::string ValueText(const T& value) {
     } else if constexpr (std::is_same_v<D, std::string> ||
                          std::is_same_v<D, std::string_view>) {
         return Quote(std::string(value));
+    } else if constexpr (std::is_array_v<T> && std::is_same_v<std::remove_extent_t<T>, char16_t>) {
+        return Quote(FromUTF16(value));
     } else if constexpr (std::is_array_v<T> && !std::is_same_v<std::remove_extent_t<T>, char16_t>) {
         return Quote(std::string(value));
     } else if constexpr (std::is_same_v<D, char16_t*> ||

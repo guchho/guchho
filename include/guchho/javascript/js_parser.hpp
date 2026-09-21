@@ -1392,7 +1392,7 @@ namespace guchho::javascript {
         compiler::CharFreq *computeCharacterFrequency();
 
         // Generates an import statement for a dependency.
-        std::pair<std::vector<Part>, uint32_t> generateImportStmt(const std::string &path, logger::Range pathRange, std::vector<std::string> imports, std::vector<Part> parts, std::unordered_map<std::string, compiler::LocRef> symbols, uint32_t *sourceIndex, uint32_t *copySourceIndex);
+        std::pair<std::vector<Part>, uint32_t> generateImportStmt(const std::string &path, logger::Range pathRange, std::vector<std::string> imports, std::vector<Part> parts, std::unordered_map<std::string, compiler::LocRef> importSymbols, uint32_t *sourceIndex, uint32_t *copySourceIndex);
 
         // Converts the parsed AST into the final AST structure.
         AST toAST(std::vector<Part> before, std::vector<Part> parts, std::vector<Part> after, const std::string &hashbang, std::vector<std::string> directives);
@@ -1442,7 +1442,7 @@ namespace guchho::javascript {
         void lowerFunction(bool *isAsync, bool *isGenerator, std::vector<Arg> *args, logger::Loc bodyLoc, SBlock *body, bool *preferExpr, bool *hasRestArg, bool isArrow);
 
         // Lowers a class declaration/expression, generating the compiled form.
-        std::pair<std::vector<Stmt>, Expr> lowerClass(Stmt stmt, Expr expr, visitClassResult info, std::string nameToKeep);
+        std::pair<std::vector<Stmt>, Expr> lowerClass(Stmt stmt, Expr expr, visitClassResult info, std::string nameToKeepParam);
 
         // Lowers a private field assignment operator (e.g., #x += 1).
         Expr lowerPrivateSetBinOp(Expr target, logger::Loc loc, EPrivateIdentifier *priv, OpCode op, Expr value);
@@ -1455,7 +1455,7 @@ namespace guchho::javascript {
         std::pair<Expr, bool> lowerSuperPropertyOrPrivateInAssign(Expr expr);
 
         // Inserts statements after a super() call in a derived class constructor.
-        void insertStmtsAfterSuperCall(FnBody *body, std::vector<Stmt> stmtsToInsert, compiler::Ref superCtorRef);
+        void insertStmtsAfterSuperCall(FnBody *body, std::vector<Stmt> stmtsToInsert, compiler::Ref superCtorRefParam);
 
         // Extracts a property name hint from a key expression for diagnostics.
         std::string propertyNameHint(Expr key);

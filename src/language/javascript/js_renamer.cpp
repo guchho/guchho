@@ -176,7 +176,7 @@ namespace guchho::javascript {
     // be kept for debugging or source map accuracy.
     ////////////////////////////////////////////////////////////////////////////////
 
-    NoOpRenamer::NoOpRenamer(compiler::SymbolMap symbols) : symbols(std::move(symbols)) {}
+    NoOpRenamer::NoOpRenamer(compiler::SymbolMap syms) : symbols(std::move(syms)) {}
 
     // Returns the original name for the given symbol reference, following
     // any alias chains to reach the underlying declaration.
@@ -213,9 +213,9 @@ namespace guchho::javascript {
     // each namespace (default, label, private) based on the first top-level
     // slot counts. This ensures that slot indices assigned during the parallel
     // counting phase will be valid when names are assigned later.
-    MinifyRenamer::MinifyRenamer(compiler::SymbolMap symbols, const compiler::SlotCounts& first_top_level_slots,
-                                 const std::unordered_map<std::string, uint32_t>& reserved_names)
-        : reserved_names(reserved_names), symbols(std::move(symbols)) {
+    MinifyRenamer::MinifyRenamer(compiler::SymbolMap syms, const compiler::SlotCounts& first_top_level_slots,
+                                 const std::unordered_map<std::string, uint32_t>& names)
+        : reserved_names(names), symbols(std::move(syms)) {
         for (size_t ns = 0; ns < slots.size(); ns++) {
             uint32_t n = first_top_level_slots.data[ns];
             slots[ns].reserve(n);
@@ -529,12 +529,12 @@ namespace guchho::javascript {
     // Initializes the NumberRenamer with the symbol map and reserved names.
     // The root NumberScope is created with the reserved names pre-loaded
     // so that no generated name can collide with them.
-    NumberRenamer::NumberRenamer(compiler::SymbolMap symbols,
-                                 const std::unordered_map<std::string, uint32_t>& reserved_names)
-        : symbols(std::move(symbols)),
+    NumberRenamer::NumberRenamer(compiler::SymbolMap syms,
+                                 const std::unordered_map<std::string, uint32_t>& names)
+        : symbols(std::move(syms)),
           names(this->symbols.symbols_for_source.size()),
           root(nullptr) {
-        root.name_counts = reserved_names;
+        root.name_counts = names;
     }
 
     // Returns the renamed name for a symbol, or its original name if no

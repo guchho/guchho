@@ -635,7 +635,7 @@ struct Expr {
     logger::Loc loc;
 
     Expr() = default;
-    Expr(E data, logger::Loc loc) : data(std::move(data)), loc(loc) {}
+    Expr(E d, logger::Loc l) : data(std::move(d)), loc(l) {}
     Expr(const Expr&) = default;
     Expr(Expr&&) = default;
 

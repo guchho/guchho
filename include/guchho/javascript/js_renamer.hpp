@@ -64,8 +64,8 @@ struct SymbolSlot {
 
     SymbolSlot() = default;
 
-    SymbolSlot(uint32_t count, uint32_t needs_capital_for_jsx)
-        : count(count), needs_capital_for_jsx(needs_capital_for_jsx) {}
+    SymbolSlot(uint32_t cnt, uint32_t capital)
+        : count(cnt), needs_capital_for_jsx(capital) {}
 };
 
 // Wraps a compiler::Ref with a stable source index that remains consistent
@@ -177,7 +177,7 @@ struct NumberScope {
     // same base name.
     std::unordered_map<std::string, uint32_t> name_counts;
 
-    explicit NumberScope(NumberScope* parent) : parent(parent) {}
+    explicit NumberScope(NumberScope* p) : parent(p) {}
 
     // Walks the scope chain to determine whether a name is already in use.
     // Returns kUnused if the name is not found in any ancestor scope,

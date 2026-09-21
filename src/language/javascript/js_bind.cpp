@@ -992,9 +992,9 @@ namespace guchho::javascript {
                         // Warn about `a && b => a && b`
                         std::string which;
                         if (boolean->first) {
-                            which = "left";
-                        } else {
                             which = "right";
+                        } else {
+                            which = "left";
                         }
                         logger::MsgKind kind = logger::MsgKind::kWarning;
                         if (p->suppressWarningsAboutWeirdCode) {

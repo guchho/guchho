@@ -78,8 +78,40 @@ if(WIN32)
 endif()
 
 
+# ============================================================
+# HTML library
+# ============================================================
 
+target_sources(guchho_html
+    PRIVATE
+        language/html/html_analysis.cpp
+        language/html/html_ast.cpp
+        language/html/html_bridge.cpp
+        language/html/html_helpers.cpp
+        language/html/html_lexer.cpp
+        language/html/html_parser.cpp
+        language/html/html_printer.cpp
+)
+
+add_library(guchho_html STATIC)
+
+target_include_directories(guchho_html
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(guchho_html
+    PUBLIC
+        guchho_common
+)
+
+guchho_set_warnings(guchho_html)
+guchho_enable_sanitizers(guchho_html)
+
+
+# ============================================================
 # CSS library
+# ============================================================
 
 set(GUCHHO_CSS_SOURCES
     language/css/css_lexer.cpp
@@ -131,7 +163,9 @@ guchho_enable_sanitizers(guchho_css)
 
 
 
+# ============================================================
 # JavaScript library
+# ============================================================
 
 set(GUCHHO_JS_SOURCES
     language/javascript/js_identifier.cpp
@@ -176,7 +210,6 @@ target_link_libraries(guchho_js
 
 guchho_set_warnings(guchho_js)
 guchho_enable_sanitizers(guchho_js)
-
 
 
 # ============================================================

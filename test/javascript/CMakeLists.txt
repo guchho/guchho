@@ -3,8 +3,11 @@
 add_library(guchho_js_test_objects OBJECT
     js_lexer_test.cpp
     js_parser_test.cpp
+    ts_parser_test.cpp
     js_printer_test.cpp
+    json_parser_test.cpp
     js_parser_lower_test.cpp
+
 )
 
 target_include_directories(

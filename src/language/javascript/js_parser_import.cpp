@@ -776,7 +776,7 @@ namespace guchho::javascript {
                     }
                 }
 
-                if (this->options.optionsThatSupportStructuralEquality.ts.Parse && s->items->empty() && !config::Has(unusedImportFlags, config::TSUnusedImportFlags::kKeepStmt)) {
+                if (this->options.optionsThatSupportStructuralEquality.ts.Parse && sFrom->items.empty() && !config::Has(unusedImportFlags, config::TSUnusedImportFlags::kKeepStmt)) {
                     continue;
                 }
             }

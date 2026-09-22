@@ -147,30 +147,22 @@ inline void expectParseErrorTargetASCII(int es_version, const std::string& conte
 // ---------------------------------------------------------------------------
 
 // Parses the source, prints it back to JavaScript, and asserts the output
-// matches the expected string.  This is the core round-trip helper: it
-// verifies that the parser and printer together produce the expected code.
-//
-// The implementation:
-//   1. Parses with warnings suppressed (only errors cause a failure).
-//   2. Sets up a no-op renamer (no symbol renaming in basic tests).
-//   3. Prints with runtime helpers omitted (OmitRuntimeForTests).
-//   4. Compares the printed output against expected.
+// matches the expected string.  This is the core round-trip helper.
 //
 // Example:
 //   expectPrinted("var x = 1 + 2;", "var x = 1 + 2;\n");
 inline void expectPrintedCommon(const std::string& contents, const std::string& expected, config::Options* options) {
-    std::fprintf(stderr, "INPUT[%s]\n", contents.c_str());
-    std::fflush(stderr);
     options->OmitRuntimeForTests = true;
     Log log = NewDeferLog(DeferLogKind::kDeferLogNoVerboseOrDebug, {});
     auto parsed = js::Parse(log, SourceForTest(contents), js::OptionsFromConfig(options));
     auto msgs = log.done();
 
-std::string text;
+    std::string text;
     for (const auto& msg : msgs) {
-        if (msg.kind != guchho::logger::MsgKind::kWarning) {
-            text += msg.String(OutputOptions{}, TerminalInfo{});
+        if (msg.kind == guchho::logger::MsgKind::kWarning) {
+            continue;
         }
+        text += msg.String(OutputOptions{}, TerminalInfo{});
     }
     EXPECT_EQ(text, "");
     ASSERT_TRUE(parsed.second) << "Parse error";
@@ -184,6 +176,7 @@ std::string text;
     print_options.unsupported_features = options->UnsupportedJSFeatures;
     print_options.ascii_only = options->ASCIIOnly;
     print_options.omit_runtime_for_tests = options->OmitRuntimeForTests;
+
     js::PrintResult result = js::Print(parsed.first, symbol_map, *renamer, print_options);
     EXPECT_EQ(result.js, expected);
 }
@@ -475,6 +468,18 @@ inline void expectPrintedJSX(const std::string& contents, const std::string& exp
     expectPrintedCommon(contents, expectedTransform, &transform_options);
 }
 
+// Parses and prints JSX source code in preserve mode only.  This is the
+// 2-argument overload used by tests that only care about preserve output.
+//
+// Example:
+//   expectPrintedJSX("<div />", "<div />;\n");
+inline void expectPrintedJSX(const std::string& contents, const std::string& expected) {
+    config::Options options{};
+    options.JSX.Parse = true;
+    options.JSX.Preserve = true;
+    expectPrintedCommon(contents, expected, &options);
+}
+
 
 // Parses and prints JSX with SideEffects enabled.  When SideEffects is true,
 // elements that are known to be side-effect-free may be dropped from the
@@ -565,7 +570,124 @@ inline void expectPrintedJSXAutomatic(const JSXAutomaticTestOptions& options, co
 // pulling in unnecessary dependencies.
 // ---------------------------------------------------------------------------
 
-#include "test/helpers/javascript_test.hpp"
+// ---------------------------------------------------------------------------
+// LiteralString helper
+// ---------------------------------------------------------------------------
+
+// A helper type that accepts both string literals (via template deduction for
+// size) and std::string values.  This allows test helpers to accept either
+// compile-time string literals or runtime strings without requiring callers to
+// explicitly construct std::string objects.
+struct LiteralString {
+    std::string value;
+
+    template <size_t N>
+    LiteralString(const char (&lit)[N])
+        : value(lit, N - 1) {}
+    LiteralString(std::string lit)
+        : value(std::move(lit)) {}
+};
+
+// ---------------------------------------------------------------------------
+// Whitespace-only minification
+// ---------------------------------------------------------------------------
+
+// Parses and prints with MinifyWhitespace enabled.  Removes unnecessary
+// whitespace while preserving semantics.
+//
+// Example:
+//   expectPrintedMinify("var x = 1;", "var x=1;");
+inline void expectPrintedMinify(LiteralString contents, LiteralString expected) {
+    config::Options options{};
+    options.MinifyWhitespace = true;
+    expectPrintedCommon(contents.value, expected.value, &options);
+}
+
+// Parses and prints with MinifySyntax and MinifyWhitespace enabled.
+//
+// Example:
+//   expectPrintedMangleMinify("var x = 1;", "var x=1;");
+inline void expectPrintedMangleMinify(LiteralString contents, LiteralString expected) {
+    config::Options options{};
+    options.MinifySyntax = true;
+    options.MinifyWhitespace = true;
+    expectPrintedCommon(contents.value, expected.value, &options);
+}
+
+// Parses and prints with both MinifyWhitespace and ASCII-only output.
+inline void expectPrintedMinifyASCII(LiteralString contents, LiteralString expected) {
+    config::Options options{};
+    options.MinifyWhitespace = true;
+    options.ASCIIOnly = true;
+    expectPrintedCommon(contents.value, expected.value, &options);
+}
+
+// ---------------------------------------------------------------------------
+// Target-version + minification combinations
+// ---------------------------------------------------------------------------
+
+// Parses and prints targeting a specific ES version with MinifyWhitespace.
+inline void expectPrintedTargetMinify(int es_version, LiteralString contents, LiteralString expected) {
+    compat::Semver semver;
+    semver.parts = {static_cast<uint32_t>(es_version)};
+    config::Options options{};
+    options.UnsupportedJSFeatures = compat::UnsupportedJSFeatures({{compat::Engine::kES, semver}});
+    options.MinifyWhitespace = true;
+    expectPrintedCommon(contents.value, expected.value, &options);
+}
+
+// Parses and prints targeting a specific ES version with MinifySyntax.
+// Named expectPrintedTargetMangle to match the test file convention.
+inline void expectPrintedTargetMangle(int es_version, LiteralString contents, LiteralString expected) {
+    compat::Semver semver;
+    semver.parts = {static_cast<uint32_t>(es_version)};
+    config::Options options{};
+    options.UnsupportedJSFeatures = compat::UnsupportedJSFeatures({{compat::Engine::kES, semver}});
+    options.MinifySyntax = true;
+    expectPrintedCommon(contents.value, expected.value, &options);
+}
+
+// Parses and prints targeting a specific ES version with MinifySyntax and
+// MinifyWhitespace.
+inline void expectPrintedTargetMangleMinify(int es_version, LiteralString contents, LiteralString expected) {
+    compat::Semver semver;
+    semver.parts = {static_cast<uint32_t>(es_version)};
+    config::Options options{};
+    options.UnsupportedJSFeatures = compat::UnsupportedJSFeatures({{compat::Engine::kES, semver}});
+    options.MinifySyntax = true;
+    options.MinifyWhitespace = true;
+    expectPrintedCommon(contents.value, expected.value, &options);
+}
+
+// ---------------------------------------------------------------------------
+// JSX single-option helpers
+// ---------------------------------------------------------------------------
+
+// Parses and prints JSX with preserve mode only (no extra options).
+inline void expectPrintedJSXPreserve(LiteralString contents, LiteralString expected) {
+    config::Options options{};
+    options.JSX.Parse = true;
+    options.JSX.Preserve = true;
+    expectPrintedCommon(contents.value, expected.value, &options);
+}
+
+// Parses and prints JSX with ASCII-only output.
+inline void expectPrintedJSXASCII(LiteralString contents, LiteralString expected) {
+    config::Options options{};
+    options.JSX.Parse = true;
+    options.JSX.Preserve = true;
+    options.ASCIIOnly = true;
+    expectPrintedCommon(contents.value, expected.value, &options);
+}
+
+// Parses and prints JSX with MinifyWhitespace.
+inline void expectPrintedJSXMinify(LiteralString contents, LiteralString expected) {
+    config::Options options{};
+    options.JSX.Parse = true;
+    options.JSX.Preserve = true;
+    options.MinifyWhitespace = true;
+    expectPrintedCommon(contents.value, expected.value, &options);
+}
 
 // ---------------------------------------------------------------------------
 // Parse-error assertions (TypeScript)

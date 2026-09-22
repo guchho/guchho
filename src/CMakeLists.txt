@@ -82,6 +82,8 @@ endif()
 # HTML library
 # ============================================================
 
+add_library(guchho_html STATIC)
+
 target_sources(guchho_html
     PRIVATE
         language/html/html_analysis.cpp
@@ -92,8 +94,6 @@ target_sources(guchho_html
         language/html/html_parser.cpp
         language/html/html_printer.cpp
 )
-
-add_library(guchho_html STATIC)
 
 target_include_directories(guchho_html
     PUBLIC

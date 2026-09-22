@@ -177,6 +177,7 @@ namespace guchho::logger {
         case MsgCat::kCSS_ComposesOnlySingleClassNote: return "The parent selector is not a single class selector because of the syntax here:";
         case MsgCat::kCSS_ComposesInvalidLocation: return "\"composes\" declaration uses invalid location \"{}\"";
         case MsgCat::kCSS_UnexpectedToken: return "Unexpected {}";
+        case MsgCat::kHTML_ParseError: return "An HTML parse error occurred while parsing the input";
         case MsgCat::kHTML_EmptyResourceURL: return "{} has an empty resource URL";
 
         // HTML lexer (html_lexer.cpp)

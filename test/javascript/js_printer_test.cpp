@@ -1551,3 +1551,104 @@ TEST(JsPrinter, TestMiscRoundTrip) {
         "class A {\n  static {\n  }\n  static {\n  }\n}\n");
 }
 
+TEST(JsPrinter, TestTargetMangleMinify) {
+    // Arrow functions downgraded to ES5
+    expectPrintedTargetMangleMinify(5, "var f = x => x", "var f=function(x){return x};");
+    expectPrintedTargetMangleMinify(5, "var f = () => {}", "var f=function(){};");
+    expectPrintedTargetMangleMinify(5, "var f = (a, b) => a + b", "var f=function(a,b){return a+b};");
+    expectPrintedTargetMangleMinify(5, "var f = x => ({})", "var f=function(x){return{}};");
+    expectPrintedTargetMangleMinify(2015, "var f = x => x", "var f=x=>x;");
+    expectPrintedTargetMangleMinify(2015, "var f = () => {}", "var f=()=>{};");
+
+    // Template literals downgraded to strings
+    expectPrintedTargetMangleMinify(5, "foo('a\\n\\n\\nb')", "foo(\"a\\n\\n\\nb\");");
+    expectPrintedTargetMangleMinify(2015, "foo('a\\n\\n\\nb')", "foo(`a\n\n\nb`);");
+
+    // Shorthand properties expanded in ES5
+    expectPrintedTargetMangleMinify(5, "foo({a, b})", "foo({a:a,b:b});");
+    expectPrintedTargetMangleMinify(2015, "foo({a, b})", "foo({a,b});");
+
+    // Boolean mangling
+    expectPrintedTargetMangleMinify(5, "x = true", "x=!0;");
+    expectPrintedTargetMangleMinify(5, "x = false", "x=!1;");
+    expectPrintedTargetMangleMinify(2016, "x = true ** 2", "x=(!0)**2;");
+    expectPrintedTargetMangleMinify(2016, "x = false ** 2", "x=(!1)**2;");
+
+    // Infinity mangling
+    expectPrintedTargetMangleMinify(5, "x = Infinity", "x=1/0;");
+    expectPrintedTargetMangleMinify(5, "x = -Infinity", "x=-1/0;");
+
+    // Undefined mangling
+    expectPrintedTargetMangleMinify(5, "x = undefined", "x=void 0;");
+
+    // String template literal to string with newline mangling
+    expectPrintedTargetMangleMinify(5, "x = '\\n'", "x=\"\\n\";");
+    expectPrintedTargetMangleMinify(2015, "x = '\\n'", "x=`\n`;");
+
+    // Class fields (class fields are ES2022, so keep ES2022+)
+    expectPrintedTargetMangleMinify(2022, "class A { x = y }", "class A{x=y}");
+    expectPrintedTargetMangleMinify(2022, "class A { static x = y }", "class A{static x=y}");
+
+    // Let/const (no lowering, just mangle)
+    expectPrintedTargetMangleMinify(2015, "let x = 1", "let x=1;");
+    expectPrintedTargetMangleMinify(2015, "const x = 1", "const x=1;");
+
+    // Default parameters
+    expectPrintedTargetMangleMinify(2015, "function f(x = 1) {}", "function f(x=1){}");
+
+    // Rest parameters
+    expectPrintedTargetMangleMinify(2015, "function f(...a) {}", "function f(...a){}");
+
+    // Spread elements
+    expectPrintedTargetMangleMinify(2015, "f(...a)", "f(...a);");
+
+    // Destructuring preserved in ES2015+
+    expectPrintedTargetMangleMinify(2015, "var {a, b} = x", "var{a,b}=x;");
+    expectPrintedTargetMangleMinify(2015, "var [a, b] = x", "var[a,b]=x;");
+
+    // Logical assignment (ES2021+)
+    expectPrintedTargetMangleMinify(2021, "a ||= b", "a||=b;");
+    expectPrintedTargetMangleMinify(2021, "a &&= b", "a&&=b;");
+    expectPrintedTargetMangleMinify(2021, "a \?\?= b", "a\?\?=b;");
+
+    // Computed property names
+    expectPrintedTargetMangleMinify(2015, "x = {[y]: z}", "x={[y]:z};");
+
+    // Method definitions
+    expectPrintedTargetMangleMinify(2015, "x = {foo() {}}", "x={foo(){}};");
+
+    // Class methods
+    expectPrintedTargetMangleMinify(2015, "class A { foo() {} }", "class A{foo(){}}");
+
+    // Async functions
+    expectPrintedTargetMangleMinify(2017, "async function f() {}", "async function f(){}");
+    expectPrintedTargetMangleMinify(2017, "x = async () => {}", "x=async()=>{};");
+
+    // Generator functions
+    expectPrintedTargetMangleMinify(2015, "function* f() {}", "function*f(){}");
+
+    // Import/export
+    expectPrintedTargetMangleMinify(2015, "export default 1", "export default 1;");
+
+    // Nullish coalescing
+    expectPrintedTargetMangleMinify(2020, "x ?? y", "x??y;");
+
+    // Optional chaining
+    expectPrintedTargetMangleMinify(2020, "x?.y", "x?.y;");
+    expectPrintedTargetMangleMinify(2020, "x?.()", "x?.();");
+    expectPrintedTargetMangleMinify(2020, "x?.[y]", "x?.[y];");
+
+    // Exponentiation
+    expectPrintedTargetMangleMinify(2016, "x ** y", "x**y;");
+
+    // Object rest/spread
+    expectPrintedTargetMangleMinify(2018, "({...x})", "({...x});");
+    expectPrintedTargetMangleMinify(2018, "({...x} = y)", "({...x}=y);");
+
+    // For-of with destructuring
+    expectPrintedTargetMangleMinify(2015, "for (const {a} of b) ;", "for(const{a}of b);");
+
+    // Multiple statements minified
+    expectPrintedTargetMangleMinify(2015, "let a = 1; let b = 2; a + b", "let a=1,b=2;a+b;");
+}
+

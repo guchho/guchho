@@ -15,6 +15,7 @@ add_subdirectory(javascript)
 add_subdirectory(helpers)
 add_subdirectory(core)
 add_subdirectory(css)
+add_subdirectory(html)
 
 
 
@@ -68,6 +69,32 @@ guchho_set_warnings(guchho_css_tests)
 guchho_enable_sanitizers(guchho_css_tests)
 
 guchho_discover_tests(guchho_css_tests PREFIX "css." WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/css")
+
+
+# HTML test executable
+
+add_executable(guchho_html_tests
+    test_assertions.cpp
+    $<TARGET_OBJECTS:guchho_html_test_objects>
+)
+
+target_link_libraries(
+    guchho_html_tests
+    PRIVATE
+        guchho_html
+        guchho_common
+)
+
+target_include_directories(
+    guchho_html_tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+guchho_set_warnings(guchho_html_tests)
+guchho_enable_sanitizers(guchho_html_tests)
+
+guchho_discover_tests(guchho_html_tests PREFIX "html." WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/html")
 
 
 # helpers test executable

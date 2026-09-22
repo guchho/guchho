@@ -1,201 +1,132 @@
-#include "test/guchho_test.hpp"
+#include "test/helpers/javascript_test.hpp"
 
-#include "guchho/javascript/js_parser.hpp"
-#include "guchho/logger.hpp"
-
-#include <string>
-#include <utility>
-#include <vector>
-
-namespace js = guchho::javascript;
-
-using guchho::logger::DeferLogKind;
-using guchho::logger::Log;
-using guchho::logger::NewDeferLog;
-using guchho::logger::Source;
-
-namespace {
-
-Source MakeSource(std::string contents) {
-    Source s;
-    s.index = 0;
-    s.identifier_name = "stdin";
-    s.pretty_paths = {"<stdin>", "<stdin>"};
-    s.key_path = guchho::logger::Path{"<stdin>", {}, {}, {}, {}};
-    s.contents = std::move(contents);
-    return s;
+TEST(JsParser, TestJSONAtom) {
+    expectPrintedJSON("false", "false");
+    expectPrintedJSON("true", "true");
+    expectPrintedJSON("null", "null");
+    expectParseErrorJSON("undefined", "<stdin>: ERROR: Unexpected \"undefined\" in JSON\n");
 }
 
-std::string ParseJSONError(const std::string& input) {
-    Log log = NewDeferLog(DeferLogKind::kDeferLogNoVerboseOrDebug, {});
-    js::JSONOptions options{};
-    auto [result, ok] = js::Parser::ParseJSON(log, MakeSource(input), options);
-    (void)result;
-    (void)ok;
-    auto msgs = log.done();
-    std::string text;
-    for (const auto& msg : msgs) {
-        text += msg.String(guchho::logger::OutputOptions{}, guchho::logger::TerminalInfo{});
-    }
-    return text;
-}
+TEST(JsParser, TestJSONString) {
+    expectPrintedJSON("\"x\"", "\"x\"");
+    expectParseErrorJSON("'x'", "<stdin>: ERROR: JSON strings must use double quotes\n");
+    expectParseErrorJSON("`x`", "<stdin>: ERROR: Unexpected \"`x`\" in JSON\n");
 
-bool ParseJSONOk(const std::string& input) {
-    Log log = NewDeferLog(DeferLogKind::kDeferLogNoVerboseOrDebug, {});
-    js::JSONOptions options{};
-    auto [result, ok] = js::Parser::ParseJSON(log, MakeSource(input), options);
-    (void)result;
-    return ok;
-}
+    // Newlines
+    expectPrintedJSON("\"\u2028\"", "\"\\u2028\"");
+    expectPrintedJSON("\"\u2029\"", "\"\\u2029\"");
+    expectParseErrorJSON("\"\r\"", "<stdin>: ERROR: Unterminated string literal\n");
+    expectParseErrorJSON("\"\n\"", "<stdin>: ERROR: Unterminated string literal\n");
 
-bool ParseJSONC(const std::string& input, std::string& error_output) {
-    Log log = NewDeferLog(DeferLogKind::kDeferLogNoVerboseOrDebug, {});
-    js::JSONOptions options{};
-    options.flavor = js::JSONFlavor::kTSConfigJSON;
-    auto [result, ok] = js::Parser::ParseJSON(log, MakeSource(input), options);
-    (void)result;
-    auto msgs = log.done();
-    error_output.clear();
-    for (const auto& msg : msgs) {
-        error_output += msg.String(guchho::logger::OutputOptions{}, guchho::logger::TerminalInfo{});
-    }
-    return ok;
-}
-
-} // namespace
-
-TEST(JSONParser, TestStrings) {
-    EXPECT_TRUE(ParseJSONOk("\"hello\""));
-    EXPECT_TRUE(ParseJSONOk("\"\""));
-    EXPECT_TRUE(ParseJSONOk("\"with\\nescape\""));
-    EXPECT_TRUE(ParseJSONOk("\"with\\u0041unicode\""));
-}
-
-TEST(JSONParser, TestNumbers) {
-    EXPECT_TRUE(ParseJSONOk("42"));
-    EXPECT_TRUE(ParseJSONOk("0"));
-    EXPECT_TRUE(ParseJSONOk("3.14"));
-    EXPECT_TRUE(ParseJSONOk("-1"));
-    EXPECT_TRUE(ParseJSONOk("-0"));
-    EXPECT_TRUE(ParseJSONOk("1e10"));
-    EXPECT_TRUE(ParseJSONOk("1.5e-3"));
-    EXPECT_TRUE(ParseJSONOk("1E+2"));
-}
-
-TEST(JSONParser, TestBooleans) {
-    EXPECT_TRUE(ParseJSONOk("true"));
-    EXPECT_TRUE(ParseJSONOk("false"));
-}
-
-TEST(JSONParser, TestNull) {
-    EXPECT_TRUE(ParseJSONOk("null"));
-}
-
-TEST(JSONParser, TestArrays) {
-    EXPECT_TRUE(ParseJSONOk("[]"));
-    EXPECT_TRUE(ParseJSONOk("[1]"));
-    EXPECT_TRUE(ParseJSONOk("[1, 2, 3]"));
-    EXPECT_TRUE(ParseJSONOk("[\"a\", true, null, 42]"));
-    EXPECT_TRUE(ParseJSONOk("[[1, 2], [3, 4]]"));
-    EXPECT_TRUE(ParseJSONOk("[{\"key\": \"value\"}]"));
-}
-
-TEST(JSONParser, TestObjects) {
-    EXPECT_TRUE(ParseJSONOk("{}"));
-    EXPECT_TRUE(ParseJSONOk("{\"key\": \"value\"}"));
-    EXPECT_TRUE(ParseJSONOk("{\"a\": 1, \"b\": 2, \"c\": 3}"));
-    EXPECT_TRUE(ParseJSONOk("{\"nested\": {\"inner\": true}}"));
-    EXPECT_TRUE(ParseJSONOk("{\"arr\": [1, 2, 3]}"));
-}
-
-TEST(JSONParser, TestNestedStructures) {
-    EXPECT_TRUE(ParseJSONOk("{\"users\": [{\"name\": \"Alice\", \"age\": 30}, {\"name\": \"Bob\", \"age\": 25}]}"));
-    EXPECT_TRUE(ParseJSONOk("[{\"a\": [1, {\"b\": 2}], \"c\": {\"d\": [3, 4]}}]"));
-}
-
-TEST(JSONParser, TestErrors) {
-    EXPECT_NE(ParseJSONError(""), "");
-    EXPECT_NE(ParseJSONError("{"), "");
-    EXPECT_NE(ParseJSONError("}"), "");
-    EXPECT_NE(ParseJSONError("["), "");
-    EXPECT_NE(ParseJSONError("]"), "");
-    EXPECT_NE(ParseJSONError("undefined"), "");
-    EXPECT_NE(ParseJSONError("NaN"), "");
-    EXPECT_NE(ParseJSONError("Infinity"), "");
-    EXPECT_NE(ParseJSONError("1, 2"), "");
-    EXPECT_NE(ParseJSONError("{\"key\": }"), "");
-    EXPECT_NE(ParseJSONError("{\"key\" }"), "");
-}
-
-TEST(JSONParser, TestTrailingCommasJSON) {
-    EXPECT_EQ(ParseJSONError("[1, 2, 3,]"), "<stdin>: ERROR: JSON does not support trailing commas\n");
-    EXPECT_EQ(ParseJSONError("{\"a\": 1,}"), "<stdin>: ERROR: JSON does not support trailing commas\n");
-}
-
-TEST(JSONParser, TestTrailingCommasJSONC) {
-    std::string error;
-    EXPECT_TRUE(ParseJSONC("[1, 2, 3,]", error));
-    EXPECT_EQ(error, "");
-
-    EXPECT_TRUE(ParseJSONC("{\"a\": 1,}", error));
-    EXPECT_EQ(error, "");
-}
-
-TEST(JSONParser, TestEmptyInput) {
-    EXPECT_FALSE(ParseJSONOk(""));
-}
-
-TEST(JSONParser, TestParseGlobalName) {
-    auto TestGlobal = [](const std::string& input, const std::vector<std::string>& expected_segments, bool expected_ok) {
-        Log log = NewDeferLog(DeferLogKind::kDeferLogNoVerboseOrDebug, {});
-        auto [segments, ok] = js::ParseGlobalName(log, MakeSource(input));
-        EXPECT_EQ(ok, expected_ok);
-        if (expected_ok) {
-            EXPECT_EQ(segments.size(), expected_segments.size());
-            for (size_t i = 0; i < std::min(segments.size(), expected_segments.size()); ++i) {
-                EXPECT_EQ(segments[i], expected_segments[i]);
-            }
+    // Control characters
+    for (int c = 0; c < 0x20; c++) {
+        if (c != '\r' && c != '\n') {
+            char message[64];
+            std::snprintf(message, sizeof(message), "<stdin>: ERROR: Syntax error \"\\x%02X\"\n", c);
+            expectParseErrorJSON("\"" + std::string(1, static_cast<char>(c)) + "\"", message);
         }
-    };
+    }
 
-    TestGlobal("process", {"process"}, true);
-    TestGlobal("process.env", {"process", "env"}, true);
-    TestGlobal("process.env.NODE_ENV", {"process", "env", "NODE_ENV"}, true);
-    TestGlobal("this", {"this"}, true);
-    TestGlobal("import.meta.url", {"import", "meta", "url"}, true);
-    TestGlobal("a.b['c']", {"a", "b", "c"}, true);
-    TestGlobal("a.b[\"c\"]", {"a", "b", "c"}, true);
+    // Valid escapes
+    expectPrintedJSON("\"\\\"\"", "'\"'");
+    expectPrintedJSON("\"\\\\\"", "\"\\\\\"");
+    expectPrintedJSON("\"\\/\"", "\"/\"");
+    expectPrintedJSON("\"\\b\"", "\"\\b\"");
+    expectPrintedJSON("\"\\f\"", "\"\\f\"");
+    expectPrintedJSON("\"\\n\"", "\"\\n\"");
+    expectPrintedJSON("\"\\r\"", "\"\\r\"");
+    expectPrintedJSON("\"\\t\"", "\"\t\"");
+    expectPrintedJSON("\"\\u0000\"", "\"\\0\"");
+    expectPrintedJSON("\"\\u0078\"", "\"x\"");
+    expectPrintedJSON("\"\\u1234\"", "\"\u1234\"");
+    expectPrintedJSON("\"\\uD800\"", "\"\\uD800\"");
+    expectPrintedJSON("\"\\uDC00\"", "\"\\uDC00\"");
 
-    TestGlobal("a.", {}, false);
-    TestGlobal("a[", {}, false);
-    TestGlobal("[a]", {}, false);
+    // Invalid escapes
+    expectParseErrorJSON("\"\\", "<stdin>: ERROR: Unterminated string literal\n");
+    expectParseErrorJSON("\"\\0\"", "<stdin>: ERROR: Syntax error \"0\"\n");
+    expectParseErrorJSON("\"\\1\"", "<stdin>: ERROR: Syntax error \"1\"\n");
+    expectParseErrorJSON("\"\\'\"", "<stdin>: ERROR: Syntax error \"'\"\n");
+    expectParseErrorJSON("\"\\a\"", "<stdin>: ERROR: Syntax error \"a\"\n");
+    expectParseErrorJSON("\"\\v\"", "<stdin>: ERROR: Syntax error \"v\"\n");
+    expectParseErrorJSON("\"\\\n\"", "<stdin>: ERROR: Syntax error \"\\x0A\"\n");
+    expectParseErrorJSON("\"\\x78\"", "<stdin>: ERROR: Syntax error \"x\"\n");
+    expectParseErrorJSON("\"\\u{1234}\"", "<stdin>: ERROR: Syntax error \"{\"\n");
+    expectParseErrorJSON("\"\\uG\"", "<stdin>: ERROR: Syntax error \"G\"\n");
+    expectParseErrorJSON("\"\\uDG\"", "<stdin>: ERROR: Syntax error \"G\"\n");
+    expectParseErrorJSON("\"\\uDEG\"", "<stdin>: ERROR: Syntax error \"G\"\n");
+    expectParseErrorJSON("\"\\uDEFG\"", "<stdin>: ERROR: Syntax error \"G\"\n");
+    expectParseErrorJSON("\"\\u\"", "<stdin>: ERROR: Syntax error '\"'\n");
+    expectParseErrorJSON("\"\\uD\"", "<stdin>: ERROR: Syntax error '\"'\n");
+    expectParseErrorJSON("\"\\uDE\"", "<stdin>: ERROR: Syntax error '\"'\n");
+    expectParseErrorJSON("\"\\uDEF\"", "<stdin>: ERROR: Syntax error '\"'\n");
 }
 
-TEST(JSONParser, TestComplexValidJSON) {
-    std::string input = R"({
-        "name": "test",
-        "version": "1.0.0",
-        "description": "A test package",
-        "main": "index.js",
-        "scripts": {
-            "start": "node index.js",
-            "test": "jest"
-        },
-        "dependencies": {
-            "express": "^4.18.0",
-            "lodash": "^4.17.21"
-        },
-        "keywords": ["test", "javascript", "json"],
-        "author": {
-            "name": "Test Author",
-            "email": "test@example.com"
-        },
-        "license": "MIT",
-        "active": true,
-        "count": 42,
-        "pi": 3.14159,
-        "nothing": null
-    })";
+TEST(JsParser, TestJSONNumber) {
+    expectPrintedJSON("0", "0");
+    expectPrintedJSON("-0", "-0");
+    expectPrintedJSON("123", "123");
+    expectPrintedJSON("123.456", "123.456");
+    expectPrintedJSON("123e20", "123e20");
+    expectPrintedJSON("123e-20", "123e-20");
+    expectParseErrorJSON("123.", "<stdin>: ERROR: Unexpected \"123.\" in JSON\n");
+    expectParseErrorJSON("-123.", "<stdin>: ERROR: Unexpected \"123.\" in JSON\n");
+    expectParseErrorJSON(".123", "<stdin>: ERROR: Unexpected \".123\" in JSON\n");
+    expectParseErrorJSON("-.123", "<stdin>: ERROR: Unexpected \".123\" in JSON\n");
+    expectParseErrorJSON("NaN", "<stdin>: ERROR: Unexpected \"NaN\" in JSON\n");
+    expectParseErrorJSON("Infinity", "<stdin>: ERROR: Unexpected \"Infinity\" in JSON\n");
+    expectParseErrorJSON("-Infinity", "<stdin>: ERROR: Unexpected \"-\" in JSON\n");
+    expectParseErrorJSON("+1", "<stdin>: ERROR: Unexpected \"+\" in JSON\n");
+    expectParseErrorJSON("- 1", "<stdin>: ERROR: Unexpected \"-\" in JSON\n");
+    expectParseErrorJSON("01", "<stdin>: ERROR: Unexpected \"01\" in JSON\n");
+    expectParseErrorJSON("0b1", "<stdin>: ERROR: Unexpected \"0b1\" in JSON\n");
+    expectParseErrorJSON("0o1", "<stdin>: ERROR: Unexpected \"0o1\" in JSON\n");
+    expectParseErrorJSON("0x1", "<stdin>: ERROR: Unexpected \"0x1\" in JSON\n");
+    expectParseErrorJSON("0n", "<stdin>: ERROR: Unexpected \"0n\" in JSON\n");
+    expectParseErrorJSON("-01", "<stdin>: ERROR: Unexpected \"01\" in JSON\n");
+    expectParseErrorJSON("-0b1", "<stdin>: ERROR: Unexpected \"0b1\" in JSON\n");
+    expectParseErrorJSON("-0o1", "<stdin>: ERROR: Unexpected \"0o1\" in JSON\n");
+    expectParseErrorJSON("-0x1", "<stdin>: ERROR: Unexpected \"0x1\" in JSON\n");
+    expectParseErrorJSON("-0n", "<stdin>: ERROR: Expected number in JSON but found \"0n\"\n");
+    expectParseErrorJSON("1_2", "<stdin>: ERROR: Unexpected \"1_2\" in JSON\n");
+    expectParseErrorJSON("1.e2", "<stdin>: ERROR: Unexpected \"1.e2\" in JSON\n");
+}
 
-    EXPECT_TRUE(ParseJSONOk(input));
+TEST(JsParser, TestJSONObject) {
+    expectPrintedJSON("{\"x\":0}", "({x:0})");
+    expectPrintedJSON("{\"x\":0,\"y\":1}", "({x:0,y:1})");
+    expectPrintedJSONWithWarning(
+        "{\"x\":0,\"x\":1}",
+        "<stdin>: WARNING: Duplicate key \"x\" in object literal\n<stdin>: NOTE: The original key \"x\" is here:\n",
+        "({x:0,x:1})");
+    expectParseErrorJSON("{\"x\":0,}", "<stdin>: ERROR: JSON does not support trailing commas\n");
+    expectParseErrorJSON("{x:0}", "<stdin>: ERROR: Expected string in JSON but found \"x\"\n");
+    expectParseErrorJSON("{1:0}", "<stdin>: ERROR: Expected string in JSON but found \"1\"\n");
+    expectParseErrorJSON("{[\"x\"]:0}", "<stdin>: ERROR: Expected string in JSON but found \"[\"\n");
+}
+
+TEST(JsParser, TestJSONArray) {
+    expectPrintedJSON("[]", "[]");
+    expectPrintedJSON("[1]", "[1]");
+    expectPrintedJSON("[1,2]", "[1,2]");
+    expectParseErrorJSON("[,]", "<stdin>: ERROR: Unexpected \",\" in JSON\n");
+    expectParseErrorJSON("[,1]", "<stdin>: ERROR: Unexpected \",\" in JSON\n");
+    expectParseErrorJSON("[1,]", "<stdin>: ERROR: JSON does not support trailing commas\n");
+    expectParseErrorJSON("[1,,2]", "<stdin>: ERROR: Unexpected \",\" in JSON\n");
+}
+
+TEST(JsParser, TestJSONInvalid) {
+    expectParseErrorJSON("({\"x\":0})", "<stdin>: ERROR: Unexpected \"(\" in JSON\n");
+    expectParseErrorJSON("{\"x\":(0)}", "<stdin>: ERROR: Unexpected \"(\" in JSON\n");
+    expectParseErrorJSON("#!/usr/bin/env node\n{}", "<stdin>: ERROR: Unexpected \"#!/usr/bin/env node\" in JSON\n");
+    expectParseErrorJSON("{\"x\":0}{\"y\":1}", "<stdin>: ERROR: Expected end of file in JSON but found \"{\"\n");
+}
+
+TEST(JsParser, TestJSONComments) {
+    expectParseErrorJSON("/*comment*/{}", "<stdin>: ERROR: JSON does not support comments\n");
+    expectParseErrorJSON("//comment\n{}", "<stdin>: ERROR: JSON does not support comments\n");
+    expectParseErrorJSON("{/*comment*/}", "<stdin>: ERROR: JSON does not support comments\n");
+    expectParseErrorJSON("{//comment\n}", "<stdin>: ERROR: JSON does not support comments\n");
+    expectParseErrorJSON("{}/*comment*/", "<stdin>: ERROR: JSON does not support comments\n");
+    expectParseErrorJSON("{}//comment\n", "<stdin>: ERROR: JSON does not support comments\n");
 }

@@ -80,6 +80,8 @@ private:
     int32_t text_size_ = 0;
 };
 
+}  // namespace
+
 // Renders one tokenizer parse-error code as a concrete diagnostic message.
 // Every interesting code maps to a dedicated catalog template through
 // logger::FormatMsg; anything without a template of its own falls back to the
@@ -211,6 +213,8 @@ std::string ErrDescription(Err code) {
             return logger::FormatMsg(logger::MsgCat::kHTML_ParseError);
     }
 }
+
+namespace {
 
 // Resolves the location that best describes "node"'s start tag for
 // diagnostics. The dedicated start-tag span is preferred when present and

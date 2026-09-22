@@ -949,3 +949,66 @@ inline void expectPrintedTSX(const std::string& contents, const std::string& exp
     options.JSX.Parse = true;
     expectPrintedCommon(contents, expected, &options);
 }
+
+// ---------------------------------------------------------------------------
+// JSON helpers
+// ---------------------------------------------------------------------------
+
+// Parses JSON source and asserts that the diagnostic output matches the expected
+// error string.  Used for testing JSON parse errors.
+//
+// Example:
+//   expectParseErrorJSON("undefined", "error: Unexpected \"undefined\" in JSON\n");
+inline void expectParseErrorJSON(const std::string& contents, const std::string& expected) {
+    Log log = NewDeferLog(DeferLogKind::kDeferLogNoVerboseOrDebug, {});
+    js::Parser::ParseJSON(log, SourceForTest(contents), js::JSONOptions{});
+    auto msgs = log.done();
+    EXPECT_EQ(MessagesToString(msgs), expected);
+}
+
+// Parses JSON source, asserts the warning output matches, then inserts the
+// parsed expression into a statement and prints it back as JavaScript with
+// minified whitespace.  The trailing semicolon is stripped before comparison.
+// This is the core round-trip helper for JSON.
+//
+// Note: The input is parsed as JSON but printed as JS.  This means the printed
+// code may not be valid JSON.  That's ok because esbuild always outputs JS
+// bundles, not JSON bundles.
+//
+// Example:
+//   expectPrintedJSONWithWarning("{\"x\":0,\"x\":1}", "warning...", "({x:0,x:1})");
+inline void expectPrintedJSONWithWarning(const std::string& contents, const std::string& warning, const std::string& expected) {
+    Log log = NewDeferLog(DeferLogKind::kDeferLogNoVerboseOrDebug, {});
+    auto parsed = js::Parser::ParseJSON(log, SourceForTest(contents), js::JSONOptions{});
+    auto msgs = log.done();
+    EXPECT_EQ(MessagesToString(msgs), warning);
+    ASSERT_TRUE(parsed.second) << "Parse error";
+
+    // Insert this expression into a statement
+    js::AST tree;
+    tree.parts.emplace_back();
+    tree.parts[0].stmts.push_back(js::Stmt{std::make_shared<js::SExpr>(js::SExpr{parsed.first}), guchho::logger::Loc{}});
+
+    compiler::SymbolMap symbol_map;
+    auto renamer = js::NewNoOpRenamer(symbol_map);
+
+    js::PrinterOptions print_options;
+    print_options.minify_whitespace = true;
+    js::PrintResult result = js::Print(tree, symbol_map, *renamer, print_options);
+
+    // Remove the trailing semicolon
+    std::string printed = result.js;
+    if (printed.size() > 1 && printed.back() == ';') {
+        printed.pop_back();
+    }
+
+    EXPECT_EQ(printed, expected);
+}
+
+// Convenience wrapper that asserts no warnings and checks the printed output.
+//
+// Example:
+//   expectPrintedJSON("\"x\"", "\"x\"");
+inline void expectPrintedJSON(const std::string& contents, const std::string& expected) {
+    expectPrintedJSONWithWarning(contents, "", expected);
+}

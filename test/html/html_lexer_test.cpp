@@ -1,6 +1,8 @@
 #include "test/guchho_test.hpp"
 
+#include "guchho/html/html_bridge.hpp"
 #include "guchho/html/html_lexer.hpp"
+#include "guchho/logger.hpp"
 
 #include <cstddef>
 #include <string>
@@ -8,6 +10,7 @@
 #include <vector>
 
 namespace html = guchho::html;
+namespace logger = guchho::logger;
 
 namespace {
 
@@ -588,18 +591,19 @@ TEST(HtmlLexerCharRef, UnknownNamedReferenceIsLiteral)
 {
     auto c = LexAll(u"&foo;");
     EXPECT_EQ(CountError(c, html::Err::kUnknownNamedCharacterReference), size_t{1});
-    ASSERT_EQ(c.records.size(), size_t{3});
-    EXPECT_EQ(c.records[0].text, "&");
-    EXPECT_EQ(c.records[1].text, "foo;");
+    ASSERT_EQ(c.records.size(), size_t{2});
+    EXPECT_EQ(c.records[0].type, html::TokenType::kCharacter);
+    EXPECT_EQ(c.records[0].text, "&foo;");
 }
 
 TEST(HtmlLexerCharRef, PartialNamedReferenceIsLiteral)
 {
     auto c = LexAll(u"&notit;");
-    EXPECT_EQ(CountError(c, html::Err::kUnknownNamedCharacterReference), size_t{1});
-    ASSERT_EQ(c.records.size(), size_t{3});
-    EXPECT_EQ(c.records[0].text, "&");
-    EXPECT_EQ(c.records[1].text, "notit;");
+    EXPECT_EQ(CountError(c, html::Err::kMissingSemicolonAfterCharacterReference), size_t{1});
+    EXPECT_EQ(CountError(c, html::Err::kUnknownNamedCharacterReference), size_t{0});
+    ASSERT_EQ(c.records.size(), size_t{2});
+    EXPECT_EQ(c.records[0].type, html::TokenType::kCharacter);
+    EXPECT_EQ(c.records[0].text, "\u00ACit;");
 }
 
 TEST(HtmlLexerCharRef, NumericReferenceWithoutDigitsIsLiteral)
@@ -993,7 +997,8 @@ TEST(HtmlPreprocessor, LineColumnAndOffsetTracking)
 
     EXPECT_EQ(pp.Advance(), u'b');
     EXPECT_EQ(pp.Advance(), u'\n');
-    EXPECT_EQ(pp.line, 2);
+    EXPECT_EQ(pp.line, 1);
+    EXPECT_EQ(pp.Col(), 3);
 
     EXPECT_EQ(pp.Advance(), u'c');
     EXPECT_EQ(pp.line, 2);
@@ -1017,6 +1022,77 @@ TEST(HtmlPreprocessor, StreamingWritePreservesLineState)
     EXPECT_EQ(pp.line, 2);
     EXPECT_EQ(pp.Offset(), 3);
     EXPECT_EQ(pp.Advance(), u'd');
+}
+
+// ---------------------------------------------------------------------------
+// Logger integration: html::Err -> logger::MsgCat catalog -> FormatMsg
+// ---------------------------------------------------------------------------
+
+TEST(HtmlLogger, ErrDescriptionIdentifiesControlCharacterError)
+{
+    EXPECT_EQ(html::ErrDescription(html::Err::kControlCharacterInInputStream),
+              "A control character was found in the input stream");
+}
+
+TEST(HtmlLogger, ErrDescriptionIdentifiesCharacterReferenceError)
+{
+    EXPECT_EQ(html::ErrDescription(html::Err::kUnknownNamedCharacterReference),
+              "The named character reference was not recognized");
+}
+
+TEST(HtmlLogger, ErrDescriptionIdentifiesCommentError)
+{
+    EXPECT_EQ(html::ErrDescription(html::Err::kNestedComment),
+              "A comment contained a nested comment marker");
+}
+
+TEST(HtmlLogger, ErrDescriptionIdentifiesNumericReferenceError)
+{
+    EXPECT_EQ(html::ErrDescription(html::Err::kNullCharacterReference),
+              "A numeric character reference referenced the NULL character");
+}
+
+TEST(HtmlLogger, ErrDescriptionMatchesCatalogTemplate)
+{
+    EXPECT_EQ(html::ErrDescription(html::Err::kMissingSemicolonAfterCharacterReference),
+              logger::FormatMsg(logger::MsgCat::kHTML_MissingSemicolonAfterCharacterReference));
+    EXPECT_EQ(html::ErrDescription(html::Err::kDuplicateAttribute),
+              logger::FormatMsg(logger::MsgCat::kHTML_DuplicateAttribute));
+    EXPECT_EQ(html::ErrDescription(html::Err::kMisplacedDoctype),
+              logger::FormatMsg(logger::MsgCat::kHTML_MisplacedDoctype));
+}
+
+TEST(HtmlLogger, EveryErrCodeProducesNonEmptyMessage)
+{
+    const int last = static_cast<int>(html::Err::kEofInElementThatCanContainOnlyText);
+    for (int i = 0; i <= last; ++i) {
+        const html::Err code = static_cast<html::Err>(i);
+        const std::string msg = html::ErrDescription(code);
+        EXPECT_FALSE(msg.empty()) << "missing logger message for Err(" << i << ")";
+    }
+}
+
+TEST(HtmlLogger, MessagesContainNoLeftoverPlaceholders)
+{
+    const int last = static_cast<int>(html::Err::kEofInElementThatCanContainOnlyText);
+    for (int i = 0; i <= last; ++i) {
+        const html::Err code = static_cast<html::Err>(i);
+        const std::string msg = html::ErrDescription(code);
+        EXPECT_EQ(msg.find("{}"), std::string::npos)
+            << "unfilled placeholder in message for Err(" << i << "): " << msg;
+    }
+}
+
+TEST(HtmlLogger, ParametrizedBridgeTemplateFillsPlaceholder)
+{
+    std::string url = "https://cdn.example.com/app.js";
+    EXPECT_EQ(logger::FormatMsg(logger::MsgCat::kHTML_EmptyResourceURL, url),
+              "https://cdn.example.com/app.js has an empty resource URL");
+}
+
+TEST(HtmlLogger, GenericParseErrorFallbackIsReportable)
+{
+    EXPECT_FALSE(logger::FormatMsg(logger::MsgCat::kHTML_ParseError).empty());
 }
 
 } // namespace

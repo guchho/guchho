@@ -1,0 +1,1 @@
+This C++ implementation of HTML is from https://github.com/inikulin/parse5.

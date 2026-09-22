@@ -6,9 +6,17 @@
 
 #include "guchho/compiler.hpp"
 #include "guchho/html/html_ast.hpp"
+#include "guchho/html/html_lexer.hpp"
 #include "guchho/logger.hpp"
 
 namespace guchho::html {
+
+// Renders one tokenizer parse-error code as a concrete diagnostic message.
+// Every interesting code maps to a dedicated logger catalog template through
+// logger::FormatMsg; anything without a template of its own falls back to the
+// generic HTML parse-error message, so unknown or future codes still produce
+// something reportable rather than crashing the logger.
+std::string ErrDescription(Err code);
 
 struct BridgeOptions {
     // Parse as a document fragment instead of a whole document.

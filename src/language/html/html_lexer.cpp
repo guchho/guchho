@@ -4089,6 +4089,7 @@ inline constexpr std::array<std::string_view, 55> kQuirksModePublicIdPrefixes = 
     "-//w3c//dtd w3 html//",
     "-//w3o//dtd w3 html 3.0//",
     "-//webtechs//dtd mozilla html 2.0//",
+    "-//webtechs//dtd mozilla html//",
 }};
 
 inline constexpr std::array<std::string_view, 2> kNoSystemIdExtraPrefixes = {{

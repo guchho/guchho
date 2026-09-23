@@ -737,4 +737,29 @@ namespace guchho::helpers {
     std::vector<uint8_t> Sha384(std::string_view data);
     std::vector<uint8_t> Sha512(std::string_view data);
 
+
+    //---------------------------------------
+    // ------------ process.cpp -------------
+    //---------------------------------------
+    // The result of running a child process.
+    struct ProcessResult {
+        // True when the executable was successfully spawned.
+        bool started = false;
+
+        // The child's exit code, or -1 when it could not be determined.
+        int exit_code = -1;
+
+        // The captured standard output of the child.
+        std::string stdout_data;
+
+        // The captured standard error of the child.
+        std::string stderr_data;
+    };
+
+    // Runs "argv" (argv[0] is the executable, found on PATH) in "cwd" and
+    // captures both stdout and stderr. The pipes are drained on separate
+    // threads so a chatty child can not deadlock the caller. Returns when the
+    // child has exited.
+    ProcessResult RunProcess(const std::vector<std::string>& argv, const std::string& cwd);
+
 }

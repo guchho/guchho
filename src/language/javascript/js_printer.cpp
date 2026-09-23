@@ -2632,7 +2632,7 @@ namespace guchho::javascript {
             // Avoid generating a comment containing the character sequence "</script"
             std::string escaped;
             if (!compat::Has(options_.unsupported_features, compat::JSFeature::kInlineScript)) {
-                escaped = helpers::EscapeClosingTag(text, "/script");
+                escaped = helpers::EscapeClosingTag(text, "script");
                 text = escaped;
             }
 

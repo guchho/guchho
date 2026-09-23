@@ -298,7 +298,7 @@ namespace guchho::logger {
     // through the logging pipeline.
     struct MsgData {
         void*                        user_detail{};
-        std::shared_ptr<MsgLocation> location;
+        std::shared_ptr<MsgLocation> location{};
         std::string                  text;
         bool                         disable_maximum_width{};
     };
@@ -410,8 +410,8 @@ namespace guchho::logger {
     struct Path {
         std::string      text;
         std::string      namespace_;
-        std::string      ignored_suffix;
-        ImportAttributes import_attributes;
+        std::string      ignored_suffix{};
+        ImportAttributes import_attributes{};
         PathFlags        flags{};
 
         // Returns true when this path is marked as disabled and should
@@ -435,7 +435,7 @@ namespace guchho::logger {
     // to extract the exact text a diagnostic refers to).
     struct Source {
         PrettyPaths pretty_paths;
-        std::string identifier_name;
+        std::string identifier_name{};
         std::string contents;
         Path        key_path;
         uint32_t    index{};

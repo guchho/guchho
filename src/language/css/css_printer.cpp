@@ -724,7 +724,7 @@ namespace guchho::css {
     // when CSS is embedded in HTML.
     void Printer::PrintIndentedComment(int32_t indent, std::string text) {
         if (!compat::Has(options_.unsupported_features, compat::CSSFeature::kInlineStyle)) {
-            text = helpers::EscapeClosingTag(text, "/style");
+            text = helpers::EscapeClosingTag(text, "style");
         }
 
         for (;;) {

@@ -11,6 +11,7 @@ set(GUCHHO_COMMON_SOURCES
     helpers/joiner.cpp
     helpers/mime.cpp
     helpers/path.cpp
+    helpers/process.cpp
     helpers/quote.cpp
     helpers/sha.cpp
     helpers/strings.cpp

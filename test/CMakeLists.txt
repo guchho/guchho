@@ -16,6 +16,7 @@ add_subdirectory(helpers)
 add_subdirectory(core)
 add_subdirectory(css)
 add_subdirectory(html)
+add_subdirectory(cache)
 
 
 
@@ -148,4 +149,29 @@ guchho_set_warnings(guchho_core_tests)
 guchho_enable_sanitizers(guchho_core_tests)
 
 guchho_discover_tests(guchho_core_tests PREFIX "core.")
+
+
+# cache test executable
+
+add_executable(guchho_cache_tests
+    test_assertions.cpp
+    $<TARGET_OBJECTS:guchho_cache_test_objects>
+)
+
+target_link_libraries(
+    guchho_cache_tests
+    PRIVATE
+        guchho_cache
+)
+
+target_include_directories(
+    guchho_cache_tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+guchho_set_warnings(guchho_cache_tests)
+guchho_enable_sanitizers(guchho_cache_tests)
+
+guchho_discover_tests(guchho_cache_tests PREFIX "cache." WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cache")
 

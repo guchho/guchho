@@ -17,6 +17,7 @@ add_subdirectory(core)
 add_subdirectory(css)
 add_subdirectory(html)
 add_subdirectory(cache)
+add_subdirectory(resolver)
 
 
 
@@ -174,4 +175,29 @@ guchho_set_warnings(guchho_cache_tests)
 guchho_enable_sanitizers(guchho_cache_tests)
 
 guchho_discover_tests(guchho_cache_tests PREFIX "cache." WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cache")
+
+
+# resolver test executable
+
+add_executable(guchho_resolver_tests
+    test_assertions.cpp
+    $<TARGET_OBJECTS:guchho_resolver_test_objects>
+)
+
+target_link_libraries(
+    guchho_resolver_tests
+    PRIVATE
+        guchho_resolver
+)
+
+target_include_directories(
+    guchho_resolver_tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+guchho_set_warnings(guchho_resolver_tests)
+guchho_enable_sanitizers(guchho_resolver_tests)
+
+guchho_discover_tests(guchho_resolver_tests PREFIX "resolver." WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/resolver")
 

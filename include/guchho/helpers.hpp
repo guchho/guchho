@@ -561,6 +561,122 @@ namespace guchho::helpers {
         std::string_view text);
 
 
+    // The short, fixed set of content kinds Guchho actually understands once a
+    // data URL's media type has been normalized by DataURL::DecodeMIMEType.
+    //
+    // Any type outside this list is reported as kUnsupported so the caller can
+    // decide whether the payload is still worth decoding (for example, opaque
+    // binary data such as "image/png" that Guchho cannot interpret further).
+    enum class MIMEType : uint8_t {
+        kUnsupported,
+        kTextCSS,
+        kTextJavaScript,
+        kApplicationJSON,
+    };
+
+    // The two halves of a "data:" URL after the "data:" prefix has been peeled
+    // away and the payload has been fenced into dedicated fields.
+    //
+    // "mime_type" keeps the media type exactly as written in the URL, which
+    // may still carry parameters such as ";charset=utf-8" and may be empty.
+    // "data" holds the raw payload still in either base64 or percent-escaped
+    // form - no decoding has happened at this point. "is_base64" records
+    // whether the URL explicitly asked for the base64 interpretation of
+    // "data".
+    //
+    // Examples of the stored raw form:
+    //   "data:text/css;charset=utf-8;base64,Ym9keXt9" ->
+    //     mime_type: "text/css;charset=utf-8"
+    //     data:      "Ym9keXt9"
+    //     is_base64: true
+    //   "data:,hello%20world" ->
+    //     mime_type: ""
+    //     data:      "hello%20world"
+    //     is_base64: false
+    struct DataURL {
+        std::string mime_type;
+        std::string data;
+        bool        is_base64 = false;
+
+        // Maps the raw media type stored in "mime_type" to a canonical
+        // MIMEType. Any ";"-separated parameters are dropped first, so values
+        // like "text/css;charset=utf-8" reduce to their bare base type.
+        //
+        // The comparison is exact and case sensitive, and it is deliberately
+        // strict: only the three recognized types resolve to a supported kind.
+        // Everything else - including equal-looking types with different
+        // casing, or recognized types polluted by whitespace - falls back to
+        // kUnsupported.
+        //
+        // Examples:
+        //   mime_type "text/css;charset=utf-8" -> kTextCSS
+        //   mime_type "text/javascript"         -> kTextJavaScript
+        //   mime_type "application/json"        -> kApplicationJSON
+        //   mime_type "image/png"               -> kUnsupported
+        //   mime_type "TEXT/CSS"                -> kUnsupported
+        MIMEType DecodeMIMEType() const;
+
+        // Decodes the raw payload stored in "data" and returns the underlying
+        // resource bytes, or nullopt (with "error" filled in) when the payload
+        // is malformed.
+        //
+        // When "is_base64" is true, "data" is decoded with the standard
+        // base64 alphabet. Line breaks ("\r" and "\n") inside the payload are
+        // skipped silently, the input must align on full four-character
+        // quanta, and padding must appear only at the very end. An illegal
+        // character, out-of-place padding, or leftover characters at the tail
+        // all abort the decode: "error" is set to a message that includes the
+        // byte offset of the corruption and nullopt is returned.
+        //
+        // When "is_base64" is false, "data" is treated as percent-escaped
+        // text: every "%xx" escape is replaced by the single byte it codes,
+        // and any other character passes through unchanged. A malformed
+        // escape - a "%" not followed by two hex digits, or a dangling "%" at
+        // the end of the string - fails the whole decode, quoting the
+        // offending escape inside "error".
+        //
+        // The produced bytes are not guaranteed to be valid UTF-8: base64
+        // output is arbitrary data and a "%00" escape embeds a real NUL byte.
+        // When text is expected it is up to the caller to validate the result.
+        //
+        // Examples:
+        //   is_base64 = true,  data "Zm9vIGJhcg=="    -> "foo bar"
+        //   is_base64 = true,  data "bGluZQo="        -> "line\n"
+        //   is_base64 = false, data "hello%20world"   -> "hello world"
+        //   is_base64 = false, data "%E2%98%83"       -> the 3-byte UTF-8 for "\u2603"
+        //   is_base64 = false, data "plain x"         -> "plain x"
+        //   is_base64 = true,  data "a!bc"            -> nullopt, corrupting byte reported
+        std::optional<std::string> DecodeData(std::string& error) const;
+    };
+
+    // Splits a URL string into its raw data-URL parts. The input must begin with
+    // the exact, case-sensitive prefix "data:" and must contain a comma;
+    // failing either requirement yields nullopt.
+    //
+    // The stored media type is whatever sits between the prefix and the first
+    // comma (parameters such as ";charset=utf-8" are preserved untouched and
+    // the type may even be empty), while the stored payload is everything
+    // after that first comma - any comma inside the payload itself is simply
+    // carried along. When the media type ends in the literal, case-sensitive
+    // suffix ";base64", that suffix is stripped from the stored type and
+    // "is_base64" is set to true; no other interpretation or validation takes
+    // place here (see DataURL::DecodeMIMEType and DataURL::DecodeData for the
+    // decoding stages).
+    //
+    // Examples:
+    //   "data:text/css;charset=utf-8;base64,Ym9keXt9"      ->
+    //     mime_type "text/css;charset=utf-8", data "Ym9keXt9", is_base64 true
+    //   "data:text/plain,a,b"                              ->
+    //     mime_type "text/plain", data "a,b", is_base64 false
+    //   "data:,hello"                                      ->
+    //     mime_type "", data "hello", is_base64 false
+    //   "https://example.com/asset.css"                    -> nullopt
+    //   "data:only-a-mime-type" (no comma)                 -> nullopt
+    //   "data:text/plain;base64,Zm9v"                      ->
+    //     mime_type "text/plain", data "Zm9v", is_base64 true
+    std::optional<DataURL> ParseDataURL(const std::string& url);
+
+
 
     //---------------------------------------
     // ---------- glob.cpp ------------------

@@ -213,6 +213,36 @@ guchho_enable_sanitizers(guchho_js)
 
 
 # ============================================================
+# Cache library
+# ============================================================
+
+add_library(guchho_cache STATIC)
+
+target_sources(guchho_cache
+    PRIVATE
+        cache/cache.cpp
+        cache/cache_fs.cpp
+        cache/cache_ast.cpp
+)
+
+target_include_directories(guchho_cache
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(guchho_cache
+    PUBLIC
+        guchho_common
+        guchho_js
+        guchho_css
+        guchho_html
+)
+
+guchho_set_warnings(guchho_cache)
+guchho_enable_sanitizers(guchho_cache)
+
+
+# ============================================================
 # Guchho executable
 # ============================================================
 

@@ -1,5 +1,6 @@
 #include "guchho/helpers.hpp"
 
+#include <algorithm>
 #include <unordered_map>
 
 namespace guchho::helpers {
@@ -56,10 +57,180 @@ namespace guchho::helpers {
 
         // Returns true when `c` is a hexadecimal digit (0-9, a-f, or A-F).
         // Used to detect pre-existing percent-encoded sequences (%XX) in the
-        // input so they are re-escaped rather than double-encoded.
+        // input so they are re-escaped rather than double-encoded, and to
+        // validate the two characters that follow a '%' while decoding a
+        // data URL payload.
         bool IsHexDigit(char c)
         {
             return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+        }
+
+        // ------------------------------------------------------------------
+        // Base64 alphabet lookup
+        //
+        // Maps one standard Base64 alphabet character onto its 6-bit value.
+        // Guchho calls this while folding each character of an inline
+        // "data:...;base64,..." payload into the bit accumulator, and relies
+        // on the -1 sentinel to reject anything outside the alphabet.
+        //
+        //   Input:  'A'  ->  Output: 0
+        //   Input:  '7'  ->  Output: 59
+        //   Input:  '/'  ->  Output: 63
+        //   Input:  '!'  ->  Output: -1   (illegal character)
+        // ------------------------------------------------------------------
+        int Base64Value(uint8_t c)
+        {
+            if (c >= 'A' && c <= 'Z') {
+                return c - 'A';
+            }
+            if (c >= 'a' && c <= 'z') {
+                return c - 'a' + 26;
+            }
+            if (c >= '0' && c <= '9') {
+                return c - '0' + 52;
+            }
+            if (c == '+') {
+                return 62;
+            }
+            if (c == '/') {
+                return 63;
+            }
+            return -1;
+        }
+
+        // ------------------------------------------------------------------
+        // Strict Base64 decoding for Guchho data URLs
+        //
+        // Consumes a standard Base64 string and writes the recovered bytes
+        // into dst. Carriage returns and line feeds are skipped so that
+        // Base64 blobs which have been soft-wrapped inside a stylesheet still
+        // decode cleanly, and the input must terminate on a complete
+        // four-character quantum with legal padding ("=" may only appear in
+        // the final group and only in the last two slots). On the first
+        // illegal byte, corrupt_at is set to that byte's offset so Guchho can
+        // point at the exact spot in the URL when reporting the failure.
+        //
+        //   Input:  "aGVs"        ->  Output: true,  dst = "hel"
+        //   Input:  "aGVsbG8="    ->  Output: true,  dst = "hello"
+        //   Input:  "aG=\nV"      ->  Output: false, corrupt_at = 2
+        //   Input:  "aGV"         ->  Output: false  (truncated quantum)
+        // ------------------------------------------------------------------
+        bool DecodeBase64Std(std::string_view src, std::string& dst, size_t& corrupt_at)
+        {
+            dst.clear();
+            dst.reserve(src.size() / 4 * 3);
+            uint32_t buffer      = 0;
+            int      count       = 0;
+            int      pad_count   = 0;
+            bool     saw_padding = false;
+
+            for (size_t i = 0; i < src.size(); ++i) {
+                char c = src[i];
+                if (c == '\r' || c == '\n') {
+                    continue;
+                }
+                uint32_t value = 0;
+                if (c == '=') {
+                    if (count < 2 || pad_count >= 2 || (count + pad_count) > 4) {
+                        corrupt_at = i;
+                        return false;
+                    }
+                    value = 0;
+                    ++pad_count;
+                } else {
+                    if (saw_padding) {
+                        corrupt_at = i;
+                        return false;
+                    }
+                    int v = Base64Value(static_cast<uint8_t>(c));
+                    if (v < 0) {
+                        corrupt_at = i;
+                        return false;
+                    }
+                    value = static_cast<uint32_t>(v);
+                }
+                buffer = (buffer << 6) | value;
+                ++count;
+                if (count == 4) {
+                    dst.push_back(static_cast<char>(buffer >> 16));
+                    if (pad_count < 2) {
+                        dst.push_back(static_cast<char>(buffer >> 8));
+                    }
+                    if (pad_count == 0) {
+                        dst.push_back(static_cast<char>(buffer));
+                    }
+                    buffer      = 0;
+                    count       = 0;
+                    pad_count   = 0;
+                    saw_padding = false;
+                }
+            }
+
+            if (count != 0) {
+                corrupt_at = src.size() - static_cast<size_t>(count);
+                return false;
+            }
+            return true;
+        }
+
+        // ------------------------------------------------------------------
+        // Single hex digit to value
+        //
+        // Converts one already-validated hex digit into its numeric value in
+        // the range 0..15. Guchho pairs this with IsHexDigit to turn the two
+        // characters of a "%XX" escape into one output byte.
+        //
+        //   Input: '0'  ->  Output: 0
+        //   Input: '9'  ->  Output: 9
+        //   Input: 'a'  ->  Output: 10
+        //   Input: 'F'  ->  Output: 15
+        // ------------------------------------------------------------------
+        inline int HexValue(char c)
+        {
+            if (c >= '0' && c <= '9') {
+                return c - '0';
+            }
+            if (c >= 'a' && c <= 'f') {
+                return c - 'a' + 10;
+            }
+            return c - 'A' + 10;
+        }
+
+        // ------------------------------------------------------------------
+        // Percent-escape expansion
+        //
+        // Walks a data URL payload and replaces every well-formed "%XX"
+        // triplet with the byte it names, copying all other characters
+        // through unchanged. When a '%' is not followed by two hex digits,
+        // the function stops, fills error with a JSON-quoted snippet of the
+        // offending fragment, and returns false so Guchho can report exactly
+        // which escape was broken.
+        //
+        //   Input:  "a%20b"   ->  Output: true,  out = "a b"
+        //   Input:  "%41%42"  ->  Output: true,  out = "AB"
+        //   Input:  "a%zz"    ->  Output: false, error mentions "%zz"
+        //   Input:  "100%"    ->  Output: false, error mentions "%"
+        // ------------------------------------------------------------------
+        bool UnescapePath(std::string_view text, std::string& out, std::string& error)
+        {
+            out.clear();
+            for (size_t i = 0; i < text.size();) {
+                char c = text[i];
+                if (c == '%') {
+                    if (i + 2 >= text.size() || !IsHexDigit(text[i + 1]) || !IsHexDigit(text[i + 2])) {
+                        size_t length = std::min<size_t>(3, text.size() - i);
+                        error         = "invalid URL escape " +
+                                QuoteForJSON(text.substr(i, length), false);
+                        return false;
+                    }
+                    out.push_back(static_cast<char>(HexValue(text[i + 1]) * 16 + HexValue(text[i + 2])));
+                    i += 3;
+                } else {
+                    out.push_back(c);
+                    ++i;
+                }
+            }
+            return true;
         }
 
     }
@@ -204,6 +375,131 @@ namespace guchho::helpers {
             return percent_url;
         }
         return url;
+    }
+
+    // ------------------------------------------------------------------
+    // Data URL recognition and splitting
+    //
+    // First entry point of Guchho's data URL handling. It checks for the
+    // mandatory "data:" prefix, locates the comma that separates the header
+    // from the payload, and records the media type (minus any ";base64"
+    // marker, which also flips is_base64) alongside the raw payload. URLs
+    // that are not data URLs, or data URLs missing their comma, yield
+    // nullopt so callers can fall through to other URL handling.
+    //
+    //   Input:  "data:text/css;base64,Ym9keXs="
+    //     ->  Output: DataURL{ mime_type = "text/css", data = "Ym9keXs=", is_base64 = true }
+    //
+    //   Input:  "data:text/css,body%7B%7D"
+    //     ->  Output: DataURL{ mime_type = "text/css", data = "body%7B%7D", is_base64 = false }
+    //
+    //   Input:  "https://example.com/app.css"
+    //     ->  Output: std::nullopt   (no "data:" prefix)
+    //
+    //   Input:  "data:text/css"
+    //     ->  Output: std::nullopt   (no comma separating header and payload)
+    // ------------------------------------------------------------------
+    std::optional<DataURL> ParseDataURL(const std::string& url)
+    {
+        constexpr std::string_view kPrefix = "data:";
+        if (url.compare(0, kPrefix.size(), kPrefix) != 0) {
+            return std::nullopt;
+        }
+
+        size_t comma = url.find(',');
+        if (comma == std::string::npos) {
+            return std::nullopt;
+        }
+
+        DataURL parsed;
+        parsed.mime_type = url.substr(kPrefix.size(), comma - kPrefix.size());
+        parsed.data      = url.substr(comma + 1);
+
+        constexpr std::string_view kBase64Suffix = ";base64";
+        if (parsed.mime_type.size() >= kBase64Suffix.size() &&
+            parsed.mime_type.compare(parsed.mime_type.size() - kBase64Suffix.size(),
+                                     kBase64Suffix.size(), kBase64Suffix) == 0) {
+            parsed.mime_type.resize(parsed.mime_type.size() - kBase64Suffix.size());
+            parsed.is_base64 = true;
+        }
+        return parsed;
+    }
+
+    // ------------------------------------------------------------------
+    // Media type classification
+    //
+    // Narrows the stored media type down to the small set of content kinds
+    // Guchho actually acts on. Any parameter section beginning at the first
+    // ';' (for example ";charset=utf-8") is chopped off first, then the bare
+    // type is matched against the supported list. Everything else is
+    // reported as unsupported so callers can skip the payload.
+    //
+    //   Input:  mime_type = "text/css;charset=utf-8"  ->  Output: MIMEType::kTextCSS
+    //   Input:  mime_type = "text/javascript"         ->  Output: MIMEType::kTextJavaScript
+    //   Input:  mime_type = "application/json"        ->  Output: MIMEType::kApplicationJSON
+    //   Input:  mime_type = "image/png"               ->  Output: MIMEType::kUnsupported
+    // ------------------------------------------------------------------
+    MIMEType DataURL::DecodeMIMEType() const
+    {
+        std::string bare_type = this->mime_type;
+        size_t      semicolon = bare_type.find(';');
+        if (semicolon != std::string::npos) {
+            bare_type.resize(semicolon);
+        }
+
+        if (bare_type == "text/css") {
+            return MIMEType::kTextCSS;
+        }
+        if (bare_type == "text/javascript") {
+            return MIMEType::kTextJavaScript;
+        }
+        if (bare_type == "application/json") {
+            return MIMEType::kApplicationJSON;
+        }
+        return MIMEType::kUnsupported;
+    }
+
+    // ------------------------------------------------------------------
+    // Payload decoding
+    //
+    // Turns the raw payload captured by ParseDataURL back into bytes that
+    // the rest of Guchho can consume. Base64 payloads go through the strict
+    // decoder, which reports the offset of the first bad byte; plain payloads
+    // go through the percent-unescaper, whose message is wrapped with a
+    // distinguishing prefix. Both failure paths fill error and return
+    // nullopt.
+    //
+    //   Input:  is_base64 = true,   data = "aGVsbG8="
+    //     ->  Output: "hello"
+    //
+    //   Input:  is_base64 = false,  data = "a%20b"
+    //     ->  Output: "a b"
+    //
+    //   Input:  is_base64 = true,   data = "aG=V"
+    //     ->  Output: std::nullopt, error = "could not decode base64 data: illegal base64 data at input byte 2"
+    //
+    //   Input:  is_base64 = false,  data = "%zz"
+    //     ->  Output: std::nullopt, error = "could not decode percent-escaped data: invalid URL escape \"%zz\""
+    // ------------------------------------------------------------------
+    std::optional<std::string> DataURL::DecodeData(std::string& error) const
+    {
+        if (is_base64) {
+            std::string bytes;
+            size_t      corrupt_at = 0;
+            if (!DecodeBase64Std(data, bytes, corrupt_at)) {
+                error = "could not decode base64 data: illegal base64 data at input byte " +
+                        std::to_string(corrupt_at);
+                return std::nullopt;
+            }
+            return bytes;
+        }
+
+        std::string content;
+        if (!UnescapePath(data, content, error)) {
+            error = "could not decode percent-escaped data: " + error;
+            return std::nullopt;
+        }
+        return content;
     }
 
 } // namespace guchho::helpers

@@ -4,10 +4,13 @@
 #include <string>
 #include <string_view>
 
+using guchho::helpers::DataURL;
 using guchho::helpers::EncodeStringAsPercentEscapedDataURL;
 using guchho::helpers::EncodeStringAsShortestDataURL;
 using guchho::helpers::IsDataURL;
+using guchho::helpers::MIMEType;
 using guchho::helpers::MimeTypeByExtension;
+using guchho::helpers::ParseDataURL;
 
 // ---------------------------------------------------------------------------
 // IsDataURL
@@ -393,4 +396,193 @@ TEST(EncodeStringAsShortestDataURLTest, UnicodeText)
 {
     std::string url = EncodeStringAsShortestDataURL("text/plain", "caf\xC3\xA9");
     EXPECT_TRUE(url.find("data:text/plain,") == 0);
+}
+
+// ---------------------------------------------------------------------------
+// ParseDataURL
+// ---------------------------------------------------------------------------
+
+TEST(ParseDataURLTest, Base64DataURL)
+{
+    std::optional<DataURL> parsed = ParseDataURL("data:text/css;base64,Ym9keXs=");
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(parsed->mime_type, "text/css");
+    EXPECT_EQ(parsed->data, "Ym9keXs=");
+    EXPECT_TRUE(parsed->is_base64);
+}
+
+TEST(ParseDataURLTest, PercentDataURL)
+{
+    std::optional<DataURL> parsed = ParseDataURL("data:text/css,body%7B%7D");
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(parsed->mime_type, "text/css");
+    EXPECT_EQ(parsed->data, "body%7B%7D");
+    EXPECT_FALSE(parsed->is_base64);
+}
+
+TEST(ParseDataURLTest, CharsetParamPreserved)
+{
+    std::optional<DataURL> parsed = ParseDataURL("data:text/css;charset=utf-8;base64,Ym9keXs=");
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(parsed->mime_type, "text/css;charset=utf-8");
+    EXPECT_TRUE(parsed->is_base64);
+}
+
+TEST(ParseDataURLTest, EmptyMimeType)
+{
+    std::optional<DataURL> parsed = ParseDataURL("data:,hello");
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(parsed->mime_type, "");
+    EXPECT_EQ(parsed->data, "hello");
+    EXPECT_FALSE(parsed->is_base64);
+}
+
+TEST(ParseDataURLTest, CommaInsidePayloadPreserved)
+{
+    std::optional<DataURL> parsed = ParseDataURL("data:text/plain,a,b");
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(parsed->mime_type, "text/plain");
+    EXPECT_EQ(parsed->data, "a,b");
+}
+
+TEST(ParseDataURLTest, NotADataURL)
+{
+    EXPECT_FALSE(ParseDataURL("https://example.com/app.css").has_value());
+    EXPECT_FALSE(ParseDataURL("DATA:text/plain,hi").has_value());
+    EXPECT_FALSE(ParseDataURL("").has_value());
+}
+
+TEST(ParseDataURLTest, MissingComma)
+{
+    EXPECT_FALSE(ParseDataURL("data:text/css").has_value());
+}
+
+TEST(ParseDataURLTest, Base64LookAlikeSuffixNotMatched)
+{
+    std::optional<DataURL> parsed = ParseDataURL("data:text/plain;charset=utf-8,abc");
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_FALSE(parsed->is_base64);
+}
+
+// ---------------------------------------------------------------------------
+// DataURL::DecodeMIMEType
+// ---------------------------------------------------------------------------
+
+TEST(DecodeMIMETypeTest, CSSWithCharset)
+{
+    DataURL d;
+    d.mime_type = "text/css;charset=utf-8";
+    EXPECT_EQ(d.DecodeMIMEType(), MIMEType::kTextCSS);
+}
+
+TEST(DecodeMIMETypeTest, JavaScript)
+{
+    DataURL d;
+    d.mime_type = "text/javascript";
+    EXPECT_EQ(d.DecodeMIMEType(), MIMEType::kTextJavaScript);
+}
+
+TEST(DecodeMIMETypeTest, JSON)
+{
+    DataURL d;
+    d.mime_type = "application/json";
+    EXPECT_EQ(d.DecodeMIMEType(), MIMEType::kApplicationJSON);
+}
+
+TEST(DecodeMIMETypeTest, UnsupportedImage)
+{
+    DataURL d;
+    d.mime_type = "image/png";
+    EXPECT_EQ(d.DecodeMIMEType(), MIMEType::kUnsupported);
+}
+
+TEST(DecodeMIMETypeTest, CaseSensitive)
+{
+    DataURL d;
+    d.mime_type = "TEXT/CSS";
+    EXPECT_EQ(d.DecodeMIMEType(), MIMEType::kUnsupported);
+}
+
+// ---------------------------------------------------------------------------
+// DataURL::DecodeData
+// ---------------------------------------------------------------------------
+
+TEST(DecodeDataTest, Base64Hello)
+{
+    DataURL d;
+    d.data       = "aGVsbG8=";
+    d.is_base64  = true;
+    std::string error;
+    std::optional<std::string> decoded = d.DecodeData(error);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(decoded.value(), "hello");
+}
+
+TEST(DecodeDataTest, Base64SkipsLineBreaks)
+{
+    DataURL d;
+    d.data       = "aGVs\nbG8=";
+    d.is_base64  = true;
+    std::string error;
+    std::optional<std::string> decoded = d.DecodeData(error);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(decoded.value(), "hello");
+}
+
+TEST(DecodeDataTest, PercentHelloWorld)
+{
+    DataURL d;
+    d.data = "hello%20world";
+    std::string error;
+    std::optional<std::string> decoded = d.DecodeData(error);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(decoded.value(), "hello world");
+}
+
+TEST(DecodeDataTest, PercentUnicode)
+{
+    DataURL d;
+    d.data = "%E2%98%83";
+    std::string error;
+    std::optional<std::string> decoded = d.DecodeData(error);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(decoded.value(), std::string("\xE2\x98\x83", 3));
+}
+
+TEST(DecodeDataTest, PercentPlainPassThrough)
+{
+    DataURL d;
+    d.data = "plain x";
+    std::string error;
+    std::optional<std::string> decoded = d.DecodeData(error);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(decoded.value(), "plain x");
+}
+
+TEST(DecodeDataTest, CorruptBase64)
+{
+    DataURL d;
+    d.data       = "a!bc";
+    d.is_base64  = true;
+    std::string error;
+    EXPECT_FALSE(d.DecodeData(error).has_value());
+    EXPECT_NE(error.find("illegal base64 data at input byte 1"), std::string::npos);
+}
+
+TEST(DecodeDataTest, InvalidPercentEscape)
+{
+    DataURL d;
+    d.data = "%zz";
+    std::string error;
+    EXPECT_FALSE(d.DecodeData(error).has_value());
+    EXPECT_NE(error.find("invalid URL escape"), std::string::npos);
+}
+
+TEST(DecodeDataTest, TrailingPercent)
+{
+    DataURL d;
+    d.data = "100%";
+    std::string error;
+    EXPECT_FALSE(d.DecodeData(error).has_value());
+    EXPECT_NE(error.find("invalid URL escape"), std::string::npos);
 }

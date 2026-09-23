@@ -17,6 +17,7 @@ add_library(guchho_helpers_test_objects OBJECT
     hash_test.cpp
     sha_test.cpp
     mime_test.cpp
+    process_test.cpp
 )
 
 target_include_directories(

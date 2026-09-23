@@ -64,11 +64,17 @@ namespace guchho::helpers {
                 break;
             }
 
-            result.append(text.substr(0, pos + 1));
-            text.remove_prefix(pos + 1);
-
-            if (text.size() >= slashTag.size() && EqualFold(text.substr(0, slashTag.size()), slashTag)) {
+            // text[pos] == '<' and text[pos + 1] == '/'.
+            std::string_view name = text.substr(pos + 2);
+            if (name.size() >= slashTag.size() && EqualFold(name.substr(0, slashTag.size()), slashTag)) {
+                // Insert the backslash between '<' and '/'.
+                result.append(text.substr(0, pos + 1));
                 result.push_back('\\');
+                result.push_back('/');
+                text.remove_prefix(pos + 2);
+            } else {
+                result.append(text.substr(0, pos + 1));
+                text.remove_prefix(pos + 1);
             }
         }
 

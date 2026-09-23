@@ -1344,7 +1344,7 @@ namespace guchho::logger {
         kTSConfig_OptionNotNested,
 
         // -------------------------------------------------------------------
-        // guchho.config.js (guchho_config_js.cpp)
+        // guchho.config.js (guchho_json.cpp)
         // -------------------------------------------------------------------
         kGuchhoConfig_FailedToSpawn,
         kGuchhoConfig_FailedToEvaluate,

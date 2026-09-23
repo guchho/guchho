@@ -483,7 +483,7 @@ std::string SerializeTextNodeMinified(const Node& node,
 //
 // Example: a <title> with the single text child "Docs" -> true, printed as
 //          "<title>Docs</title>" instead of a multi-line block.
-bool HasOnlyTextChildren(const Node& node, const PrinterOptions& options) {
+bool HasOnlyTextChildren(const Node& node, [[maybe_unused]] const PrinterOptions& options) {
     for (const auto& child : SerializationContainer(node).child_nodes) {
         if (!IsTextNode(*child)) {
             return false;

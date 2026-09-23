@@ -2,6 +2,8 @@
 
 add_library(guchho_html_test_objects OBJECT
     html_lexer_test.cpp
+    html_parser_test.cpp
+    html_printer_test.cpp
 )
 
 target_include_directories(

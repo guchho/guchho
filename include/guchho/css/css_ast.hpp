@@ -736,7 +736,7 @@ namespace guchho::css {
     // Wraps a rule with its source location for error reporting.
     struct Rule {
         std::shared_ptr<RuleData> data;
-        guchho::logger::Loc loc;
+        guchho::logger::Loc loc{};
     };
 
     // Compares two rule lists for structural equality.

@@ -633,7 +633,7 @@ namespace guchho::resolver {
 
         if (!options.PackageAliases.empty() && IsPackagePath(import_path)) {
             if (query.debug_logs) {
-                query.debug_logs->AddNote("Checking for package alias matches");
+                query.debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_CheckingForPackageAliasMatches));
             }
             std::string longest_key;
             std::string longest_value;
@@ -653,17 +653,25 @@ namespace guchho::resolver {
                     debug_meta->modified_import_path += tail;
                 }
                 if (query.debug_logs) {
-                    query.debug_logs->AddNote("  Matched with alias from " + std::string(Q(longest_key)) + " to " + std::string(Q(longest_value)));
-                    query.debug_logs->AddNote("  Modified import path from " + std::string(Q(import_path)) + " to " + std::string(Q(debug_meta->modified_import_path)));
+                    query.debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_MatchedWithAliasFromTo,
+                            std::string(Q(longest_key)),
+                            std::string(Q(longest_value))
+                    ));
+                    query.debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ModifiedImportPathFromTo,
+                            std::string(Q(import_path)),
+                            std::string(Q(debug_meta->modified_import_path))
+                    ));
                 }
                 import_path = debug_meta->modified_import_path;
 
                 source_dir = fs->Cwd();
                 if (query.debug_logs) {
-                    query.debug_logs->AddNote("  Changed resolve directory to " + std::string(Q(source_dir)));
+                    query.debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ChangedResolveDirectoryTo,
+                            std::string(Q(source_dir))
+                    ));
                 }
             } else if (query.debug_logs) {
-                query.debug_logs->AddNote("  Failed to find any package alias matches");
+                query.debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FailedToFindAnyPackageAliasMatches));
             }
         }
 
@@ -676,9 +684,11 @@ namespace guchho::resolver {
 
             if (query.debug_logs) {
                 if (is_explicitly_external) {
-                    query.debug_logs->AddNote("The path " + std::string(Q(import_path)) + " was marked as external by the user");
+                    query.debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ThePathWasMarkedAsExternalByTheUser,
+                            std::string(Q(import_path))
+                    ));
                 } else {
-                    query.debug_logs->AddNote("Marking this path as implicitly external");
+                    query.debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_MarkingThisPathAsImplicitlyExternal));
                 }
             }
 
@@ -697,7 +707,7 @@ namespace guchho::resolver {
         if (std::optional<helpers::DataURL> parsed = helpers::ParseDataURL(import_path)) {
             if (parsed->DecodeMIMEType() != helpers::MIMEType::kUnsupported) {
                 if (query.debug_logs) {
-                    query.debug_logs->AddNote("Putting this path in the \"dataurl\" namespace");
+                    query.debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_PuttingThisPathInTheDataurlNamespace));
                 }
                 query.FlushDebugLogs(FlushMode::kDueToSuccess);
                 ResolveResult result;
@@ -707,7 +717,7 @@ namespace guchho::resolver {
             }
 
             if (query.debug_logs) {
-                query.debug_logs->AddNote("Marking this data URL as external");
+                query.debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_MarkingThisDataURLAsExternal));
             }
             query.FlushDebugLogs(FlushMode::kDueToSuccess);
             ResolveResult result;
@@ -718,7 +728,7 @@ namespace guchho::resolver {
 
         if (source_dir.empty()) {
             if (query.debug_logs) {
-                query.debug_logs->AddNote("Cannot resolve this path without a directory");
+                query.debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_CannotResolveThisPathWithoutADirectory));
             }
             query.FlushDebugLogs(FlushMode::kDueToFailure);
             return std::nullopt;
@@ -726,7 +736,7 @@ namespace guchho::resolver {
 
         if (import_path.find('*') != std::string::npos) {
             if (query.debug_logs) {
-                query.debug_logs->AddNote("Cannot resolve a path containing a wildcard character in a single-path context");
+                query.debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_CannotResolveAPathContainingAWildcardCharacterInASinglePathContext));
             }
             query.FlushDebugLogs(FlushMode::kDueToFailure);
             return std::nullopt;
@@ -760,7 +770,9 @@ namespace guchho::resolver {
                     }
                 }
                 if (query.debug_logs && pnp_manifest != nullptr && !pnp_manifest->invalid_ignore_pattern_data.empty()) {
-                    query.debug_logs->AddNote("  Invalid Go regular expression for \"ignorePatternData\": " + pnp_manifest->invalid_ignore_pattern_data);
+                    query.debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_InvalidGoRegularExpressionForIgnorePatternData,
+                            pnp_manifest->invalid_ignore_pattern_data
+                    ));
                 }
                 break;
             }
@@ -779,7 +791,9 @@ namespace guchho::resolver {
                 return std::nullopt;
             }
             if (query.debug_logs) {
-                query.debug_logs->AddNote("Retrying resolution after removing the suffix " + std::string(Q(import_path.substr(suffix))));
+                query.debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_RetryingResolutionAfterRemovingTheSuffix,
+                        std::string(Q(import_path.substr(suffix)))
+                ));
             }
             result = query.ResolveWithoutSymlinks(source_dir, source_dir_info, import_path.substr(0, suffix));
             if (!result) {
@@ -839,7 +853,7 @@ namespace guchho::resolver {
 
         if (import_path_pattern.empty()) {
             if (query.debug_logs) {
-                query.debug_logs->AddNote("Ignoring empty glob pattern");
+                query.debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_IgnoringEmptyGlobPattern));
             }
             query.FlushDebugLogs(FlushMode::kDueToFailure);
             return std::nullopt;
@@ -854,7 +868,7 @@ namespace guchho::resolver {
                 }
             } else {
                 if (query.debug_logs) {
-                    query.debug_logs->AddNote("Ignoring glob import that doesn't start with \"./\" or \"../\"");
+                    query.debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_IgnoringGlobImportThatDoesnTStartWithOr));
                 }
                 query.FlushDebugLogs(FlushMode::kDueToFailure);
                 return std::nullopt;
@@ -886,7 +900,9 @@ namespace guchho::resolver {
         DirInfo* source_dir_info = query.DirInfoCached(source_dir);
         if (source_dir_info == nullptr) {
             if (query.debug_logs) {
-                query.debug_logs->AddNote("Failed to find the directory " + std::string(Q(source_dir)));
+                query.debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FailedToFindTheDirectory,
+                        std::string(Q(source_dir))
+                ));
             }
             query.FlushDebugLogs(FlushMode::kDueToFailure);
             return std::nullopt;
@@ -930,7 +946,9 @@ namespace guchho::resolver {
                         auto [entry, diff_case_unused] = dir_info->entries.Get(key);
                         (void)diff_case_unused;
                         if (query.debug_logs) {
-                            query.debug_logs->AddNote("Considering entry " + std::string(Q(fs->Join({dir_info->abs_path, key}))));
+                            query.debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ConsideringEntry,
+                                    std::string(Q(fs->Join({dir_info->abs_path, key})))
+                            ));
                             query.debug_logs->IncreaseIndent();
                         }
 
@@ -953,7 +971,9 @@ namespace guchho::resolver {
                                         result.path_pair.is_external  = true;
 
                                         if (query.debug_logs) {
-                                            query.debug_logs->AddNote("The path " + std::string(Q(result.path_pair.primary.text)) + " was marked as external by the user");
+                                            query.debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ThePathWasMarkedAsExternalByTheUser,
+                                                    std::string(Q(result.path_pair.primary.text))
+                                            ));
                                         }
                                     } else {
                                         std::string abs_path = fs->Join({dir_info->abs_path, key});
@@ -1072,8 +1092,10 @@ namespace guchho::resolver {
         }
         for (const config::WildcardPattern& pattern : matchers.Patterns) {
             if (debug_logs) {
-                debug_logs->AddNote("Checking " + std::string(Q(path)) + " against the external pattern " +
-                                    std::string(Q(pattern.Prefix + "*" + pattern.Suffix)));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_CheckingAgainstTheExternalPattern,
+                        std::string(Q(path)),
+                        std::string(Q(pattern.Prefix + "*" + pattern.Suffix))
+                ));
             }
             if (path.size() >= pattern.Prefix.size() + pattern.Suffix.size() &&
                 path.starts_with(pattern.Prefix) &&
@@ -1106,7 +1128,9 @@ namespace guchho::resolver {
         if (!result.path_pair.is_external &&
             IsExternal(r->options.ExternalSettingsData.PostResolve, result.path_pair.primary.text, kind)) {
             if (debug_logs) {
-                debug_logs->AddNote("The path " + std::string(Q(result.path_pair.primary.text)) + " was marked as external by the user");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ThePathWasMarkedAsExternalByTheUser,
+                        std::string(Q(result.path_pair.primary.text))
+                ));
             }
             result.path_pair.is_external = true;
         } else {
@@ -1137,7 +1161,10 @@ if (!symlink.empty()) {
                         }
                         if (!symlink.empty()) {
                             if (debug_logs) {
-                                debug_logs->AddNote("Resolved symlink " + std::string(Q(path->text)) + " to " + std::string(Q(symlink)));
+                                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ResolvedSymlinkTo,
+                                        std::string(Q(path->text)),
+                                        std::string(Q(symlink))
+                                ));
                             }
                             path->text = symlink;
 
@@ -1179,8 +1206,9 @@ if (!symlink.empty()) {
                         }
                         if (!has_side_effects) {
                             if (debug_logs) {
-                                debug_logs->AddNote("Marking this file as having no side effects due to " +
-                                                    std::string(Q(pkg_json->source.key_path.text)));
+                                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_MarkingThisFileAsHavingNoSideEffectsDueTo,
+                                        std::string(Q(pkg_json->source.key_path.text))
+                                ));
                             }
                             result.primary_side_effects_data = pkg_json->side_effects_data;
                         }
@@ -1195,14 +1223,20 @@ if (!symlink.empty()) {
                     result.ts_always_strict  = tsconfig_json->TSAlwaysStrictOrStrict();
 
                     if (debug_logs) {
-                        debug_logs->AddNote("This import is under the effect of " + std::string(Q(tsconfig_json->abs_path)));
+                        debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ThisImportIsUnderTheEffectOf,
+                                std::string(Q(tsconfig_json->abs_path))
+                        ));
                         if (!result.tsconfig_jsx.JSXFactory.empty()) {
-                            debug_logs->AddNote("\"jsxFactory\" is " + std::string(Q(JoinWithDot(result.tsconfig_jsx.JSXFactory))) +
-                                                " due to " + std::string(Q(tsconfig_json->abs_path)));
+                            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_JsxFactoryIsDueTo,
+                                    std::string(Q(JoinWithDot(result.tsconfig_jsx.JSXFactory))),
+                                    std::string(Q(tsconfig_json->abs_path))
+                            ));
                         }
                         if (!result.tsconfig_jsx.JSXFragmentFactory.empty()) {
-                            debug_logs->AddNote("\"jsxFragment\" is " + std::string(Q(JoinWithDot(result.tsconfig_jsx.JSXFragmentFactory))) +
-                                                " due to " + std::string(Q(tsconfig_json->abs_path)));
+                            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_JsxFragmentIsDueTo,
+                                    std::string(Q(JoinWithDot(result.tsconfig_jsx.JSXFragmentFactory))),
+                                    std::string(Q(tsconfig_json->abs_path))
+                            ));
                         }
                     }
                 }
@@ -1212,11 +1246,15 @@ if (!symlink.empty()) {
         }
 
         if (debug_logs) {
-            debug_logs->AddNote("Primary path is " + std::string(Q(result.path_pair.primary.text)) +
-                                " in namespace " + std::string(Q(result.path_pair.primary.namespace_)));
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_PrimaryPathIsInNamespace,
+                    std::string(Q(result.path_pair.primary.text)),
+                    std::string(Q(result.path_pair.primary.namespace_))
+            ));
             if (result.path_pair.HasSecondary()) {
-                debug_logs->AddNote("Secondary path is " + std::string(Q(result.path_pair.secondary.text)) +
-                                    " in namespace " + std::string(Q(result.path_pair.secondary.namespace_)));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_SecondaryPathIsInNamespace,
+                        std::string(Q(result.path_pair.secondary.text)),
+                        std::string(Q(result.path_pair.secondary.namespace_))
+                ));
             }
         }
     }
@@ -1254,7 +1292,9 @@ if (!symlink.empty()) {
 
         if (!import_path.empty() && (import_path.starts_with("/") || r->fs->IsAbs(import_path))) {
             if (debug_logs) {
-                debug_logs->AddNote("The import " + std::string(Q(import_path)) + " is being treated as an absolute path");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheImportIsBeingTreatedAsAnAbsolutePath,
+                        std::string(Q(import_path))
+                ));
             }
 
             if (TSConfigJSON* tsconfig_json = TSConfigForDir(source_dir_info); tsconfig_json != nullptr && tsconfig_json->paths) {
@@ -1286,7 +1326,9 @@ if (!symlink.empty()) {
 
             if (IsExternal(r->options.ExternalSettingsData.PostResolve, abs_path, kind)) {
                 if (debug_logs) {
-                    debug_logs->AddNote("The path " + std::string(Q(abs_path)) + " was marked as external by the user");
+                    debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ThePathWasMarkedAsExternalByTheUser,
+                            std::string(Q(abs_path))
+                    ));
                 }
                 ResolveResult external;
                 external.path_pair.primary.text      = abs_path;
@@ -1473,11 +1515,17 @@ if (!symlink.empty()) {
 
         if (debug_logs) {
             if (cached == nullptr) {
-                debug_logs->AddNote("Failed to read directory " + std::string(Q(path)));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FailedToReadDirectory,
+                        std::string(Q(path))
+                ));
             } else {
                 int count = cached->entries.PeekEntryCount();
                 std::string entries_word = count == 1 ? "entry" : "entries";
-                debug_logs->AddNote("Read " + std::to_string(count) + " " + entries_word + " for directory " + std::string(Q(path)));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ReadForDirectory,
+                        std::to_string(count),
+                        entries_word,
+                        std::string(Q(path))
+                ));
             }
         }
 
@@ -1513,7 +1561,10 @@ if (!symlink.empty()) {
 
         filesystem::FsResult<std::string> contents = r->caches->fs_cache.ReadFile(*r->fs, file);
         if (debug_logs && !contents.Ok()) {
-            debug_logs->AddNote("Failed to read file " + std::string(Q(file)) + ": " + ErrorText(contents));
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FailedToReadFile,
+                    std::string(Q(file)),
+                    ErrorText(contents)
+            ));
         }
         if (!contents.Ok()) {
             if (IsENOENT(contents.canonical_error)) {
@@ -1522,7 +1573,7 @@ if (!symlink.empty()) {
             return TSConfigResult{.result = nullptr, .error = TSConfigError::kOther, .error_message = ErrorText(contents)};
         }
         if (debug_logs) {
-            debug_logs->AddNote("The file " + std::string(Q(file)) + " exists");
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheFileExists, std::string(Q(file))));
         }
 
         logger::Path key_path;
@@ -1668,7 +1719,7 @@ if (!symlink.empty()) {
                     PnpResult pnp_result = ResolveToUnqualified(extends, file_dir, pnp_data);
                     if (pnp_result.status == PnpStatus::kErrorGeneric) {
                         if (debug_logs) {
-                            debug_logs->AddNote("The Yarn PnP path resolution algorithm returned an error");
+                            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheYarnPnPPathResolutionAlgorithmReturnedAnError));
                         }
                         jump_to_pnp_error = true;
                     } else if (pnp_result.status == PnpStatus::kSuccess) {
@@ -1710,8 +1761,10 @@ if (!symlink.empty()) {
                     std::string esm_package_subpath;
                     bool esm_ok = EsmParsePackageName(extends_final, esm_package_name, esm_package_subpath);
                     if (debug_logs && esm_ok) {
-                        debug_logs->AddNote("Parsed tsconfig package name " + std::string(Q(esm_package_name)) +
-                                            " and package subpath " + std::string(Q(esm_package_subpath)));
+                        debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ParsedTsconfigPackageNameAndPackageSubpath,
+                                std::string(Q(esm_package_name)),
+                                std::string(Q(esm_package_subpath))
+                        ));
                     }
 
                     std::string current = file_dir;
@@ -1734,9 +1787,10 @@ if (!symlink.empty()) {
 
                                     if (package_json->exports_map != nullptr) {
                                         if (debug_logs) {
-                                            debug_logs->AddNote("Looking for " + std::string(Q(esm_package_subpath)) +
-                                                                " in \"exports\" map in " +
-                                                                std::string(Q(package_json->source.key_path.text)));
+                                            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_LookingForInExportsMapIn,
+                                                    std::string(Q(esm_package_subpath)),
+                                                    std::string(Q(package_json->source.key_path.text))
+                                            ));
                                         }
                                         DebugIndentGuard indent_guard(debug_logs);
 
@@ -1757,7 +1811,10 @@ if (!symlink.empty()) {
                                     }
                                 }
                             } else if (debug_logs && !pj_contents.Ok()) {
-                                debug_logs->AddNote("Failed to read file " + std::string(Q(pj_file)) + ": " + ErrorText(pj_contents));
+                                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FailedToReadFile,
+                                        std::string(Q(pj_file)),
+                                        ErrorText(pj_contents)
+                                ));
                             }
 
                             std::vector<std::string> files_to_check = {
@@ -1911,7 +1968,10 @@ if (!symlink.empty()) {
             entries = filesystem::MakeEmptyDirEntries(path);
         } else if (!read.Ok()) {
             if (debug_logs) {
-                debug_logs->AddNote("Failed to read directory " + std::string(Q(path)) + ": " + ErrorText(read));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FailedToReadDirectory2,
+                        std::string(Q(path)),
+                        ErrorText(read)
+                ));
             }
             if (!IsENOENT(read.canonical_error) && !IsENOTDIR(read.canonical_error)) {
                 logger::Path dir_path;
@@ -1929,7 +1989,10 @@ if (!symlink.empty()) {
         }
 
         if (debug_logs && !read.Ok() && !read.original_error.empty()) {
-            debug_logs->AddNote("Failed to read directory " + std::string(Q(path)) + ": " + read.original_error);
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FailedToReadDirectory2,
+                    std::string(Q(path)),
+                    read.original_error
+            ));
         }
 
         DirInfo* info = new DirInfo{};
@@ -1961,13 +2024,19 @@ if (!symlink.empty()) {
                     std::string symlink = entry->Symlink(*r->fs);
                     if (!symlink.empty()) {
                         if (debug_logs) {
-                            debug_logs->AddNote("Resolved symlink " + std::string(Q(path)) + " to " + std::string(Q(symlink)));
+                            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ResolvedSymlinkTo,
+                                    std::string(Q(path)),
+                                    std::string(Q(symlink))
+                            ));
                         }
                         info->abs_real_path = symlink;
                     } else if (!parent_info->abs_real_path.empty()) {
                         std::string joined_symlink = r->fs->Join({parent_info->abs_real_path, base});
                         if (debug_logs) {
-                            debug_logs->AddNote("Resolved symlink " + std::string(Q(path)) + " to " + std::string(Q(joined_symlink)));
+                            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ResolvedSymlinkTo,
+                                    std::string(Q(path)),
+                                    std::string(Q(joined_symlink))
+                            ));
                         }
                         info->abs_real_path = joined_symlink;
                     }
@@ -2068,14 +2137,19 @@ if (!symlink.empty()) {
     {
         DebugIndentGuard indent_guard(debug_logs);
         if (debug_logs) {
-            debug_logs->AddNote("Attempting to load " + std::string(Q(path)) + " as a file");
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_AttemptingToLoadAsAFile,
+                    std::string(Q(path))
+            ));
         }
 
         std::string dir_path = r->fs->Dir(path);
         filesystem::FsResult<filesystem::DirEntries> read = r->fs->ReadDirectory(dir_path);
         if (!read.Ok()) {
             if (debug_logs) {
-                debug_logs->AddNote("Failed to read directory " + std::string(Q(dir_path)) + ": " + ErrorText(read));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FailedToReadDirectory2,
+                        std::string(Q(dir_path)),
+                        ErrorText(read)
+                ));
             }
             if (!IsENOENT(read.canonical_error)) {
                 logger::Path dir_logger_path;
@@ -2093,12 +2167,12 @@ if (!symlink.empty()) {
 
         auto try_file = [&](const std::string& base) -> FileResult {
             if (debug_logs) {
-                debug_logs->AddNote("Checking for file " + std::string(Q(base)));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_CheckingForFile, std::string(Q(base))));
             }
             auto [entry, diff_case] = entries.Get(base);
             if (entry && entry->Kind(*r->fs) == filesystem::EntryKind::kFile) {
                 if (debug_logs) {
-                    debug_logs->AddNote("Found file " + std::string(Q(base)));
+                    debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FoundFile, std::string(Q(base))));
                 }
                 return FileResult{.absolute = r->fs->Join({dir_path, base}), .ok = true, .diff_case = diff_case};
             }
@@ -2136,7 +2210,7 @@ if (!symlink.empty()) {
         }
 
         if (debug_logs) {
-            debug_logs->AddNote("Failed to find file " + std::string(Q(base)));
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FailedToFindFile, std::string(Q(base))));
         }
         return {};
     }
@@ -2157,7 +2231,9 @@ if (!symlink.empty()) {
             auto [entry, diff_case] = dir_info->entries.Get(base);
             if (entry && entry->Kind(*r->fs) == filesystem::EntryKind::kFile) {
                 if (debug_logs) {
-                    debug_logs->AddNote("Found file " + std::string(Q(r->fs->Join({dir_info->abs_path, base}))));
+                    debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FoundFile,
+                            std::string(Q(r->fs->Join({dir_info->abs_path, base})))
+                    ));
                 }
                 LoadResult result;
                 result.pair.primary.text      = r->fs->Join({dir_info->abs_path, base});
@@ -2167,7 +2243,9 @@ if (!symlink.empty()) {
                 return result;
             }
             if (debug_logs) {
-                debug_logs->AddNote("Failed to find file " + std::string(Q(r->fs->Join({dir_info->abs_path, base}))));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FailedToFindFile,
+                        std::string(Q(r->fs->Join({dir_info->abs_path, base})))
+                ));
             }
         }
 
@@ -2276,7 +2354,9 @@ if (!symlink.empty()) {
 
         DebugIndentGuard indent_guard(debug_logs);
         if (debug_logs) {
-            debug_logs->AddNote("Attempting to load " + std::string(Q(path)) + " as a directory");
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_AttemptingToLoadAsADirectory,
+                    std::string(Q(path))
+            ));
         }
         DirInfo* dir_info = DirInfoCached(path);
         if (dir_info == nullptr) {
@@ -2341,7 +2421,10 @@ if (!symlink.empty()) {
         auto load_main_field = [&](const std::string& field_rel_path, const std::string& field) -> LoadResult {
             DebugIndentGuard indent_guard(debug_logs);
             if (debug_logs) {
-                debug_logs->AddNote("Found main field " + std::string(Q(field)) + " with path " + std::string(Q(field_rel_path)));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FoundMainFieldWithPath,
+                        std::string(Q(field)),
+                        std::string(Q(field_rel_path))
+                ));
             }
 
             std::string field_abs_path = r->fs->Join({path, field_rel_path});
@@ -2380,7 +2463,9 @@ if (!symlink.empty()) {
 
         DebugIndentGuard outer_indent_guard(debug_logs);
         if (debug_logs) {
-            debug_logs->AddNote("Searching for main fields in " + std::string(Q(dir_info->package_json->source.key_path.text)));
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_SearchingForMainFieldsIn,
+                    std::string(Q(dir_info->package_json->source.key_path.text))
+            ));
         }
 
         bool found_something = false;
@@ -2389,7 +2474,7 @@ if (!symlink.empty()) {
             auto value_it = main_field_values.find(key);
             if (value_it == main_field_values.end()) {
                 if (debug_logs) {
-                    debug_logs->AddNote("Did not find main field " + std::string(Q(key)));
+                    debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_DidNotFindMainField, std::string(Q(key))));
                 }
                 continue;
             }
@@ -2425,11 +2510,13 @@ if (!symlink.empty()) {
                 if (ok_main) {
                     if (kind != compiler::ImportKind::kRequire) {
                         if (debug_logs) {
-                            debug_logs->AddNote("Resolved to " + std::string(Q(loaded.pair.primary.text)) +
-                                                " using the \"module\" field in " +
-                                                std::string(Q(dir_info->package_json->source.key_path.text)));
-                            debug_logs->AddNote("The fallback path in case of \"require\" is " +
-                                                std::string(Q(absolute_main.primary.text)));
+                            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ResolvedToUsingTheModuleFieldIn,
+                                    std::string(Q(loaded.pair.primary.text)),
+                                    std::string(Q(dir_info->package_json->source.key_path.text))
+                            ));
+                            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheFallbackPathInCaseOfRequireIs,
+                                    std::string(Q(absolute_main.primary.text))
+                            ));
                         }
                         LoadResult result;
                         result.pair.primary   = loaded.pair.primary;
@@ -2439,8 +2526,9 @@ if (!symlink.empty()) {
                         return result;
                     } else {
                         if (debug_logs) {
-                            debug_logs->AddNote("Resolved to " + std::string(Q(absolute_main.primary.text)) +
-                                                " because of \"require\"");
+                            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ResolvedToBecauseOfRequire,
+                                    std::string(Q(absolute_main.primary.text))
+                            ));
                         }
                         LoadResult result;
                         result.pair      = absolute_main;
@@ -2452,9 +2540,11 @@ if (!symlink.empty()) {
             }
 
             if (debug_logs) {
-                debug_logs->AddNote("Resolved to " + std::string(Q(loaded.pair.primary.text)) +
-                                    " using the " + std::string(Q(key)) + " field in " +
-                                    std::string(Q(dir_info->package_json->source.key_path.text)));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ResolvedToUsingTheFieldIn,
+                        std::string(Q(loaded.pair.primary.text)),
+                        std::string(Q(key)),
+                        std::string(Q(dir_info->package_json->source.key_path.text))
+                ));
             }
             return loaded;
         }
@@ -2500,7 +2590,10 @@ if (!symlink.empty()) {
     {
         DebugIndentGuard indent_guard(debug_logs);
         if (debug_logs) {
-            debug_logs->AddNote("Matching " + std::string(Q(path)) + " against \"paths\" in " + std::string(Q(tsconfig->abs_path)));
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_MatchingAgainstPathsIn,
+                    std::string(Q(path)),
+                    std::string(Q(tsconfig->abs_path))
+            ));
         }
 
         std::string abs_base_url = tsconfig->base_url_for_paths;
@@ -2510,19 +2603,24 @@ if (!symlink.empty()) {
         }
 
         if (debug_logs) {
-            debug_logs->AddNote("Using " + std::string(Q(abs_base_url)) + " as \"baseUrl\"");
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_UsingAsBaseUrl,
+                    std::string(Q(abs_base_url))
+            ));
         }
 
         for (const auto& [key, original_paths] : tsconfig->paths->map) {
             if (key == path) {
                 if (debug_logs) {
-                    debug_logs->AddNote("Found an exact match for " + std::string(Q(key)) + " in \"paths\"");
+                    debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FoundAnExactMatchForInPaths,
+                            std::string(Q(key))
+                    ));
                 }
                 for (const TSConfigPath& original_path : original_paths) {
                     if (HasCaseInsensitiveSuffix(original_path.text, ".d.ts")) {
                         if (debug_logs) {
-                            debug_logs->AddNote("Ignoring substitution " + std::string(Q(original_path.text)) +
-                                                " because it ends in \".d.ts\"");
+                            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_IgnoringSubstitutionBecauseItEndsInDTs,
+                                    std::string(Q(original_path.text))
+                            ));
                         }
                         continue;
                     }
@@ -2571,8 +2669,9 @@ if (!symlink.empty()) {
 
         if (longest_match_prefix_length != -1) {
             if (debug_logs) {
-                debug_logs->AddNote("Found a fuzzy match for " +
-                                    std::string(Q(longest_match.prefix + "*" + longest_match.suffix)) + " in \"paths\"");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FoundAFuzzyMatchForInPaths,
+                        std::string(Q(longest_match.prefix + "*" + longest_match.suffix))
+                ));
             }
 
             for (const TSConfigPath& original_path : *longest_match.original_paths) {
@@ -2582,8 +2681,9 @@ if (!symlink.empty()) {
 
                 if (HasCaseInsensitiveSuffix(substituted, ".d.ts")) {
                     if (debug_logs) {
-                        debug_logs->AddNote("Ignoring substitution " + std::string(Q(substituted)) +
-                                            " because it ends in \".d.ts\"");
+                        debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_IgnoringSubstitutionBecauseItEndsInDTs,
+                                std::string(Q(substituted))
+                        ));
                     }
                     continue;
                 }
@@ -2617,7 +2717,7 @@ if (!symlink.empty()) {
     {
         if (r->options.OutputPlatform == config::Platform::kNode && IsBuiltInNodeModule(import_path)) {
             if (debug_logs) {
-                debug_logs->AddNote("Marking this path as implicitly external due to it being a node built-in");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_MarkingThisPathAsImplicitlyExternalDueToItBeingANodeBuiltIn));
             }
 
             FlushDebugLogs(FlushMode::kDueToSuccess);
@@ -2630,7 +2730,7 @@ if (!symlink.empty()) {
 
         if (r->options.OutputPlatform == config::Platform::kNode && import_path.starts_with("node:")) {
             if (debug_logs) {
-                debug_logs->AddNote("Marking this path as implicitly external due to the \"node:\" prefix");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_MarkingThisPathAsImplicitlyExternalDueToTheNodePrefix));
             }
 
             std::shared_ptr<SideEffectsData> side_effects;
@@ -2645,7 +2745,7 @@ if (!symlink.empty()) {
 
             if (is_import && compat::Has(r->options.UnsupportedJSFeatures, compat::JSFeature::kNodeColonPrefixImport)) {
                 if (debug_logs) {
-                    debug_logs->AddNote("Removing the \"node:\" prefix because the target environment doesn't support it with \"import\" statements");
+                    debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_RemovingTheNodePrefixBecauseTheTargetEnvironmentDoesnTSupportItWithImportStatements));
                 }
 
                 import_path = import_path.substr(5);
@@ -2653,7 +2753,7 @@ if (!symlink.empty()) {
 
             if (is_require && compat::Has(r->options.UnsupportedJSFeatures, compat::JSFeature::kNodeColonPrefixRequire)) {
                 if (debug_logs) {
-                    debug_logs->AddNote("Removing the \"node:\" prefix because the target environment doesn't support it with \"require\" calls");
+                    debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_RemovingTheNodePrefixBecauseTheTargetEnvironmentDoesnTSupportItWithRequireCalls));
                 }
 
                 import_path = import_path.substr(5);
@@ -2704,8 +2804,10 @@ if (!symlink.empty()) {
 
         DebugIndentGuard indent_guard(debug_logs);
         if (debug_logs) {
-            debug_logs->AddNote("Searching for " + std::string(Q(import_path)) + " in \"node_modules\" directories starting from " +
-                                std::string(Q(dir_info->abs_path)));
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_SearchingForInNodeModulesDirectoriesStartingFrom,
+                    std::string(Q(import_path)),
+                    std::string(Q(dir_info->abs_path))
+            ));
         }
 
         if (TSConfigJSON* tsconfig_json = TSConfigForDir(dir_info); tsconfig_json != nullptr) {
@@ -2745,7 +2847,7 @@ if (!symlink.empty()) {
 
         if (r->options.ExternalPackages && IsPackagePath(import_path)) {
             if (debug_logs) {
-                debug_logs->AddNote("Marking this path as external because it's a package path");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_MarkingThisPathAsExternalBecauseItSAPackagePath));
             }
             SideEffectsResult result;
             result.pair.primary.text = import_path;
@@ -2758,7 +2860,7 @@ if (!symlink.empty()) {
             PnpResult pnp_result = ResolveToUnqualified(import_path, dir_info->abs_path, r->pnp_manifest);
             if (PnpStatusIsError(pnp_result.status)) {
                 if (debug_logs) {
-                    debug_logs->AddNote("The Yarn PnP path resolution algorithm returned an error");
+                    debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheYarnPnPPathResolutionAlgorithmReturnedAnError));
                 }
 
                 switch (pnp_result.status) {
@@ -2825,7 +2927,9 @@ if (!symlink.empty()) {
                 }
 
                 if (debug_logs) {
-                    debug_logs->AddNote("Failed to resolve " + std::string(Q(abs_path)) + " to a file");
+                    debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FailedToResolveToAFile,
+                            std::string(Q(abs_path))
+                    ));
                 }
                 return {};
             }
@@ -2835,8 +2939,10 @@ if (!symlink.empty()) {
         std::string esm_package_subpath;
         bool esm_ok = EsmParsePackageName(import_path, esm_package_name, esm_package_subpath);
         if (debug_logs && esm_ok) {
-            debug_logs->AddNote("Parsed package name " + std::string(Q(esm_package_name)) +
-                                " and package subpath " + std::string(Q(esm_package_subpath)));
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ParsedPackageNameAndPackageSubpath,
+                    std::string(Q(esm_package_name)),
+                    std::string(Q(esm_package_subpath))
+            ));
         }
 
         if (dir_info_package_json != nullptr) {
@@ -2862,7 +2968,9 @@ if (!symlink.empty()) {
         auto try_to_resolve_package = [&](const std::string& abs_dir) -> TryPackageOutcome {
             std::string abs_path = r->fs->Join({abs_dir, import_path});
             if (debug_logs) {
-                debug_logs->AddNote("Checking for a package in the directory " + std::string(Q(abs_path)));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_CheckingForAPackageInTheDirectory,
+                        std::string(Q(abs_path))
+                ));
             }
 
             if (esm_ok) {

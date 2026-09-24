@@ -244,6 +244,41 @@ guchho_enable_sanitizers(guchho_cache)
 
 
 # ============================================================
+# Resolver library
+# ============================================================
+
+set(GUCHHO_RESOLVER_SOURCES
+    resolver/resolver.cpp
+    resolver/guchho_json.cpp
+    resolver/package_json.cpp
+    resolver/tsconfig_json.cpp
+    resolver/yarnpnp.cpp
+)
+
+add_library(guchho_resolver STATIC)
+
+target_sources(guchho_resolver
+    PRIVATE
+        ${GUCHHO_RESOLVER_SOURCES}
+)
+
+target_include_directories(guchho_resolver
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(guchho_resolver
+    PUBLIC
+        guchho_common
+        guchho_js
+        guchho_cache
+)
+
+guchho_set_warnings(guchho_resolver)
+guchho_enable_sanitizers(guchho_resolver)
+
+
+# ============================================================
 # Guchho executable
 # ============================================================
 

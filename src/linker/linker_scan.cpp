@@ -796,14 +796,14 @@ namespace guchho::linker {
         auto named_import_it = repr.ast.named_imports.find(tracker.import_ref);
         if (named_import_it == repr.ast.named_imports.end()) {
             status = ImportStatus::kNoMatch;
-            return {};
+            return {.import_ref = compiler::kInvalidRef};
         }
         auto& named_import = named_import_it->second;
 
         auto& record = repr.ast.import_records[named_import.import_record_index];
         if (!record.source_index.IsValid()) {
             status = ImportStatus::kExternal;
-            return {};
+            return {.import_ref = compiler::kInvalidRef};
         }
 
         uint32_t other_source_index = record.source_index.GetIndex();
@@ -853,7 +853,7 @@ namespace guchho::linker {
 
         if (config::IsTypeScript(file.input_file.loader) && named_import.is_exported) {
             status = ImportStatus::kProbablyTypeScriptType;
-            return {};
+            return {.import_ref = compiler::kInvalidRef};
         }
 
         status = ImportStatus::kNoMatch;

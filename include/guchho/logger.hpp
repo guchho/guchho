@@ -289,7 +289,7 @@ namespace guchho::logger {
         UseColor                            color{};
         LogLevel                            log_level{};
         PathStyle                           path_style{};
-        std::unordered_map<MsgID, LogLevel> overrides;
+        std::unordered_map<MsgID, LogLevel> overrides{};
     };
 
     // The body of a single log message: its display text, an optional source
@@ -318,8 +318,8 @@ namespace guchho::logger {
     // was here") rendered below the main message. `plugin_name` is set when
     // the message originates from a plugin and is shown as a prefix.
     struct Msg {
-        std::vector<MsgData> notes;
-        std::string plugin_name;
+        std::vector<MsgData> notes{};
+        std::string plugin_name{};
         MsgData data;
         MsgKind kind{};
         MsgID id{};
@@ -409,7 +409,7 @@ namespace guchho::logger {
     // import attributes.
     struct Path {
         std::string      text;
-        std::string      namespace_;
+        std::string      namespace_{};
         std::string      ignored_suffix{};
         ImportAttributes import_attributes{};
         PathFlags        flags{};
@@ -436,7 +436,7 @@ namespace guchho::logger {
     struct Source {
         PrettyPaths pretty_paths;
         std::string identifier_name{};
-        std::string contents;
+        std::string contents{};
         Path        key_path;
         uint32_t    index{};
 

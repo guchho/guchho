@@ -65,7 +65,6 @@ namespace guchho::linker {
                             did_merge_with_previous_local = true;
                             auto clone = std::make_shared<javascript::SLocal>(**before);
                             clone->decls.reserve((*before)->decls.size() + (*after)->decls.size());
-                            clone->decls.insert(clone->decls.end(), (*before)->decls.begin(), (*before)->decls.end());
                             clone->decls.insert(clone->decls.end(), (*after)->decls.begin(), (*after)->decls.end());
                             stmts[end - 1].data = std::move(clone);
                         }

@@ -621,7 +621,7 @@ using TSNamespaceMemberData = std::variant<
 // the original source position.
 struct Binding {
     B data;
-    logger::Loc loc;
+    logger::Loc loc{};
 };
 
 // Wraps an expression node with source location. Includes a custom copy
@@ -650,7 +650,7 @@ struct Expr {
 // Wraps a statement node with source location.
 struct Stmt {
     S data;
-    logger::Loc loc;
+    logger::Loc loc{};
 };
 
 // A block statement: { stmt1; stmt2; ... }.
@@ -708,18 +708,18 @@ struct Decorator {
 //   Property 1: kind=kField, key=EString("x"), value_or_nil=ENumber(1)
 //   Property 2: kind=kGetter, key=EString("y"), value_or_nil=EFunction(...)
 struct Property {
-    std::shared_ptr<ClassStaticBlock> class_static_block;
+    std::shared_ptr<ClassStaticBlock> class_static_block{};
 
-    Expr key;
+    Expr key{};
 
     Expr value_or_nil;
 
-    Expr initializer_or_nil;
+    Expr initializer_or_nil{};
 
-    std::vector<Decorator> decorators;
+    std::vector<Decorator> decorators{};
 
-    logger::Loc loc;
-    logger::Loc close_bracket_loc;
+    logger::Loc loc{};
+    logger::Loc close_bracket_loc{};
     PropertyKind kind{};
     PropertyFlags flags{};
 };
@@ -744,8 +744,8 @@ struct PropertyBinding {
 // used by TypeScript and Angular-style frameworks.
 struct Arg {
     Binding binding;
-    Expr default_or_nil;
-    std::vector<Decorator> decorators;
+    Expr default_or_nil{};
+    std::vector<Decorator> decorators{};
 
     bool is_typescript_ctor_field{};
 };
@@ -769,11 +769,11 @@ struct FnBody {
 //   fn.args       = [Arg(BIdentifier("x")), Arg(BIdentifier("rest"), is_rest=true)]
 //   fn.body       = FnBody(block=[SYield(ENumber(1))])
 struct Fn {
-    std::shared_ptr<compiler::LocRef> name;
-    std::vector<Arg> args;
+    std::shared_ptr<compiler::LocRef> name{};
+    std::vector<Arg> args{};
     FnBody body;
-    compiler::Ref arguments_ref;
-    logger::Loc open_paren_loc;
+    compiler::Ref arguments_ref{};
+    logger::Loc open_paren_loc{};
 
     bool is_async{};
     bool is_generator{};
@@ -856,10 +856,10 @@ struct BObject {
 // value undefined.
 struct TemplatePart {
     Expr value;
-    std::string tail_raw;
-    std::u16string tail_cooked;
+    std::string tail_raw{};
+    std::u16string tail_cooked{};
     bool tail_cooked_is_valid{true};
-    logger::Loc tail_loc;
+    logger::Loc tail_loc{};
 };
 
 // ============================================================================
@@ -897,9 +897,9 @@ struct Case {
 // into the foreign module.
 struct ClauseItem {
     std::string alias;
-    std::string original_name;
+    std::string original_name{};
 
-    logger::Loc alias_loc;
+    logger::Loc alias_loc{};
     compiler::LocRef name;
 };
 
@@ -907,7 +907,7 @@ struct ClauseItem {
 //   const x = 1, y = 2;  =>  two Decl entries, each with binding + value
 struct Decl {
     Binding binding;
-    Expr value_or_nil;
+    Expr value_or_nil{};
 };
 
 // A member of a TypeScript enum declaration:
@@ -1022,8 +1022,8 @@ struct ENew {
 //   pureFn(1, 2)  =>  ECall { target: pureFn, args: [1, 2], can_be_unwrapped_if_unused: true }
 struct ECall {
     Expr target;
-    std::vector<Expr> args;
-    logger::Loc close_paren_loc;
+    std::vector<Expr> args{};
+    logger::Loc close_paren_loc{};
     OptionalChain optional_chain{};
     CallKind kind{};
     bool is_multi_line{};
@@ -1042,7 +1042,7 @@ struct ECall {
 struct EDot {
     Expr target;
     std::string name;
-    logger::Loc name_loc;
+    logger::Loc name_loc{};
     OptionalChain optional_chain{};
 
     bool can_be_removed_if_unused{};
@@ -1074,7 +1074,7 @@ struct EIndex {
 // is_parenthesized: tracks whether the arrow was written inside parentheses.
 //   V8 uses parentheses as a fast-parse hint to skip lazy pre-parsing.
 struct EArrow {
-    std::vector<Arg> args;
+    std::vector<Arg> args{};
     FnBody body;
 
     bool is_async{};
@@ -1181,8 +1181,8 @@ struct EBigInt {
 // parentheses (affects parsing of comma expressions).
 struct EObject {
     std::vector<Property> properties;
-    logger::Loc comma_after_spread;
-    logger::Loc close_brace_loc;
+    logger::Loc comma_after_spread{};
+    logger::Loc close_brace_loc{};
     bool is_single_line{};
     bool is_parenthesized{};
 };
@@ -1198,7 +1198,7 @@ struct ESpread {
 // the printer to output backtick form even for plain strings.
 struct EString {
     std::u16string value;
-    logger::Loc legacy_octal_loc;
+    logger::Loc legacy_octal_loc{};
     bool prefer_template{};
     bool has_property_key_comment{};
     bool contains_unique_key{};
@@ -1212,12 +1212,12 @@ struct EString {
 // access (a.b``). If optimization changes the tag, the "this" binding
 // must be preserved using the comma-operator indirection.
 struct ETemplate {
-    Expr tag_or_nil;
-    std::string head_raw;
+    Expr tag_or_nil{};
+    std::string head_raw{};
     std::u16string head_cooked;
     std::vector<TemplatePart> parts;
-    logger::Loc head_loc;
-    logger::Loc legacy_octal_loc;
+    logger::Loc head_loc{};
+    logger::Loc legacy_octal_loc{};
 
     bool can_be_unwrapped_if_unused{};
 
@@ -1265,7 +1265,7 @@ struct EIf {
 // import_record_index identifies the dependency in the import record table.
 struct ERequireString {
     uint32_t import_record_index{};
-    logger::Loc close_paren_loc;
+    logger::Loc close_paren_loc{};
 };
 
 // A require.resolve() call with a string literal argument.
@@ -1313,7 +1313,7 @@ struct SDebugger {};
 
 struct SDirective {
     std::u16string value;
-    logger::Loc legacy_octal_loc;
+    logger::Loc legacy_octal_loc{};
 };
 
 struct SExportClause {
@@ -1330,7 +1330,7 @@ struct SExportFrom {
 
 struct SExportDefault {
     Stmt value;
-    compiler::LocRef default_name;
+    compiler::LocRef default_name{};
 };
 
 struct SExportStar {
@@ -1742,20 +1742,20 @@ struct SymbolCallUse {
 // A part with can_be_removed_if_unused=true can be safely dropped if no
 // other reachable part references its declared symbols.
 struct Part {
-    std::vector<Stmt> stmts;
-    std::vector<Scope*> scopes;
+    std::vector<Stmt> stmts{};
+    std::vector<Scope*> scopes{};
 
-    std::vector<uint32_t> import_record_indices;
+    std::vector<uint32_t> import_record_indices{};
 
-    std::vector<DeclaredSymbol> declared_symbols;
+    std::vector<DeclaredSymbol> declared_symbols{};
 
-    std::unordered_map<compiler::Ref, SymbolUse, RefHash> symbol_uses;
+    std::unordered_map<compiler::Ref, SymbolUse, RefHash> symbol_uses{};
 
-    std::unordered_map<compiler::Ref, SymbolCallUse, RefHash> symbol_call_uses;
+    std::unordered_map<compiler::Ref, SymbolCallUse, RefHash> symbol_call_uses{};
 
-    std::unordered_map<compiler::Ref, std::unordered_map<std::string, SymbolUse>, RefHash> import_symbol_property_uses;
+    std::unordered_map<compiler::Ref, std::unordered_map<std::string, SymbolUse>, RefHash> import_symbol_property_uses{};
 
-    std::vector<Dependency> dependencies;
+    std::vector<Dependency> dependencies{};
 
     bool can_be_removed_if_unused{};
 

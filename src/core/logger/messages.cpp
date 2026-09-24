@@ -553,7 +553,7 @@ namespace guchho::logger {
         case MsgCat::kTSConfig_OptionNotNested: return "Expected the {} option to be nested inside a \"compilerOptions\" object";
 
         // -------------------------------------------------------------------
-        // guchho.config.js (guchho_config_js.cpp)
+        // guchho.config.js (guchho_json.cpp)
         // -------------------------------------------------------------------
         case MsgCat::kGuchhoConfig_FailedToSpawn: return "Failed to spawn {} to evaluate {}; falling back to a JSON config file";
         case MsgCat::kGuchhoConfig_FailedToEvaluate: return "Failed to evaluate {}{}; falling back to a JSON config file";

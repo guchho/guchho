@@ -312,6 +312,53 @@ guchho_enable_sanitizers(guchho_graph)
 
 
 # ============================================================
+# Bundler library (scan + link phases)
+# ============================================================
+
+set(GUCHHO_BUNDLER_SOURCES
+    linker/linker.cpp
+    linker/linker_scan.cpp
+    linker/linker_chunk.cpp
+    linker/linker_js.cpp
+    linker/linker_mangle.cpp
+    linker/linker_css.cpp
+
+    bundler/bundler.cpp
+    bundler/bundler_scan.cpp
+    bundler/bundler_resolve.cpp
+    bundler/bundler_scanner.cpp
+    bundler/bundler_compile.cpp
+    bundler/bundler_html.cpp
+)
+
+add_library(guchho_bundler STATIC)
+
+target_sources(guchho_bundler
+    PRIVATE
+        ${GUCHHO_BUNDLER_SOURCES}
+)
+
+target_include_directories(guchho_bundler
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(guchho_bundler
+    PUBLIC
+        guchho_common
+        guchho_js
+        guchho_css
+        guchho_html
+        guchho_cache
+        guchho_resolver
+        guchho_graph
+)
+
+guchho_set_warnings(guchho_bundler)
+guchho_enable_sanitizers(guchho_bundler)
+
+
+# ============================================================
 # Guchho executable
 # ============================================================
 
@@ -322,6 +369,7 @@ add_executable(guchho
 target_link_libraries(guchho
     PRIVATE
         guchho_common
+        guchho_bundler
 )
 
 guchho_set_warnings(guchho)

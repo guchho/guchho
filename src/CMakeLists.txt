@@ -279,6 +279,39 @@ guchho_enable_sanitizers(guchho_resolver)
 
 
 # ============================================================
+# Graph library
+# ============================================================
+
+set(GUCHHO_GRAPH_SOURCES
+    graph/graph.cpp
+    graph/input.cpp
+)
+
+add_library(guchho_graph STATIC)
+
+target_sources(guchho_graph
+    PRIVATE
+        ${GUCHHO_GRAPH_SOURCES}
+)
+
+target_include_directories(guchho_graph
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(guchho_graph
+    PUBLIC
+        guchho_common
+        guchho_js
+        guchho_css
+        guchho_html
+)
+
+guchho_set_warnings(guchho_graph)
+guchho_enable_sanitizers(guchho_graph)
+
+
+# ============================================================
 # Guchho executable
 # ============================================================
 

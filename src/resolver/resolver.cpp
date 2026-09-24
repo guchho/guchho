@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 #include <system_error>
 #include <utility>
 

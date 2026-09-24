@@ -601,8 +601,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         // against, so bail out with an empty (non-matching) result.
         if (!resolve_dir_info->enclosing_browser_scope) {
             if (debug_logs) {
-                debug_logs->AddNote("No \"browser\" map found in directory " +
-                                    helpers::QuoteForJSON(resolve_dir_info->abs_path, false));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_NoBrowserMapFoundInDirectory,
+                        helpers::QuoteForJSON(resolve_dir_info->abs_path, false)
+                ));
             }
             return {};
         }
@@ -630,14 +631,17 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
 
         auto check_path = [&](const std::string& path_to_check, bool include_implicit_extensions) -> bool {
             if (debug_logs) {
-                debug_logs->AddNote("Checking for " + helpers::QuoteForJSON(path_to_check, false) +
-                                    " in the \"browser\" map in " +
-                                    helpers::QuoteForJSON(package_json->source.key_path.text, false));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_CheckingForInTheBrowserMapIn,
+                        helpers::QuoteForJSON(path_to_check, false),
+                        helpers::QuoteForJSON(package_json->source.key_path.text, false)
+                ));
             }
 
             // First, the exact literal form of the path is tested.
             if (debug_logs) {
-                debug_logs->AddNote("  Checking for " + helpers::QuoteForJSON(path_to_check, false));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_CheckingFor,
+                        helpers::QuoteForJSON(path_to_check, false)
+                ));
             }
             if (lookup_in_browser_map(path_to_check)) {
                 return true;
@@ -650,7 +654,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                 for (const std::string& ext : r->options.ExtensionOrder) {
                     std::string ext_path = path_to_check + ext;
                     if (debug_logs) {
-                        debug_logs->AddNote("  Checking for " + helpers::QuoteForJSON(ext_path, false));
+                        debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_CheckingFor,
+                                helpers::QuoteForJSON(ext_path, false)
+                        ));
                     }
                     if (lookup_in_browser_map(ext_path)) {
                         return true;
@@ -669,7 +675,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
             // Test the exact "index" path first, then with implicit
             // extensions, following the same two-pass shape as above.
             if (debug_logs) {
-                debug_logs->AddNote("  Checking for " + helpers::QuoteForJSON(index_path, false));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_CheckingFor,
+                        helpers::QuoteForJSON(index_path, false)
+                ));
             }
             if (lookup_in_browser_map(index_path)) {
                 return true;
@@ -680,7 +688,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                 for (const std::string& ext : r->options.ExtensionOrder) {
                     std::string ext_path = index_path + ext;
                     if (debug_logs) {
-                        debug_logs->AddNote("  Checking for " + helpers::QuoteForJSON(ext_path, false));
+                        debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_CheckingFor,
+                                helpers::QuoteForJSON(ext_path, false)
+                        ));
                     }
                     if (lookup_in_browser_map(ext_path)) {
                         return true;
@@ -761,14 +771,19 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         if (debug_logs) {
             if (result.ok) {
                 if (!result.remapped.has_value()) {
-                    debug_logs->AddNote("Found " + helpers::QuoteForJSON(input_path, false) +
-                                        " marked as disabled");
+                    debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FoundMarkedAsDisabled,
+                            helpers::QuoteForJSON(input_path, false)
+                    ));
                 } else {
-                    debug_logs->AddNote("Found " + helpers::QuoteForJSON(input_path, false) + " mapping to " +
-                                        helpers::QuoteForJSON(*result.remapped, false));
+                    debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FoundMappingTo,
+                            helpers::QuoteForJSON(input_path, false),
+                            helpers::QuoteForJSON(*result.remapped, false)
+                    ));
                 }
             } else {
-                debug_logs->AddNote("Failed to find " + helpers::QuoteForJSON(input_path, false));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FailedToFind,
+                        helpers::QuoteForJSON(input_path, false)
+                ));
             }
         }
 
@@ -792,8 +807,10 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         std::string package_json_path = r->fs->Join({input_path, "package.json"});
         filesystem::FsResult<std::string> read = r->caches->fs_cache.ReadFile(*r->fs, package_json_path);
         if (debug_logs && !read.original_error.empty()) {
-            debug_logs->AddNote("Failed to read file " + helpers::QuoteForJSON(package_json_path, false) + ": " +
-                                read.original_error);
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FailedToReadFile,
+                    helpers::QuoteForJSON(package_json_path, false),
+                    read.original_error
+            ));
         }
         if (!read.Ok()) {
             std::string read_error = read.original_error;
@@ -808,7 +825,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
             return nullptr;
         }
         if (debug_logs) {
-            debug_logs->AddNote("The file " + helpers::QuoteForJSON(package_json_path, false) + " exists");
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheFileExists,
+                    helpers::QuoteForJSON(package_json_path, false)
+            ));
         }
 
         logger::Path key_path{.text = package_json_path, .namespace_ = "file"};
@@ -1089,9 +1108,10 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         PackageJSON* package_json = dir_info_package_json->package_json;
 
         if (debug_logs) {
-            debug_logs->AddNote("Looking for " + helpers::QuoteForJSON(import_path, false) +
-                                " in \"imports\" map in " +
-                                helpers::QuoteForJSON(package_json->source.key_path.text, false));
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_LookingForInImportsMapIn,
+                    helpers::QuoteForJSON(import_path, false),
+                    helpers::QuoteForJSON(package_json->source.key_path.text, false)
+            ));
             DebugIndentGuard guard(debug_logs);
             return LoadPackageImportsInner(import_path, dir_info_package_json);
         }
@@ -1110,7 +1130,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         // the "imports" map itself, which is far more helpful.
         if (import_path == "#") {
             if (debug_logs) {
-                debug_logs->AddNote("The path " + helpers::QuoteForJSON(import_path, false) + " must not equal \"#\".");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ThePathMustNotEqual,
+                        helpers::QuoteForJSON(import_path, false)
+                ));
             }
             logger::LineColumnTracker tracker(&package_json->source);
             debug_meta->notes.push_back(tracker.MakeMsgData(
@@ -1198,9 +1220,10 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                                                   const std::string&         abs_path)
     {
         if (debug_logs) {
-            debug_logs->AddNote("Looking for " + helpers::QuoteForJSON(esm_package_subpath, false) +
-                                " in \"exports\" map in " +
-                                helpers::QuoteForJSON(package_json->source.key_path.text, false));
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_LookingForInExportsMapIn,
+                    helpers::QuoteForJSON(esm_package_subpath, false),
+                    helpers::QuoteForJSON(package_json->source.key_path.text, false)
+            ));
             DebugIndentGuard guard(debug_logs);
             return EsmResolveAlgorithmInner(finalize_kind, esm_package_name, esm_package_subpath, package_json,
                                             abs_pkg_path, abs_path);
@@ -1306,8 +1329,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
             case PjStatus::kExact:
             case PjStatus::kExactEndsWithStar: {
                 if (debug_logs) {
-                    debug_logs->AddNote("The resolved path " + helpers::QuoteForJSON(abs_resolved_path, false) +
-                                        " is exact");
+                    debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheResolvedPathIsExact,
+                            helpers::QuoteForJSON(abs_resolved_path, false)
+                    ));
                 }
 
                 // When the "exports" map was consulted only to support
@@ -1315,7 +1339,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                 // recursive directory probe entirely.
                 if (finalize_kind == FinalizeImportsExportsKind::kYarnPnPTSConfigExtends) {
                     if (debug_logs) {
-                        debug_logs->AddNote("Resolved to " + helpers::QuoteForJSON(abs_resolved_path, false));
+                        debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ResolvedTo,
+                                helpers::QuoteForJSON(abs_resolved_path, false)
+                        ));
                     }
                     return make_ok_result(abs_resolved_path, std::nullopt);
                 }
@@ -1367,12 +1393,10 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                                 (void)unused;
                                 if (missing_entry) {
                                     if (debug_logs) {
-                                        debug_logs->AddNote(
-                                                "The import " +
-                                                helpers::QuoteForJSON(internal::PosixPathJoin(
-                                                                              {esm_package_name, esm_package_subpath}),
-                                                                      false) +
-                                                " is missing the extension " + helpers::QuoteForJSON(ext, false));
+                                        debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheImportIsMissingTheExtension,
+                                                helpers::QuoteForJSON(internal::PosixPathJoin( {esm_package_name, esm_package_subpath}), false),
+                                                helpers::QuoteForJSON(ext, false)
+                                        ));
                                     }
                                     status         = PjStatus::kModuleNotFoundMissingExtension;
                                     missing_suffix = ext;
@@ -1382,8 +1406,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                         }
                     } else if (entry->Kind(*r->fs) == filesystem::EntryKind::kDir) {
                         if (debug_logs) {
-                            debug_logs->AddNote("The path " + helpers::QuoteForJSON(abs_resolved_path, false) +
-                                                " is a directory, which is not allowed");
+                            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ThePathIsADirectoryWhichIsNotAllowed,
+                                    helpers::QuoteForJSON(abs_resolved_path, false)
+                            ));
                         }
                         bool ends_with_star = status == PjStatus::kExactEndsWithStar;
                         status              = PjStatus::kUnsupportedDirectoryImport;
@@ -1401,13 +1426,10 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                                         status         = PjStatus::kUnsupportedDirectoryImportMissingIndex;
                                         missing_suffix = "/" + index_base;
                                         if (debug_logs) {
-                                            debug_logs->AddNote(
-                                                    "The import " +
-                                                    helpers::QuoteForJSON(internal::PosixPathJoin(
-                                                                                  {esm_package_name, esm_package_subpath}),
-                                                                          false) +
-                                                    " is missing the suffix " +
-                                                    helpers::QuoteForJSON(missing_suffix, false));
+                                            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheImportIsMissingTheSuffix,
+                                                    helpers::QuoteForJSON(internal::PosixPathJoin( {esm_package_name, esm_package_subpath}), false),
+                                                    helpers::QuoteForJSON(missing_suffix, false)
+                                            ));
                                         }
                                         break;
                                     }
@@ -1418,7 +1440,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                         status = PjStatus::kModuleNotFound;
                     } else {
                         if (debug_logs) {
-                            debug_logs->AddNote("Resolved to " + helpers::QuoteForJSON(abs_resolved_path, false));
+                            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ResolvedTo,
+                                    helpers::QuoteForJSON(abs_resolved_path, false)
+                            ));
                         }
                         return make_ok_result(abs_resolved_path, std::move(diff_case));
                     }
@@ -1432,8 +1456,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                 // like a normal import: as a file first, then as a directory
                 // with its own "main" or index entries.
                 if (debug_logs) {
-                    debug_logs->AddNote("The resolved path " + helpers::QuoteForJSON(abs_resolved_path, false) +
-                                        " is inexact");
+                    debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheResolvedPathIsInexact,
+                            helpers::QuoteForJSON(abs_resolved_path, false)
+                    ));
                 }
                 LoadResult result = LoadAsFileOrDirectory(abs_resolved_path);
                 if (result.ok) {
@@ -1699,8 +1724,10 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         std::string unescape_error;
         if (!internal::UnescapePath(resolved, resolved_path, unescape_error)) {
             if (debug_logs) {
-                debug_logs->AddNote("The path " + helpers::QuoteForJSON(resolved, false) +
-                                    " contains invalid URL escapes: " + unescape_error);
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ThePathContainsInvalidURLEscapes,
+                        helpers::QuoteForJSON(resolved, false),
+                        unescape_error
+                ));
             }
             return {std::move(resolved), PjStatus::kInvalidModuleSpecifier, std::move(debug)};
         }
@@ -1716,8 +1743,10 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         }
         if (!found.empty()) {
             if (debug_logs) {
-                debug_logs->AddNote("The path " + helpers::QuoteForJSON(resolved, false) +
-                                    " is not allowed to contain " + helpers::QuoteForJSON(found, false));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ThePathIsNotAllowedToContain,
+                        helpers::QuoteForJSON(resolved, false),
+                        helpers::QuoteForJSON(found, false)
+                ));
             }
             return {std::move(resolved), PjStatus::kInvalidModuleSpecifier, std::move(debug)};
         }
@@ -1726,8 +1755,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         // import cannot address.
         if (resolved_path.ends_with('/') || resolved_path.ends_with('\\')) {
             if (debug_logs) {
-                debug_logs->AddNote("The path " + helpers::QuoteForJSON(resolved, false) +
-                                    " is not allowed to end with a slash");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ThePathIsNotAllowedToEndWithASlash,
+                        helpers::QuoteForJSON(resolved, false)
+                ));
             }
             return {std::move(resolved), PjStatus::kUnsupportedDirectoryImport, std::move(debug)};
         }
@@ -1759,8 +1789,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         }
 
         if (debug_logs) {
-            debug_logs->AddNote("The package import " + helpers::QuoteForJSON(specifier, false) +
-                                " is not defined");
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ThePackageImportIsNotDefined,
+                    helpers::QuoteForJSON(specifier, false)
+            ));
         }
         return {specifier, PjStatus::kPackageImportNotDefined,
                 PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = imports.first_token}};
@@ -1777,7 +1808,7 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
     {
         if (exports.kind == PjKind::kInvalid) {
             if (debug_logs) {
-                debug_logs->AddNote("Invalid package configuration");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_InvalidPackageConfiguration));
             }
             return {"", PjStatus::kInvalidPackageConfiguration,
                     PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = exports.first_token}};
@@ -1799,7 +1830,7 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
             } else if (exports.kind == PjKind::kObject) {
                 if (const PjEntry* dot = PjEntryValueForKey(exports, ".")) {
                     if (debug_logs) {
-                        debug_logs->AddNote("Using the entry for \".\"");
+                        debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_UsingTheEntryFor));
                     }
                     main_export = *dot;
                 }
@@ -1823,7 +1854,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         }
 
         if (debug_logs) {
-            debug_logs->AddNote("The path " + helpers::QuoteForJSON(subpath, false) + " is not exported");
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ThePathIsNotExported,
+                    helpers::QuoteForJSON(subpath, false)
+            ));
         }
         return {"", PjStatus::kPackagePathNotExported, std::move(debug_to_return)};
     }
@@ -1845,7 +1878,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                                                            const ConditionsMap& conditions)
     {
         if (debug_logs) {
-            debug_logs->AddNote("Checking object path map for " + helpers::QuoteForJSON(match_key, false));
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_CheckingObjectPathMapFor,
+                    helpers::QuoteForJSON(match_key, false)
+            ));
         }
 
         // An exact key match (no "/" suffix, no "*") resolves the target
@@ -1853,7 +1888,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         if (!match_key.ends_with('/') && match_key.find('*') == std::string::npos) {
             if (const PjEntry* target = PjEntryValueForKey(match_obj, match_key)) {
                 if (debug_logs) {
-                    debug_logs->AddNote("Found exact match for " + helpers::QuoteForJSON(match_key, false));
+                    debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FoundExactMatchFor,
+                            helpers::QuoteForJSON(match_key, false)
+                    ));
                 }
                 return EsmPackageTargetResolve(package_url, *target, "", /*pattern=*/false, /*internal=*/is_imports,
                                                conditions);
@@ -1885,9 +1922,10 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                                                                   match_key.size() - pattern_base.size() -
                                                                           pattern_trailer.size());
                         if (debug_logs) {
-                            debug_logs->AddNote("The key " + helpers::QuoteForJSON(expansion.key, false) +
-                                                " matched with " + helpers::QuoteForJSON(subpath, false) +
-                                                " left over");
+                            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheKeyMatchedWithLeftOver,
+                                    helpers::QuoteForJSON(expansion.key, false),
+                                    helpers::QuoteForJSON(subpath, false)
+                            ));
                         }
                         return EsmPackageTargetResolve(package_url, target, subpath, /*pattern=*/true, is_imports,
                                                        conditions);
@@ -1901,9 +1939,10 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                     const PjEntry& target  = expansion.value;
                     std::string    subpath = match_key.substr(expansion.key.size());
                     if (debug_logs) {
-                        debug_logs->AddNote("The key " + helpers::QuoteForJSON(expansion.key, false) +
-                                            " matched with " + helpers::QuoteForJSON(subpath, false) +
-                                            " left over");
+                        debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheKeyMatchedWithLeftOver,
+                                helpers::QuoteForJSON(expansion.key, false),
+                                helpers::QuoteForJSON(subpath, false)
+                        ));
                     }
                     EsmStep step = EsmPackageTargetResolve(package_url, target, subpath, /*pattern=*/false,
                                                            is_imports, conditions);
@@ -1917,12 +1956,16 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
             }
 
             if (debug_logs) {
-                debug_logs->AddNote("The key " + helpers::QuoteForJSON(expansion.key, false) + " did not match");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheKeyDidNotMatch,
+                        helpers::QuoteForJSON(expansion.key, false)
+                ));
             }
         }
 
         if (debug_logs) {
-            debug_logs->AddNote("No keys matched " + helpers::QuoteForJSON(match_key, false));
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_NoKeysMatched,
+                    helpers::QuoteForJSON(match_key, false)
+            ));
         }
         return {"", PjStatus::kNull, PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = match_obj.first_token}};
     }
@@ -1948,8 +1991,10 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         switch (target.kind) {
         case PjKind::kString: {
             if (debug_logs) {
-                debug_logs->AddNote("Checking path " + helpers::QuoteForJSON(subpath, false) +
-                                    " against target " + helpers::QuoteForJSON(target.str_data, false));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_CheckingPathAgainstTarget,
+                        helpers::QuoteForJSON(subpath, false),
+                        helpers::QuoteForJSON(target.str_data, false)
+                ));
                 DebugIndentGuard guard(debug_logs);
                 return EsmPackageTargetResolveStringCase(package_url, target, subpath, pattern, is_internal);
             }
@@ -1972,7 +2017,7 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                     }
                     joined += keys[i];
                 }
-                debug_logs->AddNote("Checking condition map for one of [" + joined + "]");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_CheckingConditionMapForOneOf, joined));
             }
 
             // The indent guard lives for the whole object walk below so the
@@ -1990,7 +2035,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
             for (const PjMapEntry& p : target.map_data) {
                 if (p.key == "default" || ConditionActive(conditions, p.key)) {
                     if (debug_logs) {
-                        debug_logs->AddNote("The key " + helpers::QuoteForJSON(p.key, false) + " applies");
+                        debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheKeyApplies,
+                                helpers::QuoteForJSON(p.key, false)
+                        ));
                     }
                     EsmStep step = EsmPackageTargetResolve(package_url, p.value, subpath, pattern, is_internal,
                                                            conditions);
@@ -2002,12 +2049,14 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                     return step;
                 }
                 if (debug_logs) {
-                    debug_logs->AddNote("The key " + helpers::QuoteForJSON(p.key, false) + " does not apply");
+                    debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheKeyDoesNotApply,
+                            helpers::QuoteForJSON(p.key, false)
+                    ));
                 }
             }
 
             if (debug_logs) {
-                debug_logs->AddNote("No keys in the map were applicable");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_NoKeysInTheMapWereApplicable));
             }
 
             // Guchho adds a specific "no conditions matched" error when the
@@ -2042,8 +2091,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
             // An empty array blocks the target outright, exactly like null.
             if (target.arr_data.empty()) {
                 if (debug_logs) {
-                    debug_logs->AddNote("The path " + helpers::QuoteForJSON(subpath, false) +
-                                        " is set to an empty array");
+                    debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ThePathIsSetToAnEmptyArray,
+                            helpers::QuoteForJSON(subpath, false)
+                    ));
                 }
                 return {"", PjStatus::kNull, PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = target.first_token}};
             }
@@ -2051,7 +2101,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
             // The indent guard covers the whole fallback walk below.
             DebugIndentGuard indent_guard(debug_logs);
             if (debug_logs) {
-                debug_logs->AddNote("Checking for " + helpers::QuoteForJSON(subpath, false) + " in an array");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_CheckingForInAnArray,
+                        helpers::QuoteForJSON(subpath, false)
+                ));
             }
 
             PjStatus last_exception = PjStatus::kUndefined;
@@ -2083,7 +2135,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         // nothing and is flagged so the error can explain the author's intent.
         case PjKind::kNull:
             if (debug_logs) {
-                debug_logs->AddNote("The path " + helpers::QuoteForJSON(subpath, false) + " is set to null");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ThePathIsSetToNull,
+                        helpers::QuoteForJSON(subpath, false)
+                ));
             }
             return {"", PjStatus::kNull,
                     PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = target.first_token, .is_because_of_null_literal = true}};
@@ -2095,7 +2149,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         // An invalid entry or any unrecognized kind lands here: the target is
         // unusable and the map entry points to it for the diagnostic.
         if (debug_logs) {
-            debug_logs->AddNote("Invalid package target for path " + helpers::QuoteForJSON(subpath, false));
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_InvalidPackageTargetForPath,
+                    helpers::QuoteForJSON(subpath, false)
+            ));
         }
         return {"", PjStatus::kInvalidPackageTarget, PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = target.first_token}};
     }
@@ -2114,8 +2170,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         // invalid module specifier.
         if (!pattern && !subpath.empty() && !target.str_data.ends_with('/')) {
             if (debug_logs) {
-                debug_logs->AddNote("The target " + helpers::QuoteForJSON(target.str_data, false) +
-                                    " is invalid because it doesn't end in \"/\"");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheTargetIsInvalidBecauseItDoesnTEndIn,
+                        helpers::QuoteForJSON(target.str_data, false)
+                ));
             }
             PjDebug out_debug;
             out_debug.token          = target.first_token;
@@ -2134,23 +2191,28 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                     std::string result = target.str_data;
                     ReplaceAll(result, "*", subpath);
                     if (debug_logs) {
-                        debug_logs->AddNote("Substituted " + helpers::QuoteForJSON(subpath, false) + " for \"*\" in " +
-                                            helpers::QuoteForJSON(target.str_data, false) + " to get " +
-                                            helpers::QuoteForJSON(result, false));
+                        debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_SubstitutedForInToGet,
+                                helpers::QuoteForJSON(subpath, false),
+                                helpers::QuoteForJSON(target.str_data, false),
+                                helpers::QuoteForJSON(result, false)
+                        ));
                     }
                     return {result, PjStatus::kPackageResolve, PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = target.first_token}};
                 }
                 std::string result = target.str_data + subpath;
                 if (debug_logs) {
-                    debug_logs->AddNote("Joined " + helpers::QuoteForJSON(target.str_data, false) + " to " +
-                                        helpers::QuoteForJSON(subpath, false) + " to get " +
-                                        helpers::QuoteForJSON(result, false));
+                    debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_JoinedToToGet,
+                            helpers::QuoteForJSON(target.str_data, false),
+                            helpers::QuoteForJSON(subpath, false),
+                            helpers::QuoteForJSON(result, false)
+                    ));
                 }
                 return {result, PjStatus::kPackageResolve, PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = target.first_token}};
             }
             if (debug_logs) {
-                debug_logs->AddNote("The target " + helpers::QuoteForJSON(target.str_data, false) +
-                                    " is invalid because it doesn't start with \"./\"");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheTargetIsInvalidBecauseItDoesnTStartWith,
+                        helpers::QuoteForJSON(target.str_data, false)
+                ));
             }
             PjDebug out_debug;
             out_debug.token          = target.first_token;
@@ -2164,9 +2226,10 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         std::string_view invalid_segment = FindInvalidSegment(target.str_data);
         if (!invalid_segment.empty()) {
             if (debug_logs) {
-                debug_logs->AddNote("The target " + helpers::QuoteForJSON(target.str_data, false) +
-                                    " is invalid because it contains invalid segment " +
-                                    helpers::QuoteForJSON(invalid_segment, false));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheTargetIsInvalidBecauseItContainsInvalidSegment,
+                        helpers::QuoteForJSON(target.str_data, false),
+                        helpers::QuoteForJSON(invalid_segment, false)
+                ));
             }
             PjDebug out_debug;
             out_debug.token          = target.first_token;
@@ -2184,9 +2247,10 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         invalid_segment = FindInvalidSegment(subpath);
         if (!invalid_segment.empty()) {
             if (debug_logs) {
-                debug_logs->AddNote("The path " + helpers::QuoteForJSON(subpath, false) +
-                                    " is invalid because it contains invalid segment " +
-                                    helpers::QuoteForJSON(invalid_segment, false));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ThePathIsInvalidBecauseItContainsInvalidSegment,
+                        helpers::QuoteForJSON(subpath, false),
+                        helpers::QuoteForJSON(invalid_segment, false)
+                ));
             }
             PjDebug out_debug;
             out_debug.token          = target.first_token;
@@ -2202,9 +2266,11 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
             std::string result = resolved_target;
             ReplaceAll(result, "*", subpath);
             if (debug_logs) {
-                debug_logs->AddNote("Substituted " + helpers::QuoteForJSON(subpath, false) + " for \"*\" in " +
-                                    helpers::QuoteForJSON("." + resolved_target, false) + " to get " +
-                                    helpers::QuoteForJSON("." + result, false));
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_SubstitutedForInToGet,
+                        helpers::QuoteForJSON(subpath, false),
+                        helpers::QuoteForJSON("." + resolved_target, false),
+                        helpers::QuoteForJSON("." + result, false)
+                ));
             }
             PjStatus out_status = PjStatus::kExact;
             if (resolved_target.ends_with('*') &&
@@ -2217,9 +2283,11 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         // Ordinary suffix join: append the subpath to the resolved target.
         std::string result = internal::PosixPathJoin({resolved_target, subpath});
         if (debug_logs) {
-            debug_logs->AddNote("Joined " + helpers::QuoteForJSON(subpath, false) + " to " +
-                                helpers::QuoteForJSON("." + resolved_target, false) + " to get " +
-                                helpers::QuoteForJSON("." + result, false));
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_JoinedToToGet,
+                    helpers::QuoteForJSON(subpath, false),
+                    helpers::QuoteForJSON("." + resolved_target, false),
+                    helpers::QuoteForJSON("." + result, false)
+            ));
         }
         return {result, PjStatus::kExact, PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = target.first_token}};
     }

@@ -177,13 +177,13 @@ namespace guchho::compiler {
     // the resolved path, source range, import assertions/with clause, and the
     // flags and phase that shape how the import is emitted.
     struct ImportRecord {
-        std::shared_ptr<ImportAssertOrWith> assert_or_with;
+        std::shared_ptr<ImportAssertOrWith> assert_or_with{};
         GlobPattern* glob_pattern{};
         logger::Path path;
-        logger::Range range;
-        logger::Loc error_handler_loc;
-        Index32 source_index;
-        Index32 copy_source_index;
+        logger::Range range{};
+        logger::Loc error_handler_loc{};
+        Index32 source_index{};
+        Index32 copy_source_index{};
         ImportRecordFlags flags{};
         ImportPhase phase{};
         ImportKind kind{};
@@ -346,7 +346,7 @@ namespace guchho::compiler {
     // Pairs a byte-offset source location with a symbol reference, allowing
     // Guchho to map from a token position in the source back to its symbol.
     struct LocRef {
-        logger::Loc loc;
+        logger::Loc loc{};
         Ref ref;
     };
 

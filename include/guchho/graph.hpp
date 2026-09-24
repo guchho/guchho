@@ -93,7 +93,7 @@ namespace guchho::graph {
         //         star-export from c.js, which declares "x"
         // Output: the record for "x" lists two hops (via a.js and via b.js)
         //         that converge on the same declaration in c.js
-        std::vector<javascript::Dependency> re_exports;
+        std::vector<javascript::Dependency> re_exports{};
 
         // Position of the imported name in the source, used by diagnostics
         // that should underline the identifier itself. A zero value means no
@@ -134,7 +134,7 @@ namespace guchho::graph {
         // Output: after import matching, entry.js exposes exactly "x" and "y",
         //         neither ambiguous, because both routes for "x" end at the
         //         same declaration in c.js
-        std::vector<ImportData> potentially_ambiguous_export_star_refs;
+        std::vector<ImportData> potentially_ambiguous_export_star_refs{};
 
         // Symbol backing this export.
         compiler::Ref ref;
@@ -373,14 +373,14 @@ namespace guchho::graph {
     // Content-specific payload for a JavaScript module: its parsed AST plus
     // the compile-phase metadata described above.
     struct JSRepr {
-        JSReprMeta meta;
+        JSReprMeta meta{};
         javascript::AST ast;
 
         // When set, identifies the CSS file this JavaScript stub stands in
         // for. Guchho synthesizes a stub whenever a JavaScript file imports a
         // CSS file, giving the module graph a JavaScript handle on the
         // stylesheet.
-        compiler::Index32 css_source_index;
+        compiler::Index32 css_source_index{};
 
         // Read-only access to the import records parsed from this module.
         const std::vector<compiler::ImportRecord>& ImportRecords() const {
@@ -411,7 +411,7 @@ namespace guchho::graph {
         // When set, identifies the JavaScript stub paired with this CSS file.
         // The stub is generated when JavaScript imports the stylesheet, giving
         // the module system a JavaScript-side handle on the CSS content.
-        compiler::Index32 js_source_index;
+        compiler::Index32 js_source_index{};
 
         // Read-only access to the stylesheet's import records (URLs found in
         // "@import" and "url()" references).

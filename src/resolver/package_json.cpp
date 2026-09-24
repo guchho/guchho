@@ -1750,7 +1750,7 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         // every "#" import.
         if (imports.kind != PjKind::kObject) {
             return {"", PjStatus::kInvalidPackageConfiguration,
-                    PjDebug{.invalid_because = "", .token = imports.first_token}};
+                    PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = imports.first_token}};
         }
 
         EsmStep step = EsmPackageImportsExportsResolve(specifier, imports, "/", /*is_imports=*/true, conditions);
@@ -1763,7 +1763,7 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                                 " is not defined");
         }
         return {specifier, PjStatus::kPackageImportNotDefined,
-                PjDebug{.invalid_because = "", .token = imports.first_token}};
+                PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = imports.first_token}};
     }
 
     // Resolves a subpath through the package's "exports" map. A malformed map
@@ -1780,10 +1780,10 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                 debug_logs->AddNote("Invalid package configuration");
             }
             return {"", PjStatus::kInvalidPackageConfiguration,
-                    PjDebug{.invalid_because = "", .token = exports.first_token}};
+                    PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = exports.first_token}};
         }
 
-        PjDebug debug_to_return{.invalid_because = "", .token = exports.first_token};
+        PjDebug debug_to_return{.invalid_because = "", .unmatched_conditions = {}, .token = exports.first_token};
         if (subpath == ".") {
             // Resolving the package root: a plain string/array is used
             // directly as the entry target, an object is examined for its "."
@@ -1924,7 +1924,7 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         if (debug_logs) {
             debug_logs->AddNote("No keys matched " + helpers::QuoteForJSON(match_key, false));
         }
-        return {"", PjStatus::kNull, PjDebug{.invalid_because = "", .token = match_obj.first_token}};
+        return {"", PjStatus::kNull, PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = match_obj.first_token}};
     }
 
     // Resolves one target value (the right-hand side of an "imports"/"exports"
@@ -2035,7 +2035,7 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                 return {"", PjStatus::kUndefinedNoConditionsMatch, std::move(out_debug)};
             }
 
-            return {"", PjStatus::kUndefined, PjDebug{.invalid_because = "", .token = target.first_token}};
+            return {"", PjStatus::kUndefined, PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = target.first_token}};
         }
 
         case PjKind::kArray: {
@@ -2045,7 +2045,7 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                     debug_logs->AddNote("The path " + helpers::QuoteForJSON(subpath, false) +
                                         " is set to an empty array");
                 }
-                return {"", PjStatus::kNull, PjDebug{.invalid_because = "", .token = target.first_token}};
+                return {"", PjStatus::kNull, PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = target.first_token}};
             }
 
             // The indent guard covers the whole fallback walk below.
@@ -2086,7 +2086,7 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                 debug_logs->AddNote("The path " + helpers::QuoteForJSON(subpath, false) + " is set to null");
             }
             return {"", PjStatus::kNull,
-                    PjDebug{.invalid_because = "", .token = target.first_token, .is_because_of_null_literal = true}};
+                    PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = target.first_token, .is_because_of_null_literal = true}};
 
         case PjKind::kInvalid:
             break;
@@ -2097,7 +2097,7 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         if (debug_logs) {
             debug_logs->AddNote("Invalid package target for path " + helpers::QuoteForJSON(subpath, false));
         }
-        return {"", PjStatus::kInvalidPackageTarget, PjDebug{.invalid_because = "", .token = target.first_token}};
+        return {"", PjStatus::kInvalidPackageTarget, PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = target.first_token}};
     }
 
     // The string case of "EsmPackageTargetResolve", split into its own
@@ -2138,7 +2138,7 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                                             helpers::QuoteForJSON(target.str_data, false) + " to get " +
                                             helpers::QuoteForJSON(result, false));
                     }
-                    return {result, PjStatus::kPackageResolve, PjDebug{.invalid_because = "", .token = target.first_token}};
+                    return {result, PjStatus::kPackageResolve, PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = target.first_token}};
                 }
                 std::string result = target.str_data + subpath;
                 if (debug_logs) {
@@ -2146,7 +2146,7 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                                         helpers::QuoteForJSON(subpath, false) + " to get " +
                                         helpers::QuoteForJSON(result, false));
                 }
-                return {result, PjStatus::kPackageResolve, PjDebug{.invalid_because = "", .token = target.first_token}};
+                return {result, PjStatus::kPackageResolve, PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = target.first_token}};
             }
             if (debug_logs) {
                 debug_logs->AddNote("The target " + helpers::QuoteForJSON(target.str_data, false) +
@@ -2211,7 +2211,7 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                 resolved_target.find_last_of('*') == resolved_target.size() - 1) {
                 out_status = PjStatus::kExactEndsWithStar;
             }
-            return {result, out_status, PjDebug{.invalid_because = "", .token = target.first_token}};
+            return {result, out_status, PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = target.first_token}};
         }
 
         // Ordinary suffix join: append the subpath to the resolved target.
@@ -2221,7 +2221,7 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                                 helpers::QuoteForJSON("." + resolved_target, false) + " to get " +
                                 helpers::QuoteForJSON("." + result, false));
         }
-        return {result, PjStatus::kExact, PjDebug{.invalid_because = "", .token = target.first_token}};
+        return {result, PjStatus::kExact, PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = target.first_token}};
     }
 
     // Asks the "exports" map the opposite of the normal question: given a

@@ -2,6 +2,9 @@
 
 add_library(guchho_resolver_test_objects OBJECT
     guchho_config_test.cpp
+    tsconfig_json_test.cpp
+    package_json_test.cpp
+    yarnpnp_test.cpp
 )
 
 target_include_directories(

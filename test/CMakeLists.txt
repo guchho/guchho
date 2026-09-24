@@ -18,6 +18,7 @@ add_subdirectory(css)
 add_subdirectory(html)
 add_subdirectory(cache)
 add_subdirectory(resolver)
+add_subdirectory(graph)
 
 
 
@@ -200,4 +201,29 @@ guchho_set_warnings(guchho_resolver_tests)
 guchho_enable_sanitizers(guchho_resolver_tests)
 
 guchho_discover_tests(guchho_resolver_tests PREFIX "resolver." WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/resolver")
+
+
+# graph test executable
+
+add_executable(guchho_graph_tests
+    test_assertions.cpp
+    $<TARGET_OBJECTS:guchho_graph_test_objects>
+)
+
+target_link_libraries(
+    guchho_graph_tests
+    PRIVATE
+        guchho_graph
+)
+
+target_include_directories(
+    guchho_graph_tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+guchho_set_warnings(guchho_graph_tests)
+guchho_enable_sanitizers(guchho_graph_tests)
+
+guchho_discover_tests(guchho_graph_tests PREFIX "graph." WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/graph")
 

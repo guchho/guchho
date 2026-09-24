@@ -195,10 +195,13 @@ namespace guchho::resolver {
         // The caller has already located and parsed the manifest governing the
         // importer, so resolution can begin immediately with the specifier.
         if (debug_logs) {
-            debug_logs->AddNote("Using Yarn PnP manifest from " +
-                                helpers::QuoteForJSON(manifest->abs_path, false));
-            debug_logs->AddNote("  Resolving " + helpers::QuoteForJSON(specifier, false) + " in " +
-                                helpers::QuoteForJSON(parent_url, false));
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_UsingYarnPnPManifestFrom,
+                    helpers::QuoteForJSON(manifest->abs_path, false)
+            ));
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ResolvingIn,
+                    helpers::QuoteForJSON(specifier, false),
+                    helpers::QuoteForJSON(parent_url, false)
+            ));
         }
 
         // First break the specifier down into the package ident and the
@@ -208,14 +211,17 @@ namespace guchho::resolver {
         std::string module_path;
         if (!ParseBareIdentifier(specifier, ident, module_path)) {
             if (debug_logs) {
-                debug_logs->AddNote("  Failed to parse specifier " + helpers::QuoteForJSON(specifier, false) +
-                                    " into a bare identifier");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FailedToParseSpecifierIntoABareIdentifier,
+                        helpers::QuoteForJSON(specifier, false)
+                ));
             }
             return {.status = PnpStatus::kErrorGeneric};
         }
         if (debug_logs) {
-            debug_logs->AddNote("  Parsed bare identifier " + helpers::QuoteForJSON(ident, false) +
-                                " and module path " + helpers::QuoteForJSON(module_path, false));
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ParsedBareIdentifierAndModulePath,
+                    helpers::QuoteForJSON(ident, false),
+                    helpers::QuoteForJSON(module_path, false)
+            ));
         }
 
         // Determine which installed package the importing file lives in by
@@ -229,8 +235,10 @@ namespace guchho::resolver {
         }
         const PnpIdentAndReference& parent_locator = parent_locator_result.locator;
         if (debug_logs) {
-            debug_logs->AddNote("  Found parent locator: [" + QuoteOrNullIfEmpty(parent_locator.ident) + ", " +
-                                QuoteOrNullIfEmpty(parent_locator.reference) + "]");
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FoundParentLocator,
+                    QuoteOrNullIfEmpty(parent_locator.ident),
+                    QuoteOrNullIfEmpty(parent_locator.reference)
+            ));
         }
 
         // Read the parent package's full metadata, including its dependency
@@ -242,8 +250,9 @@ namespace guchho::resolver {
         }
         const PnpPackage& parent_pkg = parent_pkg_result.pkg;
         if (debug_logs) {
-            debug_logs->AddNote("  Found parent package at " +
-                                helpers::QuoteForJSON(parent_pkg.package_location, false));
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FoundParentPackageAt,
+                    helpers::QuoteForJSON(parent_pkg.package_location, false)
+            ));
         }
 
         // Look the requested ident up in the parent package's dependency
@@ -262,14 +271,14 @@ namespace guchho::resolver {
         // has not been excluded from that mechanism.
         if (!ok || reference_or_alias->reference.empty()) {
             if (debug_logs) {
-                debug_logs->AddNote("  Failed to find " + helpers::QuoteForJSON(ident, false) +
-                                    " in \"packageDependencies\" of parent package");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FailedToFindInPackageDependenciesOfParentPackage,
+                        helpers::QuoteForJSON(ident, false)
+                ));
             }
 
             if (manifest->enable_top_level_fallback) {
                 if (debug_logs) {
-                    debug_logs->AddNote(
-                            "  Searching for a fallback because \"enableTopLevelFallback\" is true");
+                    debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_SearchingForAFallbackBecauseEnableTopLevelFallbackIsTrue));
                 }
 
                 // Excluded parents are skipped outright, so a fallback does not
@@ -291,9 +300,10 @@ namespace guchho::resolver {
                         ok                 = true;
                     }
                 } else if (debug_logs) {
-                    debug_logs->AddNote("    Stopping because [" + QuoteOrNullIfEmpty(parent_locator.ident) + ", " +
-                                        QuoteOrNullIfEmpty(parent_locator.reference) +
-                                        "] is in \"fallbackExclusionList\"");
+                    debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_StoppingBecauseIsInFallbackExclusionList,
+                            QuoteOrNullIfEmpty(parent_locator.ident),
+                            QuoteOrNullIfEmpty(parent_locator.reference)
+                    ));
                 }
             }
         }
@@ -327,8 +337,10 @@ namespace guchho::resolver {
             } else {
                 reference_or_alias_str = QuoteOrNullIfEmpty(reference_or_alias->reference);
             }
-            debug_logs->AddNote("  Found dependency locator: [" + QuoteOrNullIfEmpty(ident) + ", " +
-                                reference_or_alias_str + "]");
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FoundDependencyLocator,
+                    QuoteOrNullIfEmpty(ident),
+                    reference_or_alias_str
+            ));
         }
 
         // Fetch the dependency's own metadata. Yarn may have redirected the
@@ -351,8 +363,10 @@ namespace guchho::resolver {
         }
         const PnpPackage& dependency_pkg = dependency_pkg_result.pkg;
         if (debug_logs) {
-            debug_logs->AddNote("  Found package " + helpers::QuoteForJSON(ident, false) + " at " +
-                                helpers::QuoteForJSON(dependency_pkg.package_location, false));
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FoundPackageAt,
+                    helpers::QuoteForJSON(ident, false),
+                    helpers::QuoteForJSON(dependency_pkg.package_location, false)
+            ));
         }
 
         // Assemble the final path from the manifest directory, the package's
@@ -382,9 +396,11 @@ namespace guchho::resolver {
             pkg_dir_path = pkg_dir_path.substr(1);
         }
         if (debug_logs) {
-            debug_logs->AddNote("  Resolved " + helpers::QuoteForJSON(specifier, false) + " via Yarn PnP to " +
-                                helpers::QuoteForJSON(pkg_dir_path, false) + " with subpath " +
-                                helpers::QuoteForJSON(module_path, false));
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ResolvedViaYarnPnPToWithSubpath,
+                    helpers::QuoteForJSON(specifier, false),
+                    helpers::QuoteForJSON(pkg_dir_path, false),
+                    helpers::QuoteForJSON(module_path, false)
+            ));
         }
         return {.status       = PnpStatus::kSuccess,
                 .pkg_dir_path = std::move(pkg_dir_path),
@@ -436,8 +452,9 @@ namespace guchho::resolver {
         if (manifest->ignore_pattern_data &&
             std::regex_search(relative_url, *manifest->ignore_pattern_data)) {
             if (debug_logs) {
-                debug_logs->AddNote("  Ignoring " + helpers::QuoteForJSON(relative_url, false) +
-                                    " because it matches \"ignorePatternData\"");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_IgnoringBecauseItMatchesIgnorePatternData,
+                        helpers::QuoteForJSON(relative_url, false)
+                ));
             }
 
             return {};
@@ -505,10 +522,11 @@ namespace guchho::resolver {
 
         if (dep_it != top_level_pkg.package_dependencies.end()) {
             if (debug_logs) {
-                debug_logs->AddNote("    Found fallback for " + helpers::QuoteForJSON(ident, false) +
-                                    " in \"packageDependencies\" of top-level package: [" +
-                                    QuoteOrNullIfEmpty(dep_it->second.ident) + ", " +
-                                    QuoteOrNullIfEmpty(dep_it->second.reference) + "]");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FoundFallbackForInPackageDependenciesOfTopLevelPackage,
+                        helpers::QuoteForJSON(ident, false),
+                        QuoteOrNullIfEmpty(dep_it->second.ident),
+                        QuoteOrNullIfEmpty(dep_it->second.reference)
+                ));
             }
             LocatorResult result;
             result.locator = dep_it->second;
@@ -522,12 +540,15 @@ namespace guchho::resolver {
 
         if (debug_logs) {
             if (pool_it != manifest->fallback_pool.end()) {
-                debug_logs->AddNote("    Found fallback for " + helpers::QuoteForJSON(ident, false) +
-                                    " in \"fallbackPool\": [" + QuoteOrNullIfEmpty(pool_it->second.ident) + ", " +
-                                    QuoteOrNullIfEmpty(pool_it->second.reference) + "]");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FoundFallbackForInFallbackPool,
+                        helpers::QuoteForJSON(ident, false),
+                        QuoteOrNullIfEmpty(pool_it->second.ident),
+                        QuoteOrNullIfEmpty(pool_it->second.reference)
+                ));
             } else {
-                debug_logs->AddNote("    Failed to find fallback for " + helpers::QuoteForJSON(ident, false) +
-                                    " in \"fallbackPool\"");
+                debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FailedToFindFallbackForInFallbackPool,
+                        helpers::QuoteForJSON(ident, false)
+                ));
             }
         }
         if (pool_it == manifest->fallback_pool.end()) {
@@ -569,8 +590,10 @@ namespace guchho::resolver {
             // is supposed to prevent. Log the offender so a broken manifest can
             // be identified instead of silently misbehaving, then signal the
             // failure to the caller.
-            debug_logs->AddNote("  Yarn PnP invariant violation: GET_PACKAGE failed to find a package: [" +
-                                QuoteOrNullIfEmpty(ident) + ", " + QuoteOrNullIfEmpty(reference) + "]");
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_YarnPnPInvariantViolationGETPACKAGEFailedToFindAPackage,
+                    QuoteOrNullIfEmpty(ident),
+                    QuoteOrNullIfEmpty(reference)
+            ));
         }
         return {};
     }
@@ -853,8 +876,10 @@ namespace guchho::resolver {
 
         filesystem::FsResult<std::string> read = r->caches->fs_cache.ReadFile(*r->fs, pnp_data_path);
         if (debug_logs && !read.original_error.empty()) {
-            debug_logs->AddNote("Failed to read file " + helpers::QuoteForJSON(pnp_data_path, false) + ": " +
-                                read.original_error);
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FailedToReadFile,
+                    helpers::QuoteForJSON(pnp_data_path, false),
+                    read.original_error
+            ));
         }
         if (!read.Ok()) {
             bool is_enoent = read.canonical_error == std::errc::no_such_file_or_directory;
@@ -872,7 +897,9 @@ namespace guchho::resolver {
             return result;
         }
         if (debug_logs) {
-            debug_logs->AddNote("The file " + helpers::QuoteForJSON(pnp_data_path, false) + " exists");
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheFileExists,
+                    helpers::QuoteForJSON(pnp_data_path, false)
+            ));
         }
 
         logger::Path key_path{.text = pnp_data_path, .namespace_ = "file"};
@@ -908,8 +935,10 @@ namespace guchho::resolver {
 
         filesystem::FsResult<std::string> read = r->caches->fs_cache.ReadFile(*r->fs, pnp_data_path);
         if (debug_logs && !read.original_error.empty()) {
-            debug_logs->AddNote("Failed to read file " + helpers::QuoteForJSON(pnp_data_path, false) + ": " +
-                                read.original_error);
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_FailedToReadFile,
+                    helpers::QuoteForJSON(pnp_data_path, false),
+                    read.original_error
+            ));
         }
         if (!read.Ok()) {
             bool is_enoent = read.canonical_error == std::errc::no_such_file_or_directory;
@@ -927,7 +956,9 @@ namespace guchho::resolver {
             return result;
         }
         if (debug_logs) {
-            debug_logs->AddNote("The file " + helpers::QuoteForJSON(pnp_data_path, false) + " exists");
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheFileExists,
+                    helpers::QuoteForJSON(pnp_data_path, false)
+            ));
         }
 
         logger::Path key_path{.text = pnp_data_path, .namespace_ = "file"};
@@ -944,7 +975,9 @@ namespace guchho::resolver {
 
         if (debug_logs &&
             std::visit([](const auto& ptr) { return ptr != nullptr; }, result.expr.data)) {
-            debug_logs->AddNote("  Extracted JSON data from " + helpers::QuoteForJSON(pnp_data_path, false));
+            debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_ExtractedJSONDataFrom,
+                    helpers::QuoteForJSON(pnp_data_path, false)
+            ));
         }
         result.found = true;
         return result;

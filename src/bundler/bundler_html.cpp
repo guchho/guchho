@@ -13,7 +13,6 @@
 
 namespace guchho::bundler {
 
-
 namespace config = guchho::config;
 
 // helper: obtain a reference to the document's <head> element,

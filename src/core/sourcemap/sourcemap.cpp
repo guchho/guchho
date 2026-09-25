@@ -866,18 +866,6 @@ Chunk ChunkBuilder::GenerateChunk(const std::string& output) {
     // A chunk can be ignored when it contains no user-visible code, i.e.
     // only semicolons, whitespace, and line terminators. Such chunks still
     // contribute semicolons for line boundaries but nothing meaningful.
-    bool should_ignore = true;
-    std::string_view output_view(output);
-    size_t rune_pos = 0;
-    while (rune_pos < output_view.size()) {
-        auto [c, width] = helpers::DecodeWTF8Rune(output_view.substr(rune_pos));
-        if (c != ';' && c != ' ' && c != '\t' && c != '\r' && c != '\n' &&
-            c != 0x2028 && c != 0x2029) {
-            should_ignore = false;
-            break;
-        }
-        rune_pos += static_cast<size_t>(width);
-    }
     bool should_ignore = source_map.find_first_not_of(';') == std::string::npos;
 
     return Chunk{

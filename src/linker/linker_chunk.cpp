@@ -390,7 +390,7 @@ namespace guchho::linker {
                         }
                     }
 
-                    for (auto& [use_ref, _] : part.symbol_uses) {
+                    for (auto& [use_ref, _use] : part.symbol_uses) {
                         auto ref = use_ref;
                         auto* symbol = graph.symbols.Get(ref);
 

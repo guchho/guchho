@@ -88,10 +88,10 @@ namespace guchho::config {
     // Input:  Constant = nullptr, Parts = {"process", "env"}
     // Output: HasConstant() == false
     struct DefineExpr {
-        guchho::javascript::E Constant;
+        guchho::javascript::E Constant{};
         
-        std::vector<std::string> Parts;
-        compiler::Index32 InjectedDefineIndex;
+        std::vector<std::string> Parts{};
+        compiler::Index32 InjectedDefineIndex{};
 
         // HasConstant
         // -----------
@@ -109,8 +109,8 @@ namespace guchho::config {
     // `DefineExprData` is the replacement expression.  `Flags`
     // controls optimisation eligibility.
     struct DefineData {
-        std::vector<std::string> KeyParts;
-        std::shared_ptr<DefineExpr> DefineExprData;
+        std::vector<std::string> KeyParts{};
+        std::shared_ptr<DefineExpr> DefineExprData{};
         DefineFlags Flags{};
     };
 
@@ -137,8 +137,8 @@ namespace guchho::config {
     // Input:  userDefines = [{key=["DEBUG"], expr="true"}]
     // Output: IdentifierDefines["DEBUG"] = {expr="true"}
     struct ProcessedDefines {
-        std::unordered_map<std::string, DefineData> IdentifierDefines;
-        std::unordered_map<std::string, std::vector<DefineData>> DotDefines;
+        std::unordered_map<std::string, DefineData> IdentifierDefines{};
+        std::unordered_map<std::string, std::vector<DefineData>> DotDefines{};
     };
 
     // ProcessDefines
@@ -470,9 +470,9 @@ namespace guchho::config {
     // These control the JSX factory function, fragment factory, and
     // import source used during the automatic JSX transform.
     struct TSConfigJSX {
-        std::vector<std::string> JSXFactory;
-        std::vector<std::string> JSXFragmentFactory;
-        std::optional<std::string> JSXImportSource;
+        std::vector<std::string> JSXFactory{};
+        std::vector<std::string> JSXFragmentFactory{};
+        std::optional<std::string> JSXImportSource{};
         TSJSX JSX{TSJSX::kNone};
     };
 
@@ -509,7 +509,7 @@ namespace guchho::config {
     //                       the start of a JSX element (useful for .ts
     //                       files that contain generic arrow functions).
     struct TSOptions {
-        TSConfig Config;
+        TSConfig Config{};
         bool Parse{};
         bool NoAmbiguousLessThan{};
     };
@@ -520,12 +520,12 @@ namespace guchho::config {
     // function is used, whether the automatic runtime is enabled, and
     // whether the output is in development mode.
     struct JSXOptions {
-        DefineExpr Factory;
-        DefineExpr Fragment;
+        DefineExpr Factory{};
+        DefineExpr Fragment{};
         bool Parse{};
         bool Preserve{};
         bool AutomaticRuntime{};
-        std::string ImportSource;
+        std::string ImportSource{};
         bool Development{};
         bool SideEffects{};
     };
@@ -537,9 +537,9 @@ namespace guchho::config {
     // Stores the source location so that diagnostics can point to the
     // correct file and range.
     struct TSAlwaysStrict {
-        std::string Name;
-        logger::Source SourceData;
-        logger::Range RangeData;
+        std::string Name{};
+        logger::Source SourceData{};
+        logger::Range RangeData{};
         bool Value{};
     };
 
@@ -582,9 +582,9 @@ namespace guchho::config {
     // struct carries its contents, source-file name, and the
     // directory used for import resolution.
     struct StdinInfo {
-        std::string Contents;
-        std::string SourceFile;
-        std::string AbsResolveDir;
+        std::string Contents{};
+        std::string SourceFile{};
+        std::string AbsResolveDir{};
         Loader Ldr{Loader::kNone};
     };
 
@@ -599,8 +599,8 @@ namespace guchho::config {
     //         OutputPath = "dist/index"
     // Output: Guchho writes "dist/index.js" (or .mjs, etc.)
     struct EntryPoint {
-        std::string InputPath;
-        std::string OutputPath;
+        std::string InputPath{};
+        std::string OutputPath{};
         bool InputPathInFileNamespace{};
     };
 
@@ -665,7 +665,7 @@ namespace guchho::config {
     //   {Data=".", Placeholder=kNoPlaceholder}
     //   {Data="", Placeholder=kExt}
     struct PathTemplate {
-        std::string Data;
+        std::string Data{};
         PathPlaceholder Placeholder{PathPlaceholder::kNoPlaceholder};
     };
 
@@ -703,8 +703,8 @@ namespace guchho::config {
     // An export injected from an injected file, carrying its alias
     // name and source location for diagnostics.
     struct InjectableExport {
-        std::string Alias;
-        logger::Loc LocData;
+        std::string Alias{};
+        logger::Loc LocData{};
     };
 
     // InjectedDefine
@@ -713,9 +713,9 @@ namespace guchho::config {
     // field holds the parsed JS AST of the injected content, and
     // `Name` is the define name it is assigned to.
     struct InjectedDefine {
-        guchho::javascript::E Data;
-        std::string Name;
-        logger::Source SourceData;
+        guchho::javascript::E Data{};
+        std::string Name{};
+        logger::Source SourceData{};
     };
 
     // InjectedFile
@@ -724,9 +724,9 @@ namespace guchho::config {
     // under a define name.  The `IsCopyLoader` flag indicates the
     // file should be copied as-is (binary/text) rather than parsed.
     struct InjectedFile {
-        std::vector<InjectableExport> Exports;
-        std::string DefineName;
-        logger::Source SourceData;
+        std::vector<InjectableExport> Exports{};
+        std::string DefineName{};
+        logger::Source SourceData{};
         bool IsCopyLoader{};
     };
 
@@ -736,8 +736,8 @@ namespace guchho::config {
     // The result of a plugin's `onStart` hook.  Contains any error
     // that was thrown and any diagnostic messages to emit.
     struct OnStartResult {
-        std::string ThrownError;
-        std::vector<logger::Msg> Msgs;
+        std::string ThrownError{};
+        std::vector<logger::Msg> Msgs{};
     };
 
     // OnResolveArgs
@@ -747,12 +747,12 @@ namespace guchho::config {
     // plugin's private data, and the import kind (entry point,
     // import statement, etc.).
     struct OnResolveArgs {
-        std::string PathData;
-        std::string ResolveDir;
-        std::any PluginData;
-        logger::Path Importer;
+        std::string PathData{};
+        std::string ResolveDir{};
+        std::any PluginData{};
+        logger::Path Importer{};
         compiler::ImportKind Kind{compiler::ImportKind::kEntryPoint};
-        logger::ImportAttributes With;
+        logger::ImportAttributes With{};
     };
 
     // OnResolveResult
@@ -761,13 +761,13 @@ namespace guchho::config {
     // plugin handles the import it fills in `ResultPath` and
     // optionally marks the import as external or side-effect-free.
     struct OnResolveResult {
-        std::string PluginName;
-        std::vector<logger::Msg> Msgs;
-        std::string ThrownError;
-        std::vector<std::string> AbsWatchFiles;
-        std::vector<std::string> AbsWatchDirs;
-        std::any PluginData;
-        logger::Path ResultPath;
+        std::string PluginName{};
+        std::vector<logger::Msg> Msgs{};
+        std::string ThrownError{};
+        std::vector<std::string> AbsWatchFiles{};
+        std::vector<std::string> AbsWatchDirs{};
+        std::any PluginData{};
+        logger::Path ResultPath{};
         bool External{};
         bool IsSideEffectFree{};
     };
@@ -777,8 +777,8 @@ namespace guchho::config {
     // Input passed to a plugin's `onLoad` hook.  Contains the plugin's
     // private data and the fully-resolved path of the file to load.
     struct OnLoadArgs {
-        std::any PluginData;
-        logger::Path LoadPath;
+        std::any PluginData{};
+        logger::Path LoadPath{};
     };
 
     // OnLoadResult
@@ -787,14 +787,14 @@ namespace guchho::config {
     // handles the load it provides `Contents` and the loader to use
     // for the returned text.
     struct OnLoadResult {
-        std::string PluginName;
-        std::optional<std::string> Contents;
-        std::string AbsResolveDir;
-        std::any PluginData;
-        std::vector<logger::Msg> Msgs;
-        std::string ThrownError;
-        std::vector<std::string> AbsWatchFiles;
-        std::vector<std::string> AbsWatchDirs;
+        std::string PluginName{};
+        std::optional<std::string> Contents{};
+        std::string AbsResolveDir{};
+        std::any PluginData{};
+        std::vector<logger::Msg> Msgs{};
+        std::string ThrownError{};
+        std::vector<std::string> AbsWatchFiles{};
+        std::vector<std::string> AbsWatchDirs{};
         Loader ResultLoader{Loader::kNone};
     };
 
@@ -812,8 +812,8 @@ namespace guchho::config {
     // A registered `onStart` hook with its callback and the plugin
     // name for diagnostics.
     struct OnStart {
-        OnStartCallback Callback;
-        std::string Name;
+        OnStartCallback Callback{};
+        std::string Name{};
     };
 
     // OnResolve
@@ -822,10 +822,10 @@ namespace guchho::config {
     // against the import specifier), namespace, callback, and plugin
     // name.
     struct OnResolve {
-        std::regex Filter;
-        OnResolveCallback Callback;
-        std::string Name;
-        std::string Namespace;
+        std::regex Filter{};
+        OnResolveCallback Callback{};
+        std::string Name{};
+        std::string Namespace{};
     };
 
     // OnLoad
@@ -834,10 +834,10 @@ namespace guchho::config {
     // against the resolved path), namespace, callback, and plugin
     // name.
     struct OnLoad {
-        std::regex Filter;
-        OnLoadCallback Callback;
-        std::string Name;
-        std::string Namespace;
+        std::regex Filter{};
+        OnLoadCallback Callback{};
+        std::string Name{};
+        std::string Namespace{};
     };
 
     // HtmlTagDescriptor
@@ -856,9 +856,9 @@ namespace guchho::config {
     //                kBody         Before closing </body>.
     //                kBodyPrepend  Directly after opening <body>.
     struct HtmlTagDescriptor {
-        std::string tag;
-        std::unordered_map<std::string, std::string> attrs;
-        std::string children;
+        std::string tag{};
+        std::unordered_map<std::string, std::string> attrs{};
+        std::string children{};
         enum InjectTo {
             kHead,
             kHeadPrepend,
@@ -873,7 +873,7 @@ namespace guchho::config {
     // Contains the filename being processed and whether this is a
     // build (as opposed to a dev server request).
     struct HtmlTransformContext {
-        std::string filename;
+        std::string filename{};
         bool is_build = true;
     };
 
@@ -893,11 +893,11 @@ namespace guchho::config {
     // hook vectors in registration order during the corresponding
     // build phase.
     struct Plugin {
-        std::string Name;
-        std::vector<OnStart> OnStartList;
-        std::vector<OnResolve> OnResolveList;
-        std::vector<OnLoad> OnLoadList;
-        TransformIndexHtmlHook TransformIndexHtml;
+        std::string Name{};
+        std::vector<OnStart> OnStartList{};
+        std::vector<OnResolve> OnResolveList{};
+        std::vector<OnLoad> OnLoadList{};
+        TransformIndexHtmlHook TransformIndexHtml{};
     };
 
     // MangleCacheCallback / ExclusiveMangleCacheUpdateFunc
@@ -965,8 +965,8 @@ namespace guchho::config {
     //   force_js_extension_for_imports  Append ".js" to all imports.
     struct AmdOptions {
         bool auto_id{};
-        std::string base_path;
-        std::string id;
+        std::string base_path{};
+        std::string id{};
         std::string define{"define"};
         bool force_js_extension_for_imports{};
     };

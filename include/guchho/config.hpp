@@ -611,8 +611,8 @@ namespace guchho::config {
     // and ends with `Suffix`.  For example, the pattern
     // {Prefix="lodash/", Suffix=""} matches "lodash/cloneDeep".
     struct WildcardPattern {
-        std::string Prefix;
-        std::string Suffix;
+        std::string Prefix{};
+        std::string Suffix{};
     };
 
     // ExternalMatchers
@@ -626,8 +626,8 @@ namespace guchho::config {
     //         Patterns = [{Prefix="lodash/", Suffix=""}]
     // Output: HasMatchers() == true
     struct ExternalMatchers {
-        std::unordered_map<std::string, bool> Exact;
-        std::vector<WildcardPattern> Patterns;
+        std::unordered_map<std::string, bool> Exact{};
+        std::vector<WildcardPattern> Patterns{};
 
         // HasMatchers
         // -----------
@@ -650,8 +650,8 @@ namespace guchho::config {
     // This two-stage approach lets users externalise packages by name
     // (pre-resolve) or by file path (post-resolve).
     struct ExternalSettings {
-        ExternalMatchers PreResolve;
-        ExternalMatchers PostResolve;
+        ExternalMatchers PreResolve{};
+        ExternalMatchers PostResolve{};
     };
 
     // PathTemplate
@@ -981,22 +981,22 @@ namespace guchho::config {
     // configuration.  Each option is documented inline; groups of
     // related options are separated by blank lines for readability.
     struct Options {
-        guchho::javascript::ModuleTypeData ModuleTypeData;
+        guchho::javascript::ModuleTypeData ModuleTypeData{};
         ProcessedDefines* Defines{};
         TSAlwaysStrict* TSAlwaysStrictData{};
         // Used on the heap (via shared_ptr) so the struct itself stays copyable.
-        std::shared_ptr<std::regex> MangleProps;
-        std::shared_ptr<std::regex> ReserveProps;
+        std::shared_ptr<std::regex> MangleProps{};
+        std::shared_ptr<std::regex> ReserveProps{};
         CancelFlag* CancelFlagData{};
-        ExclusiveMangleCacheUpdateFunc ExclusiveMangleCacheUpdate;
+        ExclusiveMangleCacheUpdateFunc ExclusiveMangleCacheUpdate{};
 
-        std::string OriginalTargetEnv;
+        std::string OriginalTargetEnv{};
 
-        std::vector<std::string> DropLabels;
+        std::vector<std::string> DropLabels{};
         bool                     MainFieldsSet{};
-        std::vector<std::string> MainFields;
-        std::vector<std::string> Conditions;
-        std::vector<std::string> AbsNodePaths;
+        std::vector<std::string> MainFields{};
+        std::vector<std::string> Conditions{};
+        std::vector<std::string> AbsNodePaths{};
 
         Mode BuildMode{Mode::kPassThrough};
         Format OutputFormat{Format::kPreserve};
@@ -1007,26 +1007,26 @@ namespace guchho::config {
         SourceMap SourceMapData{SourceMap::kNone};
         bool ExcludeSourcesContent{};
 
-        std::string AbsOutputFile;
-        std::string AbsOutputDir;
-        std::string AbsOutputBase;
-        std::string OutputExtensionJS;
-        std::string OutputExtensionCSS;
-        std::vector<std::string> GlobalName;
-        AmdOptions Amd;
+        std::string AbsOutputFile{};
+        std::string AbsOutputDir{};
+        std::string AbsOutputBase{};
+        std::string OutputExtensionJS{};
+        std::string OutputExtensionCSS{};
+        std::vector<std::string> GlobalName{};
+        AmdOptions Amd{};
         bool Extend{};
         bool NoConflict{};
         bool Strict{true};
-        std::unordered_map<std::string, std::string> Globals;
+        std::unordered_map<std::string, std::string> Globals{};
         bool SystemNullSetters{};
-        std::string TSConfigPath;
-        std::string TSConfigRaw;
+        std::string TSConfigPath{};
+        std::string TSConfigRaw{};
 
-        ExternalSettings ExternalSettingsData;
+        ExternalSettings ExternalSettingsData{};
         bool ExternalPackages{};
-        std::unordered_map<std::string, std::string> PackageAliases;
-        std::vector<std::string> ExtensionOrder;
-        std::unordered_map<std::string, Loader> ExtensionToLoader;
+        std::unordered_map<std::string, std::string> PackageAliases{};
+        std::vector<std::string> ExtensionOrder{};
+        std::unordered_map<std::string, Loader> ExtensionToLoader{};
 
         bool PreserveSymlinks{};
         bool MinifyWhitespace{};
@@ -1037,36 +1037,36 @@ namespace guchho::config {
         bool AllowOverwrite{};
         LegalComments LegalCommentsData{LegalComments::kInline};
 
-        compat::JSFeature UnsupportedJSFeatures;
-        compat::CSSFeature UnsupportedCSSFeatures;
-        compat::JSFeature UnsupportedJSFeatureOverrides;
-        compat::JSFeature UnsupportedJSFeatureOverridesMask;
-        compat::CSSFeature UnsupportedCSSFeatureOverrides;
-        compat::CSSFeature UnsupportedCSSFeatureOverridesMask;
+        compat::JSFeature UnsupportedJSFeatures{};
+        compat::CSSFeature UnsupportedCSSFeatures{};
+        compat::JSFeature UnsupportedJSFeatureOverrides{};
+        compat::JSFeature UnsupportedJSFeatureOverridesMask{};
+        compat::CSSFeature UnsupportedCSSFeatureOverrides{};
+        compat::CSSFeature UnsupportedCSSFeatureOverridesMask{};
 
-        TSOptions TS;
+        TSOptions TS{};
 
-        std::string PublicPath;
-        std::vector<std::string> InjectPaths;
-        std::vector<InjectedDefine> InjectedDefines;
-        std::vector<InjectedFile> InjectedFiles;
+        std::string PublicPath{};
+        std::vector<std::string> InjectPaths{};
+        std::vector<InjectedDefine> InjectedDefines{};
+        std::vector<InjectedFile> InjectedFiles{};
 
-        std::string JSBanner;
-        std::string JSFooter;
-        std::string CSSBanner;
-        std::string CSSFooter;
+        std::string JSBanner{};
+        std::string JSFooter{};
+        std::string CSSBanner{};
+        std::string CSSFooter{};
 
-        std::vector<PathTemplate> EntryPathTemplate;
-        std::vector<PathTemplate> ChunkPathTemplate;
-        std::vector<PathTemplate> AssetPathTemplate;
+        std::vector<PathTemplate> EntryPathTemplate{};
+        std::vector<PathTemplate> ChunkPathTemplate{};
+        std::vector<PathTemplate> AssetPathTemplate{};
 
-        std::vector<Plugin> Plugins;
-        std::string SourceRoot;
+        std::vector<Plugin> Plugins{};
+        std::string SourceRoot{};
         StdinInfo* Stdin{};
-        JSXOptions JSX;
+        JSXOptions JSX{};
         int LineLimit{};
 
-        std::unordered_map<guchho::css::Declarations, compat::CSSPrefix> CSSPrefixData;
+        std::unordered_map<guchho::css::Declarations, compat::CSSPrefix> CSSPrefixData{};
 
         bool OmitRuntimeForTests{};
         bool OmitJSXRuntimeForTests{};
@@ -1090,20 +1090,20 @@ namespace guchho::config {
         // (never inside <script>/<style> content, which travels through
         // the JS/CSS pipelines).  Unrecognised `%...%` patterns are
         // left untouched.
-        std::unordered_map<std::string, std::string> DefineMap;
+        std::unordered_map<std::string, std::string> DefineMap{};
         // CspNonce is a nonce value added to every <script>, <style>,
         // and <link rel="stylesheet|modulepreload|preload"> element.
         // When non-empty, a <meta property="csp-nonce" nonce="..."> tag
         // is injected as the first child of <head>.  User-provided nonce
         // attributes are preserved.  No CSP policy header is generated.
-        std::string CspNonce;
+        std::string CspNonce{};
         // MinifyHtml enables HTML minification: whitespace collapsing,
         // comment removal, safe attribute-quote removal, and
         // empty-attribute collapse.
         bool MinifyHtml = false;
         // ResourceHints configures auto-injected resource hints (see
         // ResourceHintsConfig for details on each hint type).
-        ResourceHintsConfig ResourceHints;
+        ResourceHintsConfig ResourceHints{};
         // SRI enables Subresource Integrity: when true, an
         // `integrity="ALGO-<base64>"` attribute is added to every
         // external <script> and <link rel="stylesheet"> element whose

@@ -878,6 +878,7 @@ Chunk ChunkBuilder::GenerateChunk(const std::string& output) {
         }
         rune_pos += static_cast<size_t>(width);
     }
+    bool should_ignore = source_map.find_first_not_of(';') == std::string::npos;
 
     return Chunk{
         .buffer = MappingsBuffer{

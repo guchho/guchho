@@ -111,7 +111,7 @@ namespace guchho::compat {
         std::vector<uint32_t> parts;
 
         // The pre-release identifier. "1.2.3-beta.1" yields pre_release "beta.1".
-        std::string pre_release;
+        std::string pre_release {};
 
         // Reconstructs the full version string from the numeric parts and
         // pre-release identifier. Numeric parts are joined with '.' and the

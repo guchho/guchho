@@ -20,6 +20,7 @@ add_subdirectory(cache)
 add_subdirectory(resolver)
 add_subdirectory(graph)
 add_subdirectory(linker)
+add_subdirectory(bundler)
 
 
 
@@ -252,4 +253,29 @@ guchho_set_warnings(guchho_linker_tests)
 guchho_enable_sanitizers(guchho_linker_tests)
 
 guchho_discover_tests(guchho_linker_tests PREFIX "linker." WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/linker")
+
+
+# bundler test executable
+
+add_executable(guchho_bundler_tests
+    test_assertions.cpp
+    $<TARGET_OBJECTS:guchho_bundler_test_objects>
+)
+
+target_link_libraries(
+    guchho_bundler_tests
+    PRIVATE
+        guchho_bundler
+)
+
+target_include_directories(
+    guchho_bundler_tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+guchho_set_warnings(guchho_bundler_tests)
+guchho_enable_sanitizers(guchho_bundler_tests)
+
+guchho_discover_tests(guchho_bundler_tests PREFIX "bundler." WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bundler")
 

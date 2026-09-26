@@ -390,42 +390,110 @@ int parseInt(const std::string& value, const std::string& arg,
 // Deciding that a command line is a build's
 // =============================================================================
 //
+// The flags below are the ones the grammar accepts for a build and not for a
+// transform, and they are here as prefixes so isArgForBuild can recognise one
+// without knowing whether it arrived bare or with a value attached. Every entry
+// corresponds to a clause in parseOptionsImpl (cli_options.cpp) carrying a
+// "&& build_opts" guard, and the two lists are meant to be kept in step: a flag
+// added to the grammar under that guard and not added here is a flag that turns
+// a build into a complaint about a transform.
+//
+// The spelling of each entry is the one the grammar expects, "=" or ":" included,
+// and a near miss is rejected rather than trimmed — "--outdirs=dist" is not
+// "--outdir=" and is a flag nobody has heard of, exactly as it would be if the
+// grammar were asked directly.
+//
+// Nothing both halves accept is listed, and that is the point of the list rather
+// than an omission: "--minify" and "--format=" are equally at home in a build
+// and a transform, so they are no more evidence of one than of the other.
+static const char* const kBuildOnlyFlagPrefixes[] = {
+    "--bundle",
+    "--mangle-cache=",
+    "--metafile",
+    "--outfile=",
+    "--outdir=",
+    "--outbase=",
+    "--resolve-extensions=",
+    "--main-fields=",
+    "--conditions=",
+    "--public-path=",
+    "--tsconfig=",
+    "--entry-names=",
+    "--chunk-names=",
+    "--asset-names=",
+    "--loader:",
+    "--out-extension:",
+    "--packages=",
+    "--external:",
+    "--inject:",
+    "--alias:",
+    "--banner:",
+    "--footer:",
+};
+//
 // Answers whether one argument is evidence that the command line as a whole is
 // about building something, which is the question the two callers ask before
 // they act on the whole list: whether to strip the analyze flags out of it, and
 // whether to read it into a build's options or a transform's.
 //
 // Two kinds of argument are evidence. Anything that does not begin with a dash
-// is a path, and a path is what a build is for. And one flag is, on its own,
-// enough: "--bundle". The reason is that it is the one switch that also takes
-// an explicit value, so it can be written either as a bare switch or as
-// "--bundle=false" to turn bundling off, and a command line whose only argument
-// is the second of those is still unmistakably about a build. A command line of
-// nothing but flags is not, and is left to the grammar to reject.
+// is a path, and a path is what a build is for. And any flag that only the build
+// grammar accepts is evidence on its own, because a transform has no use for an
+// output directory, a metafile or a package rule: the argument says which half
+// of the grammar was meant, whatever else is on the line.
 //
-// The comparison against "--bundle" is exact, which is what makes the previous
-// point stop where it does: an argument that merely starts with those letters
-// is a flag nobody has heard of, and is treated like one.
+// That second kind is a list, and the list below is the same list the grammar
+// keeps. Every entry here corresponds to a clause in parseOptionsImpl that reads
+// "... && build_opts", and the two are meant to be read side by side: a flag
+// added to the grammar with that guard and not added here is a flag that turns a
+// build into a complaint about a transform, which is the failure this table
+// exists to prevent. The test "CliBuild.BuildOnlyFlagsAreNotMistakenForTransform
+// Flags" is the other half of that promise, and fails if the two drift apart.
+//
+// The table holds prefixes, not whole arguments, and each is spelled the way the
+// grammar spells it — with the "=" or the ":" the grammar expects — because a
+// prefix is also what stops a near miss from being accepted: "--outdirs=dist" is
+// not "--outdir=" and is rejected here as firmly as the grammar rejects it.
+//
+// What is deliberately absent is every flag both halves accept: --minify,
+// --watch, --format=, --platform=, --target=, --loader=, --sourcefile= and the
+// rest. Those say nothing about which half was meant, so a command line carrying
+// only those is left to the grammar, and a transform keeps accepting them.
 //
 // Input:  arg = "src/index.js"
 // Output: true. This is the case the whole function exists for: a bare path
 //         with no command in front of it is a build.
 //
 // Input:  arg = "--outdir=dist"
-// Output: false — a flag, and a build needs something to build.
+// Output: true. A transform cannot write a directory, so this argument is a
+//         build's even with no path anywhere on the line.
 //
 // Input:  arg = "--bundle"
 // Output: true.
 //
 // Input:  arg = "--bundle=false"
-// Output: false. The bare switch is the evidence; this is not it.
+// Output: false. The bare switch is the evidence; this is not it, which is what
+//         isArgBoolFlag is for and what the caller uses it for.
+//
+// Input:  arg = "--minify"
+// Output: false. Both grammars take it, so it is not evidence of either.
 bool isArgForBuild(const std::string& arg) {
 
     // The two clauses are the two kinds of evidence, and neither is a
     // conversation with the grammar: this function is asked before the grammar
     // has decided anything, and has to answer from the shape of the argument
     // alone.
-    return !arg.starts_with("-") || arg == "--bundle";
+    if (!arg.starts_with("-")) {
+        return true;
+    }
+
+    for (const char* prefix : kBuildOnlyFlagPrefixes) {
+        if (arg.starts_with(prefix)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 // =============================================================================

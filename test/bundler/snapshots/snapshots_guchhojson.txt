@@ -1,0 +1,233 @@
+BundlerGuchhoJSON.BuildEntryAndOutdir
+---------- /project/out/app.js ----------
+// project/src/app.js
+var answer = 42;
+console.log(answer);
+export {
+  answer
+};
+
+================================================================================
+BundlerGuchhoJSON.BuildFormatCommonJS
+---------- /out.js ----------
+// helper.js
+function helper() {
+  return "ok";
+}
+
+// app.js
+console.log(helper());
+
+================================================================================
+BundlerGuchhoJSON.BuildFormatIIFE
+---------- /out.js ----------
+(() => {
+  // app.js
+  var answer = 42;
+  console.log(answer);
+})();
+
+================================================================================
+BundlerGuchhoJSON.BuildFormatUMD
+---------- /out.js ----------
+(function(global, factory) {
+  typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory(require) :
+  typeof define === "function" && define.amd ? define(["require"], factory) :
+  (global = typeof globalThis !== "undefined" ? globalThis : global || self, factory(void 0));
+})(this , function(require) {
+  // app.js
+  var app_exports = {};
+  __export(app_exports, {
+    answer: () => answer
+  });
+  var answer = 42;
+  console.log(answer);
+  return __toCommonJS(app_exports);
+});
+
+================================================================================
+BundlerGuchhoJSON.BuildFormatUMDWithExternal
+---------- /out.js ----------
+(function(global, factory) {
+  typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory(require, require("vue")) :
+  typeof define === "function" && define.amd ? define(["require", "vue"], factory) :
+  (global = typeof globalThis !== "undefined" ? globalThis : global || self, factory(void 0, global.vue));
+})(this , function(require, dep0) {
+  // app.js
+  var app_exports = {};
+  __export(app_exports, {
+    app: () => app
+  });
+  var import_vue = __require("vue");
+  var app = (0, import_vue.create)();
+  return __toCommonJS(app_exports);
+});
+
+================================================================================
+BundlerGuchhoJSON.BuildFormatUMDWithGlobalName
+---------- /out.js ----------
+(function(global, factory) {
+  typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory(require) :
+  typeof define === "function" && define.amd ? define(["require"], factory) :
+  (global = typeof globalThis !== "undefined" ? globalThis : global || self, (global.MyLib = global.MyLib || {}, global.MyLib = factory(void 0)));
+})(this , function(require) {
+  // app.js
+  var app_exports = {};
+  __export(app_exports, {
+    answer: () => answer
+  });
+  var answer = 42;
+  console.log(answer);
+  return __toCommonJS(app_exports);
+});
+
+================================================================================
+BundlerGuchhoJSON.BuildMinifyObjectForm
+---------- /out.js ----------
+// app.js
+var greeting = "hello";
+console.log(greeting);
+
+================================================================================
+BundlerGuchhoJSON.BuildOutfile
+---------- /out/bundle.js ----------
+// app.js
+var answer = 42;
+console.log(answer);
+export {
+  answer
+};
+
+================================================================================
+BundlerGuchhoJSON.BuildPlatformNodeKeepsBuiltin
+---------- /out.js ----------
+// app.js
+import path from "path";
+console.log(path.sep);
+
+================================================================================
+BundlerGuchhoJSON.BuildSourcemapLinked
+---------- /out.js.map ----------
+{
+  "version": 3,
+  "sources": ["app.js"],
+  "sourcesContent": ["export const answer = 42;\nconsole.log(answer);\n"],
+  "mappings": ";AAAO,IAAM,SAAS;AACtB,QAAQ,IAAI,MAAM;",
+  "names": []
+}
+
+---------- /out.js ----------
+// app.js
+var answer = 42;
+console.log(answer);
+export {
+  answer
+};
+//# sourceMappingURL=out.js.map
+
+================================================================================
+BundlerGuchhoJSON.BuildSplittingEmitsSharedChunk
+---------- /out/a.js ----------
+import {
+  shared
+} from "./chunk-SOQI7MIY.js";
+
+// a.js
+console.log(shared);
+
+---------- /out/b.js ----------
+import {
+  shared
+} from "./chunk-SOQI7MIY.js";
+
+// b.js
+console.log(shared);
+
+---------- /out/chunk-SOQI7MIY.js ----------
+// shared.js
+var shared = 123;
+
+export {
+  shared
+};
+
+================================================================================
+BundlerGuchhoJSON.BuildTargetLowersNewerSyntax
+---------- /out.js ----------
+// app.js
+var config = { mode: "x" };
+var _a;
+var mode = (_a = config == null ? void 0 : config.mode) != null ? _a : "default";
+export {
+  mode
+};
+
+================================================================================
+BundlerGuchhoJSON.BuildTreeShaking
+---------- /out.js ----------
+// lib.js
+var used = 1;
+var unused = 2;
+
+// app.js
+console.log(used);
+
+================================================================================
+BundlerGuchhoJSON.ConfigJSDrivesBundle
+---------- /project/out/app.js ----------
+(()=>{var o=42;console.log(42);})();
+
+================================================================================
+BundlerGuchhoJSON.ConfigJSFileNameWins
+---------- /project/dist/app.js ----------
+(()=>{var o=42;console.log(42);})();
+
+================================================================================
+BundlerGuchhoJSON.DefineInlinesValue
+---------- /out.js ----------
+// app.js
+console.log("production");
+
+================================================================================
+BundlerGuchhoJSON.ExternalPreservesImport
+---------- /out.js ----------
+// app.js
+import { create } from "vue";
+console.log(create);
+
+================================================================================
+BundlerGuchhoJSON.InvalidValuesWarn
+---------- /out.js ----------
+// app.js
+console.log(1);
+
+================================================================================
+BundlerGuchhoJSON.OutputEntryFileNamesTemplate
+---------- /out/chunks/app.js ----------
+// app.js
+var answer = 42;
+console.log(answer);
+export {
+  answer
+};
+
+================================================================================
+BundlerGuchhoJSON.ResolveAliasAndExtensions
+---------- /out.js ----------
+// src/lib.ts
+var which = "from ts";
+
+// app.js
+console.log(which);
+
+================================================================================
+BundlerGuchhoJSON.UnknownFieldsWarn
+---------- /out.js ----------
+// app.js
+console.log(1);
+
+================================================================================
+BundlerGuchhoJSON.UnsupportedFeaturesWarn
+---------- /out.js ----------
+// app.js
+console.log(1);

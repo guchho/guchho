@@ -363,7 +363,7 @@ Response Get(uint16_t port, const std::string& path, const std::vector<std::stri
 // than in each test that needs it because it is the one request whose answer
 // has no end, and the tests below go on reading the same socket afterwards.
 std::string StreamRequest(uint16_t port) {
-    return std::string("GET /esbuild HTTP/1.1\r\n") + "Host: 127.0.0.1:" +
+    return std::string("GET /guchho HTTP/1.1\r\n") + "Host: 127.0.0.1:" +
            std::to_string(port) + "\r\n" + "Accept: text/event-stream\r\n\r\n";
 }
 

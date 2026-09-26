@@ -971,10 +971,6 @@ inline void expectParseErrorJSON(const std::string& contents, const std::string&
 // minified whitespace.  The trailing semicolon is stripped before comparison.
 // This is the core round-trip helper for JSON.
 //
-// Note: The input is parsed as JSON but printed as JS.  This means the printed
-// code may not be valid JSON.  That's ok because esbuild always outputs JS
-// bundles, not JSON bundles.
-//
 // Example:
 //   expectPrintedJSONWithWarning("{\"x\":0,\"x\":1}", "warning...", "({x:0,x:1})");
 inline void expectPrintedJSONWithWarning(const std::string& contents, const std::string& warning, const std::string& expected) {

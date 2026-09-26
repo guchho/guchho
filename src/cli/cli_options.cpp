@@ -119,11 +119,34 @@ std::optional<ErrorWithNote> parseOptionsImpl(
     // location can be named after the map.
     bool has_bare_sourcemap_flag = false;
 
+    // What was actually said, as opposed to what is in the struct afterwards.
+    //
+    // Most flags do not need recording: an unset "--outdir" and no flag at all
+    // are both an empty string, and the resolution can tell them apart by
+    // looking. The ones recorded here are the flags whose absence is not visible
+    // in the value they leave behind — "--minify=false" writes false, which is
+    // also what nobody saying anything writes. Without this a project whose
+    // config turns minification on could not turn it off from a command line.
+    //
+    // Only the build half records. A transform has no config file, no output
+    // directory and no entry points, so there is nothing for the answer to
+    // outrank.
+    std::shared_ptr<api::ExplicitlySet> said;
+    if (build_opts) {
+        said = std::make_shared<api::ExplicitlySet>();
+    }
+    auto note = [&](std::string_view key) {
+        if (said) {
+            said->keys.insert(key);
+        }
+    };
+
     for (const auto& arg : os_args) {
         if (isBoolFlag(arg, "--bundle") && build_opts) {
             auto [value, err] = parseBoolFlag(arg, true);
             if (err) return err;
             build_opts->bundle = value;
+            note(api::kOptBundle);
             continue;
         }
         if (isBoolFlag(arg, "--preserve-symlinks") && build_opts) {
@@ -136,6 +159,7 @@ std::optional<ErrorWithNote> parseOptionsImpl(
             auto [value, err] = parseBoolFlag(arg, true);
             if (err) return err;
             build_opts->splitting = value;
+            note(api::kOptSplitting);
             continue;
         }
         if (isBoolFlag(arg, "--allow-overwrite") && build_opts) {
@@ -193,6 +217,7 @@ std::optional<ErrorWithNote> parseOptionsImpl(
                 build_opts->minify_syntax = value;
                 build_opts->minify_whitespace = value;
                 build_opts->minify_identifiers = value;
+                note(api::kOptMinify);
             } else {
                 transform_opts->minify_syntax = value;
                 transform_opts->minify_whitespace = value;
@@ -203,22 +228,34 @@ std::optional<ErrorWithNote> parseOptionsImpl(
         if (isBoolFlag(arg, "--minify-syntax")) {
             auto [value, err] = parseBoolFlag(arg, true);
             if (err) return err;
-            if (build_opts) build_opts->minify_syntax = value;
-            else transform_opts->minify_syntax = value;
+            if (build_opts) {
+                build_opts->minify_syntax = value;
+                note(api::kOptMinify);
+            } else {
+                transform_opts->minify_syntax = value;
+            }
             continue;
         }
         if (isBoolFlag(arg, "--minify-whitespace")) {
             auto [value, err] = parseBoolFlag(arg, true);
             if (err) return err;
-            if (build_opts) build_opts->minify_whitespace = value;
-            else transform_opts->minify_whitespace = value;
+            if (build_opts) {
+                build_opts->minify_whitespace = value;
+                note(api::kOptMinify);
+            } else {
+                transform_opts->minify_whitespace = value;
+            }
             continue;
         }
         if (isBoolFlag(arg, "--minify-identifiers")) {
             auto [value, err] = parseBoolFlag(arg, true);
             if (err) return err;
-            if (build_opts) build_opts->minify_identifiers = value;
-            else transform_opts->minify_identifiers = value;
+            if (build_opts) {
+                build_opts->minify_identifiers = value;
+                note(api::kOptMinify);
+            } else {
+                transform_opts->minify_identifiers = value;
+            }
             continue;
         }
         // -------------------------------------------------------------------------
@@ -344,8 +381,12 @@ std::optional<ErrorWithNote> parseOptionsImpl(
             // engine decides what to do about unused exports when nobody has
             // said, so "off" and "not asked" cannot be the same value.
             auto ts = value ? api::TreeShaking::kTrue : api::TreeShaking::kFalse;
-            if (build_opts) build_opts->tree_shaking = ts;
-            else transform_opts->tree_shaking = ts;
+            if (build_opts) {
+                build_opts->tree_shaking = ts;
+                note(api::kOptTreeShaking);
+            } else {
+                transform_opts->tree_shaking = ts;
+            }
             continue;
         }
         if (isBoolFlag(arg, "--ignore-annotations")) {
@@ -373,8 +414,12 @@ std::optional<ErrorWithNote> parseOptionsImpl(
         // linked map. A transform writes one file to a stream that is often a
         // pipe, where the only place a map fits is inside the file itself.
         if (arg == "--sourcemap") {
-            if (build_opts) build_opts->sourcemap = api::SourceMap::kLinked;
-            else transform_opts->sourcemap = api::SourceMap::kInline;
+            if (build_opts) {
+                build_opts->sourcemap = api::SourceMap::kLinked;
+                note(api::kOptSourcemap);
+            } else {
+                transform_opts->sourcemap = api::SourceMap::kInline;
+            }
             // Remembered rather than decided, because whether linked is even
             // possible is not known yet — see the end of the function.
             has_bare_sourcemap_flag = true;
@@ -392,8 +437,12 @@ std::optional<ErrorWithNote> parseOptionsImpl(
                     "Invalid value " + helpers::QuoteSingle(value, true) + " in " + helpers::QuoteSingle(arg, true),
                     "Valid values are \"linked\", \"inline\", \"external\", or \"both\".");
             }
-            if (build_opts) build_opts->sourcemap = sm;
-            else transform_opts->sourcemap = sm;
+            if (build_opts) {
+                build_opts->sourcemap = sm;
+                note(api::kOptSourcemap);
+            } else {
+                transform_opts->sourcemap = sm;
+            }
             // Cleared, and this is the one place the tracker can be cancelled.
             // An explicit choice says what should happen, and the repair at the
             // end of the function exists only to rescue a request that was never
@@ -403,8 +452,12 @@ std::optional<ErrorWithNote> parseOptionsImpl(
         }
         if (arg.starts_with("--source-root=")) {
             auto value = arg.substr(std::string_view("--source-root=").size());
-            if (build_opts) build_opts->source_root = value;
-            else transform_opts->source_root = value;
+            if (build_opts) {
+                build_opts->source_root = value;
+                note(api::kOptSourceRoot);
+            } else {
+                transform_opts->source_root = value;
+            }
             continue;
         }
         if (isBoolFlag(arg, "--sources-content")) {
@@ -445,20 +498,24 @@ std::optional<ErrorWithNote> parseOptionsImpl(
         if (arg.starts_with("--resolve-extensions=") && build_opts) {
             auto value = arg.substr(std::string_view("--resolve-extensions=").size());
             build_opts->resolve_extensions = splitWithEmptyCheck(value, ',');
+            note(api::kOptResolveExtensions);
             continue;
         }
         if (arg.starts_with("--main-fields=") && build_opts) {
             auto value = arg.substr(std::string_view("--main-fields=").size());
             build_opts->main_fields = splitWithEmptyCheck(value, ',');
+            note(api::kOptMainFields);
             continue;
         }
         if (arg.starts_with("--conditions=") && build_opts) {
             auto value = arg.substr(std::string_view("--conditions=").size());
             build_opts->conditions = splitWithEmptyCheck(value, ',');
+            note(api::kOptConditions);
             continue;
         }
         if (arg.starts_with("--public-path=") && build_opts) {
             build_opts->public_path = arg.substr(std::string_view("--public-path=").size());
+            note(api::kOptPublicPath);
             continue;
         }
         if (arg.starts_with("--global-name=")) {
@@ -499,14 +556,17 @@ std::optional<ErrorWithNote> parseOptionsImpl(
         // since a transform's output is a stream.
         if (arg.starts_with("--outfile=") && build_opts) {
             build_opts->outfile = arg.substr(std::string_view("--outfile=").size());
+            note(api::kOptOutfile);
             continue;
         }
         if (arg.starts_with("--outdir=") && build_opts) {
             build_opts->outdir = arg.substr(std::string_view("--outdir=").size());
+            note(api::kOptOutdir);
             continue;
         }
         if (arg.starts_with("--outbase=") && build_opts) {
             build_opts->outbase = arg.substr(std::string_view("--outbase=").size());
+            note(api::kOptOutbase);
             continue;
         }
         if (arg.starts_with("--tsconfig=") && build_opts) {
@@ -699,6 +759,7 @@ std::optional<ErrorWithNote> parseOptionsImpl(
             if (build_opts) {
                 build_opts->target = target;
                 build_opts->engines = engines;
+                note(api::kOptTarget);
             } else {
                 transform_opts->target = target;
                 transform_opts->engines = engines;
@@ -727,8 +788,12 @@ std::optional<ErrorWithNote> parseOptionsImpl(
                     "Invalid value " + helpers::QuoteSingle(value, true) + " in " + helpers::QuoteSingle(arg, true),
                     "Valid values are \"browser\", \"node\", or \"neutral\".");
             }
-            if (build_opts) build_opts->platform = platform;
-            else transform_opts->platform = platform;
+            if (build_opts) {
+                build_opts->platform = platform;
+                note(api::kOptPlatform);
+            } else {
+                transform_opts->platform = platform;
+            }
             continue;
         }
         if (arg.starts_with("--format=")) {
@@ -745,8 +810,12 @@ std::optional<ErrorWithNote> parseOptionsImpl(
                     "Invalid value " + helpers::QuoteSingle(value, true) + " in " + helpers::QuoteSingle(arg, true),
                     "Valid values are \"iife\", \"cjs\", \"esm\", \"umd\", \"amd\", or \"system\".");
             }
-            if (build_opts) build_opts->format = format;
-            else transform_opts->format = format;
+            if (build_opts) {
+                build_opts->format = format;
+                note(api::kOptFormat);
+            } else {
+                transform_opts->format = format;
+            }
             continue;
         }
         // -------------------------------------------------------------------------
@@ -768,10 +837,12 @@ std::optional<ErrorWithNote> parseOptionsImpl(
                     "Valid values are \"bundle\" or \"external\".");
             }
             build_opts->packages = packages;
+            note(api::kOptExternal);
             continue;
         }
         if (arg.starts_with("--external:") && build_opts) {
             build_opts->external.push_back(arg.substr(std::string_view("--external:").size()));
+            note(api::kOptExternal);
             continue;
         }
         if (arg.starts_with("--inject:") && build_opts) {
@@ -787,6 +858,7 @@ std::optional<ErrorWithNote> parseOptionsImpl(
                     "You need to use \"=\" to specify both the original package name and the replacement package name.");
             }
             build_opts->alias[value.substr(0, eq)] = value.substr(eq + 1);
+            note(api::kOptAlias);
             continue;
         }
         // -------------------------------------------------------------------------
@@ -964,6 +1036,7 @@ std::optional<ErrorWithNote> parseOptionsImpl(
             } else {
                 build_opts->entry_points.push_back(arg);
             }
+            note(api::kOptEntryPoints);
             continue;
         }
         // -------------------------------------------------------------------------
@@ -1082,6 +1155,13 @@ std::optional<ErrorWithNote> parseOptionsImpl(
     // did not quite mean it.
     if (build_opts && has_bare_sourcemap_flag && build_opts->outfile.empty() && build_opts->outdir.empty()) {
         build_opts->sourcemap = api::SourceMap::kInline;
+    }
+
+    // Handed over only on the way out. A parse that fails has no options to
+    // describe, so the set is not worth maintaining through the error paths and
+    // is not: it is built, filled in as flags are recognised, and attached here.
+    if (build_opts) {
+        build_opts->explicit_set = std::move(said);
     }
 
     return std::nullopt;

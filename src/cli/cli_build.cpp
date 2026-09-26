@@ -204,6 +204,13 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
                 addAnalyzePlugin(build_opts);
             }
 
+            // Everything the flags did not settle is settled here, once: the
+            // project's own config file, and then the defaults behind it. It runs
+            // after the gate above rather than before it, because "no entry
+            // points" is a statement about the command line and is answered the
+            // same way whether or not a config file exists.
+            build_opts = resolveRunOptions(build_opts);
+
             // "NODE_PATH" adds directories to search for packages, and it is
             // spelled with the separator of the host: a semicolon on Windows and
             // a colon everywhere else, which is the one place the path syntax of

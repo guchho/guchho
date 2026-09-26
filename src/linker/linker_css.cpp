@@ -328,7 +328,7 @@ namespace guchho::linker {
         }
 
         j.EnsureNewlineAtEnd();
-        std::string slash_tag = "/style";
+        std::string slash_tag = "style";
         if (compat::Has(options->UnsupportedCSSFeatures, compat::CSSFeature::kInlineStyle)) {
             slash_tag = "";
         }

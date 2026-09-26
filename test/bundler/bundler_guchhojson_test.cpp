@@ -221,6 +221,32 @@ TEST(BundlerGuchhoJSON, BuildEntryAndOutdir) {
     });
 }
 
+TEST(BundlerGuchhoJSON, BuildHtmlEntryPage) {
+    // "build.entry" may name a page instead of a module, and the page is what
+    // the build emits: the script and the stylesheet it references become
+    // chunks, and the URLs in the markup are rewritten to point at them. Only
+    // the entry and the output directory come from the config here, so what
+    // the snapshot shows is the page pipeline driven by "build.entry".
+    guchhojson_suite.ExpectBundled(Bundled{
+        .files = {
+            {"/index.html",
+                R"(<!DOCTYPE html>
+<html>
+  <head><link rel="stylesheet" href="style.css"></head>
+  <body><script src="app.js"></script><img src="logo.png"></body>
+</html>)"},
+            {"/app.js", "import {x} from './dep.js'\nconsole.log(x);\n"},
+            {"/dep.js", "export const x = 42;\n"},
+            {"/style.css", "p { color: red }\n"},
+            {"/logo.png", "fake-png-data"},
+        },
+        .options = guchho::config::Options{
+            .BuildMode = guchho::config::Mode::kBundle,
+        },
+        .guchho_config = R"({"build":{"entry":"index.html","outdir":"out"}})",
+    });
+}
+
 TEST(BundlerGuchhoJSON, BuildOutfile) {
     // "build.outfile" names the single output file, and clears any output
     // directory, so the bundle is written exactly where the config says.
@@ -510,6 +536,48 @@ Bundled ScenarioForProject(
 }
 
 } // namespace
+
+// ---------------------------------------------------------------------------
+// The default entry
+//
+// A config that says nothing about "build.entry" still builds a page, because
+// the schema's default entry is "index.html" beside the config. That default
+// belongs to the discovery walk rather than to the field mapping, so the test
+// below finds a real "guchho.json" in the mock file system instead of passing
+// config text to the harness.
+// ---------------------------------------------------------------------------
+
+TEST(BundlerGuchhoJSON, DefaultEntryIsThePage) {
+    // The config asks for an output directory and nothing else, so the entry
+    // that gets built is the one nobody wrote down.
+    std::unordered_map<std::string, std::string> files = {
+        {"/project/guchho.json", R"({"build":{"outdir":"out"}})"},
+        {"/project/index.html",
+            R"(<!DOCTYPE html>
+<html>
+  <head><link rel="stylesheet" href="style.css"></head>
+  <body><script src="app.js"></script><img src="logo.png"></body>
+</html>)"},
+        {"/project/app.js", "import {x} from './dep.js'\nconsole.log(x);\n"},
+        {"/project/dep.js", "export const x = 42;\n"},
+        {"/project/style.css", "p { color: red }\n"},
+        {"/project/logo.png", "fake-png-data"},
+    };
+
+    DiscoveredProject project = DiscoverProject(files, "/project");
+    EXPECT_TRUE(project.config.found);
+    EXPECT_FALSE(project.config.parse_error);
+    EXPECT_EQ(project.config.config_path, std::string("/project/guchho.json"));
+    EXPECT_TRUE(project.log.empty());
+
+    // One entry, and it is the page next to the config rather than a module.
+    ASSERT_EQ(project.config.entry_points.size(), size_t{1});
+    EXPECT_EQ(project.config.entry_points[0].InputPath,
+              std::string("/project/index.html"));
+
+    guchhojson_suite.ExpectBundledUnix(
+        ScenarioForProject(std::move(files), project.config));
+}
 
 // ---------------------------------------------------------------------------
 // guchho.config.js

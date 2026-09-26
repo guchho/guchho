@@ -646,7 +646,7 @@ TEST(GenerateChunkTest, ShouldIgnoreNotAllSemicolons)
 {
     auto tables = GenerateLineOffsetTables("var x = 1;", 1);
     auto builder = MakeChunkBuilder(nullptr, tables, false);
-    builder.UpdateGeneratedLineAndColumn("var x = 1;");
+    builder.AddSourceMapping(Loc{0}, "", "var x = 1;");
     auto chunk = builder.GenerateChunk("var x = 1;");
     EXPECT_FALSE(chunk.should_ignore);
 }

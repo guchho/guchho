@@ -721,7 +721,7 @@ TEST(CssPrinter, PrintResultAllFields)
 }
 
 // ---------------------------------------------------------------------------
-// Professional round-trip cases (expected output validated against esbuild)
+// Professional round-trip cases
 // ---------------------------------------------------------------------------
 
 TEST(CssPrinter, NestedRule)
@@ -826,7 +826,7 @@ TEST(CssPrinter, RgbFunctionSingleLine)
     EXPECT_EQ(result.css, "a {\n  color: rgb(1, 2, 3);\n}\n");
 }
 
-// Minified variants, also validated against esbuild
+// Minified variants, also validated against guchho
 
 TEST(CssPrinter, MinifyNestedRule)
 {

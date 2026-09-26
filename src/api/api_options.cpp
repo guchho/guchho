@@ -213,7 +213,13 @@ EffectiveBuildOptions ResolveEffectiveBuildOptions(const BuildOptions& explicit_
     // claim that defaults were requested. Resolving the result a second time
     // therefore behaves like resolving the request, rather than treating its own
     // output as a fresh set of instructions.
-    out.explicit_set = nullptr;
+    //
+    // It is cleared on the way out rather than here, and that is not a detail:
+    // every "WasSet" below asks "out", so an "out" whose set has already been
+    // dropped reports every option as explicitly requested and the config file
+    // and the built-in defaults are both skipped. A resolution that quietly
+    // answers with the request it was given is the one failure this whole
+    // function exists to prevent.
 
     // ---- A file system to look for the config with -------------------------
     std::string fs_error;
@@ -225,6 +231,7 @@ EffectiveBuildOptions ResolveEffectiveBuildOptions(const BuildOptions& explicit_
         // explicit options alone. A build that still needs an output directory
         // says so through the ordinary "must use outdir" message, which names
         // the problem rather than the failure to look for it.
+        out.explicit_set = nullptr;
         return result;
     }
 
@@ -269,7 +276,12 @@ EffectiveBuildOptions ResolveEffectiveBuildOptions(const BuildOptions& explicit_
     if (!WasSet(out, kOptOutbase) && out.outbase.empty() && !cfg.AbsOutputBase.empty()) {
         out.outbase = Relativize(*fs, cfg.AbsOutputBase);
     }
-    if (!WasSet(out, kOptFormat) && out.format == api::Format::kDefault &&
+    // A format is only a question where something needs one. An unbundled entry
+    // is converted or copied and the answer "leave it as it was" is the only
+    // honest one, so the config's format is carried across only when the build
+    // is bundling — which is also the only case in which a config's "iife" and
+    // a command line's "--format iife" are statements about the same thing.
+    if (!WasSet(out, kOptFormat) && out.format == api::Format::kDefault && out.bundle &&
         cfg.OutputFormat != config::Format::kPreserve) {
         out.format = ToApiFormat(cfg.OutputFormat);
     }
@@ -290,16 +302,20 @@ EffectiveBuildOptions ResolveEffectiveBuildOptions(const BuildOptions& explicit_
             out.engines = spec.engines;
         }
     }
-    if (!WasSet(out, kOptMinify) &&
-        !(out.minify_whitespace && out.minify_identifiers && out.minify_syntax)) {
-        // Fills in only when the config turned minification on. A request for no
-        // minification at all is a request for none, and a config that would
-        // have added it has not been asked to.
-        if (cfg.MinifyWhitespace || cfg.MinifyIdentifiers || cfg.MinifySyntax) {
-            out.minify_whitespace  = cfg.MinifyWhitespace;
-            out.minify_identifiers = cfg.MinifyIdentifiers;
-            out.minify_syntax      = cfg.MinifySyntax;
-        }
+    if (!WasSet(out, kOptMinify)) {
+        // Taken from the config as a whole, including when the config turns
+        // minification off, which is the half of this that used to be missing.
+        // The old guard here was "unless all three are already on", on the
+        // reasoning that a request for no minification should not be undone —
+        // but those three are the structure's own initializers, so a caller who
+        // simply left the struct alone was indistinguishable from one who asked
+        // for minification, and a project saying "minify: false" was ignored
+        // unless it had also been contradicted on the command line. The
+        // explicit set is the only record of somebody having said something, and
+        // when there is none the config's answer is the answer.
+        out.minify_whitespace  = cfg.MinifyWhitespace;
+        out.minify_identifiers = cfg.MinifyIdentifiers;
+        out.minify_syntax      = cfg.MinifySyntax;
     }
     if (!WasSet(out, kOptSourcemap) && out.sourcemap == api::SourceMap::kNone &&
         cfg.SourceMapData != config::SourceMap::kNone) {
@@ -387,6 +403,10 @@ EffectiveBuildOptions ResolveEffectiveBuildOptions(const BuildOptions& explicit_
     // because Build() is the one place that knows which of the two was named and
     // which was not. Deriving it here as well is how "both were set" starts
     // happening, and that combination is an error on purpose.
+    //
+    // The parse state is dropped here, where every "WasSet" above is finished
+    // with it, and not one line earlier.
+    out.explicit_set = nullptr;
     return result;
 }
 

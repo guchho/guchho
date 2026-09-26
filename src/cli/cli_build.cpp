@@ -192,24 +192,55 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
             return static_cast<int>(ExitCode::kCLIUsageError);
         }
 
+        // Everything the flags did not settle is settled here, once: the
+        // project's own config file, and then the defaults behind it.
+        //
+        // This runs before the gate below rather than inside it, and that order
+        // is the whole reason a bare "guchho build" works in a project with a
+        // config file. The gate asks whether anything was named to build from,
+        // and with the resolution after it the answer could only ever come from
+        // the command line — so a project whose entry point lives in
+        // "guchho.config.json" was told "No entry points specified" by a build
+        // that had the entry point in hand two lines later.
+        //
+        // The resolution does not smuggle an entry point past the gate, and the
+        // second half of the no-entry rule is preserved by it on purpose: the
+        // built-in "index.html" default is a default and is not handed over, so
+        // a command line with no entry point and no config still has none when
+        // the gate looks.
+        build_opts = resolveRunOptions(build_opts);
+
         // There is a build to run when something was named to build from, or
         // when bundling or writing was asked for on its own — the last of which
         // is how a build with no entry point at all still gets one, by way of
         // the standard input. With none of those, there is nothing to do and
         // the message below says so.
+        //
+        // "write" is read here exactly as the flag reader left it, which is why
+        // the line that turns it on for good is inside this branch rather than
+        // above it. Setting it earlier makes this test true on every run, and a
+        // command with nothing to build is then carried on into the standard
+        // input path and reported as an unreadable "<stdin>" instead of as the
+        // missing entry point it actually is.
         if (!build_opts.entry_points.empty() || !build_opts.entry_points_advanced.empty() ||
             build_opts.bundle || build_opts.write) {
+
+            // "guchho build" writes its output, and this is where that is
+            // decided. It cannot be left to the flag reader, which sets it only
+            // when some argument was recognised as build-shaped: a bare "guchho
+            // build" in a project whose config names the entry point has no such
+            // argument, so the build below ran with writing switched off,
+            // printed a summary of a file it had produced, and produced nothing.
+            //
+            // Not an "or": there is no reading of this command in which the
+            // result is meant to be handed back to a caller who is not there. A
+            // caller who wants the bytes is using the library, where
+            // BuildOptions{} still defaults to not writing.
+            build_opts.write = true;
 
             if (analyze != AnalyzeMode::kDisabled) {
                 addAnalyzePlugin(build_opts);
             }
-
-            // Everything the flags did not settle is settled here, once: the
-            // project's own config file, and then the defaults behind it. It runs
-            // after the gate above rather than before it, because "no entry
-            // points" is a statement about the command line and is answered the
-            // same way whether or not a config file exists.
-            build_opts = resolveRunOptions(build_opts);
 
             // "NODE_PATH" adds directories to search for packages, and it is
             // spelled with the separator of the host: a semicolon on Windows and

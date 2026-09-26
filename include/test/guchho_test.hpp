@@ -568,7 +568,15 @@ private:
     }
 
     bool failed_ = false;
-    bool fatal_ = false;
+
+    // Whether the failure that produced this handle was asked for as fatal, kept
+    // for the policy change the macros describe: an EXPECT_* that reported and
+    // carried on while an ASSERT_* aborted. Nothing reads it yet, because today
+    // both report and abort identically, and an attribute is how that is said
+    // rather than left to look like an oversight — the field is written on every
+    // failure and never read, which is exactly what a reader of this class would
+    // otherwise have to work out from the macros above.
+    [[maybe_unused]] bool fatal_ = false;
     std::string where_;
     std::string opname_;
     std::string lhs_expr_;

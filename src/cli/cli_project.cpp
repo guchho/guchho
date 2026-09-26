@@ -35,10 +35,13 @@
 // =============================================================================
 #include "guchho/cli.hpp"
 #include "guchho/filesystem.hpp"
+#include "guchho/resolver.hpp"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -252,15 +255,26 @@ int runInit(const std::vector<std::string>& args) {
     // anyway, which is the point: a person can open this file, see what a build
     // is being asked for, and change one line. The entry matches the document
     // above and the output directory is the one "guchho clean" looks for.
+    //
+    // Nothing that changed recently is written here, and the omissions are
+    // deliberate. The previous version named "sourcemap: true", which was never
+    // the default and is now further from it than ever: a scaffold that turns a
+    // feature on by default is a scaffold that teaches people the feature is
+    // normally on, and they then find out otherwise the first time a build map
+    // shows up in a "dist" they were not expecting. "format" stays, because the
+    // entry above is a document and a document is bundled, so the module format
+    // of the result is a real question here rather than one that is answered
+    // with the default.
     ok &= createFile("guchho.config.js",
         "export default {\n"
         "  build: {\n"
         "    entry: 'src/index.html',\n"
         "    outdir: 'dist',\n"
         "    format: 'esm',\n"
-        "    target: 'es2020',\n"
+        "    target: 'esnext',\n"
         "    minify: true,\n"
-        "    sourcemap: true,\n"
+        "    pretty: true,\n"
+        "    minifyHtml: false,\n"
         "  },\n"
         "};\n");
 
@@ -286,24 +300,30 @@ int runInit(const std::vector<std::string>& args) {
 //
 // Removes what a build put in the project, and nothing else.
 //
-// The list of what that is has three names in it, and only the first is a
-// directory the rest of the command line currently writes: "dist" is the
-// default output location, and the other two are names kept here for a
-// project's own state and for a cache on disk. Neither is referred to anywhere
-// else in the project today, so in practice this command finds one directory
-// and stays quiet about the other two — which is why a missing target produces
-// no line of output at all rather than a line saying it was missing.
+// There is one target, and it is not a name typed in here: it is the directory
+// this project's build writes to, worked out by the same resolution a build
+// uses. A command with a fixed list cannot be right about a project that has
+// configured a different output directory — it would either miss the output
+// entirely or, as it once did, remove two more directories on the strength of a
+// convention nothing else in the program followed. Deciding where the output is
+// and deciding what to delete are the same question, so they get the same
+// answer from the same place.
+//
+// A missing target produces no line of output, because a project that has never
+// been built has nothing to clean and there is nothing to tell the person who
+// asked.
 //
 // The switch makes the command safe to try. Deleting a directory is the one
 // thing on the command line that cannot be undone by running it again, and
 // "--dry-run" answers the only question a person has before running it: what
 // would be removed.
 
-// Removes the generated directories from the working directory: "dist",
-// ".guchho" and "cache", in that order.
+// Removes the project's output directory.
 //
-// Reads "--help" and "-h" before doing anything, and "--dry-run" to list what
-// would be removed without removing it.
+// Reads "--help" and "-h" before doing anything, "--dry-run" to list what would
+// be removed without removing it, and the build's own output flags — "--outdir"
+// and "--outfile" — so that a directory named on the command line is the one
+// removed.
 //
 // A target that is not there produces no output, because a project that has
 // never been built has nothing to clean and there is nothing to tell the person
@@ -318,6 +338,9 @@ int runInit(const std::vector<std::string>& args) {
 // Input:  { "clean", "--dry-run" } in the same directory
 // Output: a blank line, "  Would remove dist/", a blank line, and 0, with
 //         nothing removed.
+//
+// Input:  { "clean", "--outdir=build" } in a project whose config says the same
+// Output: a line about "build/", and nothing about "dist/" even if that exists.
 //
 // Input:  { "clean" } in an empty directory
 // Output: two blank lines and 0.
@@ -348,12 +371,46 @@ int runClean(const std::vector<std::string>& args) {
 
     auto cwd = fs->Cwd();
 
-    // Fixed, and in this order, so that two runs of the command say the same
-    // things in the same order. Nothing is discovered by looking at the project:
-    // a command whose deletions depended on what it found could delete a
-    // directory a person had created themselves, and the only safe way to choose
-    // what to remove is to have decided beforehand.
-    std::vector<std::string> targets = {"dist", ".guchho", "cache"};
+    // The list of arguments is read rather than the output paths directly, so
+    // that "--outdir" and "--outfile" are honoured here exactly as they are by a
+    // build, and the project configuration gets its turn in between.
+    auto clean_args = args;
+    if (!clean_args.empty() && clean_args[0] == "clean") {
+        clean_args.erase(clean_args.begin());
+    }
+    clean_args.erase(std::remove(clean_args.begin(), clean_args.end(), "--dry-run"),
+                     clean_args.end());
+    auto [clean_build, clean_transform, build_opts, transform_opts, clean_extras, clean_err] =
+        parseOptionsForRun(clean_args, {});
+    (void)clean_build;
+    (void)clean_transform;
+    (void)transform_opts;
+    (void)clean_extras;
+    if (clean_err) {
+        logger::PrintErrorWithNoteToStderr(args, clean_err->text, clean_err->note);
+        return static_cast<int>(ExitCode::kCLIUsageError);
+    }
+    build_opts = resolveRunOptions(build_opts);
+
+    // One target, and it is the directory this project's build writes to. The
+    // previous version of this command removed a fixed list — the output
+    // directory, a ".guchho" and a "cache" — which meant it could delete
+    // directories nothing had ever put there and, worse, missed the output
+    // directory whenever the project had configured a different one. Deciding
+    // from the same resolution a build uses is what makes "clean" and "build"
+    // agree about where the output is.
+    //
+    // A build configured with a single output file has still got a directory
+    // underneath it, and that is the directory to remove.
+    std::vector<std::string> targets;
+    if (!build_opts.outdir.empty()) {
+        targets.push_back(build_opts.outdir);
+    } else if (!build_opts.outfile.empty()) {
+        std::optional<std::string> file_abs = fs->Abs(build_opts.outfile);
+        targets.push_back(file_abs ? fs->Dir(*file_abs) : std::string());
+    }
+    targets.erase(std::remove(targets.begin(), targets.end(), std::string()),
+                  targets.end());
 
     // Opens the list, and is also what a run with nothing to remove prints.
     std::cout << "\n";
@@ -471,17 +528,21 @@ int runInfo(const std::vector<std::string>& args) {
         "Debug";
 #endif
 
-    // Which of the three names is a file that is actually there, in the order
-    // they are listed. The first is the one this command's own sibling writes,
-    // so a project created by "guchho init" reports the file it was given.
+    // Which of the names is a file that is actually there, in the order the
+    // loader looks. The order is the resolver's, not this command's: a report
+    // that named a different file from the one a build would have read would be
+    // worse than no report at all, and the two have already been out of step —
+    // this list once put "guchho.json" ahead of "guchho.config.json", which is
+    // the opposite of the order the loader takes. The first match is the one this
+    // command's own sibling writes, so a project created by "guchho init" reports
+    // the file it was given.
     filesystem::RealFsOptions fs_opts;
     std::string fs_err;
     auto fs = filesystem::MakeRealFS(fs_opts, fs_err);
     std::string config = "none";
     if (fs) {
         auto cwd = fs->Cwd();
-        std::vector<std::string> config_names = {"guchho.config.js", "guchho.json", "guchho.config.json"};
-        for (const auto& name : config_names) {
+        for (const auto& name : resolver::GuchhoConfigFileNames()) {
             std::string full_path = fs->Join({cwd, name});
             // The same probe the init command uses to decide whether to skip a
             // file: list the directory, find the name in the listing, and ask

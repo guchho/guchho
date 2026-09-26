@@ -394,9 +394,9 @@ guchho_enable_sanitizers(guchho_api)
 # CLI library (the command line surface)
 # ============================================================
 
-# One file per command, plus the flag grammar they all read. cli_internal.hpp is
-# private to this directory: it is not installed and does not add to the public
-# surface in include/guchho/cli.hpp.
+# One file per command, plus the flag grammar they all read. The declarations
+# they share are in include/guchho/cli.hpp, under the section marked as being
+# for the command line's own files rather than for an embedder.
 set(GUCHHO_CLI_SOURCES
     cli/cli_build.cpp
     cli/cli_flags.cpp

@@ -1147,7 +1147,7 @@ public:
             return;
         }
 
-        if (req.method == "GET" && req.path == "/esbuild" &&
+        if (req.method == "GET" && req.path == "/guchho" &&
             req.GetHeader("Accept") == "text/event-stream") {
             serve_event_stream(start, req, resp);
             return;

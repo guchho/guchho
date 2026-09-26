@@ -671,6 +671,36 @@ api::TransformOptions newTransformOptions() {
     return opts;
 }
 
+// Settles everything the flags left open.
+//
+// The grammar has already recorded which options somebody typed, so this is
+// where the other two sources get their turn: the project's config file, and the
+// built-in defaults behind it. The work is not done here, only asked for — the
+// ranking lives in api::ResolveEffectiveBuildOptions, which is the same code an
+// embedding of the C++ API reaches, so there is one answer to "what does this
+// project build with" rather than one per caller.
+//
+// The HTML-first default is applied after the resolution rather than before it,
+// because a config file that names its own entry points can bring an HTML entry
+// with it, and a bundle switch decided before those entries were known would miss
+// it.
+//
+// "abs_working_dir" is where discovery starts. It is a parameter rather than a
+// read of the process directory because a watch session and the tests both need
+// to resolve a project other than the one they happen to be sitting in.
+//
+// Input:  options with entry_points = { "src/index.js" } and no outdir
+// Output: the same options with outdir = "dist", plus whatever guchho.config.json
+//         beside the project had to say about the rest
+api::BuildOptions resolveRunOptions(const api::BuildOptions& options,
+                                    const std::string& abs_working_dir) {
+    api::EffectiveBuildOptions effective =
+        api::ResolveEffectiveBuildOptions(options, abs_working_dir);
+    api::BuildOptions resolved = std::move(effective.options);
+    ApplyHtmlBundleDefault(resolved);
+    return resolved;
+}
+
 // =============================================================================
 // The HTML-first default
 // =============================================================================

@@ -1,0 +1,1000 @@
+BundlerHTML.HtmlBasePathAbsolute
+---------- /out/logo.png ----------
+fake-png-data
+---------- /out/app.js ----------
+// app.js
+import("/app/dep-HGXMSJND.js").then((m) => console.log(m.x));
+
+---------- /out/dep-HGXMSJND.js ----------
+// dep.js
+var x = 42;
+export {
+  x
+};
+
+---------- /out/app.css ----------
+/* style.css */
+p {
+  color: red;
+}
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="modulepreload" crossorigin="" href="/app/dep-HGXMSJND.js"><link rel="stylesheet" href="/app/app.css"></head><body><script type="module" src="/app/app.js" crossorigin=""></script><img src="/app/logo.png"></body></html>
+================================================================================
+BundlerHTML.HtmlBasePathExternalUntouched
+---------- /out/app.js ----------
+// app.js
+console.log("hi");
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><script type="module" src="/app/app.js" crossorigin=""></script><img src="https://static.example.com/x.png"><img src="data:image/png;base64,AAAA"></body></html>
+================================================================================
+BundlerHTML.HtmlBasePathRelative
+---------- /out/app.js ----------
+// app.js
+console.log("hi");
+
+---------- /out/logo.png ----------
+fake-png-data
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><script src="./app.js"></script><img src="./logo.png"></body></html>
+================================================================================
+BundlerHTML.HtmlBasePathURL
+---------- /out/app.js ----------
+// app.js
+import("https://cdn.example.com/dep-PDESWVSJ.js").then((m) => console.log(m.x));
+
+---------- /out/dep-PDESWVSJ.js ----------
+// dep.js
+var x = 42;
+export {
+  x
+};
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="modulepreload" crossorigin="" href="https://cdn.example.com/dep-PDESWVSJ.js"></head><body><script type="module" src="https://cdn.example.com/app.js" crossorigin=""></script></body></html>
+================================================================================
+BundlerHTML.HtmlCSSLoadingBlocking
+---------- /out/app.js ----------
+// app.js
+console.log("hi");
+
+---------- /out/site.css ----------
+/* site.css */
+body {
+  background: blue;
+}
+
+---------- /out/app.css ----------
+/* style.css */
+p {
+  color: green;
+}
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./app.css"><link rel="stylesheet" href="./site.css"></head><body><script type="module" src="./app.js" crossorigin=""></script></body></html>
+================================================================================
+BundlerHTML.HtmlCSSLoadingNonBlocking
+---------- /out/app.js ----------
+// app.js
+console.log("hi");
+
+---------- /out/site.css ----------
+/* site.css */
+body {
+  background: blue;
+}
+
+---------- /out/app.css ----------
+/* style.css */
+p {
+  color: green;
+}
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="preload" href="./app.css" as="style" onload="this.rel='stylesheet'"><noscript><link rel="stylesheet" href="./app.css"></noscript><link rel="stylesheet" href="https://cdn.example.com/theme.css"><link rel="preload" href="./site.css" as="style" onload="this.rel='stylesheet'"><noscript><link rel="stylesheet" href="./site.css"></noscript></head><body><script type="module" src="./app.js" crossorigin=""></script></body></html>
+================================================================================
+BundlerHTML.HtmlClassicScriptUntouched
+---------- /out/app.js ----------
+// app.js
+console.log("hi");
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><script src="./app.js"></script></body></html>
+================================================================================
+BundlerHTML.HtmlCspNonceCreatesHead
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><meta property="csp-nonce" nonce="abc123"></head><body><style nonce="abc123">/* index.html:inline-styles */
+.x {
+  color: red;
+}
+</style></body></html>
+================================================================================
+BundlerHTML.HtmlCspNonceInjection
+---------- /out/a.css ----------
+/* a.css */
+body {
+  color: red;
+}
+
+---------- /out/a.js ----------
+// b.js
+console.log("b");
+
+// a.js
+console.log("a");
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><meta property="csp-nonce" nonce="abc123"><link rel="modulepreload" href="./x.js" nonce="abc123"><link rel="preload" as="font" type="font/woff2" href="./f.woff2" nonce="abc123"></head><body><link rel="stylesheet" href="./a.css" nonce="abc123"><script type="module" src="./a.js" crossorigin="" nonce="abc123"></script><style nonce="abc123">/* index.html:inline-styles */
+body {
+  color: red;
+}
+</style></body></html>
+================================================================================
+BundlerHTML.HtmlCspNonceMetaInjected
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><meta property="csp-nonce" nonce="abc123"></head><body></body></html>
+================================================================================
+BundlerHTML.HtmlCspNoncePreservesExisting
+---------- /out/a.js ----------
+// a.js
+console.log("a");
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><meta property="csp-nonce" nonce="abc123"></head><body><script nonce="existing" type="module" src="./a.js" crossorigin=""></script></body></html>
+================================================================================
+BundlerHTML.HtmlEmbeddedScopedAssets
+---------- /out/_.._/styles/main.css ----------
+/* styles/main.css */
+a {
+  color: blue;
+}
+
+---------- /out/_.._/img/hero.png ----------
+HERO
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./_.._/styles/main.css"></head><body><img src="./_.._/img/hero.png"></body></html>
+================================================================================
+BundlerHTML.HtmlEntryWithAllResourceKinds
+---------- /out/style.css ----------
+/* style.css */
+p {
+  color: red;
+}
+
+---------- /out/app.js ----------
+// dep.js
+var x = 42;
+
+// app.js
+console.log(x);
+
+---------- /out/logo.png ----------
+fake-png-data
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css"></head>
+  <body><script src="./app.js"></script><img src="./logo.png">
+</body></html>
+================================================================================
+BundlerHTML.HtmlEnvReplacement
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><title>MyApp</title></head><body><p>Version 1.2.3</p></body></html>
+================================================================================
+BundlerHTML.HtmlEnvReplacementEmptyValue
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><title></title></head><body></body></html>
+================================================================================
+BundlerHTML.HtmlEnvReplacementInAttributes
+---------- /out/logo.png ----------
+LOGO
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><meta name="description" content="A product catalog"></head><body><a href="https://example.com/">Home</a><img src="./logo.png" alt="Logo"></body></html>
+================================================================================
+BundlerHTML.HtmlEnvReplacementMixed
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><title>Hello and %B%</title></head><body></body></html>
+================================================================================
+BundlerHTML.HtmlEnvReplacementNoScriptContent
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><style>/* index.html:inline-styles */
+p {
+  content: "%A%";
+}
+</style></head><body><script type="module">console.log("%A%")</script></body></html>
+================================================================================
+BundlerHTML.HtmlEnvReplacementUnknownKeyUntouched
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><title>%UNKNOWN%</title></head><body></body></html>
+================================================================================
+BundlerHTML.HtmlExternalAndDataUrlsArePreserved
+---------- /out/local-logo.png ----------
+LOCAL
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="icon" href="./favicon.ico"><link rel="preload" href="./font.woff2"><link rel="stylesheet" href="https://cdn.example.com/site.css"></head><body><script src="https://example.com/app.js"></script><script src="//cdn.example.com/app.js"></script><script src="data:text/javascript,console.log(1)"></script><img src="data:image/png;base64,AAAA"><img src="//cdn.example.com/logo.png"><img src="./local-logo.png"></body></html>
+================================================================================
+BundlerHTML.HtmlFinalAcceptanceFixture
+---------- /out/assets/logo.png ----------
+FAKEPNG
+---------- /out/src/style.css ----------
+/* src/style.css */
+.card {
+  padding: 8px;
+}
+
+---------- /out/src/app.js ----------
+// src/foo.js
+var foo = "foo";
+
+// src/app.js
+console.log(foo);
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./src/style.css"><style>/* index.html:inline-styles */
+body {
+  background: url("./assets/logo.png");
+}
+</style></head><body><img src="./assets/logo.png"><script type="module" src="./src/app.js" crossorigin=""></script><script>// index.html:inline-scripts
+console.log("inline");
+</script></body></html>
+================================================================================
+BundlerHTML.HtmlGuchhoIgnoreInlineScript
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><script>// index.html:inline-scripts
+alert("a");
+alert("b");
+</script><script>var x = 1;</script><script></script></body></html>
+================================================================================
+BundlerHTML.HtmlGuchhoIgnoreInlineStyle
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><style>/* index.html:inline-styles */
+.a {
+  color: red;
+}
+</style><style>.b { color: blue }</style></body></html>
+================================================================================
+BundlerHTML.HtmlGuchhoIgnoreMultiple
+---------- /out/logo.png ----------
+LOGO
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><img src="./logo.png"><img src="skip.png"></body></html>
+================================================================================
+BundlerHTML.HtmlGuchhoIgnoreScript
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><script type="module" src="./ext.js" defer=""></script></body></html>
+================================================================================
+BundlerHTML.HtmlGuchhoIgnoreSkipsRewriting
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><img src="./a.png"></body></html>
+================================================================================
+BundlerHTML.HtmlImportMapAlreadyCorrect
+---------- /out/app.js ----------
+// app.js
+console.log("app");
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><script type="importmap">{"imports":{"vue":"/vue.js"}}</script><script type="module" src="./app.js" crossorigin=""></script></body></html>
+================================================================================
+BundlerHTML.HtmlImportMapMultiple
+---------- /out/app.js ----------
+// app.js
+console.log("app");
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><script type="importmap">{"imports":{"a":"/a.js"}}</script><script type="importmap">{"imports":{"b":"/b.js"}}</script><script type="module" src="./app.js" crossorigin=""></script></body></html>
+================================================================================
+BundlerHTML.HtmlImportMapNoModules
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><div>hello</div><script type="importmap">{"imports":{"vue":"/vue.js"}}</script></body></html>
+================================================================================
+BundlerHTML.HtmlImportMapReordered
+---------- /out/app.js ----------
+// app.js
+console.log("app");
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><script type="importmap">{"imports":{"vue":"/vue.js"}}</script><script type="module" src="./app.js" crossorigin=""></script></body></html>
+================================================================================
+BundlerHTML.HtmlImportOnlyFacadeInlined
+---------- /out/app.js ----------
+import {
+  value
+} from "./chunk-DDGS4UJZ.js";
+export {
+  value
+};
+
+---------- /out/shared.js ----------
+import {
+  value
+} from "./chunk-DDGS4UJZ.js";
+export {
+  value
+};
+
+---------- /out/chunk-DDGS4UJZ.js ----------
+// util.js
+console.log("util-initialized");
+
+// shared.js
+var value = 1;
+
+export {
+  value
+};
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><script type="module" src="./chunk-DDGS4UJZ.js" crossorigin=""></script></body></html>
+---------- /out/other.html ----------
+<!DOCTYPE html><html><head></head><body><script type="module" src="./chunk-DDGS4UJZ.js" crossorigin=""></script></body></html>
+================================================================================
+BundlerHTML.HtmlInlineBundleEscapesClosingTag
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><script>// dep.js
+var s = "<\/script>";
+var c = "\u003c!--";
+
+// index.html:inline-scripts
+console.log(s, c);
+</script></body></html>
+================================================================================
+BundlerHTML.HtmlInlineModuleScriptIsSkipped
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><script type="module">console.log("m")</script></head><body><script>// index.html:inline-scripts
+alert(1);
+</script></body></html>
+================================================================================
+BundlerHTML.HtmlInlineRunsSplitAtExternalResources
+---------- /out/theme.css ----------
+/* theme.css */
+h1 {
+  font-size: 1em;
+}
+
+---------- /out/ext.js ----------
+// ext.js
+console.log("ext");
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><style>/* index.html:inline-styles */
+a {
+  color: red;
+}
+</style><link rel="stylesheet" href="./theme.css"><style>/* index.html:inline-styles:1 */
+b {
+  color: blue;
+}
+</style></head><body><script>// index.html:inline-scripts
+var a = 1;
+</script><script src="./ext.js"></script><script>// index.html:inline-scripts:1
+console.log(a);
+</script></body></html>
+================================================================================
+BundlerHTML.HtmlInlineScriptAndStyleAreBundled
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><style>/* index.html:inline-styles */
+p {
+  color: red;
+}
+</style></head><body><script>// index.html:inline-scripts
+console.log("hi");
+</script></body></html>
+================================================================================
+BundlerHTML.HtmlInlineScriptCanImport
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><script>// greet.js
+var greeting = "hello";
+
+// index.html:inline-scripts
+console.log(greeting);
+</script></body></html>
+================================================================================
+BundlerHTML.HtmlInlineStyleImportsExternalCss
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><style>/* theme.css */
+h1 {
+  color: green;
+}
+
+/* index.html:inline-styles */
+body {
+  margin: 0;
+}
+</style></head><body></body></html>
+================================================================================
+BundlerHTML.HtmlInlineStyleReferencesAsset
+---------- /out/bg-K3V4QLR4.png ----------
+BGPNG
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><style>/* pages/index.html:inline-styles */
+.app {
+  background: url("./bg-K3V4QLR4.png");
+}
+</style></head><body>hi</body></html>
+================================================================================
+BundlerHTML.HtmlJSImportedStylesheetIsDeduplicatedWithLink
+---------- /out/app.js ----------
+// app.js
+console.log("hi");
+
+---------- /out/style.css ----------
+/* style.css */
+p {
+  color: green;
+}
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css"></head><body><script type="module" src="./app.js" crossorigin=""></script></body></html>
+================================================================================
+BundlerHTML.HtmlJSImportedStylesheetIsDeduplicatedWithLinkNoSplitting
+---------- /out/style.css ----------
+/* style.css */
+p {
+  color: green;
+}
+
+---------- /out/app.js ----------
+// app.js
+console.log("hi");
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css"></head><body><script type="module" src="./app.js" crossorigin=""></script></body></html>
+================================================================================
+BundlerHTML.HtmlLinkStylesheetFiltering
+---------- /out/site.css ----------
+/* site.css */
+body {
+  margin: 0;
+}
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="icon" href="./favicon.ico"><link rel="stylesheet" href="./site.css"><link rel="preload" href="./font.woff2"></head><body></body></html>
+================================================================================
+BundlerHTML.HtmlMinificationAttributeQuotes
+---------- /out/index.html ----------
+<!DOCTYPE html><html lang=en><head></head><body><div class=a-b_c data-id=42>one</div><div class="a b">two</div><input disabled checked></body></html>
+================================================================================
+BundlerHTML.HtmlMinificationBasic
+---------- /out/index.html ----------
+<!DOCTYPE html><html lang=en><head><title>Hello World</title><meta name=viewport content="width=device-width"></head><body><p>Hello World</p><script>
+      var x = "  preserved  ";
+    </script></body></html>
+================================================================================
+BundlerHTML.HtmlMinificationCommentRemoval
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><!--[if IE]><script>document.title = "IE";</script><![endif]--><title>T T</title></head><body><p>Hi</p></body></html>
+================================================================================
+BundlerHTML.HtmlMinificationPreservesPre
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><pre>   hello
+    world  </pre><p>a b</p></body></html>
+================================================================================
+BundlerHTML.HtmlMinificationPreservesScript
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><p>x y</p><script>
+      var a = "  preserved  ";
+      var b = "1  2";
+    </script><p>m n</p></body></html>
+================================================================================
+BundlerHTML.HtmlMinificationPreservesStyle
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><style>
+      p {
+        margin: 0  0  0  0;
+      }
+    </style></head><body><p>a b</p></body></html>
+================================================================================
+BundlerHTML.HtmlMinificationPreservesTextarea
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><textarea>   a
+    b  </textarea><p>c d</p></body></html>
+================================================================================
+BundlerHTML.HtmlMinificationUnsafeQuotes
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><div class="a b">spaces</div><div data-x="a=b">equals</div><div data-y="on`off">backtick</div><div data-z="a'b">single-quote</div></body></html>
+================================================================================
+BundlerHTML.HtmlMinifiedClassicBundleStripsSourceComments
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><script>function o(e,t){return e+t}function r(n){return`hello ${n}`}console.log(o(1,2),r("hi"));
+</script></body></html>
+================================================================================
+BundlerHTML.HtmlModulePreloadAndCssInjection
+---------- /out/app.js ----------
+// app.js
+import("./dep-KJNKWSSK.js").then((m) => console.log(m.x));
+
+---------- /out/dep-KJNKWSSK.js ----------
+// dep.js
+var x = 42;
+export {
+  x
+};
+
+---------- /out/app.css ----------
+/* style.css */
+p {
+  color: red;
+}
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="modulepreload" crossorigin="" href="./dep-KJNKWSSK.js"><link rel="stylesheet" href="./app.css"><title>T</title></head><body><script type="module" src="./app.js" crossorigin=""></script></body></html>
+================================================================================
+BundlerHTML.HtmlMultiPageAppSharedModuleChunk
+---------- /out/home.js ----------
+import {
+  Header
+} from "./chunk-FVTFSJMV.js";
+
+// home.js
+console.log("home", Header);
+
+---------- /out/about.js ----------
+import {
+  Header
+} from "./chunk-FVTFSJMV.js";
+
+// about.js
+console.log("about", Header);
+
+---------- /out/chunk-FVTFSJMV.js ----------
+// ui/header.js
+var Header = "site-header";
+
+export {
+  Header
+};
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="modulepreload" crossorigin="" href="./chunk-FVTFSJMV.js"></head><body><script type="module" src="./home.js" crossorigin=""></script></body></html>
+---------- /out/about.html ----------
+<!DOCTYPE html><html><head><link rel="modulepreload" crossorigin="" href="./chunk-FVTFSJMV.js"></head><body><script type="module" src="./about.js" crossorigin=""></script></body></html>
+================================================================================
+BundlerHTML.HtmlNestedOutputDirRelativePaths
+---------- /out/style.css ----------
+/* admin/style.css */
+p {
+  color: orange;
+}
+
+---------- /out/app.js ----------
+// admin/app.js
+console.log("admin");
+
+---------- /out/logo.png ----------
+ADMINLOGO
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css"></head><body><script src="./app.js"></script><img src="./logo.png"></body></html>
+================================================================================
+BundlerHTML.HtmlNonMinifiedClassicBundleKeepsSourceComments
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><script>// utils/math.js
+function add(a, b) {
+  return a + b;
+}
+
+// utils/greet.js
+function greet(name) {
+  return `hello ${name}`;
+}
+
+// index.html:inline-scripts
+console.log(add(1, 2), greet("hi"));
+</script></body></html>
+================================================================================
+BundlerHTML.HtmlPluginTransformBoth
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><meta content="b" name="plugin-a"><title>T</title><link href="/x.css" rel="stylesheet"></head><body><div>body-start</div><p>hi</p><!--transform--><script src="/late.js"></script></body></html>
+================================================================================
+BundlerHTML.HtmlPluginTransformHeadBoundaryWarning
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><div>oops</div></head><body></body></html>
+================================================================================
+BundlerHTML.HtmlPluginTransformOrdering
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><title>T</title></head><body><p>hi</p><!--first--><!--second--></body></html>
+================================================================================
+BundlerHTML.HtmlPluginTransformString
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><title>T</title></head><body><p>hi</p><!--transform--></body></html>
+================================================================================
+BundlerHTML.HtmlPluginTransformTags
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><meta content="b" name="plugin-a"><title>T</title><link href="/x.css" rel="stylesheet"></head><body><div>body-start</div><p>hi</p><script src="/late.js"></script></body></html>
+================================================================================
+BundlerHTML.HtmlPrettyPrintBlankLineFreeSiblings
+---------- /out/main.js ----------
+// main.js
+console.log("main");
+
+---------- /out/index.html ----------
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Docs</title>
+  </head>
+  <body>
+    <header>Top</header>
+    <script type="module" src="./main.js" crossorigin=""></script>
+    <script>
+      // index.html:inline-scripts
+      console.log("boot");
+    </script>
+    <footer>Bottom</footer>
+  </body>
+</html>
+================================================================================
+BundlerHTML.HtmlPrettyPrintInlineCodeIndented
+---------- /out/index:inline-scripts.css ----------
+/* a.css */
+body {
+  margin: 0;
+}
+
+---------- /out/index.html ----------
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      /* index.html:inline-styles */
+      p {
+        color: red;
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      // index.html:inline-scripts
+      console.log("boot");
+    </script>
+  </body>
+</html>
+================================================================================
+BundlerHTML.HtmlPrettyPrintModuleAppPage
+---------- /out/main.js ----------
+// value.js
+var v = 7;
+
+// main.js
+console.log(v);
+
+---------- /out/index.html ----------
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Docs</title>
+  </head>
+  <body>
+    <header>Top</header>
+    <script type="module" src="./main.js" crossorigin=""></script>
+    <script>
+      // index.html:inline-scripts
+      console.log("boot");
+    </script>
+    <footer>Bottom</footer>
+  </body>
+</html>
+================================================================================
+BundlerHTML.HtmlPrettyPrintOutput
+---------- /out/style.css ----------
+/* style.css */
+p {
+  color: red;
+}
+
+---------- /out/index.html ----------
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="stylesheet" href="./style.css">
+  </head>
+  <body>
+    <script>
+      // index.html:inline-scripts
+      console.log("hi");
+    </script>
+  </body>
+</html>
+================================================================================
+BundlerHTML.HtmlPrettyPrintPreservesSimpleAttributes
+---------- /out/main.js ----------
+// main.js
+console.log("main");
+
+---------- /out/other.js ----------
+// other.js
+console.log("other");
+
+---------- /out/index.html ----------
+<!DOCTYPE html>
+<html>
+  <head></head>
+  <body>
+    <script type="module" src="./main.js" crossorigin="" defer=""></script>
+    <script async="" src="./other.js"></script>
+  </body>
+</html>
+================================================================================
+BundlerHTML.HtmlPrettyPrintSimpleTextElements
+---------- /out/index.html ----------
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Docs</title>
+  </head>
+  <body>
+    <header>Top</header>
+    <main>Body</main>
+    <footer>Bottom</footer>
+  </body>
+</html>
+================================================================================
+BundlerHTML.HtmlPrettyPrintWhitespaceSensitiveElements
+---------- /out/index.html ----------
+<!DOCTYPE html>
+<html>
+  <head></head>
+  <body>
+    <pre>  keep
+  this</pre>
+    <textarea>  lines
+  intact</textarea>
+  </body>
+</html>
+================================================================================
+BundlerHTML.HtmlProductionModuleEntryWithSharedChunkAndPreloads
+---------- /out/src/main.js ----------
+// src/ui/button.js
+var Button = "button-class";
+
+// src/main.js
+var lazy = () => import("../widget-SRA5WECX.js");
+console.log(Button, lazy);
+
+---------- /out/widget-SRA5WECX.js ----------
+// src/lazy/widget.js
+function widget() {
+  return "widget";
+}
+export {
+  widget
+};
+
+---------- /out/src/main.css ----------
+/* src/app.css */
+.app {
+  display: grid;
+}
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="modulepreload" crossorigin="" href="./widget-SRA5WECX.js"><link rel="stylesheet" href="./src/main.css"><title>My App</title></head><body><script type="module" src="./src/main.js" crossorigin=""></script></body></html>
+================================================================================
+BundlerHTML.HtmlResourceHintsDeduplication
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="preconnect" crossorigin="" href="https://cdn.example.com"><link rel="dns-prefetch" href="https://cdn.example.com"></head><body><img src="https://cdn.example.com/a.png"><img src="https://cdn.example.com/b.png"><link rel="stylesheet" href="https://cdn.example.com/c.css"></body></html>
+================================================================================
+BundlerHTML.HtmlResourceHintsDisabled
+---------- /out/logo.png ----------
+fake-png-data
+---------- /out/app.js ----------
+// app.js
+console.log("hi");
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><img src="./logo.png"><script src="./app.js"></script></body></html>
+================================================================================
+BundlerHTML.HtmlResourceHintsExternalPreconnect
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="preconnect" crossorigin="" href="https://images.example.com"><link rel="dns-prefetch" href="https://images.example.com"><link rel="preconnect" crossorigin="" href="https://fonts.googleapis.com"><link rel="dns-prefetch" href="https://fonts.googleapis.com"></head><body><img src="https://images.example.com/logo.png"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter"><script src="https://scripts.example.com/app.js"></script></body></html>
+================================================================================
+BundlerHTML.HtmlResourceHintsFontPreload
+---------- /out/Inter-RR3GOXBS.woff2 ----------
+FAKE-FONT-WOFF2
+---------- /out/style.css ----------
+/* style.css */
+@font-face {
+  font-family: "Inter";
+  src: url("./Inter-RR3GOXBS.woff2") format("woff2");
+}
+body {
+  font-family: "Inter";
+}
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="preload" as="font" type="font/woff2" crossorigin="" href="./Inter-RR3GOXBS.woff2"></head><body></body></html>
+================================================================================
+BundlerHTML.HtmlResourceHintsOrderingAndScriptSkip
+---------- /out/app.js ----------
+// dep.js
+var x = 1;
+
+// app.js
+console.log(x);
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="preconnect" crossorigin="" href="https://cdn.example.com"><link rel="dns-prefetch" href="https://cdn.example.com"></head><body><script type="module" src="./app.js" crossorigin=""></script><img src="https://cdn.example.com/x.png"></body></html>
+================================================================================
+BundlerHTML.HtmlResourceHintsSkipsDataUrl
+---------- /out/style.css ----------
+/* style.css */
+@font-face {
+  font-family: "Icons";
+  src: url(data:font/woff2;base64,AAAA) format("woff2");
+}
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body></body></html>
+================================================================================
+BundlerHTML.HtmlSRIAlgorithmSHA256
+---------- /out/app.js ----------
+// app.js
+console.log("hi");
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><script>// index.html:inline-scripts
+document.write("inline");
+</script><script src="./app.js" integrity="sha256-qtfsLFPI9LYAd/LBwt7etz5hSa13PP9N8CD1lUeC6T8=" crossorigin=""></script></body></html>
+================================================================================
+BundlerHTML.HtmlSRIDefaultAlgorithm
+---------- /out/style.css ----------
+/* style.css */
+body {
+  color: red;
+}
+
+---------- /out/app.js ----------
+// app.js
+console.log("script body");
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css" integrity="sha384-ukSHSWBXm7ipL//Guu34+wQH3e+0fRud/xnZ4FLXPHuvnslrh8wKrFN2ajWP/Dpi" crossorigin=""></head><body><script type="module" src="./app.js" crossorigin="" integrity="sha384-pWORLOIDQd4xFMGZgBpv0DZgd7qnwcnKJjWvGpbXuAogh83lsFgmSunuVmulEiVV"></script></body></html>
+================================================================================
+BundlerHTML.HtmlSRIDisabled
+---------- /out/style.css ----------
+/* style.css */
+body {
+  color: red;
+}
+
+---------- /out/app.js ----------
+// app.js
+console.log("script body");
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css"></head><body><script type="module" src="./app.js" crossorigin=""></script></body></html>
+================================================================================
+BundlerHTML.HtmlSRIEnabled
+---------- /out/style.css ----------
+/* style.css */
+body {
+  color: red;
+}
+
+---------- /out/app.js ----------
+// app.js
+console.log("script body");
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css" integrity="sha384-ukSHSWBXm7ipL//Guu34+wQH3e+0fRud/xnZ4FLXPHuvnslrh8wKrFN2ajWP/Dpi" crossorigin=""></head><body><script type="module" src="./app.js" crossorigin="" integrity="sha384-pWORLOIDQd4xFMGZgBpv0DZgd7qnwcnKJjWvGpbXuAogh83lsFgmSunuVmulEiVV"></script></body></html>
+================================================================================
+BundlerHTML.HtmlSRISkipsExternalURL
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><script type="module" src="https://cdn.example.com/app.js"></script></body></html>
+================================================================================
+BundlerHTML.HtmlSrcsetDensityDescriptor
+---------- /out/icon-2x.png ----------
+ICON2X
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><img srcset="./icon-2x.png 2x"></body></html>
+================================================================================
+BundlerHTML.HtmlSrcsetExternalAndDataUntouched
+---------- /out/local.png ----------
+LOCAL
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><img srcset="./local.png 1x, https://cdn.example.com/remote.png 2x, //cdn.example.com/proto.png 3x"></body></html>
+================================================================================
+BundlerHTML.HtmlSrcsetImagesrcsetLink
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="preload" as="image" imagesrcset="./card-1x-VIXF32ZE.png 1x, ./card-2x-7LXKN7ZJ.png 2x"></head><body></body></html>
+================================================================================
+BundlerHTML.HtmlSrcsetMalformedInputPreserved
+---------- /out/good.png ----------
+GOOD
+---------- /out/bad.png ----------
+BAD
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><img srcset="  ./good.png 1x , ,./bad.png 2x,  "></body></html>
+================================================================================
+BundlerHTML.HtmlSrcsetRespectsPublicPath
+---------- /out/hero-480.png ----------
+P480
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><img srcset="/app/hero-480.png 480w, https://cdn.example.com/hero-800.png 800w"></body></html>
+================================================================================
+BundlerHTML.HtmlSrcsetRewritingMultipleEntries
+---------- /out/fallback.png ----------
+PFALLBACK
+---------- /out/hero-480.png ----------
+P480
+---------- /out/hero-800.png ----------
+P800
+---------- /out/hero-1200.png ----------
+P1200
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><img src="./fallback.png" srcset="./hero-480.png 480w, ./hero-800.png 800w, ./hero-1200.png 1200w"></body></html>
+================================================================================
+BundlerHTML.HtmlSrcsetSourceElement
+---------- /out/a.avif ----------
+AVIF1
+---------- /out/b.avif ----------
+AVIF2
+---------- /out/c.webp ----------
+WEBP1
+---------- /out/d.webp ----------
+WEBP2
+---------- /out/fallback.png ----------
+PFALLBACK
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><picture><source type="image/avif" srcset="./a.avif 1x, ./b.avif 2x"><source type="image/webp" srcset="./c.webp 1x, ./d.webp 2x"><img src="./fallback.png"></picture></body></html>
+================================================================================
+BundlerHTML.HtmlStyleAttributeUrlRebasing
+---------- /out/_.._/img/bg.png ----------
+BGPNG
+---------- /out/img/logo2.png ----------
+LOGO2
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><div style="background: url('./_.._/img/bg.png');border:0;background-image:url('./img/logo2.png')"></div></body></html>
+================================================================================
+BundlerHTML.HtmlTwoElementsShareOneInlineBundle
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><style>/* index.html:inline-styles */
+p {
+  color: red;
+}
+.b {
+  color: blue;
+}
+</style><style></style></head><body><script>// index.html:inline-scripts
+var a = 1;
+console.log(a);
+</script><script></script></body></html>
+================================================================================
+BundlerHTML.HtmlTwoEntriesSharingResource
+---------- /out/style.css ----------
+/* style.css */
+body {
+  margin: 0;
+}
+
+---------- /out/app.js ----------
+// app.js
+console.log("app");
+
+---------- /out/logo.png ----------
+PNGDATA
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css"></head><body><script src="./app.js"></script></body></html>
+---------- /out/other.html ----------
+<!DOCTYPE html><html><head></head><body><script src="./app.js"></script><img src="./logo.png"></body></html>
+================================================================================
+BundlerHTML.HtmlTwoPagesEachInlineSharedDep
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><script>// dep.js
+var x = 1;
+
+// index.html:inline-scripts
+console.log(x);
+</script></body></html>
+---------- /out/other.html ----------
+<!DOCTYPE html><html><head></head><body><script>// dep.js
+var x = 1;
+
+// other.html:inline-scripts
+alert(x);
+</script></body></html>
+================================================================================
+BundlerHTML.HtmlWarningDiagnosticCodeFrame
+---------- /out/app.js ----------
+// app.js
+console.log("app");
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><script type="importmap">{"imports":{}}</script><script type="module" src="./app.js" crossorigin=""></script></body></html>

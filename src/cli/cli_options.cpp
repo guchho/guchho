@@ -1079,9 +1079,9 @@ std::optional<ErrorWithNote> parseOptionsImpl(
         {
             static const std::unordered_set<std::string> kBareFlags = {
                 "allow-overwrite", "bundle", "ignore-annotations", "jsx-dev",
-                "jsx-side-effects", "keep-names", "minify-identifiers",
+                "jsx-side-effects", "keep-names", "minify-html", "minify-identifiers",
                 "minify-syntax", "minify-whitespace", "minify", "preserve-symlinks",
-                "sourcemap", "splitting", "watch",
+                "pretty", "sourcemap", "splitting", "watch",
             };
             static const std::unordered_set<std::string> kEqualsFlags = {
                 "abs-paths", "allow-overwrite", "asset-names", "banner", "bundle",

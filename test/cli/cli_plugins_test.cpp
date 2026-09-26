@@ -183,13 +183,16 @@ TEST(CliPlugins, AnEmptyPluginListIsAPlainRun) {
     const guchho::test::CliResult with_none =
         RunCliWithPlugins({"build", "entry.js", "--outdir=dist"}, {});
 
-    // The summaries are not compared whole, because each ends with the time its
-    // own build took and no two builds take the same time, and because each one
-    // prints the absolute path it wrote to. What is compared is the part that
-    // means something: the same code, the same error stream, and the same bytes
-    // in the two files.
+    // The two runs are not compared wholesale, because neither stream can be:
+    // each summary carries the time its own build took, the name of the
+    // directory it wrote to, and — on the error stream, from the engine rather
+    // than from the command line — the same three things again. What is compared
+    // is the part that means something: the same code, nothing reported as an
+    // error, and the same bytes in the two files.
     EXPECT_EQ(with_none.exit_code, with_run.exit_code);
-    EXPECT_EQ(with_none.err, with_run.err);
+    EXPECT_EQ(with_none.exit_code, kSuccess);
+    EXPECT_FALSE(OutputContains(with_none.err, "ERROR"));
+    EXPECT_FALSE(OutputContains(with_run.err, "ERROR"));
     EXPECT_TRUE(OutputContains(with_none.out, "entry.js"));
     EXPECT_TRUE(OutputContains(with_run.out, "entry.js"));
     EXPECT_TRUE(ws.Exists("dist/entry.js"));

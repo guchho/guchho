@@ -506,6 +506,12 @@ struct TargetSpec {
 TargetParse ParseTargetSpec(std::string_view text, TargetSpec& out,
                             std::string_view* bad_value = nullptr);
 
+// The engine names a target string may use, paired with their enum values. The
+// keys are lowercase and the version is whatever follows the name, so a caller
+// that has to render the list of valid targets — a diagnostic, a completion —
+// builds it from here rather than from a second copy that could disagree.
+const std::unordered_map<std::string, EngineName>& ValidEngineNames();
+
 // Where a problem was found. Line and column follow the same convention the
 // editor integrations expect: lines count from 1, columns count from 0 in
 // bytes, and length is a byte count, so a multi-byte character advances the
@@ -611,6 +617,33 @@ struct ExplicitlySet {
         return keys.find(key) != keys.end();
     }
 };
+
+// The names an ExplicitlySet carries.
+//
+// They live here rather than in the one place that reads them because the one
+// place that writes them is the command-line grammar, and a name that both sides
+// had to spell out would be a name that could eventually be spelled two ways.
+inline constexpr std::string_view kOptOutdir            = "outdir";
+inline constexpr std::string_view kOptOutfile           = "outfile";
+inline constexpr std::string_view kOptOutbase           = "outbase";
+inline constexpr std::string_view kOptFormat            = "format";
+inline constexpr std::string_view kOptPlatform          = "platform";
+inline constexpr std::string_view kOptTarget            = "target";
+inline constexpr std::string_view kOptMinify            = "minify";
+inline constexpr std::string_view kOptSourcemap         = "sourcemap";
+inline constexpr std::string_view kOptBundle            = "bundle";
+inline constexpr std::string_view kOptSplitting         = "splitting";
+inline constexpr std::string_view kOptTreeShaking       = "treeShaking";
+inline constexpr std::string_view kOptPretty            = "pretty";
+inline constexpr std::string_view kOptMinifyHtml        = "minifyHtml";
+inline constexpr std::string_view kOptEntryPoints       = "entryPoints";
+inline constexpr std::string_view kOptResolveExtensions = "resolveExtensions";
+inline constexpr std::string_view kOptMainFields        = "mainFields";
+inline constexpr std::string_view kOptConditions        = "conditions";
+inline constexpr std::string_view kOptExternal          = "external";
+inline constexpr std::string_view kOptAlias             = "alias";
+inline constexpr std::string_view kOptSourceRoot        = "sourceRoot";
+inline constexpr std::string_view kOptPublicPath        = "publicPath";
 
 // Everything a build can be told. The members are grouped by the phase they
 // affect, and the blank lines between groups mark those boundaries.

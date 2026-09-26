@@ -1594,7 +1594,7 @@ namespace guchho::logger{
     std::string Msg::String(const OutputOptions& options, const TerminalInfo& terminal_info) const {
         std::string text = MsgString(options.include_source, options.path_style, terminal_info, id, kind, data, plugin_name);
 
-        // Append notes the same way esbuild's "msgToStringDefault" does: each note
+        // Append notes the same way guchho's "msgToStringDefault" does: each note
         // is formatted as its own message with the "NOTE" kind.
         MsgData old_data;
         for (size_t i = 0; i < notes.size(); i++) {

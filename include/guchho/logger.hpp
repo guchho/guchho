@@ -1536,6 +1536,16 @@ namespace guchho::logger {
         kBundler_RefusingToOverwriteInput,
         kBundler_AllowOverwriteHint,
         kBundler_TwoOutputFilesSamePath,
+        kBundler_CouldNotResolveModifiedPath,
+        kBundler_CouldNotResolvePath,
+        kBundler_AliasRemappedPathNote,
+        kBundler_MarkPathExternalHint,
+        kBundler_RequireTryCatchHint,
+        kBundler_DynamicImportCatchHint,
+        kBundler_UseRelativePathHint,
+        kBundler_BuiltIntoNodeHint,
+        kBundler_PluginNoResolveDirHint,
+        kBundler_PluginNoResolveDirForFileHint,
 
         // -------------------------------------------------------------------
         // Linker (linker.cpp)

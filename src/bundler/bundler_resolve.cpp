@@ -364,25 +364,24 @@ namespace guchho::bundler {
     {
         ResolveFailureInfo info;
         if (!modified_import_path.empty()) {
-            info.text = "Could not resolve \"" + modified_import_path + "\" (originally \"" + path + "\")";
+            info.text = guchho::logger::FormatMsg(guchho::logger::MsgCat::kBundler_CouldNotResolveModifiedPath,
+                modified_import_path, path);
             MsgData note;
-            note.text = "The path \"" + path + "\" was remapped to \"" + modified_import_path +
-                        "\" using the alias feature, which then couldn't be resolved. Keep in mind "
-                        "that import path aliases are resolved in the current working directory.";
+            note.text = guchho::logger::FormatMsg(guchho::logger::MsgCat::kBundler_AliasRemappedPathNote,
+                path, modified_import_path);
             info.notes.push_back(std::move(note));
             path = modified_import_path;
         } else {
-            info.text = "Could not resolve \"" + path + "\"";
+            info.text = guchho::logger::FormatMsg(guchho::logger::MsgCat::kBundler_CouldNotResolvePath, path);
         }
         std::string hint;
 
         if (resolver::IsPackagePath(path) && !fs.IsAbs(path)) {
-            hint = "You can mark the path \"" + path +
-                   "\" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle.";
+            hint = guchho::logger::FormatMsg(guchho::logger::MsgCat::kBundler_MarkPathExternalHint, path);
             if (kind == compiler::ImportKind::kRequire) {
-                hint += " You can also surround this \"require\" call with a try/catch block to handle this failure at run-time instead of bundle-time.";
+                hint += guchho::logger::FormatMsg(guchho::logger::MsgCat::kBundler_RequireTryCatchHint);
             } else if (kind == compiler::ImportKind::kDynamic) {
-                hint += " You can also add \".catch()\" here to handle this failure at run-time instead of bundle-time.";
+                hint += guchho::logger::FormatMsg(guchho::logger::MsgCat::kBundler_DynamicImportCatchHint);
             }
             if (plugin_name.empty() && !fs.IsAbs(path)) {
                 resolver::DebugMeta throwaway_debug;
@@ -391,9 +390,8 @@ namespace guchho::bundler {
                         &throwaway_debug);
                 if (query.has_value()) {
                     PrettyPaths pretty_paths = resolver::MakePrettyPaths(fs, query->path_pair.primary);
-                    hint = "Use the relative path \"./" + path + "\" to reference the file \"" +
-                           pretty_paths.Select(log_path_style) + "\". Without the leading \"./\", the path \"" +
-                           path + "\" is being interpreted as a package path instead.";
+                    hint = guchho::logger::FormatMsg(guchho::logger::MsgCat::kBundler_UseRelativePathHint,
+                        path, pretty_paths.Select(log_path_style), path);
                     info.suggestion = helpers::QuoteForJSON("./" + path, false);
                 }
             }
@@ -406,18 +404,18 @@ namespace guchho::bundler {
                 pkg = pkg.substr(node_prefix.size());
             }
             if (IsBuiltInNodeModule(pkg)) {
-                hint = "The package \"" + path +
-                       "\" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use \"Platform: api.PlatformNode\" to do that, which will remove this error.";
+                hint = guchho::logger::FormatMsg(guchho::logger::MsgCat::kBundler_BuiltIntoNodeHint, path);
             }
         }
 
         if (abs_resolve_dir.empty() && !plugin_name.empty()) {
-            std::string where;
             if (!originating_file_paths.abs.empty() || !originating_file_paths.rel.empty()) {
-                where = " for the file \"" + originating_file_paths.Select(log_path_style) + "\"";
+                hint = guchho::logger::FormatMsg(guchho::logger::MsgCat::kBundler_PluginNoResolveDirForFileHint,
+                    plugin_name, originating_file_paths.Select(log_path_style), path);
+            } else {
+                hint = guchho::logger::FormatMsg(guchho::logger::MsgCat::kBundler_PluginNoResolveDirHint,
+                    plugin_name, path);
             }
-            hint = "The plugin \"" + plugin_name + "\" didn't set a resolve directory" + where +
-                   ", so guchho did not search for \"" + path + "\" on the file system.";
         }
 
         if (!hint.empty()) {

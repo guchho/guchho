@@ -55,7 +55,7 @@ namespace guchho::logger {
         case MsgCat::kBundler_ImportsFileHere: return "The file \"{}\" imports the file \"{}\" here:";
         case MsgCat::kBundler_RequireCallTopLevelAwait: return "This require call is not allowed because the imported file \"{}\" contains a top-level await";
         case MsgCat::kBundler_RequireCallTransitiveTLA: return "This require call is not allowed because the transitive dependency \"{}\" contains a top-level await";
-        case MsgCat::kBundler_ImportMapReordered: return "Import map in \"{}\" was reordered to appear before module scripts";
+        case MsgCat::kBundler_ImportMapReordered: return "import map in \"{}\" was reordered to appear before module scripts";
         case MsgCat::kBundler_RefusingToOverwriteInput: return "Refusing to overwrite input file \"{}\"{}";
         case MsgCat::kBundler_TwoOutputFilesSamePath: return "Two output files share the same path but have different contents: {}";
         case MsgCat::kLinker_ComposesValueFirstNote: return "The first definition of \"{}\" is here:";

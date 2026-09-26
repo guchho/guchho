@@ -495,8 +495,10 @@ namespace guchho::linker {
             j.AddString(",\n  \"sourcesContent\": [");
             for (size_t i = 0; i < items.size(); i++) {
                 if (i != 0) j.AddString(", ");
-                for (auto& qc : items[i].quoted_contents) {
-                    j.AddString(qc);
+                if (items[i].quoted_contents.empty()) {
+                    j.AddString("null");
+                } else {
+                    j.AddString(items[i].quoted_contents[0]);
                 }
             }
             j.AddString("]");

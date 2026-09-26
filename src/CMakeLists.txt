@@ -391,6 +391,46 @@ guchho_enable_sanitizers(guchho_api)
 
 
 # ============================================================
+# CLI library (the command line surface)
+# ============================================================
+
+# One file per command, plus the flag grammar they all read. cli_internal.hpp is
+# private to this directory: it is not installed and does not add to the public
+# surface in include/guchho/cli.hpp.
+set(GUCHHO_CLI_SOURCES
+    cli/cli_build.cpp
+    cli/cli_flags.cpp
+    cli/cli_help.cpp
+    cli/cli_options.cpp
+    cli/cli_project.cpp
+    cli/cli_run.cpp
+    cli/cli_serve.cpp
+    cli/cli_watch.cpp
+    cli/cli_mangle.cpp
+)
+
+add_library(guchho_cli STATIC)
+
+target_sources(guchho_cli
+    PRIVATE
+        ${GUCHHO_CLI_SOURCES}
+)
+
+target_include_directories(guchho_cli
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(guchho_cli
+    PUBLIC
+        guchho_api
+)
+
+guchho_set_warnings(guchho_cli)
+guchho_enable_sanitizers(guchho_cli)
+
+
+# ============================================================
 # Guchho executable
 # ============================================================
 
@@ -402,6 +442,7 @@ target_link_libraries(guchho
     PRIVATE
         guchho_common
         guchho_bundler
+        guchho_cli
 )
 
 guchho_set_warnings(guchho)

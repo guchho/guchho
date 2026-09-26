@@ -605,7 +605,7 @@ TEST(JsLexerNewline, HasNewlineBefore)
     js::Lexer lexer(log, std::move(source), config::TSOptions{});
 
     // The first token in the file reports a newline before it, matching the
-    // esbuild reference implementation (HasNewlineBefore = end == 0 in Next()).
+    // guchho reference implementation (HasNewlineBefore = end == 0 in Next()).
     ASSERT_EQ(lexer.token, T::kIdentifier);
     EXPECT_TRUE(lexer.has_newline_before);
 

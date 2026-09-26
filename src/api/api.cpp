@@ -3006,6 +3006,8 @@ validate_build_options(api::BuildOptions& build_opts, logger::Log& log, filesyst
     options.MinifySyntax = build_opts.minify_syntax;
     options.MinifyWhitespace = build_opts.minify_whitespace;
     options.MinifyIdentifiers = build_opts.minify_identifiers;
+    options.PrettyPrint = build_opts.pretty;
+    options.MinifyHtml = build_opts.minify_html;
     options.LineLimit = build_opts.line_limit;
     if (auto mp = validate_regex(log, "mangle props", build_opts.mangle_props)) {
         options.MangleProps = std::make_shared<std::regex>(*mp, std::regex::ECMAScript);

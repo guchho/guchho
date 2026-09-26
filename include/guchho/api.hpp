@@ -648,6 +648,17 @@ struct BuildOptions {
     bool     jsx_dev{};            // use the development build of that runtime
     bool     jsx_side_effects{};   // treat used JSX elements as side effects
 
+    // -- Markup output ------------------------------------------------------
+    // HTML is re-emitted from the parsed tree, so both of these describe the
+    // printer rather than the file. "pretty" indents the tree on output and is
+    // on by default: the result is meant to be opened, read and edited, and a
+    // single line of markup is none of those. "minify_html" collapses it, and
+    // is off by default because the two are opposites and only one can be the
+    // unasked-for behaviour. Neither touches content that whitespace is
+    // meaningful in, so turning either on is always safe.
+    bool     pretty{true};
+    bool     minify_html{};
+
     // -- Compile-time substitution -----------------------------------------
     // "define" replaces identifiers and dotted paths with literal values;
     // "pure" lists functions that may be dropped or reordered when unused.
@@ -761,6 +772,12 @@ struct BuildOptions {
     bool         write{};
     bool         allow_overwrite{};
     std::vector<Plugin> plugins;
+
+    // Which of the above somebody actually said out loud. Filled in by the
+    // command-line parser and consumed by ResolveEffectiveBuildOptions; null
+    // means the struct was assembled by hand and every value in it is
+    // deliberate. See ExplicitlySet for why this is needed at all.
+    std::shared_ptr<const ExplicitlySet> explicit_set;
 };
 
 // What a build produced. On failure "errors" is non-empty and the output
@@ -792,6 +809,57 @@ struct BuildResult {
 // result.errors[0] with a Message whose "location" points at the offending
 // path.
 BuildResult Build(const BuildOptions& options);
+
+// =============================================================================
+// Effective options
+// =============================================================================
+//
+// Build() takes an option struct at face value. This is the step before it: the
+// one place where an explicit option, a config file and a built-in default are
+// ranked against each other, and the answer is called the effective options.
+//
+// The order is fixed, and it is the order a person would expect:
+//
+//   1. Explicit options. Whatever was named. On the command line that is a flag
+//      somebody typed; in C++ it is a field somebody assigned.
+//   2. The config file. guchho.config.js, then guchho.config.json, then
+//      guchho.json, found by walking up from the working directory.
+//   3. Built-in defaults. The configuration that Guchho ships with.
+//   4. Derived values. An output file implies its directory, and a bundled
+//      build implies a module format, because neither can be worked out until
+//      steps 1-3 have said which one is in force.
+//
+// Everything the resolution decided is reported back, so a command can print
+// where its settings came from instead of guessing again.
+
+// One build's settings after the four steps above.
+struct EffectiveBuildOptions {
+    BuildOptions options;      // ready to hand to Build()
+    std::string root;          // absolute directory resolution started from
+    std::string config_path;   // the config file that won, or "" for none
+    std::string config_dir;    // its directory, or "" for none
+    bool        config_found{false};      // a config file was read
+    bool        config_invalid{false};    // one was found and could not be parsed
+};
+
+// Resolves "explicit_options" against the config file above "start_dir" and the
+// built-in defaults, and returns what the build should actually run with. This
+// is the only implementation of that ranking: the command line, "dev", "watch",
+// "serve", "clean" and every embedding of the C++ API go through it, so a
+// project sees the same settings whichever way it is driven.
+//
+// Messages about a config file that exists but cannot be parsed are returned in
+// "config_invalid" rather than raised here, so a caller decides for itself
+// whether an unreadable config is an error or a warning.
+//
+// Input:  explicit_options with outdir = "release" and bundle = true, and a
+//         guchho.config.json in "start_dir" that says outdir = "out" and
+//         minify = false
+// Output: options with outdir = "release" (explicit beats config), bundle =
+//         true, minify_whitespace = false (config beats the built-in default),
+//         and AbsOutputDir derived from any outfile
+EffectiveBuildOptions ResolveEffectiveBuildOptions(const BuildOptions& explicit_options,
+                                                   const std::string& start_dir);
 
 // =============================================================================
 // Transform API

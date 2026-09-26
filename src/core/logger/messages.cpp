@@ -729,6 +729,8 @@ namespace guchho::logger {
         case MsgCat::kAPI_CannotTransformWithLinkedSourceMaps: return "Cannot transform with linked source maps";
         case MsgCat::kAPI_MustUseSourcefileWithSourcemap: return "Must use \"sourcefile\" with \"sourcemap\" to set the original file name";
         case MsgCat::kAPI_CannotTransformWithLinkedLegalComments: return "Cannot transform with linked legal comments";
+        case MsgCat::kAPI_InvalidLogLevel: return "Invalid \"log_level\": {}";
+        case MsgCat::kAPI_InvalidLogOverride: return "Invalid \"log_override\" value for \"{}\": {}";
 
             default:
                 return "";

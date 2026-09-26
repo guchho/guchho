@@ -53,6 +53,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <algorithm>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -148,6 +149,23 @@ public:
     void MakeDir(const std::string& relative) const {
         std::error_code ec;
         std::filesystem::create_directories(At(relative), ec);
+    }
+
+    // Every file in the workspace, relative and one per line, for a failure
+    // message that has to say what a command did rather than only that it did
+    // not do what the test wanted. Without it a test that expected a file has
+    // nothing to report but the absence, and "no dist" and "a dist with
+    // something else in it" look the same from the outside.
+    std::string Tree() const {
+        std::string out;
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(
+                 std::filesystem::path(path_), std::filesystem::directory_options::skip_permission_denied)) {
+            if (!entry.is_regular_file()) continue;
+            out += std::filesystem::relative(entry.path(), path_).generic_string();
+            out += "\n";
+        }
+        std::sort(out.begin(), out.end());
+        return out;
     }
 
 private:

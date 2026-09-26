@@ -22,35 +22,33 @@
 //       still the working directory, so the old directory is restored first and
 //       the tree is deleted second.
 //
-//   CaptureOutput
-//       Swaps the buffers of std::cout and std::cerr for the length of a run.
-//       A run's output is the answer for the commands that are a filter rather
-//       than a build — transform writes the transformed program to the standard
-//       output and nothing else, and a test that could not see it could only
-//       check the exit code. Swapping the streambuf rather than the file
-//       descriptor is enough, because the command line writes through the C++
-//       streams and nothing in it writes with printf.
-//
 //   RunCli
 //       Calls guchho::cli::Run in this process and reports what happened. In
 //       process rather than as a subprocess, because a run touches global state
 //       that a second process could not share: the working directory, the
 //       locale, the console code page, the signal handlers. CTest runs one
-//       test per process, so those globals are this test's alone. The tests
+//       test per process, so those globals belong to this test alone. The tests
 //       that specifically want the executable's own argument handling — the wide
 //       argv conversion in src/main.cpp above all — run guchho.exe through
 //       helpers::RunProcess instead, and are the reason both ways of testing
 //       exist.
 //
-// What these helpers deliberately do not do is compare whole output against a
-// stored file, the way test/bundler does. A run prints a banner, a duration, a
-// byte count and a platform name, none of which are the same twice, so a
-// snapshot of one would be a record of the machine that produced it. The
-// assertions are on the exit code, on the substrings that carry meaning, and on
-// what is on disk afterwards.
+//   OutputContains
+//       The one way output is compared. A run prints a banner, a duration, a
+//       byte count and a platform name, none of which are the same twice, so a
+//       stored copy of a whole run would be a record of the machine that
+//       produced it. The assertions are on the code, on the substrings that
+//       carry meaning, and on what is on disk afterwards.
+//
+// What the tests here do not do, and say so where it matters: reach the part of
+// watch, dev and serve that never returns. runWatch parks on a promise nothing
+// satisfies (src/cli/cli_watch.cpp:381) and the other two park inside
+// api::Serve, so a test that got that far would sit until CTest gave up on it.
+// Those commands are covered up to the last line before the park.
 // =============================================================================
 
 #include <chrono>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -60,9 +58,23 @@
 #include <system_error>
 #include <vector>
 
+#ifdef _WIN32
+    #include <io.h>
+#else
+    #include <unistd.h>
+#endif
+
 #include "guchho/cli.hpp"
 
 namespace guchho::test {
+
+// The four codes a run can return, as the numbers a process would exit with, so
+// that a test can write EXPECT_EQ(result.exit_code, kUsageError) and be talking
+// about the documented contract rather than about the number 2.
+inline constexpr int kSuccess      = static_cast<int>(guchho::cli::ExitCode::kSuccess);
+inline constexpr int kBuildFailure = static_cast<int>(guchho::cli::ExitCode::kBuildFailure);
+inline constexpr int kUsageError   = static_cast<int>(guchho::cli::ExitCode::kCLIUsageError);
+inline constexpr int kInterrupted  = static_cast<int>(guchho::cli::ExitCode::kInterrupted);
 
 // A temporary directory that is also the working directory for as long as it
 // lives. See the note at the top of this file for why both halves are needed.
@@ -128,10 +140,119 @@ public:
                            std::istreambuf_iterator<char>());
     }
 
+    // A directory inside the workspace, created empty. Used where a command is
+    // expected to find something already there, such as an output directory
+    // that clean is meant to remove.
+    void MakeDir(const std::string& relative) const {
+        std::error_code ec;
+        std::filesystem::create_directories(At(relative), ec);
+    }
+
 private:
     std::string path_;
     std::filesystem::path previous_;
 };
+
+namespace detail {
+
+// Points one file descriptor at a file of its own and keeps the old one.
+//
+// The redirection is at the descriptor rather than at std::cout's buffer
+// because the command line does not only write through the C++ streams: the
+// timing line at the end of a run is std::fprintf to stdout
+// (src/helpers/timer.cpp), and a test that swapped the stream buffer instead
+// would not have seen it — which is precisely the output that decides whether
+// transform can be used in a pipeline. The same is true of the diagnostics,
+// which the logger sends down its own path.
+//
+// Each capture gets its own file, named after the stream rather than after the
+// test, so two runs in one test cannot read each other's output. The files live
+// in the system temporary directory and not in the workspace, because a test
+// that builds an entry point by globbing would otherwise find them.
+class FdCapture {
+public:
+    FdCapture(int fd, const std::string& name) : fd_(fd) {
+        static int counter = 0;
+        path_ = (std::filesystem::temp_directory_path() /
+                 ("guchho-cli-capture-" + name + "-" +
+                  std::to_string(counter++) + ".tmp"))
+            .string();
+
+#ifdef _WIN32
+        if (fopen_s(&file_, path_.c_str(), "w+b") != 0) {
+            file_ = nullptr;
+        }
+#else
+        file_ = std::fopen(path_.c_str(), "w+b");
+#endif
+        if (file_ == nullptr) return;
+
+        saved_ = dup_(fd_);
+        dup2_(fileno_(file_), fd_);
+    }
+
+    ~FdCapture() {
+        if (file_ != nullptr) {
+            Finish();
+        }
+    }
+
+    FdCapture(const FdCapture&) = delete;
+    FdCapture& operator=(const FdCapture&) = delete;
+
+    bool ok() const { return file_ != nullptr; }
+
+    // Puts the descriptor back and hands over everything written to it. Called
+    // once by the test's owner; the destructor calls it too, for the path where
+    // a run threw, because a descriptor left pointing at a deleted file is a
+    // problem for every test after this one.
+    std::string Finish() {
+        if (file_ == nullptr) return {};
+
+        // Whatever the streams have buffered belongs in the file before the
+        // file is read, and the file has to be rewound before it is read.
+        std::fflush(stdout);
+        std::fflush(stderr);
+        std::cout.flush();
+        std::cerr.flush();
+
+        dup2_(saved_, fd_);
+        close_(saved_);
+
+        std::rewind(file_);
+        std::string text;
+        char        buffer[4096];
+        size_t      got = 0;
+        while ((got = std::fread(buffer, 1, sizeof(buffer), file_)) > 0) {
+            text.append(buffer, got);
+        }
+        std::fclose(file_);
+        file_ = nullptr;
+        std::error_code ec;
+        std::filesystem::remove(path_, ec);
+        return text;
+    }
+
+private:
+#ifdef _WIN32
+    static int dup_(int fd) { return _dup(fd); }
+    static int dup2_(int to, int from) { return _dup2(to, from); }
+    static void close_(int fd) { _close(fd); }
+    static int fileno_(FILE* f) { return _fileno(f); }
+#else
+    static int dup_(int fd) { return dup(fd); }
+    static int dup2_(int to, int from) { return dup2(to, from); }
+    static void close_(int fd) { ::close(fd); }
+    static int fileno_(FILE* f) { return fileno(f); }
+#endif
+
+    int fd_ = 1;
+    int saved_ = -1;
+    std::string path_;
+    FILE* file_ = nullptr;
+};
+
+} // namespace detail
 
 // What one run did: the code it returned, and the two streams it wrote to.
 struct CliResult {
@@ -140,56 +261,57 @@ struct CliResult {
     std::string err;
 };
 
-// Runs the command line in this process, with nothing on the standard input.
+// Runs the command line in this process.
 //
 // "args" is the list the command line documents: the command word first where
-// there is one, never the executable name. Returns rather than asserts, so that
-// a test can say what it expected instead of the harness guessing.
+// there is one, never the executable name. "stdin_text" stands in for whatever
+// a person piped in, which is the only way to reach the two commands that read
+// the standard input — runBuild and runTransform both read std::cin to its end,
+// so the stream is pointed at the text and pointed back afterwards. The end
+// matters as much as the text: a run that only ever read the first line would
+// report a clean build of a truncated program.
+//
+// Returns rather than asserts, so that a test can say what it expected instead
+// of the harness guessing.
 //
 // input:  { "build", "index.html", "--outdir=dist" } in a workspace
 // output: a run, its exit code, and what it wrote to the two output streams
 inline CliResult RunCliWithStdin(const std::vector<std::string>& args,
                                  const std::string& stdin_text) {
-    std::ostringstream out;
-    std::ostringstream err;
-    std::streambuf* const saved_out = std::cout.rdbuf(out.rdbuf());
-    std::streambuf* const saved_err = std::cerr.rdbuf(err.rdbuf());
-
     std::istringstream input(stdin_text);
     std::streambuf* const saved_in = std::cin.rdbuf(input.rdbuf());
+
+    detail::FdCapture out(1, "out");
+    detail::FdCapture err(2, "err");
 
     CliResult result;
     try {
         result.exit_code = guchho::cli::Run(args);
     } catch (...) {
-        // The streams have to be put back before anything is rethrown, or the
-        // rest of this test binary writes into two strings on the stack of a
-        // frame that no longer exists.
+        // The streams have to be put back before anything is rethrown, or
+        // every later test in this binary writes into a file that is on its way
+        // out.
+        result.out = out.Finish();
+        result.err = err.Finish();
         std::cin.rdbuf(saved_in);
-        std::cout.rdbuf(saved_out);
-        std::cerr.rdbuf(saved_err);
         throw;
     }
 
+    result.out = out.Finish();
+    result.err = err.Finish();
     std::cin.rdbuf(saved_in);
-    std::cout.rdbuf(saved_out);
-    std::cerr.rdbuf(saved_err);
-
-    result.out = out.str();
-    result.err = err.str();
     return result;
 }
 
 // The same run with nothing on the standard input, which is what every command
-// except the two that are filters sees.
+// except the two that are filters ever sees.
 inline CliResult RunCli(const std::vector<std::string>& args) {
     return RunCliWithStdin(args, std::string());
 }
 
 // True when "text" contains "needle". Every output assertion in the command
 // line tests goes through this, because what a run prints is a mixture of the
-// part that means something and the parts that are the machine talking — the
-// banner, the duration, the byte counts, the platform.
+// part that means something and the parts that are the machine talking.
 inline bool OutputContains(const std::string& text, std::string_view needle) {
     return text.find(needle) != std::string::npos;
 }

@@ -307,8 +307,7 @@ namespace guchho::resolver {
         }
 
         // Extracts the define replacement expression text from a JSON value.
-        // Mirrors how esbuild accepts define values: the JSON string content is
-        // itself a JSON expression (e.g. "\"production\"", "true", "42").
+        // the JSON string content is itself a JSON expression (e.g. "\"production\"", "true", "42").
         std::optional<std::string> DefineValueText(const javascript::Expr& value)
         {
             if (auto str = internal::GetString(value)) {
@@ -661,9 +660,6 @@ namespace guchho::resolver {
                     }
                     auto [expr, injected] = javascript::ParseDefineExpr(*value_text);
                     if (injected != nullptr) {
-                        // Compound expressions are not inlined; esbuild injects
-                        // them out-of-line. That path needs an injected file, so
-                        // only scalar defines are supported by the config loader.
                         log.AddID(logger::MsgID::kGuchhoJSON_InvalidFormat,
                                   logger::MsgKind::kWarning, &tracker,
                                   source.RangeOfString(p.value_or_nil.loc),

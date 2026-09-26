@@ -417,7 +417,7 @@ namespace guchho::bundler {
                 where = " for the file \"" + originating_file_paths.Select(log_path_style) + "\"";
             }
             hint = "The plugin \"" + plugin_name + "\" didn't set a resolve directory" + where +
-                   ", so esbuild did not search for \"" + path + "\" on the file system.";
+                   ", so guchho did not search for \"" + path + "\" on the file system.";
         }
 
         if (!hint.empty()) {

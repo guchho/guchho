@@ -26,12 +26,18 @@ namespace guchho::cli {
 // surface of the command is visible in one place: a directory to serve, a host
 // only this machine can reach, and a port above the ones a system tends to have
 // taken already.
+//
+// The directory to serve is the one setting that is not typed in here. It is the
+// effective output directory — the project's config file first, the built-in "dist"
+// behind it — because serving something other than what a build produces is the
+// mistake this command can most easily make, and a person who configured a
+// destination did not mean for it to be ignored here.
 
 int runServe(const std::vector<std::string>& args) {
     installSignalHandlers();
 
     auto args_copy = args;
-    std::string serve_dir = "dist";
+    std::string serve_dir;
     std::string host = "localhost";
     uint16_t port = 3000;
     bool open_browser = false;
@@ -82,6 +88,14 @@ int runServe(const std::vector<std::string>& args) {
         // one of its own and is refused outright.
         logger::PrintErrorToStderr(args_copy, "Unknown option: " + arg);
         return static_cast<int>(ExitCode::kCLIUsageError);
+    }
+
+    // No directory on the command line, so the project's own answer is used. A
+    // build with no output location at all — a hand-written options struct, or a
+    // config that named a single output file — still leaves a directory here
+    // because the resolution always produces one.
+    if (serve_dir.empty()) {
+        serve_dir = resolveRunOptions(newBuildOptions()).outdir;
     }
 
     printBanner(std::cout);
@@ -281,12 +295,10 @@ int runDev(const std::vector<std::string>& args,
 
     attachPlugins(build_opts, plugins);
 
-    // Somewhere to put the output, chosen here because a server needs one. A
-    // build given an output file is left alone: naming a file is deliberate, and
-    // the directory below is not served in its place.
-    if (build_opts.outfile.empty() && build_opts.outdir.empty()) {
-        build_opts.outdir = "dist";
-    }
+    // Somewhere to put the output, and where to read it from, both decided by the
+    // shared resolution so that this command and "guchho build" cannot disagree
+    // about a config file they can both see.
+    build_opts = resolveRunOptions(build_opts);
 
     // HTML-first: guess a default entry point when none is provided so that
     // "guchho dev" works right after "guchho init". A project created that way

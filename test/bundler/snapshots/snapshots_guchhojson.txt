@@ -82,6 +82,27 @@ BundlerGuchhoJSON.BuildFormatUMDWithGlobalName
 });
 
 ================================================================================
+BundlerGuchhoJSON.BuildHtmlEntryPage
+---------- /out/style.css ----------
+/* style.css */
+p {
+  color: red;
+}
+
+---------- /out/app.js ----------
+// dep.js
+var x = 42;
+
+// app.js
+console.log(x);
+
+---------- /out/logo.png ----------
+fake-png-data
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css"></head>
+  <body><script src="./app.js"></script><img src="./logo.png">
+</body></html>
+================================================================================
 BundlerGuchhoJSON.BuildMinifyObjectForm
 ---------- /out.js ----------
 // app.js
@@ -182,6 +203,20 @@ BundlerGuchhoJSON.ConfigJSFileNameWins
 ---------- /project/dist/app.js ----------
 (()=>{var o=42;console.log(42);})();
 
+================================================================================
+BundlerGuchhoJSON.DefaultEntryIsThePage
+---------- /project/out/style.css ----------
+p{color:red}
+
+---------- /project/out/app.js ----------
+console.log(42);
+
+---------- /project/out/logo.png ----------
+fake-png-data
+---------- /project/out/index.html ----------
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css"></head>
+  <body><script src="./app.js"></script><img src="./logo.png">
+</body></html>
 ================================================================================
 BundlerGuchhoJSON.DefineInlinesValue
 ---------- /out.js ----------

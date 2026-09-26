@@ -61,7 +61,6 @@
 
 #pragma once
 
-#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <ostream>
@@ -487,6 +486,20 @@ namespace guchho::cli {
 
     api::BuildOptions newBuildOptions();
     api::TransformOptions newTransformOptions();
+
+    // Settles everything a command line left open, in the one place that does it.
+    //
+    // The grammar above records which flags a person actually typed; this asks
+    // the effective-options resolution to fill in the rest from the project's
+    // config file and the built-in defaults, and hands back what the build should
+    // run with. Every command that builds, watches, serves or cleans goes through
+    // it, which is what makes "guchho build" and "guchho dev" agree about a
+    // config file they can both see.
+    //
+    // "abs_working_dir" is the directory config discovery starts from, and
+    // defaults to the process working directory.
+    api::BuildOptions resolveRunOptions(const api::BuildOptions& options,
+                                        const std::string& abs_working_dir = "");
 
     // Whether "arg" is "flag" on its own or "flag=...", and whether it is
     // something a build can use at all (a path, or the one flag that is both a

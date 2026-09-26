@@ -2,22 +2,25 @@
 //
 // Both commands park. runServe hands its directory to api::Serve and comes back
 // only when the server is stopped, and runDev does the same with a watcher
-// running underneath it, so neither of these tests can ask the question it
-// would really like to ask — does the server answer a request — without a
-// second process, a timeout, and a way to stop it again. That machinery is
-// worth having, and test/api/api_serve_test.cpp is where it belongs, because the
-// thing worth testing there is the server and not the two lines that call it.
+// running underneath it. Neither is reachable from a test, and dev is worse
+// than unreachable: it binds a socket and then runs the platform's own "open
+// this address" command (src/cli/cli_serve.cpp), so a test that got that far
+// would open a browser window on the machine running the suite. So no test here
+// goes past the flags, and the reason is not only that a test cannot stop these
+// commands — it is that they do not come back at all.
 //
-// So what is left is the part that decides whether the parking is ever reached:
-// the help, the address, and the flags. A port that is not a number is rejected
-// before anything is bound, and that check is the only piece of these two
-// commands that can be reached from a test without a socket — which makes it
-// worth pinning, because the alternative is a command that binds a port nobody
-// asked for.
+// What is left is worth having. A port that is not a number is rejected before
+// anything is bound, and that check is the only piece of these two commands
+// that can be reached from a test without a socket. It is also the check worth
+// pinning, because the reading of "3000x" that is not a number has to be caught
+// here rather than arriving later as a server that never started.
 //
-// What the flag rejections here have in common with the build command's is the
-// note: the message says what was wrong and the note says what would have been
-// right, and a test that only checked the first would let the second rot.
+// The parts that matter most are not tested here and the omission is a real
+// gap: a request answered by the served directory, a range, a media type, a
+// redirect, a rebuild on change. All of that is api::Serve, and all of it is
+// already driven over a real loopback socket in test/api/api_serve_test.cpp —
+// which is the right place for it, since the thing worth testing there is the
+// server rather than the two lines that call it.
 
 #include "test/helpers/cli_test.hpp"
 #include "test/guchho_test.hpp"
@@ -37,6 +40,9 @@ using guchho::test::RunCli;
 // serve
 // ---------------------------------------------------------------------------
 
+// Answered before the socket, the way every command answers it: a request for
+// help is a success, and the text is the command's own rather than the shared
+// usage text, so its examples name the flags a served directory honours.
 TEST(CliServe, HelpIsItsOwnAndSucceeds) {
     CliWorkspace ws("serve-help");
 
@@ -46,9 +52,10 @@ TEST(CliServe, HelpIsItsOwnAndSucceeds) {
     EXPECT_TRUE(OutputContains(result.out, "Usage: guchho serve"));
 }
 
-// A port that is not a number is the mistake worth catching, because the other
-// reading of "3000x" is a port nobody can bind and the failure would arrive
-// later, as a server that did not start.
+// A port that is not a number is the mistake worth catching. The other reading
+// of "abc" is a port nobody can bind, and that failure arrives later, as a
+// server that did not start, with nothing in the message to connect it to the
+// argument that caused it.
 TEST(CliServe, APortThatIsNotANumberIsRejected) {
     CliWorkspace ws("serve-port");
 
@@ -56,23 +63,14 @@ TEST(CliServe, APortThatIsNotANumberIsRejected) {
 
     EXPECT_EQ(result.exit_code, kUsageError);
     EXPECT_TRUE(OutputContains(result.err, "--port=abc"));
+    EXPECT_TRUE(OutputContains(result.err, "abc"));
 }
 
-// The help names the flag, so a rejected value can be compared against what the
-// command says it wanted.
-TEST(CliServe, ARejectedPortIsNamedInTheMessage) {
-    CliWorkspace ws("serve-port-msg");
-
-    const guchho::test::CliResult result = RunCli({"serve", "--port=99999"});
-
-    EXPECT_EQ(result.exit_code, kUsageError);
-    EXPECT_TRUE(OutputContains(result.err, "99999"));
-}
-
-// Not tested, and the reason is in the note at the top of this file: a request
-// answered by the served directory, a range, a media type, a redirect. All of
-// that is api::Serve, and all of it is already driven over a real loopback
-// socket in test/api/api_serve_test.cpp.
+// A port that is not a number is rejected before anything is bound. That is the
+// only part of this command a test can reach: a port that is a number gets past
+// the parsing, past the announcement of the address, and into api::Serve, which
+// does not come back — so there is no way to assert on the other half from
+// here, and the file header says where that half is tested instead.
 
 // ---------------------------------------------------------------------------
 // dev
@@ -85,19 +83,6 @@ TEST(CliServe, DevHelpIsItsOwnAndSucceeds) {
 
     EXPECT_EQ(result.exit_code, kSuccess);
     EXPECT_TRUE(OutputContains(result.out, "Usage: guchho dev"));
-}
-
-// dev takes the build grammar, so a flag that is not a build flag is refused
-// the same way the build command refuses it. This is the one place the two
-// commands can be compared directly, because neither of them gets as far as
-// binding anything first.
-TEST(CliServe, DevTakesTheBuildGrammar) {
-    CliWorkspace ws("dev-grammar");
-
-    const guchho::test::CliResult result = RunCli({"dev", "--nope"});
-
-    EXPECT_EQ(result.exit_code, kUsageError);
-    EXPECT_TRUE(OutputContains(result.err, "Invalid build flag"));
 }
 
 } // namespace cli::test

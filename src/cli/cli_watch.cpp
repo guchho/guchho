@@ -231,16 +231,15 @@ int runWatch(const std::vector<std::string>& args, bool quiet,
     // rather than replacing, so a plugin named in a configuration file keeps
     // its place.
     //
-    // "dist" is the fallback destination, and it is applied only when neither
-    // spelling of an output location was given — the same rule the build
-    // command follows, so "guchho watch" and "guchho build" of the same entry
-    // point leave their output in the same place.
+    // The output location is the shared resolution's answer, not a "dist" typed
+    // in here: the project's config file gets to name one, and the built-in
+    // default is the last resort rather than the first answer. "guchho watch"
+    // and "guchho build" of the same entry point resolve it the same way, so
+    // they leave their output in the same place.
 
     attachPlugins(build_opts, plugins);
 
-    if (build_opts.outfile.empty() && build_opts.outdir.empty()) {
-        build_opts.outdir = "dist";
-    }
+    build_opts = resolveRunOptions(build_opts);
 
     // -------------------------------------------------------------------------
     // An entry point, guessed if none was named

@@ -364,6 +364,7 @@ guchho_enable_sanitizers(guchho_bundler)
 
 set(GUCHHO_API_SOURCES
     api/api.cpp
+    api/api_options.cpp
     api/api_serve.cpp
     api/api_watcher.cpp
 )

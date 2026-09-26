@@ -107,6 +107,13 @@ namespace guchho::resolver {
         // was found on disk).
         std::string config_path;
 
+        // True when the loaded config file supplied at least one "build.entry"
+        // value. This is what separates an entry point a project asked for from
+        // the built-in default entry that "CreateDefaultGuchhoConfig" installs:
+        // both arrive in "entry_points", and only the latter may be discarded
+        // when a caller names its own entries.
+        bool entry_from_config = false;
+
         // True when a config file was found and successfully parsed.
         bool found = false;
 
@@ -132,6 +139,23 @@ namespace guchho::resolver {
     //                    found         = false,
     //                    parse_error   = false }
     GuchhoConfig CreateDefaultGuchhoConfig(const std::string& root_dir);
+
+    // The supported Guchho config file names, in the priority order discovery
+    // uses within a single directory: "guchho.config.js", then
+    // "guchho.config.json", then "guchho.json". Exposed so that anything which
+    // reports on config discovery — the "info" command, in particular — names
+    // the files in the same order the loader looks for them.
+    const std::vector<std::string>& GuchhoConfigFileNames();
+
+    // Fills "opts.AbsOutputDir" with the directory holding "opts.AbsOutputFile"
+    // when an output file is set and no output directory was named. The two
+    // output settings are one choice made two ways: naming "build.outfile"
+    // discards the built-in "dist" rather than competing with it, but every
+    // later stage still needs a directory to write beside that file, so it is
+    // derived here rather than left to each caller. A no-op when
+    // "AbsOutputFile" is empty, and it never overwrites a directory that the
+    // caller named itself.
+    void DeriveOutputDirFromOutputFile(config::Options& opts, filesystem::Fs& fs);
 
     // Discovers a Guchho config file starting at "start_dir" and walking up
     // through parent directories. Within each directory the three supported

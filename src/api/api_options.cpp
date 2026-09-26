@@ -37,14 +37,28 @@ namespace {
 
     // Whether "key" was named explicitly.
     //
-    // With no ExplicitlySet — a caller that assembled the struct itself — every
-    // value in it is deliberate, which is what "no set" has to mean: the
-    // resolution is an aid, not a gate, and a library caller who has already
-    // decided should not also have to describe how they decided.
+    // With no ExplicitlySet, the answer is no — nothing was named, because
+    // nothing could have been: the record is written by the command line as it
+    // reads each flag, and a struct that never passed through it has no flag
+    // anywhere in its history. Every field below also asks whether its own value
+    // is the struct's sentinel, so the two questions together decide each one:
+    // "the set does not have this key" and "this field still holds what a fresh
+    // struct holds" both mean the same thing, and the field is then free to be
+    // answered by the config file or by the built-in defaults.
+    //
+    // Reading a null set as "everything was named" was the other option, and it
+    // is wrong in a way that only shows up later. A library caller who wrote
+    // "BuildOptions opts; ResolveEffectiveBuildOptions(opts, dir);" to ask what
+    // a project builds with would get back the struct it already had — no
+    // config, no "dist", nothing — and a helper that cannot answer a question
+    // about a project it has already found is not an aid to anybody. A caller
+    // who really has decided everything attaches a set and says so, which is
+    // what the type is for and the only way to assert a value against a config
+    // that would otherwise overrule it.
     bool WasSet(const BuildOptions& opts, std::string_view key)
     {
         if (!opts.explicit_set) {
-            return true;
+            return false;
         }
         return opts.explicit_set->Has(key);
     }

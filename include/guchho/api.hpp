@@ -477,6 +477,35 @@ struct Engine {
     std::string version;
 };
 
+// Why a target string could not be read.
+enum class TargetParse : uint8_t {
+    kOk,
+    kUnknownName,    // nothing in the table has that name
+    kMissingVersion, // an engine name with no version after it
+};
+
+// A target string, already understood: a language level, any number of engines
+// with their versions, or both. A person writes both in one list, in either
+// order, and neither kind depends on the other.
+struct TargetSpec {
+    Target              target{Target::kDefault};
+    std::vector<Engine> engines;
+};
+
+// Reads a target string — "es2020", "esnext", "firefox115", or a comma-separated
+// list mixing both kinds — the same way the "--target" command-line flag does.
+//
+// This lives beside the enums rather than in the command line because a config
+// file names a target as a string too, and the two spellings have to mean the
+// same thing. A caller that gets kUnknownName or kMissingVersion is told which
+// part was at fault through "bad_value", so it can say so in its own terms.
+//
+//   ParseTargetSpec("es2020,firefox115", spec, bad)  =>  kOk
+//   ParseTargetSpec("firefox",       spec, bad)       =>  kMissingVersion
+//   ParseTargetSpec("es2030",        spec, bad)       =>  kUnknownName
+TargetParse ParseTargetSpec(std::string_view text, TargetSpec& out,
+                            std::string_view* bad_value = nullptr);
+
 // Where a problem was found. Line and column follow the same convention the
 // editor integrations expect: lines count from 1, columns count from 0 in
 // bytes, and length is a byte count, so a multi-byte character advances the

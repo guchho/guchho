@@ -52,6 +52,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -64,6 +65,7 @@
     #include <unistd.h>
 #endif
 
+#include "guchho/api.hpp"
 #include "guchho/cli.hpp"
 
 namespace guchho::test {
@@ -261,6 +263,52 @@ struct CliResult {
     std::string err;
 };
 
+namespace detail {
+
+// Runs "run" with both output streams pointed at files of their own, and returns
+// what it returned along with what it wrote.
+//
+// Both entry points below come through here, so neither of them is the one that
+// has to get the capture and the restore right. The streams are put back before
+// the result is returned even when the run throws, because a test binary that
+// has thrown its way past the restore writes every later line into a temporary
+// file that is on its way out.
+template <typename Run>
+CliResult Captured(Run&& run) {
+    FdCapture out(1, "out");
+    FdCapture err(2, "err");
+
+    CliResult result;
+    try {
+        result.exit_code = run();
+    } catch (...) {
+        result.out = out.Finish();
+        result.err = err.Finish();
+        throw;
+    }
+
+    result.out = out.Finish();
+    result.err = err.Finish();
+    return result;
+}
+
+} // namespace detail
+
+// Puts std::cin back the way it was found, whether the run finished or threw.
+// The clear() matters as much as the swap: the stream keeps its error and
+// end-of-file flags across a change of buffer, so a second run in the same
+// process would read a stream that is already at its end and see no input at
+// all.
+namespace detail {
+struct StdinRestorer {
+    std::streambuf* saved;
+    ~StdinRestorer() {
+        std::cin.clear();
+        std::cin.rdbuf(saved);
+    }
+};
+} // namespace detail
+
 // Runs the command line in this process.
 //
 // "args" is the list the command line documents: the command word first where
@@ -280,33 +328,28 @@ inline CliResult RunCliWithStdin(const std::vector<std::string>& args,
                                  const std::string& stdin_text) {
     std::istringstream input(stdin_text);
     std::streambuf* const saved_in = std::cin.rdbuf(input.rdbuf());
+    std::cin.clear();
+    detail::StdinRestorer restore{saved_in};
 
-    detail::FdCapture out(1, "out");
-    detail::FdCapture err(2, "err");
-
-    CliResult result;
-    try {
-        result.exit_code = guchho::cli::Run(args);
-    } catch (...) {
-        // The streams have to be put back before anything is rethrown, or
-        // every later test in this binary writes into a file that is on its way
-        // out.
-        result.out = out.Finish();
-        result.err = err.Finish();
-        std::cin.rdbuf(saved_in);
-        throw;
-    }
-
-    result.out = out.Finish();
-    result.err = err.Finish();
-    std::cin.rdbuf(saved_in);
-    return result;
+    return detail::Captured([&] { return guchho::cli::Run(args); });
 }
 
 // The same run with nothing on the standard input, which is what every command
 // except the two that are filters ever sees.
 inline CliResult RunCli(const std::vector<std::string>& args) {
     return RunCliWithStdin(args, std::string());
+}
+
+// The same, for the other entry point: a run with plugins attached.
+//
+// It needs its own function rather than an extra argument on the one above,
+// because a plugin is api::Plugin — a struct with a std::function in it, and
+// therefore a type the common header should not have to know about for the
+// seven files that never touch one. The capture and the stdin handling are the
+// same code either way, which is the point of sharing them.
+inline CliResult RunCliWithPlugins(const std::vector<std::string>& args,
+                                   const std::vector<api::Plugin>& plugins) {
+    return detail::Captured([&] { return guchho::cli::RunWithPlugins(args, plugins); });
 }
 
 // True when "text" contains "needle". Every output assertion in the command

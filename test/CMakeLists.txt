@@ -21,6 +21,7 @@ add_subdirectory(resolver)
 add_subdirectory(graph)
 add_subdirectory(linker)
 add_subdirectory(bundler)
+add_subdirectory(api)
 
 
 
@@ -278,4 +279,29 @@ guchho_set_warnings(guchho_bundler_tests)
 guchho_enable_sanitizers(guchho_bundler_tests)
 
 guchho_discover_tests(guchho_bundler_tests PREFIX "bundler." WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bundler")
+
+
+# api test executable
+
+add_executable(guchho_api_tests
+    test_assertions.cpp
+    $<TARGET_OBJECTS:guchho_api_test_objects>
+)
+
+target_link_libraries(
+    guchho_api_tests
+    PRIVATE
+        guchho_api
+)
+
+target_include_directories(
+    guchho_api_tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+guchho_set_warnings(guchho_api_tests)
+guchho_enable_sanitizers(guchho_api_tests)
+
+guchho_discover_tests(guchho_api_tests PREFIX "api." WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/api")
 

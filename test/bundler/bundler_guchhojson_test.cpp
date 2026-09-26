@@ -67,6 +67,60 @@ TEST(BundlerGuchhoJSON, BuildFormatCommonJS) {
     });
 }
 
+TEST(BundlerGuchhoJSON, BuildFormatUMD) {
+    // "build.format" also accepts "umd". The config schema has no global-name
+    // field, so with no name coming from the caller the global branch of the
+    // wrapper runs the factory without publishing it on a namespace.
+    guchhojson_suite.ExpectBundled(Bundled{
+        .files = {
+            {"/app.js", "export const answer = 42;\nconsole.log(answer);\n"},
+        },
+        .entry_paths = {"/app.js"},
+        .options = guchho::config::Options{
+            .BuildMode = guchho::config::Mode::kBundle,
+            .AbsOutputFile = "/out.js",
+        },
+        .guchho_config = R"({"build":{"format":"umd"}})",
+    });
+}
+
+TEST(BundlerGuchhoJSON, BuildFormatUMDWithGlobalName) {
+    // The same config with a global name supplied by the caller. It is a
+    // build-command option like "BuildMode" rather than a config field, which
+    // is why it lives in the options and not in the "guchho.json" text.
+    guchhojson_suite.ExpectBundled(Bundled{
+        .files = {
+            {"/app.js", "export const answer = 42;\nconsole.log(answer);\n"},
+        },
+        .entry_paths = {"/app.js"},
+        .options = guchho::config::Options{
+            .BuildMode = guchho::config::Mode::kBundle,
+            .AbsOutputFile = "/out.js",
+            .GlobalName = {"MyLib"},
+        },
+        .guchho_config = R"({"build":{"format":"umd"}})",
+    });
+}
+
+TEST(BundlerGuchhoJSON, BuildFormatUMDWithExternal) {
+    // "external" and "format" together: the marked package stays out of the
+    // bundle and the UMD wrapper passes it to all three of its branches. The
+    // package exists in the file system, so the import being left alone is
+    // what shows that the config took effect.
+    guchhojson_suite.ExpectBundled(Bundled{
+        .files = {
+            {"/app.js", "import {create} from 'vue'\nexport const app = create();\n"},
+            {"/node_modules/vue/index.js", "export const create = () => 1;\n"},
+        },
+        .entry_paths = {"/app.js"},
+        .options = guchho::config::Options{
+            .BuildMode = guchho::config::Mode::kBundle,
+            .AbsOutputFile = "/out.js",
+        },
+        .guchho_config = R"({"build":{"format":"umd"},"external":["vue"]})",
+    });
+}
+
 TEST(BundlerGuchhoJSON, BuildPlatformNodeKeepsBuiltin) {
     // Under "platform": "node" a Node built-in is external, so the import is
     // preserved instead of being resolved against the file system.

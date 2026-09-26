@@ -580,8 +580,17 @@ std::optional<ErrorWithNote> parseTargets(
         api::TargetParse parsed = api::ParseTargetSpec(value, spec, &bad);
 
         if (parsed == api::TargetParse::kOk) {
-            out_target  = spec.target;
-            out_engines = std::move(spec.engines);
+            // Appended rather than assigned, and the target only taken when
+            // this value actually named one. "--target=es2020,chrome120" is the
+            // documented shape above, and it breaks under both shortcuts: the
+            // engines are two entries that have to be added to whatever was
+            // already there, and a value like "chrome120" carries no language
+            // level at all, so assigning its empty target would erase the
+            // "es2020" the previous value had just set.
+            if (spec.target != api::Target::kDefault) {
+                out_target = spec.target;
+            }
+            out_engines.insert(out_engines.end(), spec.engines.begin(), spec.engines.end());
             continue;
         }
 

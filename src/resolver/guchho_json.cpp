@@ -393,6 +393,22 @@ namespace guchho::resolver {
 
     } // namespace
 
+    const std::vector<std::string>& GuchhoConfigFileNames()
+    {
+        static const std::vector<std::string> names(
+            kConfigFileNames,
+            kConfigFileNames + (sizeof(kConfigFileNames) / sizeof(kConfigFileNames[0])));
+        return names;
+    }
+
+    void DeriveOutputDirFromOutputFile(config::Options& opts, filesystem::Fs& fs)
+    {
+        if (opts.AbsOutputFile.empty() || !opts.AbsOutputDir.empty()) {
+            return;
+        }
+        opts.AbsOutputDir = fs.Dir(opts.AbsOutputFile);
+    }
+
     GuchhoConfig CreateDefaultGuchhoConfig(const std::string& root_dir)
     {
         GuchhoConfig result;
@@ -409,6 +425,8 @@ namespace guchho::resolver {
         opts.TreeShaking       = true;                       // "treeShaking": true
         opts.AbsOutputDir      = JoinAbsConfigDir(root_dir, "dist"); // "outdir": "dist"
         opts.AbsOutputFile     = "";                         // "outfile": unset
+        opts.PrettyPrint       = true;                       // "pretty": true
+        opts.MinifyHtml        = false;                      // "minifyHtml": false
 
         config::EntryPoint entry;
         entry.InputPath = JoinAbsConfigDir(root_dir, "index.html"); // "entry": "index.html"
@@ -456,6 +474,7 @@ namespace guchho::resolver {
         static const char* kKnownBuildFields[] = {
             "entry", "outdir", "outfile", "format", "platform", "target",
             "minify", "sourcemap", "splitting", "clean", "treeShaking",
+            "pretty", "minifyHtml",
         };
         if (auto build_prop = internal::GetProperty(json, "build")) {
             const javascript::Expr& build = build_prop->first;
@@ -556,6 +575,16 @@ namespace guchho::resolver {
             if (auto tree_shaking = internal::GetProperty(build, "treeShaking")) {
                 if (auto value = internal::GetBool(tree_shaking->first)) {
                     opts.TreeShaking = *value;
+                }
+            }
+            if (auto pretty = internal::GetProperty(build, "pretty")) {
+                if (auto value = internal::GetBool(pretty->first)) {
+                    opts.PrettyPrint = *value;
+                }
+            }
+            if (auto minify_html = internal::GetProperty(build, "minifyHtml")) {
+                if (auto value = internal::GetBool(minify_html->first)) {
+                    opts.MinifyHtml = *value;
                 }
             }
             // "build.clean" is handled by the CLI/build runner, not "opts".
@@ -810,6 +839,16 @@ namespace guchho::resolver {
         ApplyGuchhoJsonConfig(log, fs, result.opts, result.entry_points, user_defines,
                               json, config_dir, source);
 
+        // Whether the entries came from the file is decided here, before
+        // discovery has a chance to put the built-in default entry in their
+        // place, because that is the only moment the two are told apart.
+        result.entry_from_config = !result.entry_points.empty();
+
+        // "build.outfile" discards the built-in output directory, so the
+        // directory is derived here — for every loader, since all of them reach
+        // this function — rather than left to each caller to rediscover.
+        DeriveOutputDirFromOutputFile(result.opts, fs);
+
         result.defines_owned = std::make_unique<config::ProcessedDefines>(
             config::ProcessDefines(user_defines));
         result.opts.Defines = result.defines_owned.get();
@@ -907,7 +946,7 @@ namespace guchho::resolver {
                             GuchhoConfig js_result = (GetGuchhoConfigJSLoader())(
                                 log, json_cache, fs, result.opts, candidate);
                             if (js_result.found) {
-                                if (js_result.entry_points.empty()) {
+                                if (!js_result.entry_from_config) {
                                     // "build.entry" was not specified, so the
                                     // default entry (index.html rooted at the
                                     // discovery start) stays in effect.
@@ -935,7 +974,7 @@ namespace guchho::resolver {
                             // returned yet: a JS config in a parent directory
                             // still takes precedence over it.
                             json_fallback = std::move(json_result);
-                            if (json_fallback->entry_points.empty()) {
+                            if (!json_fallback->entry_from_config) {
                                 // "build.entry" was not specified, so the
                                 // default entry (index.html rooted at the
                                 // discovery start) stays in effect.

@@ -1382,7 +1382,7 @@ config::Format format = options->OutputFormat;
         }
 
         j.EnsureNewlineAtEnd();
-        std::string slash_tag = "/script";
+        std::string slash_tag = "script";
         if (compat::Has(options->UnsupportedJSFeatures, compat::JSFeature::kInlineScript)) {
             slash_tag = "";
         }

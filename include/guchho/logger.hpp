@@ -1608,6 +1608,8 @@ namespace guchho::logger {
         kAPI_CannotTransformWithLinkedSourceMaps,
         kAPI_MustUseSourcefileWithSourcemap,
         kAPI_CannotTransformWithLinkedLegalComments,
+        kAPI_InvalidLogLevel,
+        kAPI_InvalidLogOverride,
         kAPI_CannotCallResolveBeforeSetup,
         kAPI_MustSpecifyKindWhenResolving,
 

@@ -401,13 +401,21 @@ int runClean(const std::vector<std::string>& args) {
     // agree about where the output is.
     //
     // A build configured with a single output file has still got a directory
-    // underneath it, and that is the directory to remove.
+    // underneath it, and that is the directory to remove. The file is spelled
+    // relative to the working directory, so it is joined first: Dir() is
+    // documented in terms of absolute paths and asked for a relative one it has
+    // no base to work from, which is how this branch came to remove nothing at
+    // all.
     std::vector<std::string> targets;
     if (!build_opts.outdir.empty()) {
         targets.push_back(build_opts.outdir);
     } else if (!build_opts.outfile.empty()) {
-        std::optional<std::string> file_abs = fs->Abs(build_opts.outfile);
-        targets.push_back(file_abs ? fs->Dir(*file_abs) : std::string());
+        std::optional<std::string> file_abs =
+            fs->Abs(fs->Join({cwd, build_opts.outfile}));
+        if (file_abs) {
+            std::optional<std::string> dir_rel = fs->Rel(cwd, fs->Dir(*file_abs));
+            targets.push_back(dir_rel ? *dir_rel : fs->Dir(*file_abs));
+        }
     }
     targets.erase(std::remove(targets.begin(), targets.end(), std::string()),
                   targets.end());

@@ -500,47 +500,12 @@ bool isArgForBuild(const std::string& arg) {
 // Language levels and engines
 // =============================================================================
 //
-// The names that "--target" accepts, and nothing else that knows them.
-//
-// Both tables are static and file-local: they are constant for the lifetime of
-// the process, they are not part of anything an embedder can extend, and
-// keeping them here means the note attached to a rejected name can be built
-// from the same table that accepts it.
-static const std::unordered_map<std::string, api::EngineName> kValidEngines = {
-    {"chrome",  api::EngineName::kChrome},
-    {"deno",    api::EngineName::kDeno},
-    {"edge",    api::EngineName::kEdge},
-    {"firefox", api::EngineName::kFirefox},
-    {"hermes",  api::EngineName::kHermes},
-    {"ie",      api::EngineName::kIE},
-    {"ios",     api::EngineName::kIOS},
-    {"node",    api::EngineName::kNode},
-    {"opera",   api::EngineName::kOpera},
-    {"rhino",   api::EngineName::kRhino},
-    {"safari",  api::EngineName::kSafari},
-};
-
-// A language level is a single edition, and two names may mean the same one:
-// "es6" and "es2015" are the same edition, and both are in the table pointing
-// at the same value, because both are what people type. The naming is otherwise
-// the year, with "esnext" standing for the edition that has no year yet and
-// "es5" for the one that is older than the convention.
-static const std::unordered_map<std::string, api::Target> kValidTargets = {
-    {"esnext", api::Target::kESNext},
-    {"es5",    api::Target::kES5},
-    {"es6",    api::Target::kES2015},
-    {"es2015", api::Target::kES2015},
-    {"es2016", api::Target::kES2016},
-    {"es2017", api::Target::kES2017},
-    {"es2018", api::Target::kES2018},
-    {"es2019", api::Target::kES2019},
-    {"es2020", api::Target::kES2020},
-    {"es2021", api::Target::kES2021},
-    {"es2022", api::Target::kES2022},
-    {"es2023", api::Target::kES2023},
-    {"es2024", api::Target::kES2024},
-    {"es2025", api::Target::kES2025},
-};
+// The names that "--target" accepts are not listed here. They are the tables in
+// api::ValidEngineNames() and beside it, because a config file names a target as
+// a string too and the two have to mean the same thing: one list, read in one
+// place, is the only way "es2020" cannot come to mean one edition on the command
+// line and another in guchho.config.js. What is left in this file is the
+// complaint, which is a command-line-shaped thing to complain with.
 
 // =============================================================================
 // Reading a --target list
@@ -605,48 +570,33 @@ std::optional<ErrorWithNote> parseTargets(
     // whole flag. A partially applied target list would be a build that
     // silently targets something other than what was asked for, which is the
     // one outcome a flag is not allowed to produce quietly.
+    //
+    // The reading of a single value is not done here: api::ParseTargetSpec
+    // owns the tables, because a config file names targets as strings too and
+    // the two spellings have to agree. What is left here is the complaint.
     for (const auto& value : targets) {
+        api::TargetSpec spec;
+        std::string_view bad;
+        api::TargetParse parsed = api::ParseTargetSpec(value, spec, &bad);
 
-        // ASCII only, so a name typed in any ASCII case is found, and no
-        // assumption is made about the case rules of a script the version might
-        // be written in.
-        std::string lower = helpers::ToLowerASCII(value);
-
-        auto t_it = kValidTargets.find(lower);
-        if (t_it != kValidTargets.end()) {
-            out_target = t_it->second;
+        if (parsed == api::TargetParse::kOk) {
+            out_target  = spec.target;
+            out_engines = std::move(spec.engines);
             continue;
         }
 
-        // Not a language level, so it has to be an engine followed by a
-        // version. "found_engine" separates "this was an engine with a version,
-        // carry on" from "this was an engine name with nothing after it",
-        // because both leave this loop early for different reasons.
-        bool found_engine = false;
-        for (const auto& [engine_name, engine_id] : kValidEngines) {
-            if (lower.starts_with(engine_name)) {
-                std::string version = lower.substr(engine_name.size());
-
-                if (version.empty()) {
-                    return MakeErrorWithNote(
-                        "Target " + helpers::QuoteSingle(value, true) + " is missing a version number in " + helpers::QuoteSingle(arg, true),
-                        "");
-                }
-
-                out_engines.push_back(api::Engine{.name = engine_id, .version = version});
-                found_engine = true;
-                break;
-            }
+        if (parsed == api::TargetParse::kMissingVersion) {
+            return MakeErrorWithNote(
+                "Target " + helpers::QuoteSingle(value, true) + " is missing a version number in " + helpers::QuoteSingle(arg, true),
+                "");
         }
-        if (found_engine) continue;
 
         // Nothing matched, so the message has to say what would have. It is
-        // built here rather than kept as a string beside the tables because the
-        // two would then be free to disagree, and a rejected name is exactly
-        // when a person is reading the list of what they could have written.
+        // built from the same tables that accept the values, which is the only
+        // way the list in a rejection cannot fall behind the list of what works.
         std::vector<std::string> valid;
         valid.push_back("\"esN\"");
-        for (const auto& [key, _] : kValidEngines) {
+        for (const auto& [key, _] : api::ValidEngineNames()) {
             valid.push_back(helpers::QuoteSingle(key + "N", true));
         }
         std::sort(valid.begin(), valid.end());

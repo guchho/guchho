@@ -259,6 +259,32 @@ std::optional<ErrorWithNote> parseOptionsImpl(
             continue;
         }
         // -------------------------------------------------------------------------
+        // The shape of the markup
+        // -------------------------------------------------------------------------
+        //
+        // Two switches about the HTML printer, and they are opposites: the output
+        // is indented, or it is collapsed. Only one can be the answer nobody
+        // asked for, so pretty printing is the one that is, and minifying markup
+        // has to be requested.
+        //
+        // Build-only. A transform never sees HTML, and adding a flag to one
+        // option structure and not the other would make the two spellings of
+        // "the same command line" disagree.
+        if (isBoolFlag(arg, "--pretty") && build_opts) {
+            auto [value, err] = parseBoolFlag(arg, true);
+            if (err) return err;
+            build_opts->pretty = value;
+            note(api::kOptPretty);
+            continue;
+        }
+        if (isBoolFlag(arg, "--minify-html") && build_opts) {
+            auto [value, err] = parseBoolFlag(arg, true);
+            if (err) return err;
+            build_opts->minify_html = value;
+            note(api::kOptMinifyHtml);
+            continue;
+        }
+        // -------------------------------------------------------------------------
         // Shortening property names
         // -------------------------------------------------------------------------
         //
@@ -1064,9 +1090,11 @@ std::optional<ErrorWithNote> parseOptionsImpl(
                 "global-name", "ignore-annotations", "jsx-factory", "jsx-fragment",
                 "jsx-import-source", "jsx", "keep-names", "keyfile", "legal-comments",
                 "loader", "log-level", "log-limit", "main-fields", "mangle-cache",
-                "mangle-props", "mangle-quoted", "metafile", "minify-identifiers",
+                "mangle-props", "mangle-quoted", "metafile", "minify-html",
+                "minify-identifiers",
                 "minify-syntax", "minify-whitespace", "minify", "outbase", "outdir",
-                "outfile", "packages", "platform", "preserve-symlinks", "public-path",
+                "outfile", "packages", "platform", "preserve-symlinks", "pretty",
+                "public-path",
                 "reserve-props", "resolve-extensions", "serve-fallback", "serve",
                 "servedir", "source-root", "sourcefile", "sourcemap", "sources-content",
                 "splitting", "target", "tree-shaking", "tsconfig-raw", "tsconfig",

@@ -450,6 +450,15 @@ guchho_enable_sanitizers(guchho)
 
 guchho_enable_resources(guchho)
 
+# main.cpp takes its arguments through the wide entry point on Windows so that
+# the paths a person types survive the trip from the shell. MSVC finds that
+# entry point by itself, but MinGW only calls it when the runtime is told to
+# start in its Unicode flavor, so the flag belongs on the link line of the one
+# executable that has a main.
+if(MINGW)
+    target_link_options(guchho PRIVATE -municode)
+endif()
+
 set_target_properties(guchho PROPERTIES
     OUTPUT_NAME "guchho"
 )

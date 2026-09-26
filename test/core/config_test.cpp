@@ -1200,6 +1200,322 @@ TEST(OptionsTest, DefaultPrettyPrintIsFalse)
     EXPECT_FALSE(opts.PrettyPrint);
 }
 
+TEST(ConfigStructDefaultsTest, DataStructs)
+{
+    DefineExpr define_expr;
+    EXPECT_FALSE(define_expr.HasConstant());
+    EXPECT_TRUE(define_expr.Parts.empty());
+    EXPECT_FALSE(define_expr.InjectedDefineIndex.IsValid());
+
+    DefineData define_data;
+    EXPECT_TRUE(define_data.KeyParts.empty());
+    EXPECT_EQ(define_data.DefineExprData, nullptr);
+    EXPECT_EQ(define_data.Flags, DefineFlags::kNone);
+
+    ProcessedDefines processed_defines;
+    EXPECT_TRUE(processed_defines.IdentifierDefines.empty());
+    EXPECT_TRUE(processed_defines.DotDefines.empty());
+
+    TSConfigJSX ts_config_jsx;
+    EXPECT_TRUE(ts_config_jsx.JSXFactory.empty());
+    EXPECT_TRUE(ts_config_jsx.JSXFragmentFactory.empty());
+    EXPECT_FALSE(ts_config_jsx.JSXImportSource.has_value());
+    EXPECT_EQ(ts_config_jsx.JSX, TSJSX::kNone);
+
+    TSOptions ts_options;
+    EXPECT_EQ(ts_options.Config.ExperimentalDecorators, MaybeBool::kUnspecified);
+    EXPECT_EQ(ts_options.Config.ImportsNotUsedAsValues, TSImportsNotUsedAsValues::kNone);
+    EXPECT_EQ(ts_options.Config.PreserveValueImports, MaybeBool::kUnspecified);
+    EXPECT_EQ(ts_options.Config.Target, TSTarget::kUnspecified);
+    EXPECT_EQ(ts_options.Config.UseDefineForClassFields, MaybeBool::kUnspecified);
+    EXPECT_EQ(ts_options.Config.VerbatimModuleSyntax, MaybeBool::kUnspecified);
+    EXPECT_FALSE(ts_options.Parse);
+    EXPECT_FALSE(ts_options.NoAmbiguousLessThan);
+
+    JSXOptions jsx_options;
+    EXPECT_FALSE(jsx_options.Factory.HasConstant());
+    EXPECT_TRUE(jsx_options.Factory.Parts.empty());
+    EXPECT_FALSE(jsx_options.Fragment.HasConstant());
+    EXPECT_TRUE(jsx_options.Fragment.Parts.empty());
+    EXPECT_FALSE(jsx_options.Parse);
+    EXPECT_FALSE(jsx_options.Preserve);
+    EXPECT_FALSE(jsx_options.AutomaticRuntime);
+    EXPECT_TRUE(jsx_options.ImportSource.empty());
+    EXPECT_FALSE(jsx_options.Development);
+    EXPECT_FALSE(jsx_options.SideEffects);
+
+    TSAlwaysStrict always_strict;
+    EXPECT_TRUE(always_strict.Name.empty());
+    EXPECT_EQ(always_strict.SourceData.index, 0u);
+    EXPECT_EQ(always_strict.RangeData.loc.start, 0);
+    EXPECT_EQ(always_strict.RangeData.len, 0);
+    EXPECT_FALSE(always_strict.Value);
+
+    WildcardPattern wildcard;
+    EXPECT_TRUE(wildcard.Prefix.empty());
+    EXPECT_TRUE(wildcard.Suffix.empty());
+
+    ExternalMatchers pre_resolve;
+    EXPECT_TRUE(pre_resolve.Exact.empty());
+    EXPECT_TRUE(pre_resolve.Patterns.empty());
+    EXPECT_FALSE(pre_resolve.HasMatchers());
+
+    ExternalSettings external;
+    EXPECT_TRUE(external.PreResolve.Exact.empty());
+    EXPECT_TRUE(external.PreResolve.Patterns.empty());
+    EXPECT_TRUE(external.PostResolve.Exact.empty());
+    EXPECT_TRUE(external.PostResolve.Patterns.empty());
+
+    PathTemplate path_template;
+    EXPECT_TRUE(path_template.Data.empty());
+    EXPECT_EQ(path_template.Placeholder, PathPlaceholder::kNoPlaceholder);
+
+    InjectableExport injectable_export;
+    EXPECT_TRUE(injectable_export.Alias.empty());
+    EXPECT_EQ(injectable_export.LocData.start, 0);
+
+    InjectedDefine injected_define;
+    EXPECT_EQ(injected_define.Data.index(), 0u);
+    EXPECT_TRUE(injected_define.Name.empty());
+    EXPECT_EQ(injected_define.SourceData.index, 0u);
+
+    InjectedFile injected_file;
+    EXPECT_TRUE(injected_file.Exports.empty());
+    EXPECT_TRUE(injected_file.DefineName.empty());
+    EXPECT_EQ(injected_file.SourceData.index, 0u);
+    EXPECT_FALSE(injected_file.IsCopyLoader);
+}
+
+TEST(ConfigStructDefaultsTest, PluginStructs)
+{
+    OnStartResult start_result;
+    EXPECT_TRUE(start_result.ThrownError.empty());
+    EXPECT_TRUE(start_result.Msgs.empty());
+
+    OnResolveArgs resolve_args;
+    EXPECT_TRUE(resolve_args.PathData.empty());
+    EXPECT_TRUE(resolve_args.ResolveDir.empty());
+    EXPECT_FALSE(resolve_args.PluginData.has_value());
+    EXPECT_TRUE(resolve_args.Importer.text.empty());
+    EXPECT_TRUE(resolve_args.Importer.namespace_.empty());
+    EXPECT_TRUE(resolve_args.Importer.ignored_suffix.empty());
+    EXPECT_TRUE(resolve_args.Importer.import_attributes.packed_data.empty());
+    EXPECT_EQ(static_cast<uint8_t>(resolve_args.Importer.flags), 0);
+    EXPECT_EQ(resolve_args.Kind, guchho::compiler::ImportKind::kEntryPoint);
+    EXPECT_TRUE(resolve_args.With.packed_data.empty());
+
+    OnResolveResult resolve_result;
+    EXPECT_TRUE(resolve_result.PluginName.empty());
+    EXPECT_TRUE(resolve_result.Msgs.empty());
+    EXPECT_TRUE(resolve_result.ThrownError.empty());
+    EXPECT_TRUE(resolve_result.AbsWatchFiles.empty());
+    EXPECT_TRUE(resolve_result.AbsWatchDirs.empty());
+    EXPECT_FALSE(resolve_result.PluginData.has_value());
+    EXPECT_TRUE(resolve_result.ResultPath.text.empty());
+    EXPECT_TRUE(resolve_result.ResultPath.namespace_.empty());
+    EXPECT_TRUE(resolve_result.ResultPath.ignored_suffix.empty());
+    EXPECT_TRUE(resolve_result.ResultPath.import_attributes.packed_data.empty());
+    EXPECT_EQ(static_cast<uint8_t>(resolve_result.ResultPath.flags), 0);
+    EXPECT_FALSE(resolve_result.External);
+    EXPECT_FALSE(resolve_result.IsSideEffectFree);
+
+    OnLoadArgs load_args;
+    EXPECT_FALSE(load_args.PluginData.has_value());
+    EXPECT_TRUE(load_args.LoadPath.text.empty());
+    EXPECT_TRUE(load_args.LoadPath.namespace_.empty());
+    EXPECT_TRUE(load_args.LoadPath.ignored_suffix.empty());
+    EXPECT_TRUE(load_args.LoadPath.import_attributes.packed_data.empty());
+    EXPECT_EQ(static_cast<uint8_t>(load_args.LoadPath.flags), 0);
+
+    OnLoadResult load_result;
+    EXPECT_TRUE(load_result.PluginName.empty());
+    EXPECT_FALSE(load_result.Contents.has_value());
+    EXPECT_TRUE(load_result.AbsResolveDir.empty());
+    EXPECT_FALSE(load_result.PluginData.has_value());
+    EXPECT_TRUE(load_result.Msgs.empty());
+    EXPECT_TRUE(load_result.ThrownError.empty());
+    EXPECT_TRUE(load_result.AbsWatchFiles.empty());
+    EXPECT_TRUE(load_result.AbsWatchDirs.empty());
+    EXPECT_EQ(load_result.ResultLoader, Loader::kNone);
+
+    OnStart start;
+    EXPECT_FALSE(start.Callback);
+    EXPECT_TRUE(start.Name.empty());
+
+    OnResolve resolve;
+    EXPECT_FALSE(resolve.Callback);
+    EXPECT_TRUE(resolve.Name.empty());
+    EXPECT_TRUE(resolve.Namespace.empty());
+
+    OnLoad load;
+    EXPECT_FALSE(load.Callback);
+    EXPECT_TRUE(load.Name.empty());
+    EXPECT_TRUE(load.Namespace.empty());
+
+    HtmlTagDescriptor tag;
+    EXPECT_TRUE(tag.tag.empty());
+    EXPECT_TRUE(tag.attrs.empty());
+    EXPECT_TRUE(tag.children.empty());
+    EXPECT_EQ(tag.inject_to, HtmlTagDescriptor::kHead);
+
+    HtmlTransformContext html_context;
+    EXPECT_TRUE(html_context.filename.empty());
+    EXPECT_TRUE(html_context.is_build);
+
+    Plugin plugin;
+    EXPECT_TRUE(plugin.Name.empty());
+    EXPECT_TRUE(plugin.OnStartList.empty());
+    EXPECT_TRUE(plugin.OnResolveList.empty());
+    EXPECT_TRUE(plugin.OnLoadList.empty());
+    EXPECT_FALSE(plugin.TransformIndexHtml);
+
+    AmdOptions amd;
+    EXPECT_FALSE(amd.auto_id);
+    EXPECT_TRUE(amd.base_path.empty());
+    EXPECT_TRUE(amd.id.empty());
+    EXPECT_EQ(amd.define, "define");
+    EXPECT_FALSE(amd.force_js_extension_for_imports);
+}
+
+TEST(OptionsTest, AllFieldsHaveDefaults)
+{
+    Options opts;
+
+    EXPECT_EQ(opts.ModuleTypeData.source, nullptr);
+    EXPECT_EQ(opts.ModuleTypeData.range.loc.start, 0);
+    EXPECT_EQ(opts.ModuleTypeData.range.len, 0);
+    EXPECT_EQ(opts.ModuleTypeData.type, guchho::javascript::ModuleType::kUnknown);
+    EXPECT_EQ(opts.Defines, nullptr);
+    EXPECT_EQ(opts.TSAlwaysStrictData, nullptr);
+    EXPECT_FALSE(opts.MangleProps);
+    EXPECT_FALSE(opts.ReserveProps);
+    EXPECT_EQ(opts.CancelFlagData, nullptr);
+    EXPECT_FALSE(opts.ExclusiveMangleCacheUpdate);
+
+    EXPECT_TRUE(opts.OriginalTargetEnv.empty());
+    EXPECT_TRUE(opts.DropLabels.empty());
+    EXPECT_FALSE(opts.MainFieldsSet);
+    EXPECT_TRUE(opts.MainFields.empty());
+    EXPECT_TRUE(opts.Conditions.empty());
+    EXPECT_TRUE(opts.AbsNodePaths.empty());
+    EXPECT_EQ(opts.BuildMode, Mode::kPassThrough);
+    EXPECT_EQ(opts.OutputFormat, Format::kPreserve);
+    EXPECT_FALSE(opts.CodeSplitting);
+    EXPECT_EQ(opts.OutputPlatform, Platform::kBrowser);
+    EXPECT_FALSE(opts.NeedsMetafile);
+    EXPECT_FALSE(opts.PrettyPrint);
+    EXPECT_EQ(opts.SourceMapData, SourceMap::kNone);
+    EXPECT_FALSE(opts.ExcludeSourcesContent);
+
+    EXPECT_TRUE(opts.AbsOutputFile.empty());
+    EXPECT_TRUE(opts.AbsOutputDir.empty());
+    EXPECT_TRUE(opts.AbsOutputBase.empty());
+    EXPECT_TRUE(opts.OutputExtensionJS.empty());
+    EXPECT_TRUE(opts.OutputExtensionCSS.empty());
+    EXPECT_TRUE(opts.GlobalName.empty());
+    EXPECT_FALSE(opts.Amd.auto_id);
+    EXPECT_TRUE(opts.Amd.base_path.empty());
+    EXPECT_TRUE(opts.Amd.id.empty());
+    EXPECT_EQ(opts.Amd.define, "define");
+    EXPECT_FALSE(opts.Amd.force_js_extension_for_imports);
+    EXPECT_FALSE(opts.Extend);
+    EXPECT_FALSE(opts.NoConflict);
+    EXPECT_TRUE(opts.Strict);
+    EXPECT_TRUE(opts.Globals.empty());
+    EXPECT_FALSE(opts.SystemNullSetters);
+    EXPECT_TRUE(opts.TSConfigPath.empty());
+    EXPECT_TRUE(opts.TSConfigRaw.empty());
+
+    EXPECT_TRUE(opts.ExternalSettingsData.PreResolve.Exact.empty());
+    EXPECT_TRUE(opts.ExternalSettingsData.PreResolve.Patterns.empty());
+    EXPECT_TRUE(opts.ExternalSettingsData.PostResolve.Exact.empty());
+    EXPECT_TRUE(opts.ExternalSettingsData.PostResolve.Patterns.empty());
+    EXPECT_FALSE(opts.ExternalPackages);
+    EXPECT_TRUE(opts.PackageAliases.empty());
+    EXPECT_TRUE(opts.ExtensionOrder.empty());
+    EXPECT_TRUE(opts.ExtensionToLoader.empty());
+
+    EXPECT_FALSE(opts.PreserveSymlinks);
+    EXPECT_FALSE(opts.MinifyWhitespace);
+    EXPECT_FALSE(opts.MinifyIdentifiers);
+    EXPECT_FALSE(opts.MinifySyntax);
+    EXPECT_FALSE(opts.ProfilerNames);
+    EXPECT_FALSE(opts.WatchMode);
+    EXPECT_FALSE(opts.AllowOverwrite);
+    EXPECT_EQ(opts.LegalCommentsData, LegalComments::kInline);
+
+    EXPECT_EQ(static_cast<uint64_t>(opts.UnsupportedJSFeatures), 0);
+    EXPECT_EQ(static_cast<uint64_t>(opts.UnsupportedCSSFeatures), 0);
+    EXPECT_EQ(static_cast<uint64_t>(opts.UnsupportedJSFeatureOverrides), 0);
+    EXPECT_EQ(static_cast<uint64_t>(opts.UnsupportedJSFeatureOverridesMask), 0);
+    EXPECT_EQ(static_cast<uint64_t>(opts.UnsupportedCSSFeatureOverrides), 0);
+    EXPECT_EQ(static_cast<uint64_t>(opts.UnsupportedCSSFeatureOverridesMask), 0);
+
+    EXPECT_EQ(opts.TS.Config.ExperimentalDecorators, MaybeBool::kUnspecified);
+    EXPECT_EQ(opts.TS.Config.ImportsNotUsedAsValues, TSImportsNotUsedAsValues::kNone);
+    EXPECT_EQ(opts.TS.Config.PreserveValueImports, MaybeBool::kUnspecified);
+    EXPECT_EQ(opts.TS.Config.Target, TSTarget::kUnspecified);
+    EXPECT_EQ(opts.TS.Config.UseDefineForClassFields, MaybeBool::kUnspecified);
+    EXPECT_EQ(opts.TS.Config.VerbatimModuleSyntax, MaybeBool::kUnspecified);
+    EXPECT_FALSE(opts.TS.Parse);
+    EXPECT_FALSE(opts.TS.NoAmbiguousLessThan);
+
+    EXPECT_TRUE(opts.PublicPath.empty());
+    EXPECT_TRUE(opts.InjectPaths.empty());
+    EXPECT_TRUE(opts.InjectedDefines.empty());
+    EXPECT_TRUE(opts.InjectedFiles.empty());
+    EXPECT_TRUE(opts.JSBanner.empty());
+    EXPECT_TRUE(opts.JSFooter.empty());
+    EXPECT_TRUE(opts.CSSBanner.empty());
+    EXPECT_TRUE(opts.CSSFooter.empty());
+    EXPECT_TRUE(opts.EntryPathTemplate.empty());
+    EXPECT_TRUE(opts.ChunkPathTemplate.empty());
+    EXPECT_TRUE(opts.AssetPathTemplate.empty());
+    EXPECT_TRUE(opts.Plugins.empty());
+    EXPECT_TRUE(opts.SourceRoot.empty());
+    EXPECT_EQ(opts.Stdin, nullptr);
+    EXPECT_FALSE(opts.JSX.Factory.HasConstant());
+    EXPECT_TRUE(opts.JSX.Factory.Parts.empty());
+    EXPECT_FALSE(opts.JSX.Fragment.HasConstant());
+    EXPECT_TRUE(opts.JSX.Fragment.Parts.empty());
+    EXPECT_FALSE(opts.JSX.Parse);
+    EXPECT_FALSE(opts.JSX.Preserve);
+    EXPECT_FALSE(opts.JSX.AutomaticRuntime);
+    EXPECT_TRUE(opts.JSX.ImportSource.empty());
+    EXPECT_FALSE(opts.JSX.Development);
+    EXPECT_FALSE(opts.JSX.SideEffects);
+    EXPECT_EQ(opts.LineLimit, 0);
+    EXPECT_TRUE(opts.CSSPrefixData.empty());
+
+    EXPECT_FALSE(opts.OmitRuntimeForTests);
+    EXPECT_FALSE(opts.OmitJSXRuntimeForTests);
+    EXPECT_FALSE(opts.ASCIIOnly);
+    EXPECT_FALSE(opts.KeepNames);
+    EXPECT_FALSE(opts.IgnoreDCEAnnotations);
+    EXPECT_FALSE(opts.TreeShaking);
+    EXPECT_FALSE(opts.DropDebugger);
+    EXPECT_FALSE(opts.MangleQuoted);
+    EXPECT_FALSE(opts.WriteToStdout);
+    EXPECT_EQ(opts.MetafileFormatData, MetafileFormat::kUnminified);
+    EXPECT_EQ(opts.LogPathStyle, guchho::logger::PathStyle::kRelPath);
+    EXPECT_EQ(opts.CodePathStyle, guchho::logger::PathStyle::kRelPath);
+    EXPECT_EQ(opts.MetafilePathStyle, guchho::logger::PathStyle::kRelPath);
+    EXPECT_EQ(opts.SourcemapPathStyle, guchho::logger::PathStyle::kRelPath);
+
+    EXPECT_TRUE(opts.DefineMap.empty());
+    EXPECT_TRUE(opts.CspNonce.empty());
+    EXPECT_FALSE(opts.MinifyHtml);
+    EXPECT_FALSE(opts.ResourceHints.enabled);
+    EXPECT_FALSE(opts.ResourceHints.preload);
+    EXPECT_FALSE(opts.ResourceHints.prefetch);
+    EXPECT_FALSE(opts.ResourceHints.preconnect);
+    EXPECT_FALSE(opts.ResourceHints.dns_prefetch);
+    EXPECT_FALSE(opts.ResourceHints.fonts);
+    EXPECT_FALSE(opts.SRI);
+    EXPECT_EQ(opts.SRIAlgorithm, "sha384");
+    EXPECT_EQ(opts.CSSLoadingStrategyData, CSSLoadingStrategy::kBlocking);
+}
+
 // ---------------------------------------------------------------------------
 // Format enum values
 // ---------------------------------------------------------------------------

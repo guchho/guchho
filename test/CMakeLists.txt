@@ -22,6 +22,7 @@ add_subdirectory(graph)
 add_subdirectory(linker)
 add_subdirectory(bundler)
 add_subdirectory(api)
+add_subdirectory(cli)
 
 
 
@@ -304,4 +305,38 @@ guchho_set_warnings(guchho_api_tests)
 guchho_enable_sanitizers(guchho_api_tests)
 
 guchho_discover_tests(guchho_api_tests PREFIX "api." WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/api")
+
+
+# cli test executable
+
+add_executable(guchho_cli_tests
+    test_assertions.cpp
+    $<TARGET_OBJECTS:guchho_cli_test_objects>
+)
+
+target_link_libraries(
+    guchho_cli_tests
+    PRIVATE
+        guchho_cli
+        guchho_common
+)
+
+target_include_directories(
+    guchho_cli_tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+# The one suite that runs the shipped executable rather than calling into it.
+# The dependency is here so that the binary exists before the tests are
+# discovered. Its path is a compile definition on the object library in
+# test/cli/CMakeLists.txt, which is where the test that uses it is compiled, so
+# that no test has to work out where the build put it — the same thing the npm
+# package works out at run time in package/npm/guchho/lib/main.js.
+add_dependencies(guchho_cli_tests guchho)
+
+guchho_set_warnings(guchho_cli_tests)
+guchho_enable_sanitizers(guchho_cli_tests)
+
+guchho_discover_tests(guchho_cli_tests PREFIX "cli." WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cli")
 

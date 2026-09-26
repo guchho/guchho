@@ -52,6 +52,7 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "guchho/filesystem.hpp"
@@ -560,6 +561,28 @@ struct StdinOptions {
 struct Plugin;
 struct PluginBuild;
 
+// The names of the build options that somebody actually asked for.
+//
+// Most option defaults are the value a field holds when nobody has an opinion
+// ("false" for minify, "" for outdir), so an unset field and a field explicitly
+// set to that same value look identical. Where a default is the other way round
+// — minification is on unless you ask for it not to be — that difference decides
+// whether a config file or a command line still gets a say, so the parser
+// records what it saw and the resolution consults this instead of guessing.
+//
+// A caller assembling BuildOptions by hand does not need it: leave
+// BuildOptions::explicit_set null and every value in the struct counts as
+// deliberate. This exists for the one case that cannot be expressed any other
+// way, which is "turn this off" when the default is "on".
+struct ExplicitlySet {
+    std::unordered_set<std::string_view> keys;
+
+    bool Has(std::string_view key) const
+    {
+        return keys.find(key) != keys.end();
+    }
+};
+
 // Everything a build can be told. The members are grouped by the phase they
 // affect, and the blank lines between groups mark those boundaries.
 struct BuildOptions {
@@ -586,6 +609,10 @@ struct BuildOptions {
     // -- Minification ------------------------------------------------------
     // The three minify_* switches are independent, so "minify_whitespace" alone
     // is a safe way to shrink a file for debugging while keeping names intact.
+    // They default to on: a build is the finished artefact, and a bundle
+    // nobody asked to minify is a bundle they will have to minify themselves.
+    // The flag is not shared with Format, because the wrapper's own quoting and
+    // interop constraints are not negotiable.
     // "mangle_props" is a regular expression matching property names to
     // shorten; "reserve_props" names the ones to protect. "mangle_cache" lets a
     // long-lived caller carry the property-name decisions of a previous build
@@ -599,9 +626,9 @@ struct BuildOptions {
     // outright — the classic way of fencing off development-only code:
     //   drop_labels = {"DEBUG"};  while (DEBUG) { ... }   // the loop is gone
     std::vector<std::string> drop_labels;
-    bool         minify_whitespace{};
-    bool         minify_identifiers{};
-    bool         minify_syntax{};
+    bool         minify_whitespace{true};
+    bool         minify_identifiers{true};
+    bool         minify_syntax{true};
     int          line_limit{}; // error out if any single line grows past this
     Charset      charset{Charset::kDefault};
     TreeShaking  tree_shaking{TreeShaking::kDefault};

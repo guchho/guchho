@@ -359,6 +359,38 @@ guchho_enable_sanitizers(guchho_bundler)
 
 
 # ============================================================
+# API library (public one-shot / context / server entry points)
+# ============================================================
+
+set(GUCHHO_API_SOURCES
+    api/api.cpp
+    api/api_serve.cpp
+    api/api_watcher.cpp
+)
+
+add_library(guchho_api STATIC)
+
+target_sources(guchho_api
+    PRIVATE
+        ${GUCHHO_API_SOURCES}
+)
+
+target_include_directories(guchho_api
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(guchho_api
+    PUBLIC
+        guchho_common
+        guchho_bundler
+)
+
+guchho_set_warnings(guchho_api)
+guchho_enable_sanitizers(guchho_api)
+
+
+# ============================================================
 # Guchho executable
 # ============================================================
 

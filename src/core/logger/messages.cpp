@@ -58,6 +58,16 @@ namespace guchho::logger {
         case MsgCat::kBundler_ImportMapReordered: return "import map in \"{}\" was reordered to appear before module scripts";
         case MsgCat::kBundler_RefusingToOverwriteInput: return "Refusing to overwrite input file \"{}\"{}";
         case MsgCat::kBundler_TwoOutputFilesSamePath: return "Two output files share the same path but have different contents: {}";
+        case MsgCat::kBundler_CouldNotResolveModifiedPath: return "Could not resolve \"{}\" (originally \"{}\")";
+        case MsgCat::kBundler_CouldNotResolvePath: return "Could not resolve \"{}\"";
+        case MsgCat::kBundler_AliasRemappedPathNote: return "The path \"{}\" was remapped to \"{}\" using the alias feature, which then couldn't be resolved. Keep in mind that import path aliases are resolved in the current working directory.";
+        case MsgCat::kBundler_MarkPathExternalHint: return "You can mark the path \"{}\" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle.";
+        case MsgCat::kBundler_RequireTryCatchHint: return " You can also surround this \"require\" call with a try/catch block to handle this failure at run-time instead of bundle-time.";
+        case MsgCat::kBundler_DynamicImportCatchHint: return " You can also add \".catch()\" here to handle this failure at run-time instead of bundle-time.";
+        case MsgCat::kBundler_UseRelativePathHint: return "Use the relative path \"./{}\" to reference the file \"{}\". Without the leading \"./\", the path \"{}\" is being interpreted as a package path instead.";
+        case MsgCat::kBundler_BuiltIntoNodeHint: return "The package \"{}\" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use \"Platform: api.PlatformNode\" to do that, which will remove this error.";
+        case MsgCat::kBundler_PluginNoResolveDirHint: return "The plugin \"{}\" didn't set a resolve directory, so guchho did not search for \"{}\" on the file system.";
+        case MsgCat::kBundler_PluginNoResolveDirForFileHint: return "The plugin \"{}\" didn't set a resolve directory for the file \"{}\", so guchho did not search for \"{}\" on the file system.";
         case MsgCat::kLinker_ComposesValueFirstNote: return "The first definition of \"{}\" is here:";
         case MsgCat::kLinker_ComposesValueSecondNote: return "The second definition of \"{}\" is here:";
         case MsgCat::kLinker_ComposesValueUndefinedNote: return "The specification of \"composes\" does not define an order when class declarations from separate files are composed together. The value of the \"{}\" property for \"{}\" may change unpredictably as the code is edited. Make sure that all definitions of \"{}\" for \"{}\" are in a single file.";

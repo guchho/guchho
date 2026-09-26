@@ -28,7 +28,6 @@
 namespace cli::test {
 
 using guchho::test::CliWorkspace;
-using guchho::test::kBuildFailure;
 using guchho::test::kSuccess;
 using guchho::test::kUsageError;
 using guchho::test::OutputContains;

@@ -33,6 +33,20 @@ struct Bundled {
     std::vector<guchho::config::EntryPoint>     entry_paths_advanced = {};
     std::string                                 abs_working_dir = {};
     guchho::config::Options                     options = {};
+    // The text of a "guchho.json" project config that configures this run.
+    // When non-empty the config is mapped onto `options` exactly as
+    // "resolver::LoadGuchhoConfigFromText" does, so every field the file
+    // specifies wins while the knobs the schema cannot express (BuildMode,
+    // the harness defaults) are kept. Relative paths inside the config are
+    // resolved against the directory of `guchho_config_path`, and config
+    // diagnostics are compared against `expected_scan_log`. When empty, no
+    // config is loaded and `options` is used verbatim.
+    std::string                                 guchho_config = {};
+    // The absolute path `guchho_config` is understood to come from. It only
+    // supplies the base directory for relative config paths and the location
+    // shown in diagnostics; the file itself is never read. Defaults to
+    // "<abs_working_dir>/guchho.json".
+    std::string                                 guchho_config_path = {};
     std::string                                 expected_scan_log = {};
     std::string                                 expected_compile_log = {};
     bool                                        debug_logs = false;

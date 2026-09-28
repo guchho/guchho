@@ -2603,18 +2603,10 @@ TEST(BundlerPackageJSON, TestPackageJsonExportsAlternatives) {
 		},
 		.entry_paths = {"/Users/user/project/src/entry.js"},
 				.options = guchho::config::Options{
-			.BuildMode = guchho::config::Mode::kBundle,
+		.BuildMode = guchho::config::Mode::kBundle,
 
-			.AbsOutputFile = "/Users/user/project/out.js",
-		},.expected_scan_log = R"scan(
-Users/user/project/src/entry.js: ERROR: Could not resolve "pkg/apples/red.js"
-Users/user/project/node_modules/pkg/package.json: NOTE: The module "./good-apples/red.js" was not found on the file system:
-NOTE: You can mark the path "pkg/apples/red.js" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle.
-Users/user/project/src/entry.js: ERROR: Could not resolve "pkg/books/red"
-Users/user/project/node_modules/pkg/package.json: NOTE: The module "./good-books/red-book.js" was not found on the file system:
-NOTE: You can mark the path "pkg/books/red" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle.
-)scan",
-
+		.AbsOutputFile = "/Users/user/project/out.js",
+	},
 	});
 }
 

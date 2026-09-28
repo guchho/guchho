@@ -21,6 +21,7 @@
 #include "test/helpers/cli_test.hpp"
 #include "test/guchho_test.hpp"
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -116,6 +117,14 @@ TEST(CliBuild, AnOutfileProducesOneFile) {
 // their own lines with the comment in front, and what comes back is one line
 // with no comment on it.
 //
+// The call in the entry point is load-bearing, and not for the reason it looks.
+// An unreferenced top-level declaration is dropped from an entry point, and a
+// constant one is folded into the place it is used, so a file that only declared
+// two constants prints as nothing at all — an empty file, which this test would
+// have passed on. compute() is what keeps both names in the output and what
+// keeps the declarations from being folded into the console.log call, where
+// there would be no a and no b to look for either.
+//
 // The comment is the load-bearing half of that claim, so it is worth saying
 // what became of it rather than only what did not: the printer emits no
 // comments, legal ones included, unless the build is asked for them. Somebody
@@ -123,28 +132,56 @@ TEST(CliBuild, AnOutfileProducesOneFile) {
 // back out of a bundle, and this is the test that says so.
 TEST(CliBuild, TheOutputIsPrintedRatherThanCopied) {
     CliWorkspace ws("printed");
-    ws.Write("entry.js", "// a comment\nconst a = 1;\nconst b = 2;\n");
+    ws.Write("entry.js",
+             "// a comment\n"
+             "const a = compute(1);\n"
+             "const b = compute(2);\n"
+             "console.log(a, b);\n");
 
     EXPECT_EQ(RunCli({"build", "entry.js", "--outfile=out.js"}).exit_code, kSuccess);
 
     const std::string out = ws.Read("out.js");
-    EXPECT_TRUE(OutputContains(out, "a = 1"));
-    EXPECT_TRUE(OutputContains(out, "b = 2"));
+    EXPECT_TRUE(OutputContains(out, "a=compute(1)")) << "nothing survived the build: [" << out << "]";
+    EXPECT_TRUE(OutputContains(out, "b=compute(2)")) << "nothing survived the build: [" << out << "]";
+    // One line, whatever the input had four of. This is the half of the claim
+    // the comment cannot carry: a copy is a copy whatever happens to its
+    // comments, and the layout is what says the text was printed.
+    EXPECT_EQ(std::count(out.begin(), out.end(), '\n'), 1L)
+        << "the statements kept their own lines, so this looks like a copy: [" << out << "]";
     EXPECT_FALSE(OutputContains(out, "a comment"))
         << "the comment survived, so this build copied the file instead of printing it";
 }
 
 // Minify is a flag the grammar takes and the printer honours, so this is the
 // test that the flag reached the build rather than being quietly dropped.
+//
+// It cannot be one build and an assertion about the result. Minification is on
+// by default, so a build with the flag and a build without it come out the same
+// and an assertion about either one alone would pass with the flag dropped on
+// the floor. What the flag does is change the answer, so the flag is checked by
+// the change: the same entry point built twice, once with the flag and once
+// with the flag turned off, and the two have to come out different.
+//
+// The call is here for the reason it is in the test above: a bare declaration
+// would be tree-shaken or folded away, and then there would be nothing in the
+// two outputs to tell apart.
 TEST(CliBuild, MinifyReachesTheOutput) {
     CliWorkspace ws("minify");
-    ws.Write("entry.js", "const value = 1;\nconsole.log(value);\n");
+    ws.Write("entry.js", "const value = compute(1);\nconsole.log(value);\n");
 
-    EXPECT_EQ(RunCli({"build", "entry.js", "--outfile=out.js", "--minify"}).exit_code, kSuccess);
+    EXPECT_EQ(RunCli({"build", "entry.js", "--outfile=plain.js", "--minify=false"}).exit_code, kSuccess);
+    EXPECT_EQ(RunCli({"build", "entry.js", "--outfile=min.js", "--minify"}).exit_code, kSuccess);
 
-    const std::string out = ws.Read("out.js");
-    EXPECT_FALSE(OutputContains(out, "\n\n"));
-    EXPECT_TRUE(OutputContains(out, "value"));
+    const std::string plain = ws.Read("plain.js");
+    const std::string min = ws.Read("min.js");
+
+    // The program is in both, so that what follows is the flag rather than one
+    // of the two builds having gone wrong.
+    EXPECT_TRUE(OutputContains(plain, "const value = compute(1);")) << "[" << plain << "]";
+    EXPECT_TRUE(OutputContains(min, "const value=compute(1);")) << "[" << min << "]";
+    EXPECT_TRUE(OutputContains(plain, "console.log(value);")) << "[" << plain << "]";
+    EXPECT_TRUE(OutputContains(min, "console.log(value);")) << "[" << min << "]";
+    EXPECT_NE(plain, min) << "the flag changed nothing, so it never reached the build";
 }
 
 // The metafile is the description of what the build read and produced, and it

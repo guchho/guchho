@@ -307,6 +307,43 @@ main() {
 
     cp "${binary_path}" "${output_path}"
 
+    # ------------------------------------
+    # MinGW runtime libraries
+    # ------------------------------------
+    #
+    # A binary built with MinGW is not one file. The compiler leaves the C++
+    # runtime in shared libraries beside the executable, and Windows finds them
+    # by looking in the executable's own directory — so copying the executable
+    # on its own produces a package that runs on the machine that built it and
+    # fails everywhere else with STATUS_DLL_NOT_FOUND (0xC0000135), which is
+    # indistinguishable from a corrupt download to whoever has to report it.
+    #
+    # The libraries are only present for a toolchain that needs them, so this
+    # copies whatever the build actually produced rather than a fixed list, and
+    # says so when there was nothing to copy.
+    local runtime_dir
+    runtime_dir="$(dirname "${binary_path}")"
+
+    local copied_runtime=0
+    for candidate in "${runtime_dir}"/*.dll; do
+        [[ -f "${candidate}" ]] || continue
+
+        # Only the runtime, not the test executables that sit beside it.
+        case "$(basename "${candidate}")" in
+            g*_tests.exe) continue ;;
+        esac
+
+        cp "${candidate}" "${bin_dir}/"
+        copied_runtime=$(( copied_runtime + 1 ))
+    done
+
+    if [[ ${copied_runtime} -gt 0 ]]; then
+        log "Copied ${copied_runtime} runtime library/libraries beside the binary:"
+        for copied in "${bin_dir}"/*.dll; do
+            [[ -f "${copied}" ]] && echo "  $(basename "${copied}")"
+        done
+    fi
+
 
     # ------------------------------------
     # Unix binary permissions

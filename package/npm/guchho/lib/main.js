@@ -16,6 +16,19 @@ function getBinaryName() {
   return process.platform === "win32" ? "guchho.exe" : "guchho";
 }
 
+// Whether a build directory name is for this platform and architecture.
+//
+// The names come from the CMake presets: "release-win32-x64", "debug-linux-arm64",
+// and a toolchain suffix on some, so the platform and arch are two adjacent
+// pieces in the middle rather than a prefix. They are matched as whole pieces
+// rather than as a substring, because a substring match on "win32-x64" also
+// accepts "win32-x64backup" and would then run a binary for a different
+// machine.
+function matchesPlatform(dirName, [platform, arch]) {
+  const parts = dirName.split("-");
+  return parts.some((part, i) => part === platform && parts[i + 1] === arch);
+}
+
 function getBinaryPath() {
   const platformKey = getPlatformKey();
   const binaryName = getBinaryName();
@@ -39,27 +52,38 @@ function getBinaryPath() {
   // When running from source, __dirname is package/npm/guchho/lib/
   const projectRoot = path.resolve(__dirname, "..", "..", "..", "..");
   const buildDir = path.join(projectRoot, "build");
-  const localPaths = [
-    path.join(__dirname, "..", "bin", binaryName),
-  ];
 
-  // Dynamically search build directories for the current platform
-  if (fs.existsSync(buildDir)) {
-    const prefix = `${process.platform === "win32" ? "win32" : process.platform}-${process.arch}`;
-    const entries = fs.readdirSync(buildDir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.isDirectory() && entry.name.includes(prefix)) {
-        // Windows MSVC layout: build/<preset>/bin/Release/guchho.exe
-        localPaths.push(path.join(buildDir, entry.name, "bin", "Release", binaryName));
-        // Ninja/Unix layout: build/<preset>/bin/guchho
-        localPaths.push(path.join(buildDir, entry.name, "bin", binaryName));
-      }
-    }
+  // The binary install.js copied next to the shim, if one is there. Ahead of
+  // anything in build/, because that is the one a published install put here.
+  const installed = path.join(__dirname, "..", "bin", binaryName);
+  if (fs.existsSync(installed)) {
+    return installed;
   }
 
-  for (const p of localPaths) {
-    if (fs.existsSync(p)) {
-      return p;
+  // Fall back to something in the build tree, for running against a checkout.
+  // Where more than one build exists, the most recently written one wins. A
+  // repository built for two toolchains has more than one, and taking them in
+  // directory order means a tree rebuilt a minute ago is still served by a
+  // binary from last month — which then fails in ways that look like a bug in
+  // the code just changed, because it never ran.
+  if (fs.existsSync(buildDir)) {
+    const wanted = [process.platform === "win32" ? "win32" : process.platform, process.arch];
+    const candidates = [];
+
+    for (const entry of fs.readdirSync(buildDir, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !matchesPlatform(entry.name, wanted)) {
+        continue;
+      }
+      // MSVC puts it one level deeper than the Ninja and Unix generators do,
+      // and both are layouts this project produces.
+      candidates.push(path.join(buildDir, entry.name, "bin", "Release", binaryName));
+      candidates.push(path.join(buildDir, entry.name, "bin", binaryName));
+    }
+
+    const present = candidates.filter((candidate) => fs.existsSync(candidate));
+    if (present.length > 0) {
+      present.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+      return present[0];
     }
   }
 

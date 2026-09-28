@@ -7,7 +7,6 @@
     "url": "git+https://github.com/guchho/guchho.git"
   },
   "license": "MIT",
-  "preferUnplugged": true,
   "engines": { "node": ">=18" },
   "keywords": ["guchho", "bundler", "build", "javascript", "typescript", "css", "html", "minifier"],
   "os": ["freebsd"],

@@ -5,7 +5,14 @@
   "bin": {
     "guchho": "bin/guchho.js"
   },
-  "main": "lib/main.js",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "import": "./lib/index.mjs",
+      "require": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "postinstall": "node install.js"
   },
@@ -27,7 +34,6 @@
     "css",
     "html",
     "minifier",
-    "bundler",
     "guchho"
   ],
   "author": "Hemanta Gayen",

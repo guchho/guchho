@@ -69,6 +69,7 @@
 
 #include "guchho/api.hpp"
 #include "guchho/cli.hpp"
+#include "guchho/filesystem.hpp"
 
 namespace guchho::test {
 
@@ -87,59 +88,98 @@ public:
     // The name is not derived from anything the test controls, so two tests
     // running at the same moment cannot pick the same directory. The counter
     // covers two workspaces in one test, and the clock covers two processes.
+    //
+    // Two spellings of the same path are kept because two kinds of caller want
+    // two kinds of string. Every file system operation below takes the native
+    // one; path() hands the UTF-8 one to helpers::RunProcess as a child's
+    // working directory, and that is a UTF-8 string by the same convention
+    // everything else in guchho follows (see src/main.cpp). The temporary
+    // directory's own name comes back from the standard library as a narrow
+    // path, which on Windows is the active code page rather than UTF-8, so the
+    // two spellings only agree for a temporary directory whose name happens to
+    // be plain ASCII — which is one more reason the UTF-8 one is derived rather
+    // than assumed.
     explicit CliWorkspace(const std::string& label) {
         static int counter = 0;
-        path_ = (std::filesystem::temp_directory_path() /
-                 ("guchho-cli-test-" + label + "-" + std::to_string(counter++) + "-" +
-                  std::to_string(static_cast<long long>(
-                      std::chrono::high_resolution_clock::now()
-                          .time_since_epoch()
-                          .count()))))
-            .string();
+        native_path_ = std::filesystem::temp_directory_path() /
+                       ("guchho-cli-test-" + label + "-" + std::to_string(counter++) + "-" +
+                        std::to_string(static_cast<long long>(
+                            std::chrono::high_resolution_clock::now()
+                                .time_since_epoch()
+                                .count())));
+        path_ = ToUTF8(native_path_);
+
         std::error_code ec;
-        std::filesystem::remove_all(path_, ec);
-        std::filesystem::create_directories(path_, ec);
+        std::filesystem::remove_all(native_path_, ec);
+        std::filesystem::create_directories(native_path_, ec);
 
         // Everything below assumes the run under test is looking at this
         // directory, so the move has to happen before the test body starts and
         // the move back has to happen before the deletion.
         previous_ = std::filesystem::current_path();
-        std::filesystem::current_path(path_);
+        std::filesystem::current_path(native_path_);
     }
 
     ~CliWorkspace() {
         std::error_code ec;
         std::filesystem::current_path(previous_, ec);
-        std::filesystem::remove_all(path_, ec);
+        std::filesystem::remove_all(native_path_, ec);
     }
 
     CliWorkspace(const CliWorkspace&) = delete;
     CliWorkspace& operator=(const CliWorkspace&) = delete;
 
+    // The workspace as UTF-8, which is what a child's working directory is.
     const std::string& path() const { return path_; }
 
     // A path inside the workspace, built from a relative path with forward
-    // slashes so a test reads the same on every platform.
+    // slashes so a test reads the same on every platform. The result is UTF-8,
+    // which is what every path in guchho is and therefore what a test may write
+    // a non-ASCII name in.
     std::string At(const std::string& relative) const {
-        return (std::filesystem::path(path_) / std::filesystem::path(relative)).string();
+        return ToUTF8(Native(path_) / Native(relative));
+    }
+
+    // The two conversions that everything else in this class goes through, and
+    // the reason it has to.
+    //
+    // Getting them wrong is invisible until a test uses a non-ASCII name. Every
+    // path in this class is UTF-8, but a narrow path handed straight to
+    // std::filesystem or to an fstream is read as the active code page instead,
+    // so "caf\xC3\xA9" becomes a directory on disk whose real name is "caf"
+    // followed by two characters that look like a misspelling — and a test is
+    // then writing to and reading from a name the code under test is never going
+    // to be given. PathFromUTF8 is the conversion the production file system
+    // layer uses for the same reason (src/core/filesystem/filesystem.cpp), and
+    // going through the same one here keeps the two in step.
+    static std::filesystem::path Native(const std::string& utf8) {
+        return guchho::filesystem::PathFromUTF8(utf8);
+    }
+
+    // The UTF-8 spelling of a path, as a plain std::string, because
+    // path::u8string() hands back std::u8string in C++20 and the two hold the
+    // same bytes.
+    static std::string ToUTF8(const std::filesystem::path& path) {
+        const std::u8string utf8 = path.u8string();
+        return std::string(utf8.begin(), utf8.end());
     }
 
     // Writes "contents" to "relative", creating the directories it needs.
     void Write(const std::string& relative, const std::string& contents) const {
-        const std::string full = At(relative);
+        const std::filesystem::path full = Native(At(relative));
         std::error_code ec;
-        std::filesystem::create_directories(std::filesystem::path(full).parent_path(), ec);
+        std::filesystem::create_directories(full.parent_path(), ec);
         std::ofstream out(full, std::ios::binary | std::ios::trunc);
         out << contents;
     }
 
     bool Exists(const std::string& relative) const {
         std::error_code ec;
-        return std::filesystem::exists(At(relative), ec);
+        return std::filesystem::exists(Native(At(relative)), ec);
     }
 
     std::string Read(const std::string& relative) const {
-        std::ifstream in(At(relative), std::ios::binary);
+        std::ifstream in(Native(At(relative)), std::ios::binary);
         return std::string((std::istreambuf_iterator<char>(in)),
                            std::istreambuf_iterator<char>());
     }
@@ -149,7 +189,7 @@ public:
     // that clean is meant to remove.
     void MakeDir(const std::string& relative) const {
         std::error_code ec;
-        std::filesystem::create_directories(At(relative), ec);
+        std::filesystem::create_directories(Native(At(relative)), ec);
     }
 
     // Every file in the workspace, relative and one per line, for a failure
@@ -160,9 +200,9 @@ public:
     std::string Tree() const {
         std::string out;
         for (const auto& entry : std::filesystem::recursive_directory_iterator(
-                 std::filesystem::path(path_), std::filesystem::directory_options::skip_permission_denied)) {
+                 native_path_, std::filesystem::directory_options::skip_permission_denied)) {
             if (!entry.is_regular_file()) continue;
-            out += std::filesystem::relative(entry.path(), path_).generic_string();
+            out += ToUTF8(std::filesystem::relative(entry.path(), native_path_).generic_string());
             out += "\n";
         }
         std::sort(out.begin(), out.end());
@@ -170,7 +210,8 @@ public:
     }
 
 private:
-    std::string path_;
+    std::string           path_;
+    std::filesystem::path native_path_;
     std::filesystem::path previous_;
 };
 

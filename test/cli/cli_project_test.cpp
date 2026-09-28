@@ -116,8 +116,13 @@ TEST(CliProject, InitHelpIsItsOwnAndSucceeds) {
 // clean
 // ---------------------------------------------------------------------------
 
-// The three directories a build can leave behind, and nothing else. A clean
-// that removed more than this would be removing something it did not write.
+// One directory, and it is the one this project's build writes to. Clean used
+// to remove a fixed list — the output directory, a ".guchho" and a "cache" —
+// which meant it could delete directories nothing had ever put there, and miss
+// the output entirely whenever the project had configured a different one. So
+// the list is the output directory alone, and the two the old list also named
+// are here as the evidence: a clean that removed more than this would be
+// removing something it did not write.
 TEST(CliProject, CleanRemovesTheOutputDirectories) {
     CliWorkspace ws("clean");
     ws.MakeDir("dist");
@@ -129,9 +134,26 @@ TEST(CliProject, CleanRemovesTheOutputDirectories) {
 
     EXPECT_EQ(result.exit_code, kSuccess);
     EXPECT_FALSE(ws.Exists("dist"));
-    EXPECT_FALSE(ws.Exists(".guchho"));
-    EXPECT_FALSE(ws.Exists("cache"));
+    EXPECT_TRUE(ws.Exists(".guchho")) << "clean removed a directory the build does not write";
+    EXPECT_TRUE(ws.Exists("cache")) << "clean removed a directory the build does not write";
     EXPECT_TRUE(ws.Exists("src")) << "clean removed something it did not write";
+}
+
+// The half of the above that the conventional name would get wrong: the target
+// is the output directory this project builds to, worked out the way a build
+// works it out, and "dist" is only what that is called when nothing else was
+// asked for. A clean that went by the name would take the dist above and leave
+// the build that was actually there.
+TEST(CliProject, CleanRemovesTheOutputDirectoryTheProjectIsConfiguredFor) {
+    CliWorkspace ws("clean-outdir");
+    ws.MakeDir("dist");
+    ws.MakeDir("build");
+
+    const guchho::test::CliResult result = RunCli({"clean", "--outdir=build"});
+
+    EXPECT_EQ(result.exit_code, kSuccess);
+    EXPECT_FALSE(ws.Exists("build"));
+    EXPECT_TRUE(ws.Exists("dist")) << "clean went by the conventional name instead of the configuration";
 }
 
 // What went is named, with the number of items, because "did it work" is the

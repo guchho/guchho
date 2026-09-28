@@ -348,6 +348,20 @@ EffectiveBuildOptions ResolveEffectiveBuildOptions(const BuildOptions& explicit_
     if (!WasSet(out, kOptMinifyHtml) && !out.minify_html) {
         out.minify_html = cfg.MinifyHtml;
     }
+    // The two HTML switches say opposite things about the same bytes, and the
+    // printer settles it in favour of indentation when both are on. Left alone
+    // that makes "--minify-html" a flag that does nothing at all on a default
+    // build, because pretty printing is on by default — a request for the
+    // compact form answered with the indented one, and no diagnostic to say so.
+    //
+    // So the request wins, and only when the request is a request: somebody who
+    // named both on a command line meant what they typed, and the named
+    // pretty-print flag is the one that is answered. Turning pretty off
+    // automatically instead would mean "guchho build --minify-html --pretty"
+    // printed indented markup, which is the confusing half of the same problem.
+    if (out.minify_html && out.pretty && !WasSet(out, kOptPretty)) {
+        out.pretty = false;
+    }
     if (!WasSet(out, kOptEntryPoints) && out.entry_points.empty() &&
         out.entry_points_advanced.empty() && config.entry_from_config) {
         // Only the entries the project actually asked for. The built-in

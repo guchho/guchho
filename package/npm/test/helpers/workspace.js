@@ -16,22 +16,13 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const { REPO_ROOT, GUCHHO_DIR, BINARY_NAME, PLATFORM_KEY } = require("./paths");
+const { GUCHHO_DIR, BINARY_NAME, PLATFORM_KEY } = require("./paths");
+const { getBinaryPath } = require("../../guchho/lib/main");
 
 // Set to "1" to make a missing binary a failure instead of a skip. CI sets it,
 // so that a green run there means the API was really exercised; a developer
 // running the suite on a fresh checkout does not, and gets skips instead.
 const REQUIRE_BINARY = process.env.GUCHHO_REQUIRE_BINARY === "1";
-
-// Where a locally built binary might be, and where it might not.
-//
-// Only "release-" and "debug-" directories are looked at, and the "ci" one is
-// excluded by name. That is not caution for its own sake: build/ci holds a
-// stub that prints "Hello from Guchho!" and exits, which would satisfy a
-// file-exists check and then fail every test that tried to run it. A search
-// that found the stub would be worse than no search at all, because the failure
-// would be somewhere else entirely.
-const BINARY_SEARCH_DIRS = ["release-", "debug-"];
 
 let tempCounter = 0;
 
@@ -142,50 +133,32 @@ function stageNodeModules({ platformKey = PLATFORM_KEY, realBinary = false, with
     return { root, project, modules, guchhoPkg };
 }
 
-// Finds a locally built binary, or returns null.
+// Finds the binary the API would actually run, or returns null.
 //
-// GUCHHO_BINARY overrides the search, for a machine whose build lives somewhere
-// the presets do not put it.
+// This asks the package rather than repeating the search, which is the whole
+// point of asking. The two used to be separate implementations that agreed only
+// while nobody set GUCHHO_BINARY: the helper honoured the override and
+// getBinaryPath() did not, so the suite could decide there was a binary worth
+// testing, skip nothing, and then run a completely different one. A test that
+// reports a pass from a binary nobody chose is worse than a test that skips,
+// because it looks like evidence.
 //
-// Where several builds exist, the most recently written one wins. A repository
-// that has been built for both MinGW and MSVC has more than one binary, and
-// picking by directory order would report whichever was configured first — so a
-// tree that had just been rebuilt would still be tested against a binary from
-// last month, and the version test would fail for a reason that no longer
-// applies. A stale binary that is the only one there is still found, which is
-// the case worth failing on.
+// A failure to find one is null rather than a throw, because "this machine has
+// not built anything yet" is a normal state for a checkout and the caller
+// turns it into a skip. An override that is set but wrong is not that: it is a
+// misconfiguration, and it is re-thrown so the run stops with the reason on
+// screen rather than quietly testing nothing.
 function findBuiltBinary() {
-    const override = process.env.GUCHHO_BINARY;
+  const override = process.env.GUCHHO_BINARY;
+
+  try {
+    return getBinaryPath();
+  } catch (err) {
     if (override) {
-        return fs.existsSync(override) ? override : null;
+      throw err;
     }
-
-    const buildDir = path.join(REPO_ROOT, "build");
-    if (!fs.existsSync(buildDir)) {
-        return null;
-    }
-
-    const candidates = [];
-    for (const entry of fs.readdirSync(buildDir, { withFileTypes: true })) {
-        if (!entry.isDirectory()) {
-            continue;
-        }
-        if (!BINARY_SEARCH_DIRS.some((prefix) => entry.name.startsWith(prefix))) {
-            continue;
-        }
-        // Ninja and MSVC put the executable in different places, and both are
-        // real layouts this project produces.
-        candidates.push(path.join(buildDir, entry.name, "bin", BINARY_NAME));
-        candidates.push(path.join(buildDir, entry.name, "bin", "Release", BINARY_NAME));
-    }
-
-    const present = candidates.filter((p) => fs.existsSync(p));
-    if (present.length === 0) {
-        return null;
-    }
-
-    present.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
-    return present[0];
+    return null;
+  }
 }
 
 // True when a real binary is available, which is the condition for the tests

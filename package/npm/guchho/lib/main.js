@@ -33,6 +33,28 @@ function getBinaryPath() {
   const platformKey = getPlatformKey();
   const binaryName = getBinaryName();
 
+  // An explicit override, before anything is searched. This has to be here
+  // rather than only in the test helper: this is the function that decides
+  // which file is run, so an override that only the tests honoured would leave
+  // the tests exercising one binary and the package another. The two used to
+  // be separate searches that could disagree, and the only thing that made
+  // them agree was that neither was set.
+  //
+  // A name that is set but wrong is stopped on rather than fallen through
+  // from. Silently using a different binary is the one outcome nobody could
+  // debug from the result, because everything would pass and none of it would
+  // be about the binary that was asked for.
+  const override = process.env.GUCHHO_BINARY;
+  if (override) {
+    if (!fs.existsSync(override)) {
+      throw new Error(
+        `GUCHHO_BINARY is set to "${override}", which is not a file. ` +
+          `Point it at a Guchho binary, or unset it to use the one that ships with the package.`
+      );
+    }
+    return override;
+  }
+
   // 1. Check for platform-specific package (installed via optionalDependencies)
   const platformPkg = PLATFORM_PACKAGES[platformKey];
   if (platformPkg) {

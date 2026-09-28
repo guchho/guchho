@@ -1,6 +1,7 @@
 #include "guchho/helpers.hpp"
 
 #include <cstdlib>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -169,15 +170,29 @@ namespace guchho::helpers {
 
         // Convert the assembled command line and the requested working
         // directory from narrow strings into wide UTF-16 buffers for
-        // CreateProcessW. An empty cwd stays null below so the child simply
+        // CreateProcessW. An empty cwd stays empty below so the child simply
         // inherits guchho's current directory.
-        std::vector<wchar_t> command_line_wide(command_line.size() + 1);
-        std::mbstowcs(command_line_wide.data(), command_line.c_str(), command_line.size());
+        //
+        // Both strings are UTF-8, which is what everything in guchho is (see
+        // src/main.cpp), and StringToUTF16 is the conversion the wide entry
+        // point is the mirror image of. This replaced a mbstowcs call that was
+        // not only deprecated but wrong: mbstowcs converts through the current
+        // C locale rather than through UTF-8, so a path holding an accent in it
+        // was mangled into a different path or refused outright, and the
+        // executable that could not be launched was one guchho itself had just
+        // been asked to build. The string comes back null-terminated, and
+        // CreateProcessW is free to write to the buffer it is given, so each
+        // one is copied into a wstring of its own.
+        auto to_wide = [](const std::string& text) {
+            const std::u16string utf16 = StringToUTF16(text);
+            return std::wstring(utf16.begin(), utf16.end());
+        };
+
+        std::wstring command_line_wide = to_wide(command_line);
 
         std::wstring cwd_wide;
         if (!cwd.empty()) {
-            cwd_wide.resize(cwd.size() + 1);
-            std::mbstowcs(cwd_wide.data(), cwd.c_str(), cwd.size());
+            cwd_wide = to_wide(cwd);
         }
 
         // Launch the child with all of the decisions above locked in: the

@@ -1159,6 +1159,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
             break;
         }
 
+        // The walk records the package directory so an array of fallbacks can
+        // tell which of its candidates is really there on disk.
+        esm_pkg_dir = dir_info_package_json->abs_path;
         EsmStep step = EsmPackageImportsResolve(import_path, *package_json->imports_map->root, *conditions);
         step         = EsmHandlePostConditions(std::move(step.resolved_path), step.status, std::move(step.debug));
 
@@ -1270,6 +1273,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
         // paths, but the resolver deals in real file paths; keeping the two
         // separate avoids problems with Windows drive letters and prevents any
         // "%" in the absolute directory from being read as a URL escape.
+        // The walk records the package directory so an array of fallbacks can
+        // tell which of its candidates is really there on disk.
+        esm_pkg_dir = abs_pkg_path;
         EsmStep step = EsmPackageExportsResolve("/", esm_package_subpath, *package_json->exports_map->root,
                                                 *conditions);
         step         = EsmHandlePostConditions(std::move(step.resolved_path), step.status, std::move(step.debug));
@@ -2109,6 +2115,9 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
             PjStatus last_exception = PjStatus::kUndefined;
             PjDebug  last_debug{};
             last_debug.token = target.first_token;
+            // The last candidate's path, kept so the "everything failed"
+            // answer can still point at what was actually looked for.
+            std::string last_resolved_path;
             // Each array element is a fallback: try them in order and return
             // the first that resolves. Targets that are invalid or explicitly
             // blocked are noted but do not abort the walk.
@@ -2116,11 +2125,27 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
                 EsmStep step =
                         EsmPackageTargetResolve(package_url, target_value, subpath, pattern, is_internal, conditions);
                 if (step.status == PjStatus::kInvalidPackageTarget || step.status == PjStatus::kNull) {
-                    last_exception = step.status;
-                    last_debug     = std::move(step.debug);
+                    last_exception     = step.status;
+                    last_debug         = std::move(step.debug);
+                    last_resolved_path = std::move(step.resolved_path);
                     continue;
                 }
                 if (PjStatusIsUndefined(step.status)) {
+                    continue;
+                }
+                // An array is the way a package offers a preferred target
+                // with fallbacks behind it, so a candidate that resolves but
+                // points at nothing on disk hands the walk on to the next
+                // entry instead of winning and failing later on.
+                if (!EsmTargetExistsOnDisk(step.resolved_path, step.status)) {
+                    if (debug_logs) {
+                        debug_logs->AddNote(logger::FormatMsg(logger::MsgCat::kResolverDebug_TheResolvedPathIsMissingSoTheNextOne,
+                                helpers::QuoteForJSON(step.resolved_path, false)
+                        ));
+                    }
+                    last_exception     = PjStatus::kModuleNotFound;
+                    last_debug         = std::move(step.debug);
+                    last_resolved_path = std::move(step.resolved_path);
                     continue;
                 }
                 return step;
@@ -2128,7 +2153,7 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
 
             // Every fallback failed: report the final blocking result, which
             // is the most informative of the errors that were collected.
-            return {"", last_exception, std::move(last_debug)};
+            return {std::move(last_resolved_path), last_exception, std::move(last_debug)};
         }
 
         // A null literal explicitly says "this path is blocked": it resolves to
@@ -2290,6 +2315,77 @@ log.AddIDWithNotes(logger::MsgID::kPackageJSON_DeadCondition, kind, &tracker,
             ));
         }
         return {result, PjStatus::kExact, PjDebug{.invalid_because = "", .unmatched_conditions = {}, .token = target.first_token}};
+    }
+
+    // Answers whether a target resolved by the "imports"/"exports" walk
+    // actually names something inside the package, which is what decides
+    // between the fallbacks of an array. Only a status that means "this path
+    // on disk" can be checked, and only when the walk was told which package
+    // directory the path is relative to; for anything else the answer is yes,
+    // leaving the decision (and the diagnostic) to the finalizing stage.
+    //
+    //   Input:  "/dist/feature.js", status kExact, esm_pkg_dir "/app/node_modules/pkg"
+    //   Output: true  (the file is there)
+    //   Input:  "/dist/missing.js", status kExact, esm_pkg_dir "/app/node_modules/pkg"
+    //   Output: false (the array walk should try the next fallback)
+    bool ResolverQuery::EsmTargetExistsOnDisk(const std::string& resolved_path, PjStatus status)
+    {
+        if (status != PjStatus::kExact && status != PjStatus::kExactEndsWithStar && status != PjStatus::kInexact) {
+            return true;
+        }
+        if (esm_pkg_dir.empty() || resolved_path.empty() || resolved_path.front() != '/') {
+            return true;
+        }
+
+        // The walk builds URL-style paths, so undo the escaping before looking
+        // anything up. A path that cannot be unescaped is not a missing file
+        // but a broken specifier, so it stays with the finalizing stage.
+        std::string decoded_path;
+        std::string unescape_error;
+        if (!internal::UnescapePath(resolved_path, decoded_path, unescape_error)) {
+            return true;
+        }
+
+        std::string abs_path = r->fs->Join({esm_pkg_dir, decoded_path});
+
+        // An open-ended target (from a "/" key) carries no file name of its
+        // own, so the only question is whether the directory it names exists
+        // for the finalizing stage to probe for an index or "main".
+        if (status == PjStatus::kInexact) {
+            return DirInfoCached(abs_path) != nullptr;
+        }
+
+        DirInfo* dir_info = DirInfoCached(r->fs->Dir(abs_path));
+        if (dir_info == nullptr) {
+            return false;
+        }
+
+        std::string base = r->fs->Base(abs_path);
+        if (auto [entry, unused_diff_case] = dir_info->entries.Get(base); entry != nullptr) {
+            (void)unused_diff_case;
+            // A directory is not importable either, so it counts as absent for
+            // the purpose of picking between fallbacks.
+            return entry->Kind(*r->fs) == filesystem::EntryKind::kFile;
+        }
+
+        // The map may point at a ".js" file while the package ships that same
+        // module as source, so the source extensions are tried in place of the
+        // requested one, exactly as the finalizing stage would.
+        for (const auto& [old_ext, new_exts] : RewrittenFileExtensions()) {
+            if (!base.ends_with(old_ext)) {
+                continue;
+            }
+            size_t last_dot = base.find_last_of('.');
+            for (const std::string& ext : new_exts) {
+                if (auto [entry, unused_diff_case2] = dir_info->entries.Get(base.substr(0, last_dot) + ext);
+                    entry != nullptr) {
+                    (void)unused_diff_case2;
+                    return true;
+                }
+            }
+            break;
+        }
+        return false;
     }
 
     // Asks the "exports" map the opposite of the normal question: given a

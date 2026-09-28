@@ -1795,6 +1795,7 @@ if (!symlink.empty()) {
                                         DebugIndentGuard indent_guard(debug_logs);
 
                                         ConditionsMap conditions = r->esm_conditions_require;
+                                        esm_pkg_dir                = pkg_dir;
                                         EsmStep step = EsmPackageExportsResolve("/", esm_package_subpath,
                                                                                 *package_json->exports_map->root, conditions);
                                         step = EsmHandlePostConditions(step.resolved_path, step.status, std::move(step.debug));

@@ -195,7 +195,7 @@ struct YarnEnv {
             logger::DeferLogKind::kDeferLogAll, {})};
     std::unique_ptr<cache::CacheSet>            caches_{cache::MakeCacheSet()};
     resolver::Resolver                          res_{fs_, log_, *caches_};
-    resolver::ResolverQuery                     query_{&res_};
+    resolver::ResolverQuery                     query_{&res_, nullptr, nullptr, {}, {}};
 };
 
 // A manifest exercising the common resolution paths: the anonymous top-level

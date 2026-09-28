@@ -88,21 +88,34 @@ TEST(CliExe, TheVersionArrivesThroughAPipe) {
 // the file or write its output somewhere else. It is checked from both ends: the
 // process had to read the file, and the file it wrote has to hold the document.
 //
+// The name is written as explicit UTF-8 bytes rather than as an accent typed
+// into this file, for two reasons. The point of the test is a name the narrow
+// encodings cannot carry, and U+4E2D cannot be carried by any of them; U+00E9 can
+// be carried by CP1252, which is what let a mistranslation on the way in and a
+// mistranslation on the way to the file cancel each other out and leave this
+// test green. And spelling the bytes out means the result does not depend on how
+// the compiler happened to read this source file.
+//
 // The page is a complete document rather than a fragment, because a document
 // entry point is parsed as one and complains about a missing doctype before it
 // looks at anything else — which would make this a test of the HTML parser
 // rather than of the encoding.
 TEST(CliExe, APathOutsideTheNativeEncodingSurvives) {
+    // "caf" + U+4E2D, the middle character, which is not in any single-byte
+    // code page Windows ships with.
+    static const std::string kName = "caf\xE4\xB8\xAD";
+    static const std::string kBody = "caf\xE4\xB8\xAD";
+
     CliWorkspace ws("non-ascii");
-    ws.Write("café/index.html",
-             "<!DOCTYPE html>\n<html><body>café</body></html>\n");
+    ws.Write(kName + "/index.html",
+             "<!DOCTYPE html>\n<html><body>" + kBody + "</body></html>\n");
 
     const ProcessResult result = RunProcess(
-        Exe({"build", "café/index.html", "--outdir=dist"}), ws.path());
+        Exe({"build", kName + "/index.html", "--outdir=dist"}), ws.path());
 
     EXPECT_EQ(result.exit_code, kSuccess) << result.stderr_data;
     EXPECT_TRUE(ws.Exists("dist/index.html"));
-    EXPECT_TRUE(OutputContains(ws.Read("dist/index.html"), "café"));
+    EXPECT_TRUE(OutputContains(ws.Read("dist/index.html"), kBody));
 }
 
 // A path with a space in it is the other half: it is not an encoding question

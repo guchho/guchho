@@ -23,6 +23,7 @@ add_subdirectory(linker)
 add_subdirectory(bundler)
 add_subdirectory(api)
 add_subdirectory(cli)
+add_subdirectory(npm)
 
 
 
@@ -340,3 +341,29 @@ guchho_enable_sanitizers(guchho_cli_tests)
 
 guchho_discover_tests(guchho_cli_tests PREFIX "cli." WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cli")
 
+
+# npm test executable
+
+add_executable(guchho_npm_tests
+    test_assertions.cpp
+    $<TARGET_OBJECTS:guchho_npm_test_objects>
+)
+
+target_link_libraries(
+    guchho_npm_tests
+    PRIVATE
+        guchho_resolver
+        guchho_bundler
+        guchho_common
+)
+
+target_include_directories(
+    guchho_npm_tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+guchho_set_warnings(guchho_npm_tests)
+guchho_enable_sanitizers(guchho_npm_tests)
+
+guchho_discover_tests(guchho_npm_tests PREFIX "npm." WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/npm")

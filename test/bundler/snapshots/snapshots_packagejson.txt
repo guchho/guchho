@@ -602,6 +602,24 @@ var require_main = __commonJS({
 console.log(require_main());
 
 ================================================================================
+TestPackageJsonExportsAlternatives
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/pkg/bad-apples/red.js
+var red_default = "🍎";
+
+// Users/user/project/node_modules/pkg/good-apples/green.js
+var green_default = "🍏";
+
+// Users/user/project/node_modules/pkg/bad-books/red-book.js
+var red_book_default = "📕";
+
+// Users/user/project/node_modules/pkg/good-books/green-book.js
+var green_book_default = "📗";
+
+// Users/user/project/src/entry.js
+console.log({ redApple: red_default, greenApple: green_default, redBook: red_book_default, greenBook: green_book_default });
+
+================================================================================
 TestPackageJsonExportsBrowser
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/pkg/browser.js

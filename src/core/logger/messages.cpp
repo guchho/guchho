@@ -671,6 +671,7 @@ namespace guchho::logger {
         case MsgCat::kResolverDebug_NoKeysInTheMapWereApplicable: return "No keys in the map were applicable";
         case MsgCat::kResolverDebug_ThePathIsSetToAnEmptyArray: return "The path {} is set to an empty array";
         case MsgCat::kResolverDebug_CheckingForInAnArray: return "Checking for {} in an array";
+        case MsgCat::kResolverDebug_TheResolvedPathIsMissingSoTheNextOne: return "The resolved path {} is missing, so the next one is tried";
         case MsgCat::kResolverDebug_ThePathIsSetToNull: return "The path {} is set to null";
         case MsgCat::kResolverDebug_InvalidPackageTargetForPath: return "Invalid package target for path {}";
         case MsgCat::kResolverDebug_TheTargetIsInvalidBecauseItDoesnTEndIn: return "The target {} is invalid because it doesn't end in \"/\"";

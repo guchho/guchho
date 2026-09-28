@@ -16,8 +16,9 @@
 //       working directory while it does. The chdir is not a convenience: init,
 //       clean and info all act on the process working directory and take no
 //       flag that points them anywhere else (they call fs->Cwd()), and clean
-//       removes three directories by name, so a test that ran it without one
-//       would delete the repository's own dist. The order on the way out is
+//       removes the output directory, which for a project that has not said
+//       otherwise is the conventional "dist" — so a test that ran it without a
+//       workspace would delete the repository's own. The order on the way out is
 //       just as load-bearing — Windows refuses to remove a directory that is
 //       still the working directory, so the old directory is restored first and
 //       the tree is deleted second.

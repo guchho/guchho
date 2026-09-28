@@ -521,10 +521,11 @@ namespace guchho::resolver {
         if (!options->TSConfigPath.empty() || !options->TSConfigRaw.empty()) {
             DebugMeta debug_meta;
             ResolverQuery query{
-                    .r          = res.get(),
-                    .debug_meta = &debug_meta,
-                    .debug_logs = nullptr,
-                    .kind       = {},
+                    .r           = res.get(),
+                    .debug_meta  = &debug_meta,
+                    .debug_logs  = nullptr,
+                    .kind        = {},
+                    .esm_pkg_dir = {},
             };
 
             std::unordered_map<std::string, bool> visited_map;
@@ -619,10 +620,11 @@ namespace guchho::resolver {
 
         DebugLogs debug_logs_storage;
         ResolverQuery query{
-                .r          = this,
-                .debug_meta = debug_meta,
-                .debug_logs = nullptr,
-                .kind       = kind,
+                .r           = this,
+                .debug_meta  = debug_meta,
+                .debug_logs  = nullptr,
+                .kind        = kind,
+                .esm_pkg_dir = {},
         };
         if (log->level <= logger::LogLevel::kDebug) {
             debug_logs_storage.what = "Resolving import " + std::string(Q(import_path)) +
@@ -837,10 +839,11 @@ namespace guchho::resolver {
 
         DebugLogs debug_logs_storage;
         ResolverQuery query{
-                .r          = this,
-                .debug_meta = nullptr,
-                .debug_logs = nullptr,
-                .kind       = kind,
+                .r           = this,
+                .debug_meta  = nullptr,
+                .debug_logs  = nullptr,
+                .kind        = kind,
+                .esm_pkg_dir = {},
         };
         DebugMeta debug_meta;
         query.debug_meta = &debug_meta;
@@ -1023,10 +1026,11 @@ namespace guchho::resolver {
                                                                          DebugMeta*           debug_meta)
     {
         ResolverQuery query{
-                .r          = this,
-                .debug_meta = debug_meta,
-                .debug_logs = nullptr,
-                .kind       = kind,
+                .r           = this,
+                .debug_meta  = debug_meta,
+                .debug_logs  = nullptr,
+                .kind        = kind,
+                .esm_pkg_dir = {},
         };
         std::string abs_path = fs->Join({source_dir, import_path});
 

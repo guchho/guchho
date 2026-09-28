@@ -1185,6 +1185,13 @@ namespace guchho::resolver {
         DebugLogs* debug_logs = nullptr;
         compiler::ImportKind kind{};
 
+        // The absolute directory the "imports"/"exports" map being walked
+        // belongs to, which is what the slash-prefixed paths the walk produces
+        // are relative to. The array case of the walk needs it to tell whether
+        // a fallback target is actually there on disk; an empty value means no
+        // directory is known, so nothing is assumed about the filesystem.
+        std::string esm_pkg_dir;
+
         ////////////////////////////////////////////////////////////////////////////////
         // Implemented in "resolver.cpp"
 
@@ -1290,6 +1297,7 @@ namespace guchho::resolver {
                                                   const std::string& subpath,
                                                   bool pattern,
                                                   bool is_internal);
+        bool EsmTargetExistsOnDisk(const std::string& resolved_path, PjStatus status);
 
         ////////////////////////////////////////////////////////////////////////////////
         // Implemented in "yarnpnp.cpp"

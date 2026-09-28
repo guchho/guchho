@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <string>
+#include <string_view>
 
 namespace guchho::helpers {
 
@@ -47,6 +49,38 @@ namespace guchho::helpers {
 #endif
         }
 
+        // The milliseconds between an instant and now, rounded to the nearest
+        // one. Microseconds are counted because that is what steady_clock
+        // hands out, and (diff+500)/1000 rounds the division rather than
+        // truncating it, so 1.5ms reads as 2ms. The negative branch is
+        // defensive: a steady clock does not go backwards, but a subtraction
+        // that somehow produced one should not divide towards zero and report
+        // 0ms.
+        int64_t MillisecondsSince(std::chrono::steady_clock::time_point start)
+        {
+            auto diff = std::chrono::duration_cast<std::chrono::microseconds>(
+                            std::chrono::steady_clock::now() - start)
+                            .count();
+
+            return (diff >= 0 ? diff + 500 : diff - 500) / 1000;
+        }
+
+        // The report line itself, so that the two places it is written cannot
+        // drift apart. The message is turned into a string with its own
+        // length rather than handed to printf as a C string, because it is a
+        // string_view: a caller may have passed a slice that is not
+        // terminated, and looking for a NUL past the end of it would be a bug
+        // that only shows up under one particular input.
+        std::string FormatReport(
+            std::string_view name,
+            int64_t ms,
+            std::string_view message)
+        {
+            return std::string(name) + " finished in " +
+                std::to_string(static_cast<long long>(ms)) + "ms " +
+                std::string(message);
+        }
+
     }
 
     // Timer constructor - remembers when a Guchho phase started. The bundler
@@ -65,28 +99,38 @@ namespace guchho::helpers {
     // Timer::Log - print total elapsed time since construction.
     // Guchho calls this at the end of a top-level run to print a one-line
     // summary like "bundle finished in 42ms <message>" on stdout.
-    // The delta from start_ is converted to microseconds and rounded to the
-    // nearest millisecond with (diff+500)/1000 (or -500 for a negative
-    // defensive branch), then printed with the message's exact length.
     // Example: Timer t("bundle"); /* 1.6ms */ t.Log("done")
     //          -> stdout: "bundle finished in 2ms done"
     void Timer::Log(std::string_view message) const
     {
-        using namespace std::chrono;
+        const std::string line =
+            FormatReport(name_, MillisecondsSince(start_), message) + "\n";
 
-        auto end = steady_clock::now();
-        auto diff = duration_cast<microseconds>(end - start_).count();
+        std::fwrite(line.data(), 1, line.size(), stdout);
+    }
 
-        int64_t ms =
-            (diff >= 0 ? diff + 500 : diff - 500) / 1000;
+    // Timer::LogToStderr - the same report, on the error stream.
+    // This is the one a run whose standard output is a program's must use. A
+    // transform reads one piece of source and writes the transformed source
+    // back, so the standard output is the program; a timing line written in
+    // front of it is a syntax error in the middle of somebody's file, and no
+    // amount of care downstream recovers the original. Moving it to the error
+    // stream keeps the information for a person watching a pipeline and takes
+    // it out of the file.
+    // Example: Timer t("transform"); t.LogToStderr("done")
+    //          -> stderr: "transform finished in 2ms done", stdout untouched
+    void Timer::LogToStderr(std::string_view message) const
+    {
+        const std::string line =
+            FormatReport(name_, MillisecondsSince(start_), message) + "\n";
 
-        std::fprintf(
-            stdout,
-            "%s finished in %lldms %.*s\n",
-            name_.c_str(),
-            static_cast<long long>(ms),
-            static_cast<int>(message.size()),
-            message.data());
+        // The output stream is flushed first so the two stay in the order they
+        // were produced. A build's own summary and a profile trace about it
+        // are two halves of one report, and interleaving them would read as
+        // the trace belonging to whatever came after it.
+        std::fflush(stdout);
+        std::fwrite(line.data(), 1, line.size(), stderr);
+        std::fflush(stderr);
     }
 
     // Timer::Fork - duplicate this timer for a parallel subtask.
@@ -147,10 +191,9 @@ namespace guchho::helpers {
             return;
         }
 
-        using namespace std::chrono;
-
-        auto now = steady_clock::now();
-        auto diff = duration_cast<microseconds>(now - last_time_).count();
+        auto now = std::chrono::steady_clock::now();
+        auto diff = std::chrono::duration_cast<std::chrono::microseconds>(
+                        now - last_time_).count();
 
         int64_t ms =
             (diff >= 0 ? diff + 500 : diff - 500) / 1000;

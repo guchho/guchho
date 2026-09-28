@@ -1452,6 +1452,7 @@ namespace guchho::logger {
         kResolverDebug_NoKeysInTheMapWereApplicable,
         kResolverDebug_ThePathIsSetToAnEmptyArray,
         kResolverDebug_CheckingForInAnArray,
+        kResolverDebug_TheResolvedPathIsMissingSoTheNextOne,
         kResolverDebug_ThePathIsSetToNull,
         kResolverDebug_InvalidPackageTargetForPath,
         kResolverDebug_TheTargetIsInvalidBecauseItDoesnTEndIn,

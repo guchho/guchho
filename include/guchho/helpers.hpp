@@ -252,7 +252,16 @@ namespace guchho::helpers {
     public:
         explicit Timer(std::string name);
 
+        // Writes the one-line report to the standard output. This is where a
+        // build's summary belongs: nothing on that stream is a program, so a
+        // line of prose in front of it is only noise.
         void Log(std::string_view message) const;
+
+        // The same line on the error stream instead, for a run whose standard
+        // output is a program's. A transform is a filter, so its output is the
+        // transformed source and nothing else; a report written there is a
+        // syntax error at the top of somebody's file.
+        void LogToStderr(std::string_view message) const;
 
         // Nested timers can be created with Fork and combined with Join.
         // The result is that a joined timer starts at the earliest start

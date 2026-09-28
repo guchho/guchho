@@ -3346,7 +3346,15 @@ api::TransformResult transform_impl(const std::string& input,
                 results = bundle.Compile(log, timer, mangle_cache).first;
             }
         }
-        timer.Log("done");
+        // On the error stream, not the output one. A transform's caller reads
+        // the standard output as the transformed program: it is a filter, and
+        // this is the only thing the run produces. A report written in front of
+        // it is a syntax error at the top of somebody's file, which is why the
+        // two are different methods on the timer rather than a setting - the
+        // build path below deliberately wants its line on stdout, and a flag
+        // that could be set wrongly is how the two get confused again.
+        timer.LogToStderr("done");
+
     }
 
     api::TransformResult result;

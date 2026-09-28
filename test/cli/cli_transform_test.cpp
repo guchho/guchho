@@ -68,14 +68,17 @@ TEST(CliTransform, SourceInProgramOut) {
 }
 
 // The contract, stated as a test. A transform's output is the program and
-// nothing else, so a caller can redirect it straight into a file. The two
+// nothing else, so a caller can redirect it straight into a file. The three
 // checks are separate on purpose: the program being present and the program
 // being alone are different claims, and a change that adds a line to the output
 // breaks the second without touching the first.
 //
-// The timing line is not checked here, though it should be. It is on the output
-// stream today, and the next test says so and explains why it is left that way
-// rather than quietly dropped from this one.
+// The third check is the one that used to be a known violation. The timing
+// line came from api::Transform, which ended its work with helpers::Timer::Log
+// writing to stdout, so "guchho transform < in.js > out.js" put
+// "transform finished in 12ms done" in front of the program. It now goes to the
+// error stream (Timer::LogToStderr), where a filter's diagnostics already live,
+// and the line is still there for anybody watching a pipeline.
 TEST(CliTransform, TheOutputStreamCarriesTheProgramAndNoReport) {
     CliWorkspace ws("clean-output");
 
@@ -86,36 +89,23 @@ TEST(CliTransform, TheOutputStreamCarriesTheProgramAndNoReport) {
     EXPECT_TRUE(OutputContains(out, "answer = 42"));
     EXPECT_FALSE(OutputContains(out, "Guchho v")) << "the banner reached the output";
     EXPECT_FALSE(OutputContains(out, "files generated")) << "a summary reached the output";
+    EXPECT_FALSE(OutputContains(out, "finished in"))
+        << "a timing line reached the output stream, which is the program";
 }
 
-// A known violation of the promise the test above makes, pinned rather than
-// papered over.
-//
-// Three places say the transformed source is the only thing on the output
-// stream: the comment above runTransform in src/cli/cli_build.cpp, the
-// Run() documentation in include/guchho/cli.hpp, and the fact that this command
-// is the one a pipeline pipes into. The line that breaks it is not printed by
-// the command line at all — it comes from api::Transform, which ends its work
-// with helpers::Timer::Log("done") at src/api/api.cpp:3347, and that writes to
-// stdout with std::fprintf. So "guchho transform < in.js > out.js" writes
-// "transform finished in 12ms done" as the first line of out.js, which is a
-// syntax error in the middle of somebody's program.
-//
-// It is left failing-by-design rather than deleted from the suite, because the
-// fix is in the api layer and not in the command line: the line has to stop
-// being written to stdout, or has to become conditional on something a filter
-// can turn off. Either way this test is where that change lands — it will fail,
-// and the assertion above can then start checking "finished in" as well.
-TEST(CliTransform, ATimingLineAlsoReachesTheOutputStream) {
+// The timing line has to survive the move rather than be dropped: it is the
+// only record of how long a transform took, and losing it to fix a stream
+// would be trading a real diagnostic for a cosmetic one. The error stream is
+// where a caller already looks for everything else this command says.
+TEST(CliTransform, TheTimingLineIsOnTheErrorStream) {
     CliWorkspace ws("timing-line");
 
     const guchho::test::CliResult result = RunCliWithStdin({"transform"}, "const a = 1;\n");
 
-    EXPECT_TRUE(OutputContains(result.out, "finished in"))
-        << "the timing line has moved off the output stream; update "
-           "TheOutputStreamCarriesTheProgramAndNoReport to check for it and "
-           "delete this test";
-    EXPECT_TRUE(OutputContains(result.out, "transform finished in"));
+    EXPECT_TRUE(OutputContains(result.err, "transform finished in"))
+        << "the timing line is missing from the error stream";
+    EXPECT_FALSE(OutputContains(result.out, "finished in"))
+        << "the timing line went back to the output stream";
 }
 
 // A transform prints no banner at all, which is the other half of the same

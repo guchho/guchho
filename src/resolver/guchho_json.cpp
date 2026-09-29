@@ -170,6 +170,66 @@ namespace guchho::resolver {
             return std::nullopt;
         }
 
+        // The following "Apply*Value" helpers own the assignment for a single
+        // option, so that a canonical field and its alias cannot drift in how an
+        // invalid value is reported. Each takes the already-extracted value
+        // expression rather than the enclosing object, so it is agnostic about
+        // where in the config the field appeared.
+
+        void ApplyFormatValue(config::Options& opts, const javascript::Expr& value,
+                              logger::Log& log, logger::LineColumnTracker& tracker,
+                              const logger::Source& source)
+        {
+            if (auto str = internal::GetString(value)) {
+                if (auto fmt = ParseFormat(*str)) {
+                    opts.OutputFormat = *fmt;
+                } else {
+                    log.AddID(logger::MsgID::kGuchhoJSON_InvalidFormat,
+                              logger::MsgKind::kWarning, &tracker,
+                              source.RangeOfString(value.loc),
+                              logger::FormatMsg(logger::MsgCat::kGuchhoJSON_InvalidFormat,
+                                                Q(*str)));
+                }
+            }
+        }
+
+        void ApplySourceMapValue(config::Options& opts, const javascript::Expr& value,
+                                 logger::Log& log, logger::LineColumnTracker& tracker,
+                                 const logger::Source& source)
+        {
+            if (auto boolean = internal::GetBool(value)) {
+                opts.SourceMapData = *boolean ? config::SourceMap::kLinkedWithComment
+                                              : config::SourceMap::kNone;
+            } else if (auto str = internal::GetString(value)) {
+                if (auto kind = ParseSourceMap(*str)) {
+                    opts.SourceMapData = *kind;
+                } else {
+                    log.AddID(logger::MsgID::kGuchhoJSON_InvalidSourcemap,
+                              logger::MsgKind::kWarning, &tracker,
+                              source.RangeOfString(value.loc),
+                              logger::FormatMsg(logger::MsgCat::kGuchhoJSON_InvalidSourcemap,
+                                                Q(*str)));
+                }
+            }
+        }
+
+        // An output directory and an output file are mutually exclusive, so
+        // each clears the other.
+
+        void ApplyOutdirValue(config::Options& opts, const std::string& config_dir,
+                              const std::string& value)
+        {
+            opts.AbsOutputDir  = JoinAbsConfigDir(config_dir, value);
+            opts.AbsOutputFile = "";
+        }
+
+        void ApplyOutfileValue(config::Options& opts, const std::string& config_dir,
+                               const std::string& value)
+        {
+            opts.AbsOutputFile = JoinAbsConfigDir(config_dir, value);
+            opts.AbsOutputDir  = "";
+        }
+
         // Converts an "es2020"-style target string into the set of unsupported
         // JS/CSS features Guchho must lower. Unknown engines and "esnext" are
         // handled gracefully (no lowering, debug-level note for bad input).
@@ -351,6 +411,21 @@ namespace guchho::resolver {
                                         Q(field)));
         }
 
+        // Reports an alias that lost to the canonical field it duplicates. The
+        // canonical name is spelled out in the message so the user knows which
+        // key to delete, rather than just that something was ignored.
+        void WarnConflictingAlias(logger::Log& log, const logger::Source& source,
+                                  logger::LineColumnTracker& tracker,
+                                  const std::pair<javascript::Expr, logger::Loc>& alias,
+                                  std::string_view alias_name,
+                                  std::string_view canonical_name)
+        {
+            log.AddID(logger::MsgID::kGuchhoConfig_AliasIgnored, logger::MsgKind::kWarning,
+                      &tracker, source.RangeOfString(alias.second),
+                      logger::FormatMsg(logger::MsgCat::kGuchhoConfig_ConflictingAlias,
+                                        Q(alias_name), Q(canonical_name), Q(canonical_name)));
+        }
+
         // The supported config file names, in priority order within a single
         // directory. "guchho.config.js" is the primary filename; between the
         // JSON alternatives "guchho.config.json" outranks "guchho.json".
@@ -474,38 +549,36 @@ namespace guchho::resolver {
         static const char* kKnownBuildFields[] = {
             "entry", "outdir", "outfile", "format", "platform", "target",
             "minify", "sourcemap", "splitting", "clean", "treeShaking",
-            "pretty", "minifyHtml",
+            "pretty", "minifyHtml", "bundle",
         };
         if (auto build_prop = internal::GetProperty(json, "build")) {
             const javascript::Expr& build = build_prop->first;
+
+            if (auto bundle = internal::GetProperty(build, "bundle")) {
+                // Bundling is not optional, so the field is accepted but has
+                // nothing to switch. Warn so a Vite-shaped config does not
+                // read as if "bundle: false" would do something.
+                log.AddID(logger::MsgID::kGuchhoConfig_BundleIgnored,
+                          logger::MsgKind::kWarning, &tracker,
+                          source.RangeOfString(bundle->second),
+                          logger::FormatMsg(logger::MsgCat::kGuchhoConfig_BundleAlwaysOn));
+            }
 
             if (auto entry = internal::GetProperty(build, "entry")) {
                 append_entries(entry->first);
             }
             if (auto outdir = internal::GetProperty(build, "outdir")) {
                 if (auto str = internal::GetString(outdir->first)) {
-                    opts.AbsOutputDir  = JoinAbsConfigDir(config_dir, *str);
-                    opts.AbsOutputFile = "";
+                    ApplyOutdirValue(opts, config_dir, *str);
                 }
             }
             if (auto outfile = internal::GetProperty(build, "outfile")) {
                 if (auto str = internal::GetString(outfile->first)) {
-                    opts.AbsOutputFile = JoinAbsConfigDir(config_dir, *str);
-                    opts.AbsOutputDir  = "";
+                    ApplyOutfileValue(opts, config_dir, *str);
                 }
             }
             if (auto format = internal::GetProperty(build, "format")) {
-                if (auto str = internal::GetString(format->first)) {
-                    if (auto fmt = ParseFormat(*str)) {
-                        opts.OutputFormat = *fmt;
-                    } else {
-                        log.AddID(logger::MsgID::kGuchhoJSON_InvalidFormat,
-                                  logger::MsgKind::kWarning, &tracker,
-                                  source.RangeOfString(format->first.loc),
-                                  logger::FormatMsg(logger::MsgCat::kGuchhoJSON_InvalidFormat,
-                                                    Q(*str)));
-                    }
-                }
+                ApplyFormatValue(opts, format->first, log, tracker, source);
             }
             if (auto platform = internal::GetProperty(build, "platform")) {
                 if (auto str = internal::GetString(platform->first)) {
@@ -552,20 +625,7 @@ namespace guchho::resolver {
                 }
             }
             if (auto sourcemap = internal::GetProperty(build, "sourcemap")) {
-                if (auto boolean = internal::GetBool(sourcemap->first)) {
-                    opts.SourceMapData = *boolean ? config::SourceMap::kLinkedWithComment
-                                                  : config::SourceMap::kNone;
-                } else if (auto str = internal::GetString(sourcemap->first)) {
-                    if (auto kind = ParseSourceMap(*str)) {
-                        opts.SourceMapData = *kind;
-                    } else {
-                        log.AddID(logger::MsgID::kGuchhoJSON_InvalidSourcemap,
-                                  logger::MsgKind::kWarning, &tracker,
-                                  source.RangeOfString(sourcemap->first.loc),
-                                  logger::FormatMsg(logger::MsgCat::kGuchhoJSON_InvalidSourcemap,
-                                                    Q(*str)));
-                    }
-                }
+                ApplySourceMapValue(opts, sourcemap->first, log, tracker, source);
             }
             if (auto splitting = internal::GetProperty(build, "splitting")) {
                 if (auto value = internal::GetBool(splitting->first)) {
@@ -591,6 +651,22 @@ namespace guchho::resolver {
 
             WarnUnknownFields(log, build, source, tracker, "build.", kKnownBuildFields,
                               sizeof(kKnownBuildFields) / sizeof(kKnownBuildFields[0]));
+        }
+
+        // ---- "entry" (top-level alias for "build.entry") -------------------
+        // Read after the "build" block so the canonical field is known to have
+        // been seen; when both are present the canonical one wins and the alias
+        // is reported rather than appended, which would duplicate the entry.
+        if (auto entry = internal::GetProperty(json, "entry")) {
+            bool canonical_present = false;
+            if (auto build_prop = internal::GetProperty(json, "build")) {
+                canonical_present = internal::GetProperty(build_prop->first, "entry").has_value();
+            }
+            if (canonical_present) {
+                WarnConflictingAlias(log, source, tracker, *entry, "entry", "build.entry");
+            } else {
+                append_entries(entry->first);
+            }
         }
 
         // ---- "resolve" ---------------------------------------------------
@@ -719,8 +795,13 @@ namespace guchho::resolver {
         }
 
         // ---- "output" ----------------------------------------------------
+        // "dir", "format" and "sourcemap" are aliases for the canonical
+        // "build.*" fields. This block runs after the "build" block, so each
+        // alias is applied only when its canonical counterpart is absent;
+        // otherwise the canonical value would be silently overwritten.
         static const char* kKnownOutputFields[] = {
             "entryFileNames", "chunkFileNames", "assetFileNames",
+            "dir", "format", "sourcemap",
         };
         if (auto output_prop = internal::GetProperty(json, "output")) {
             const javascript::Expr& output = output_prop->first;
@@ -737,6 +818,38 @@ namespace guchho::resolver {
             if (auto names = internal::GetProperty(output, "assetFileNames")) {
                 if (auto str = internal::GetString(names->first)) {
                     opts.AssetPathTemplate = ParsePathTemplate(*str);
+                }
+            }
+
+            // A missing "build" object means no canonical key can be present.
+            auto build_has = [&](std::string_view name) {
+                auto build_prop = internal::GetProperty(json, "build");
+                if (!build_prop) return false;
+                return internal::GetProperty(build_prop->first, name).has_value();
+            };
+
+            if (auto dir = internal::GetProperty(output, "dir")) {
+                if (build_has("outdir")) {
+                    WarnConflictingAlias(log, source, tracker, *dir, "output.dir",
+                                         "build.outdir");
+                } else if (auto str = internal::GetString(dir->first)) {
+                    ApplyOutdirValue(opts, config_dir, *str);
+                }
+            }
+            if (auto format = internal::GetProperty(output, "format")) {
+                if (build_has("format")) {
+                    WarnConflictingAlias(log, source, tracker, *format, "output.format",
+                                         "build.format");
+                } else {
+                    ApplyFormatValue(opts, format->first, log, tracker, source);
+                }
+            }
+            if (auto sourcemap = internal::GetProperty(output, "sourcemap")) {
+                if (build_has("sourcemap")) {
+                    WarnConflictingAlias(log, source, tracker, *sourcemap, "output.sourcemap",
+                                         "build.sourcemap");
+                } else {
+                    ApplySourceMapValue(opts, sourcemap->first, log, tracker, source);
                 }
             }
 
@@ -786,10 +899,35 @@ namespace guchho::resolver {
             }
         }
 
+        // ---- "root" / "server" / "watch" ---------------------------------
+        // These are whitelisted so they do not also draw an "unknown field"
+        // warning, but nothing reads them: the project root comes from the
+        // directory guchho runs in, and the dev server and watch mode are CLI
+        // features. Warn on a non-empty value so a config that sets them does
+        // not read as if it had taken effect.
+        auto warn_unsupported = [&](std::string_view name, logger::MsgID id,
+                                    logger::MsgCat cat) {
+            auto prop = internal::GetProperty(json, name);
+            if (!prop) return;
+            // Treat any value as "set" except a null, so that an omitted field
+            // stays quiet while a stray `server: null` is not worth a warning.
+            if (std::holds_alternative<std::shared_ptr<javascript::ENull>>(prop->first.data)) return;
+            log.AddID(id, logger::MsgKind::kWarning, &tracker,
+                      source.RangeOfString(prop->second),
+                      logger::FormatMsg(cat));
+        };
+        warn_unsupported("root", logger::MsgID::kGuchhoConfig_RootIgnored,
+                         logger::MsgCat::kGuchhoConfig_RootNotSupported);
+        warn_unsupported("server", logger::MsgID::kGuchhoConfig_ServerIgnored,
+                         logger::MsgCat::kGuchhoConfig_ServerNotSupported);
+        warn_unsupported("watch", logger::MsgID::kGuchhoConfig_WatchIgnored,
+                         logger::MsgCat::kGuchhoConfig_WatchNotSupported);
+
         // ---- Unknown top-level fields ------------------------------------
         static const char* kKnownTopFields[] = {
             "build", "resolve", "css", "assets", "define", "external",
             "output", "watch", "server", "logLevel", "plugins", "root",
+            "entry",
         };
         WarnUnknownFields(log, json, source, tracker, "", kKnownTopFields,
                           sizeof(kKnownTopFields) / sizeof(kKnownTopFields[0]));

@@ -196,6 +196,17 @@ describe("the snippet from the documentation", { skip: needsTar() }, () => {
     it("does what it says, from a package that was installed", () => {
         const { root } = project();
 
+        // An entry point to build. Written here rather than in the fixture
+        // because there was not one: the build used to resolve on failure, so
+        // "entry.js" that did not exist produced a result object and the test
+        // only checked that the object was there. Now that a failed build
+        // throws, a missing entry point is a missing entry point.
+        fs.writeFileSync(path.join(root, "entry.js"), "const answer = 42;\nconsole.log(answer);\n");
+
+        // The snippet in README.md, verbatim. Kept as text rather than
+        // extracted from the README so that a snippet which stops working fails
+        // here rather than quietly stopping being tested — and so that the two
+        // cannot drift into being two different snippets.
         const result = runConsumer(
             root,
             `import * as guchho from "guchho";
@@ -204,11 +215,12 @@ describe("the snippet from the documentation", { skip: needsTar() }, () => {
 
              // The two calls the API exists for.
              const result1 = await guchho.transform(code, { minify: false });
-             const result2 = await guchho.build({ entries: ["entry.js"] });
+             const result2 = await guchho.build({ entryPoints: ["entry.js"] });
 
              console.log(JSON.stringify({
                  transformIsFunction: typeof guchho.transform === "function",
                  buildIsFunction: typeof guchho.build === "function",
+                 version: guchho.version(),
                  result1,
                  result2
              }));
@@ -220,11 +232,58 @@ describe("the snippet from the documentation", { skip: needsTar() }, () => {
         // reading, because they were measured on something else.
         assert.equal(result.transformIsFunction, true, "guchho.transform is not a function");
         assert.equal(result.buildIsFunction, true, "guchho.build is not a function");
+        assert.equal(typeof result.version, "string", "guchho.version() should be a string");
 
         // And the two results are here in full, so a failure says which of the
         // two calls went wrong rather than only that one of them did.
         assert.ok(result.result1, "transform() returned nothing");
+        assert.ok(result.result1.code.includes("answer = 42"), "transform() did not return the program");
+        assert.equal(result.result1.errors.length, 0, "transform() reported errors");
         assert.ok(result.result2, "build() returned nothing");
+        assert.equal(result.result2.errors.length, 0, "build() reported errors");
+        assert.ok(Array.isArray(result.result2.warnings), "build() should report warnings");
+
+        // A build that wrote nothing and said nothing would be the failure this
+        // API is most able to have, and it is a resolved promise rather than a
+        // throw, so nothing above would have caught it.
+        assert.ok(
+            result.result2.exitCode === undefined,
+            "build() still reports an exitCode, which the service does not have"
+        );
+    });
+
+    it("leaves no process behind, so a script that used it can exit", () => {
+        // The service is a child process, and a child process that is not
+        // unref'd holds the event loop open. A consumer that imports this
+        // package, uses it once, and finishes would hang forever at the end
+        // unless the process were released — which is invisible in every other
+        // test here, because the test runner exits on its own terms.
+        const { root } = project();
+        const script = path.join(root, "exits.mjs");
+        fs.writeFileSync(
+            script,
+            `import { transform } from "guchho";
+             await transform("let a = 1", { loader: "js" });
+             console.log("done");
+            `
+        );
+
+        // runNode and not runConsumer: this script prints no JSON, and asking it
+        // to would be a check about the harness rather than about the package.
+        const started = Date.now();
+        const result = runNode(script, [], { cwd: root });
+
+        // The status is the assertion. A child process left referenced holds the
+        // event loop open, so this script would never finish and would be killed
+        // by the harness instead — and it is invisible in every other test here,
+        // because the test runner exits on its own terms.
+        assert.equal(
+            result.status,
+            0,
+            `the consumer had to be killed (exit ${result.status}):\n${result.stderr}`
+        );
+        assert.match(result.stdout, /done/);
+        assert.ok(Date.now() - started < 30000, "the consumer should not have had to be killed");
     });
 
     it("can also be required, not only imported", () => {

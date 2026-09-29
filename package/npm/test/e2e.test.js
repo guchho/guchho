@@ -203,10 +203,10 @@ describe("the snippet from the documentation", { skip: needsTar() }, () => {
         // throws, a missing entry point is a missing entry point.
         fs.writeFileSync(path.join(root, "entry.js"), "const answer = 42;\nconsole.log(answer);\n");
 
-        // The snippet in README.md, verbatim. Kept as text rather than
-        // extracted from the README so that a snippet which stops working fails
-        // here rather than quietly stopping being tested — and so that the two
-        // cannot drift into being two different snippets.
+        // The shape of a consumer of the package: import it, transform one
+        // file, build one entry point. Kept as text here rather than loaded
+        // from the README so that a change to the API surface fails here, at
+        // the consumer, rather than in documentation nobody runs.
         const result = runConsumer(
             root,
             `import * as guchho from "guchho";

@@ -286,6 +286,29 @@ namespace guchho::cli {
                        const std::vector<api::Plugin>& plugins);
 
     // =========================================================================
+    // The service
+    // =========================================================================
+    //
+    // The same engine reached over a pipe rather than over a command line, which
+    // is what lets the npm package get a build's outputs and its diagnostics as
+    // data instead of as files and text. Run() is a one-shot; this runs until its
+    // input ends, answering every request as it is read.
+    //
+    // It is started by "--service=<version>" rather than by being called from
+    // Node, because the binary that already exists is the one that has the
+    // engine in it, and a second shared library to reach the same code from
+    // Node would be a second copy of it on the machine.
+    //
+    // Input:  the version frame, then length-prefixed requests, on stdin
+    // Output: the version frame, then one response per request, on stdout, and
+    //         nothing else — a print here would land inside a frame
+    //
+    // The protocol is guchho/service.hpp. Nothing here reaches the console, and
+    // no plugin callback crosses the wire, which is why RunWithPlugins has no
+    // counterpart here yet.
+    int RunService();
+
+    // =========================================================================
     // Reading arguments without running anything
     // =========================================================================
     //

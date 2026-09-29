@@ -11,9 +11,27 @@
 // rather than a namespace whose only useful member is "default". Node's
 // CommonJS interop detects named exports on its own, but it does so by
 // guessing, and a guess is not something a public API should be built on.
+//
+// Every export is listed rather than spread, so that adding one to the CommonJS
+// entry and forgetting it here is a missing export at the import site — a build
+// that fails — instead of a silently undefined binding at runtime.
 
 import mod from "./index.js";
 
-export const { getBinaryPath, getPlatformKey, spawnBinary, transform, build } = mod;
+export const {
+    build,
+    transform,
+    context,
+    formatMessages,
+    analyzeMetafile,
+    stop,
+    version,
+    getBinaryPath,
+    getPlatformKey,
+    spawnBinary,
+    BuildFailure,
+    ServiceError,
+    BuildContext,
+} = mod;
 
 export default mod;

@@ -32,6 +32,7 @@
 namespace cli::test {
 
 using guchho::test::CliWorkspace;
+using guchho::test::kBuildFailure;
 using guchho::test::kSuccess;
 using guchho::test::OutputContains;
 using guchho::test::RunCli;
@@ -68,24 +69,21 @@ TEST(CliPlugins, ASetupCallbackIsCalledForABuild) {
     EXPECT_EQ(setups.load(), 1);
 }
 
-// A finding, recorded as a test.
+// A plugin's on_start is the documented place to refuse a whole configuration,
+// and the refusal has to be the whole answer: an error returned from it stops
+// the build, reaches the error stream, and leaves nothing on disk.
 //
-// on_start is documented as the place to reject a configuration, and as doing so
-// before any file has been read. Neither happens here. A plugin attached to a
-// one-shot "guchho build" has its setup called and its on_end callback called —
-// AWarningFromAPluginReachesTheErrorStream passes — but its on_start callback is
-// never invoked, so an error returned from it is discarded and the build runs to
-// completion. Registration is not what is missing: setup runs, and build.on_start
-// takes the callback without complaint. src/api/api.cpp records it in the
-// plugin's OnStartList, and the scan phase is the only place that drains that
-// list, so a build that never reaches the scan keeps the callback.
+// This was a finding once. on_start was registered and never called, so an error
+// returned from it was discarded and the build ran to completion — the two tests
+// below used to assert exactly that, and said why. The scan phase now drains
+// OnStartList before it reads a file, which is what the registration side of the
+// interface always promised.
 //
-// A host embedding this and using on_start to refuse a build is relying on
-// something that does not happen, which is worth more than a test that quietly
-// agreed with it. So this asserts what happens, and the next test pins the
-// companion fact that the callback is not called at all: if either half is fixed
-// these two fail, and the fix is to change them rather than to delete them.
-TEST(CliPlugins, AnErrorFromAStartCallbackIsDiscarded) {
+// The three assertions are the three ways "refused" can be half true. An exit
+// code alone would also be satisfied by a build that failed for an unrelated
+// reason; a message on the error stream alone would also be satisfied by a
+// warning. Only the three together say the plugin's error is what stopped it.
+TEST(CliPlugins, AnErrorFromAStartCallbackStopsTheBuild) {
     CliWorkspace ws("refuse");
     ws.Write("entry.js", "console.log(1);\n");
 
@@ -106,18 +104,17 @@ TEST(CliPlugins, AnErrorFromAStartCallbackIsDiscarded) {
     const guchho::test::CliResult result =
         RunCliWithPlugins({"build", "entry.js", "--outdir=dist"}, {refusing});
 
-    // The build a plugin asked to refuse: 0, no mention of the refusal, and the
-    // output written.
-    EXPECT_EQ(result.exit_code, kSuccess);
-    EXPECT_FALSE(OutputContains(result.err, "refused by a plugin"));
-    EXPECT_TRUE(ws.Exists("dist/entry.js")) << "the build did not run either";
+    EXPECT_EQ(result.exit_code, kBuildFailure);
+    EXPECT_TRUE(OutputContains(result.err, "refused by a plugin"));
+    EXPECT_FALSE(ws.Exists("dist/entry.js"))
+        << "the build ran to completion after the plugin refused it";
 }
 
-// The companion: the callback is accepted, registered, and never called. That
-// on_start registration itself works is the useful half — it means the fix is
-// in the build path rather than in the plugin interface, and a plugin author has
-// nothing to change.
-TEST(CliPlugins, AStartCallbackIsRegisteredAndNeverCalled) {
+// The companion: the callback is called, and called once. A hook that fires per
+// file would be a much worse bug than one that never fires, because a host
+// refusing on some condition would see it apply to a different build than the
+// one it reasoned about.
+TEST(CliPlugins, AStartCallbackIsCalledOnceForABuild) {
     CliWorkspace ws("agree");
     ws.Write("entry.js", "console.log(1);\n");
     std::atomic<int> starts{0};
@@ -135,9 +132,7 @@ TEST(CliPlugins, AStartCallbackIsRegisteredAndNeverCalled) {
         RunCliWithPlugins({"build", "entry.js", "--outdir=dist"}, {quiet});
 
     EXPECT_EQ(result.exit_code, kSuccess);
-    EXPECT_EQ(starts.load(), 0)
-        << "on_start fired for a one-shot build, so the test above is out of "
-           "date rather than the engine being wrong";
+    EXPECT_EQ(starts.load(), 1);
     EXPECT_TRUE(ws.Exists("dist/entry.js"));
 }
 

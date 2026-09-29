@@ -76,6 +76,8 @@ class Service extends EventEmitter {
     this.pending = new Map();
     this.stderr = [];
     this.stopped = false;
+    this.exited = false;
+    this.stopping = null;
   }
 
   /**
@@ -95,7 +97,6 @@ class Service extends EventEmitter {
       windowsHide: true,
     });
 
-    this.child.stdout.on("data", (chunk) => this._onStdout(chunk));
     this.child.stderr.on("data", (chunk) => this._onStderr(chunk));
 
     this.child.on("error", (error) => this._onGone(error));
@@ -114,6 +115,13 @@ class Service extends EventEmitter {
     // in the background is what turns "the binary is too old to talk to" into
     // an error at the first build, instead of a stream of nonsense a few
     // seconds later.
+    //
+    // Nothing else is reading stdout yet, and that is not an accident. The
+    // greeting and the answers that follow it come through the same
+    // reassembler, and a reassembler fed the same bytes twice does not see one
+    // frame and a half of the next — it sees the tail of something it has
+    // already handed over. The permanent reader is attached below, once the
+    // greeting has been taken and there is nothing left to race it for.
     let greeting;
     try {
       greeting = await this._readFrame();
@@ -139,7 +147,43 @@ class Service extends EventEmitter {
       );
     }
 
+    // The greeting is taken, so the permanent reader can take over. Everything
+    // from here is an answer to something, and nothing is an answer to nothing.
+    this.child.stdout.on("data", (chunk) => this._onStdout(chunk));
+
+    // The process does not hold the event loop open.
+    //
+    // A child process and its pipes are libuv handles, and Node keeps running
+    // while any of them is open. Without this, a script that built something and
+    // then finished would sit there: the work is done, nothing is pending, and
+    // the process will not exit because a bundler it no longer needs is still
+    // reading from a pipe. It is a hang with no cause a caller can point at.
+    //
+    // The other half is ref() below, because unref'ing alone would be worse: an
+    // unref'd process cannot keep itself alive to answer a request, so a script
+    // whose only pending work is a build would exit before the build finished.
+    // So the process is referenced exactly while something is waiting on it.
+    this._unref();
+
     return this;
+  }
+
+  // Takes the process and its pipes out of the event loop's reference count.
+  _unref() {
+    const child = this.child;
+    if (child === null) return;
+    child.unref();
+    if (typeof child.stdin.unref === "function") child.stdin.unref();
+    if (typeof child.stdout.unref === "function") child.stdout.unref();
+  }
+
+  // Puts them back, for as long as somebody is waiting.
+  _ref() {
+    const child = this.child;
+    if (child === null) return;
+    child.ref();
+    if (typeof child.stdin.ref === "function") child.stdin.ref();
+    if (typeof child.stdout.ref === "function") child.stdout.ref();
   }
 
   /**
@@ -163,14 +207,40 @@ class Service extends EventEmitter {
     const frame = encodePacket(id, true, payload);
 
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      // Referenced for exactly as long as this request is outstanding. The count
+      // rather than a flag, because two builds running at once must not release
+      // each other's reference and leave the second one unheld while it waits.
+      this.pending.set(id, {
+        resolve: (value) => {
+          this._settled(id);
+          resolve(value);
+        },
+        reject: (error) => {
+          this._settled(id);
+          reject(error);
+        },
+      });
+
+      this._ref();
+
       this.child.stdin.write(frame, (error) => {
         if (error) {
-          this.pending.delete(id);
-          reject(new ServiceError(`could not send to the Guchho service: ${error.message}`));
+          const waiting = this.pending.get(id);
+          if (waiting !== undefined) {
+            this.pending.delete(id);
+            waiting.reject(new ServiceError(`could not send to the Guchho service: ${error.message}`));
+          }
         }
       });
     });
+  }
+
+  // Called when a request is answered, refused, or abandoned. Releases the
+  // reference that request was holding, and only drops the process out of the
+  // event loop when nothing is waiting on it any more.
+  _settled(id) {
+    this.pending.delete(id);
+    if (this.pending.size === 0) this._unref();
   }
 
   /**
@@ -247,6 +317,7 @@ class Service extends EventEmitter {
   }
 
   _onGone(error) {
+    this.exited = true;
     this.stopped = true;
     this._failAll(error);
   }
@@ -254,13 +325,24 @@ class Service extends EventEmitter {
   // Everyone waiting is told the process is gone. A promise that never settles
   // is worse than one that rejects: the caller is stuck holding a build that
   // will never finish, and nothing about it says why.
+  //
+  // Each goes through its own reject, which is what releases the reference it
+  // was holding — dropping the map first would skip that and leave a reference
+  // outstanding for a process that no longer exists.
   _failAll(error) {
     const waiting = [...this.pending.values()];
-    this.pending.clear();
     for (const { reject } of waiting) reject(error);
   }
 
   _readFrame() {
+    // The child is captured rather than reached through "this.child", because
+    // the one path that matters here is the one where the process is already
+    // gone by the time the listeners come off — a version mismatch stops the
+    // service and then unwinds through here, and reaching through a nulled field
+    // on the way out throws a second, unrelated error over the first.
+    const child = this.child;
+    const stream = child.stdout;
+
     return new Promise((resolve, reject) => {
       const onData = (chunk) => {
         cleanup();
@@ -280,14 +362,14 @@ class Service extends EventEmitter {
         reject(error);
       };
       const cleanup = () => {
-        this.child.stdout.off("data", onData);
-        this.child.stdout.off("end", onEnd);
-        this.child.stdout.off("error", onError);
+        stream.off("data", onData);
+        stream.off("end", onEnd);
+        stream.off("error", onError);
       };
 
-      this.child.stdout.on("data", onData);
-      this.child.stdout.once("end", onEnd);
-      this.child.stdout.once("error", onError);
+      stream.on("data", onData);
+      stream.once("end", onEnd);
+      stream.once("error", onError);
     });
   }
 
@@ -296,19 +378,37 @@ class Service extends EventEmitter {
    *
    * Idempotent, because the two ways it is called — the process exiting on its
    * own, and the package deciding it is finished — can happen in either order.
+   *
+   * Returns a promise for the process actually being gone, which is not the same
+   * moment. Closing its input is a request; the process noticing, finishing the
+   * build it is in the middle of, and letting go of every file it has open takes
+   * a moment after that. A caller that removes a build's output directory the
+   * instant this resolves gets EPERM on Windows, and a retry loop is a worse
+   * answer than waiting for the thing that is actually true.
    */
   stop() {
-    if (this.child === null) return;
+    if (this.exited) return Promise.resolve();
+    if (this.child === null) return Promise.resolve();
+
     this.stopped = true;
 
-    try {
-      if (this.child.stdin.writable) this.child.stdin.end();
-    } catch {
-      // Already gone. Nothing to close.
+    if (this.stopping === null) {
+      this.stopping = new Promise((resolve) => {
+        this.child.once("exit", () => resolve());
+        this.child.once("error", () => resolve());
+      });
+
+      try {
+        if (this.child.stdin.writable) this.child.stdin.end();
+      } catch {
+        // Already gone. Nothing to close, and the exit handler above is what
+        // settles the promise.
+      }
     }
 
     this.child = null;
     this._failAll(new ServiceError("the Guchho service has been stopped"));
+    return this.stopping;
   }
 }
 
@@ -366,13 +466,18 @@ function getService() {
   return starting;
 }
 
-/** Ends the shared process. Exported for the package's own teardown and tests. */
+/**
+ * Ends the shared process, once it has actually ended.
+ *
+ * Awaiting this is the supported way to know the service is gone. It is what
+ * lets a caller clean up after a build — remove its output directory, move a
+ * file it just produced — without racing the process that had it open.
+ */
 async function stopService() {
-  if (shared !== null) {
-    shared.stop();
-    shared = null;
-  }
+  const service = shared;
+  shared = null;
   starting = null;
+  if (service !== null) await service.stop();
 }
 
 module.exports = {

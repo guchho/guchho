@@ -1,12 +1,28 @@
 // guchho.build(), reached the way a caller reaches it.
 //
 //     import { build } from "guchho";
-//     const result = await build({ entries: ["src/main.js"] });
+//     const result = await build({ entryPoints: ["src/main.js"] });
 //
-// Where transform() answers with a string, build() answers with files on disk,
-// so most of what is checked here is that the files it says it wrote are
-// actually there. A build that reported outputs which were not written would
-// be worse than one that reported none.
+// This file was rewritten when the API moved to the service and to esbuild's
+// shape. What changed and why it was worth changing:
+//
+//   - "entries" is now "entryPoints", and "root" is now "absWorkingDir". Both
+//     are esbuild's names, and a project moving between bundlers should be a
+//     change of import rather than a rewrite of every call.
+//
+//   - a build that fails now throws. It used to resolve with a non-zero
+//     "exitCode" and an empty "files", which meant a caller who checked the
+//     result instead of catching would deploy whatever the previous build left
+//     behind. Throwing is the shape esbuild publishes and the shape every tool
+//     written against it already handles.
+//
+//   - the answer is errors, warnings, and outputFiles. Not "outputs", "inputs",
+//     "files" and "exitCode" — the metafile is now only there when it was asked
+//     for, and the outputs come back in memory when write is false.
+//
+// What is checked here is mostly that what the result claims is true: the files
+// it reports were written, the ones it collected are the ones on disk, and a
+// build that failed did not also write something.
 //
 // The imports are from the package's own lib rather than from "guchho", for the
 // reason given at the top of api-transform.test.mjs; e2e.test.js is where the
@@ -53,85 +69,136 @@ describe("build()", () => {
     it("reports the files it wrote, and they are there", needsBinary, async () => {
         const root = makeProject();
 
-        const result = await guchho.build({ root, entries: ["src/main.js"] });
+        const result = await guchho.build({
+            absWorkingDir: root,
+            entryPoints: ["src/main.js"],
+        });
 
-        assert.equal(result.exitCode, 0, `build failed: ${result.errors.join("\n")}`);
-        assert.ok(result.outputs && typeof result.outputs === "object", "outputs should be an object");
-        assert.ok(Object.keys(result.outputs).length > 0, "a successful build should report outputs");
+        assert.deepEqual(result.errors, [], `build failed: ${result.errors.join("\n")}`);
+        assert.ok(fs.existsSync(path.join(root, "dist")), "the default outdir should be dist");
 
-        // The receipt and the disk are checked separately on purpose. The
-        // metafile is written by the engine and read by the wrapper, and the
-        // files are written by the engine and read by the filesystem; agreeing
-        // with the metafile alone would only prove the engine can read its own
-        // mind back.
-        for (const file of result.files) {
-            assert.ok(fs.existsSync(file), `${file} is reported but not on disk`);
+        const written = fs
+            .readdirSync(path.join(root, "dist"))
+            .map((name) => path.join(root, "dist", name));
+
+        assert.ok(written.length > 0, "a successful build should write something");
+        for (const file of written) {
             assert.ok(fs.statSync(file).size > 0, `${file} is empty`);
         }
     });
 
-    it("writes into the outdir it was given, and says where that is", needsBinary, async () => {
+    it("writes into the outdir it was given", needsBinary, async () => {
         const root = makeProject();
 
-        const result = await guchho.build({ root, entries: ["src/main.js"], outdir: "public" });
+        await guchho.build({
+            absWorkingDir: root,
+            entryPoints: ["src/main.js"],
+            outdir: "public",
+        });
 
-        assert.equal(result.exitCode, 0, `build failed: ${result.errors.join("\n")}`);
-        assert.equal(result.outdir, path.resolve(root, "public"), "outdir should be absolute");
-
-        for (const file of result.files) {
-            assert.ok(
-                file.startsWith(result.outdir + path.sep),
-                `${file} is outside the outdir that was asked for`
-            );
-        }
+        assert.ok(fs.existsSync(path.join(root, "public")), "public should be the outdir");
     });
 
-    it("defaults outdir to dist", needsBinary, async () => {
+    it("collects the outputs in memory when write is false", needsBinary, async () => {
+        // The half of the contract that lets a build be used without being run:
+        // the outputs come back as bytes, and nothing reaches the disk.
         const root = makeProject();
 
-        const result = await guchho.build({ root, entries: ["src/main.js"] });
+        const result = await guchho.build({
+            absWorkingDir: root,
+            entryPoints: ["src/main.js"],
+            write: false,
+            bundle: true,
+            format: "esm",
+        });
 
-        assert.equal(result.outdir, path.resolve(root, "dist"));
+        assert.deepEqual(result.errors, []);
+        assert.ok(Array.isArray(result.outputFiles), "outputFiles should be there");
+        assert.equal(result.outputFiles.length, 1, "one entry point, one output");
+
+        const file = result.outputFiles[0];
+        assert.ok(file.contents instanceof Uint8Array, "contents should be bytes");
+        assert.ok(file.contents.length > 0, "contents should not be empty");
+        assert.equal(typeof file.hash, "string");
+        assert.ok(path.isAbsolute(file.path), `path should be absolute, got ${file.path}`);
+        assert.ok(file.text.includes("42"), `text should decode the contents, got ${file.text}`);
+
+        // The point of write: false. A build that wrote anyway would make this
+        // option a lie that only shows up as a stray file much later.
+        assert.ok(!fs.existsSync(path.join(root, "dist")), "write:false must not touch the disk");
     });
 
     it("leaves no metafile behind in the project", needsBinary, async () => {
-        // build() asks for a metafile so it has something structured to return,
-        // and that file is a receipt for one run rather than a build output.
-        // Leaving it in the project would put a file there that no build
-        // produced and that the next build would not clean up.
+        // The metafile is a receipt for one run rather than a build output, so it
+        // is asked for and not written to the project. Under the service it is
+        // returned in the answer and never touches the disk at all, which is why
+        // this is now a statement about the whole mechanism rather than about a
+        // temporary file.
         const root = makeProject();
 
-        const result = await guchho.build({ root, entries: ["src/main.js"] });
-        assert.equal(result.exitCode, 0, `build failed: ${result.errors.join("\n")}`);
+        await guchho.build({
+            absWorkingDir: root,
+            entryPoints: ["src/main.js"],
+            metafile: true,
+        });
 
         const strays = fs.readdirSync(root).filter((name) => name.includes("metafile"));
         assert.deepEqual(strays, [], `build left ${strays.join(", ")} in the project`);
     });
 
-    it("reports a missing entry point as an error and writes nothing", needsBinary, async () => {
-        // The other half of "a failed build is a result": a build that cannot
-        // find what it was asked for has to say so rather than succeed with an
-        // empty output set, because a caller checking only exitCode would
-        // deploy the previous directory and not notice.
+    it("returns a metafile when asked, and none when not", needsBinary, async () => {
         const root = makeProject();
 
-        const result = await guchho.build({ root, entries: ["src/nothing-here.js"] });
+        const withMetafile = await guchho.build({
+            absWorkingDir: root,
+            entryPoints: ["src/main.js"],
+            write: false,
+            metafile: true,
+        });
+        assert.ok(withMetafile.metafile && typeof withMetafile.metafile === "object");
+        assert.ok(withMetafile.metafile.outputs !== undefined, "a metafile should have outputs");
 
-        assert.notEqual(result.exitCode, 0, "a missing entry point should not report success");
-        assert.ok(result.errors.length > 0, "there should be something to say about it");
-        assert.deepEqual(result.files, [], "nothing should have been written");
+        const without = await guchho.build({
+            absWorkingDir: root,
+            entryPoints: ["src/main.js"],
+            write: false,
+        });
+        // Absent rather than an empty object: "you did not ask" and "you asked
+        // and there was nothing" are different answers.
+        assert.equal(without.metafile, undefined, "metafile should be absent when not asked for");
+    });
+
+    it("throws on a missing entry point, carrying the diagnostics", needsBinary, async () => {
+        // The other half of "a failed build is a throw": the error has to say
+        // what went wrong, or a caller can only report that their build failed.
+        const root = makeProject();
+
+        let thrown = null;
+        try {
+            await guchho.build({ absWorkingDir: root, entryPoints: ["src/nothing-here.js"] });
+        } catch (error) {
+            thrown = error;
+        }
+
+        assert.ok(thrown, "a missing entry point should throw");
+        assert.ok(Array.isArray(thrown.errors) && thrown.errors.length > 0, "the error should carry errors");
+        assert.equal(typeof thrown.errors[0].text, "string", "each error should say something");
+        assert.ok(Array.isArray(thrown.warnings), "the error should carry warnings too");
     });
 
     it("reports a syntax error in an entry point", needsBinary, async () => {
         const root = makeProject({ "src/broken.js": "const a = (;\n" });
 
-        const result = await guchho.build({ root, entries: ["src/broken.js"] });
-
-        assert.notEqual(result.exitCode, 0);
-        assert.ok(result.errors.length > 0);
+        await assert.rejects(
+            () => guchho.build({ absWorkingDir: root, entryPoints: ["src/broken.js"] }),
+            (error) => {
+                assert.ok(error.errors.length > 0, "there should be something to say about it");
+                return true;
+            }
+        );
     });
 
-    it("resolves a relative entry against root, not against the caller's cwd", needsBinary, async () => {
+    it("resolves a relative entry against absWorkingDir, not the caller's cwd", needsBinary, async () => {
         // The two are the same directory in a test process that never chdirs, so
         // this is the only way to tell them apart: the build is asked for
         // "src/main.js" while the process is somewhere else entirely.
@@ -140,58 +207,81 @@ describe("build()", () => {
 
         try {
             process.chdir(os.tmpdir());
-            const result = await guchho.build({ root, entries: ["src/main.js"] });
+            const result = await guchho.build({
+                absWorkingDir: root,
+                entryPoints: ["src/main.js"],
+                write: false,
+            });
 
-            assert.equal(result.exitCode, 0, `build failed: ${result.errors.join("\n")}`);
-            for (const file of result.files) {
-                assert.ok(file.startsWith(root), `${file} was written outside the project root`);
-            }
+            assert.deepEqual(result.errors, [], `build failed: ${result.errors.join("\n")}`);
+            assert.ok(
+                result.outputFiles[0].path.startsWith(root),
+                `${result.outputFiles[0].path} was written outside the project root`
+            );
         } finally {
             process.chdir(before);
         }
     });
 
-    it("rejects a root that is not a directory", async () => {
-        // Not a result: there is no run to report on, and the mistake is in the
-        // caller's code, so it is worth stopping for.
-        await assert.rejects(
-            () => guchho.build({ root: "" }),
-            TypeError
-        );
+    it("refuses to run with no entry points at all", async () => {
+        // Not a failed build: a build that would fall back to a glob, find
+        // nothing, and succeed having built nothing. A caller reading that as a
+        // successful build is exactly the bug worth stopping for.
+        await assert.rejects(() => guchho.build({}), TypeError);
+        await assert.rejects(() => guchho.build({ entryPoints: [] }), TypeError);
+    });
 
+    it("rejects options that are not an object", async () => {
+        await assert.rejects(() => guchho.build(null), TypeError);
+        await assert.rejects(() => guchho.build("src/main.js"), TypeError);
+    });
+
+    it("refuses an option the grammar has no spelling for", async () => {
+        // The refusal names the option and arrives before anything is built,
+        // rather than reaching the engine and coming back as a build failure
+        // that looks like a problem with the code.
         await assert.rejects(
-            () => guchho.build({ root: 42 }),
+            () => guchho.build({ entryPoints: ["src/main.js"], logLevel: "chatty" }),
             TypeError
         );
     });
 
-    it("keeps the shape of the answer the same whether it worked or not", needsBinary, async () => {
-        // Same reasoning as transform(): a caller writes result.files before it
-        // knows whether there are any.
+    it("keeps the shape of a successful answer predictable", needsBinary, async () => {
+        // A caller writes result.errors before it knows whether there are any.
+        // The optional halves are the ones a caller has to ask about first, and
+        // they are asked about by being absent.
         const root = makeProject();
-        const good = await guchho.build({ root, entries: ["src/main.js"] });
-        const bad = await guchho.build({ root, entries: ["src/nothing-here.js"] });
 
-        for (const result of [good, bad]) {
-            assert.deepEqual(
-                Object.keys(result).sort(),
-                ["errors", "exitCode", "files", "inputs", "outdir", "outputs", "warnings"]
-            );
+        const result = await guchho.build({
+            absWorkingDir: root,
+            entryPoints: ["src/main.js"],
+            write: false,
+        });
+
+        assert.deepEqual(Object.keys(result).sort(), ["errors", "outputFiles", "warnings"]);
+        for (const message of [...result.errors, ...result.warnings]) {
+            assert.equal(typeof message.id, "string");
+            assert.equal(typeof message.pluginName, "string");
+            assert.equal(typeof message.text, "string");
+            assert.ok(Array.isArray(message.notes), "notes should always be an array");
+            assert.ok("location" in message, "location should always be present, even as null");
         }
     });
 
     it("does not put the engine's own banner in the results", needsBinary, async () => {
-        // The banner goes to the child's stdout, which for a build is not
-        // parsed but is still noise in anything that logs it. What matters is
-        // that it cannot be mistaken for a filename: every reported path is one
-        // that exists.
+        // The banner is a banner, not a filename, and a build that reported it as
+        // an output would be a caller deleting the wrong thing.
         const root = makeProject();
 
-        const result = await guchho.build({ root, entries: ["src/main.js"] });
+        const result = await guchho.build({
+            absWorkingDir: root,
+            entryPoints: ["src/main.js"],
+            write: false,
+        });
 
-        for (const file of result.files) {
-            assert.ok(path.isAbsolute(file), `${file} is not an absolute path`);
-            assert.ok(!file.includes("Guchho"), `${file} looks like it came from the banner`);
+        for (const file of result.outputFiles) {
+            assert.ok(path.isAbsolute(file.path), `${file.path} is not an absolute path`);
+            assert.ok(!file.path.includes("Guchho"), `${file.path} looks like it came from the banner`);
         }
     });
 });

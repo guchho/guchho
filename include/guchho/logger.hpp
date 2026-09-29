@@ -157,6 +157,11 @@ namespace guchho::logger {
         kGuchhoConfig_EvalFailed,
         kGuchhoConfig_InvalidOutput,
         kGuchhoConfig_PluginsIgnored,
+        kGuchhoConfig_RootIgnored,
+        kGuchhoConfig_ServerIgnored,
+        kGuchhoConfig_WatchIgnored,
+        kGuchhoConfig_BundleIgnored,
+        kGuchhoConfig_AliasIgnored,
         kGuchhoConfig_LAST,
 
         kEND,
@@ -1350,6 +1355,11 @@ namespace guchho::logger {
         kGuchhoConfig_FailedToEvaluate,
         kGuchhoConfig_DidNotProduceConfigObject,
         kGuchhoConfig_NotJSONObject,
+        kGuchhoConfig_RootNotSupported,
+        kGuchhoConfig_ServerNotSupported,
+        kGuchhoConfig_WatchNotSupported,
+        kGuchhoConfig_BundleAlwaysOn,
+        kGuchhoConfig_ConflictingAlias,
 
         // -------------------------------------------------------------------
         // Yarn PnP (yarnpnp.cpp)

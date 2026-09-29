@@ -112,6 +112,35 @@ void writeFileContent(const std::string& path, const std::string& content,
 // noticed them, and each one becomes an exit code rather than an exception
 // unwinding through the command.
 
+    namespace {
+
+        // Reads an environment variable, or nothing when it is unset. The
+        // Windows spelling allocates the buffer it fills, so the value has to be
+        // copied out and freed; "getenv" would do the same thing with a pointer
+        // into the process environment, and is deprecated on that platform for
+        // the reason that it cannot report a failure. The same helper, written
+        // the same way, is in "guchho_json.cpp" for "GUCHHO_NODE_BIN".
+        std::optional<std::string> GetEnvValue(const char* name)
+        {
+        #ifdef _WIN32
+            char*  value = nullptr;
+            size_t size  = 0;
+            if (_dupenv_s(&value, &size, name) != 0 || value == nullptr) {
+                return std::nullopt;
+            }
+            std::string result = value;
+            free(value);
+            return result;
+        #else
+            if (const char* value = std::getenv(name)) {
+                return std::string(value);
+            }
+            return std::nullopt;
+        #endif
+        }
+
+    } // namespace
+
     // Runs a build and returns the code the process should exit with.
     //
     // The arguments are the ones that followed the executable name, with or
@@ -249,10 +278,9 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
             // writes its own paths. An empty element is refused rather than
             // dropped, because dropping one would quietly search a different
             // directory than the person setting the variable meant.
-            if (const char* node_path = std::getenv("NODE_PATH")) {
-                std::string path_str(node_path);
+            if (auto node_path = GetEnvValue("NODE_PATH")) {
                 char separator = filesystem::CheckIfWindows() ? ';' : ':';
-                build_opts.node_paths = splitWithEmptyCheck(path_str, separator);
+                build_opts.node_paths = splitWithEmptyCheck(*node_path, separator);
             }
 
             // No entry point means the source is arriving on the standard input.

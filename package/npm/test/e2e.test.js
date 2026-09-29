@@ -220,7 +220,7 @@ describe("the snippet from the documentation", { skip: needsTar() }, () => {
              console.log(JSON.stringify({
                  transformIsFunction: typeof guchho.transform === "function",
                  buildIsFunction: typeof guchho.build === "function",
-                 version: guchho.version(),
+                 version: guchho.version,
                  result1,
                  result2
              }));
@@ -232,7 +232,7 @@ describe("the snippet from the documentation", { skip: needsTar() }, () => {
         // reading, because they were measured on something else.
         assert.equal(result.transformIsFunction, true, "guchho.transform is not a function");
         assert.equal(result.buildIsFunction, true, "guchho.build is not a function");
-        assert.equal(typeof result.version, "string", "guchho.version() should be a string");
+        assert.equal(typeof result.version, "string", "guchho.version should be a string");
 
         // And the two results are here in full, so a failure says which of the
         // two calls went wrong rather than only that one of them did.

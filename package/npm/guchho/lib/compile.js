@@ -27,6 +27,7 @@
 
 const { getService, BuildFailure, ServiceError } = require("./service");
 const { toMessages } = require("./convert");
+const { protocolError } = require("./types");
 
 // The result every command ends with: the two diagnostic lists, converted to
 // the published shape, and the rest of the response copied across. The rest is
@@ -58,16 +59,9 @@ function unwrap(response) {
     }
 
     if (typeof response.error === "string") {
-        let errors = Array.isArray(response.errors) ? toMessages(response.errors) : [];
+        const errors = Array.isArray(response.errors) ? toMessages(response.errors) : [];
         if (errors.length === 0) {
-            errors = [{
-                id: "protocol-error",
-                pluginName: "",
-                text: response.error,
-                location: null,
-                notes: [],
-                detail: undefined,
-            }];
+            errors.push(protocolError(response.error));
         }
         throw new BuildFailure(errors, toMessages(response.warnings));
     }

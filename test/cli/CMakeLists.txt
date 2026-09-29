@@ -13,6 +13,8 @@ add_library(guchho_cli_test_objects OBJECT
     cli_serve_test.cpp
     cli_watch_test.cpp
     cli_plugins_test.cpp
+    cli_service_test.cpp
+    cli_service_compile_test.cpp
     cli_exe_test.cpp
 )
 

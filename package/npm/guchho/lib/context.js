@@ -2,15 +2,15 @@
 
 // The live build: a context that outlives one request.
 //
-// This is the object esbuild calls a "context", and the thing it exists for is
+// This is the object guchho calls a "context", and the thing it exists for is
 // that the expensive half of a build — reading the project, resolving packages,
 // parsing — is worth doing once. A context holds that state, so the second build
 // of a file that changed is not the same cost as the first.
 //
-// A note on how rebuilds arrive, because it differs from esbuild and the
+// A note on how rebuilds arrive, because it differs from guchho and the
 // difference is the engine's, not a choice made here.
 //
-// In esbuild, ctx.watch() takes an onRebuild callback and the service calls it
+// In guchho, ctx.watch() takes an onRebuild callback and the service calls it
 // when a file changes. This service is request and response only: every frame
 // the host sends is answered, and the host refuses frames that arrive unsolicited
 // because there is nothing on this side to answer them. So a rebuild has to be
@@ -24,7 +24,7 @@
 //     // use result
 //   }
 //
-// and if a caller wants the esbuild-shaped callback, watch() with onRebuild
+// and if a caller wants the guchho-shaped callback, watch() with onRebuild
 // gives it for the rebuilds it drives itself. Turning this into a true push
 // needs a change on the C++ side — a notification packet with a reserved id and
 // a dispatch that answers it — and that is written down in the notes beside the
@@ -87,14 +87,14 @@ class BuildContext {
     });
 
     // The callback is kept and called for rebuilds this context performs, so
-    // that a caller written against esbuild's shape keeps working and is not
+    // that a caller written against guchho's shape keeps working and is not
     // silently given a callback that never fires.
     this._onRebuild = typeof options.onRebuild === "function" ? options.onRebuild : null;
   }
 
   /**
    * Stops a watch. The context is still usable; this ends the watcher, not the
-   * context, which is esbuild's division and the one that lets a caller stop
+   * context, which is guchho's division and the one that lets a caller stop
    * watching and build on demand from the same state.
    */
   async cancel() {
@@ -119,7 +119,7 @@ class BuildContext {
       fallback: options.fallback,
     });
 
-    // "host" as a string because that is the shape esbuild publishes, taken from
+    // "host" as a string because that is the shape guchho publishes, taken from
     // the first address the engine reports. The list is kept as well: a context
     // bound to both a loopback and a LAN address has more than one, and dropping
     // the rest would leave a caller that wanted the LAN address with a URL it
@@ -201,7 +201,7 @@ async function context(options = {}) {
 
 // The request fields that are not flags: the ones the service reads itself.
 //
-// "write" defaults to true, which is esbuild's default and the engine's. It is
+// "write" defaults to true, which is guchho's default and the engine's. It is
 // worth being explicit either way rather than leaving it off, because leaving it
 // off is not the same as leaving it out: the service reads an absent field as
 // its own default, and the two are the same today only by agreement.

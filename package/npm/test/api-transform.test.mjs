@@ -8,7 +8,20 @@
 // That is the whole of the public contract for this half of the API: a
 // namespace import with a named binding on it, and a promise. Everything below
 // it is about whether the answer is any use — whether the code comes back, and
-// whether it comes back alone.
+// whether a failure says what is wrong with it.
+//
+// This file was rewritten when the API moved to the service and to esbuild's
+// shape. Three things changed and all three are worth stating:
+//
+//   - "exitCode" is gone. There is no process per transform any more, so there
+//     is no exit code; a transform that fails throws, and the error carries the
+//     diagnostics.
+//
+//   - "legalComments" is gone. Nothing in the service reports it, and a field
+//     that is always null is a field a caller learns to ignore.
+//
+//   - "map" is now "" when there is no sourcemap, not null. That is esbuild's
+//     shape, and a caller moving between the two does not have to change.
 //
 // The import is from the package's own lib/index.mjs rather than from "guchho",
 // because this file lives inside the package and a bare "guchho" would need the
@@ -55,6 +68,17 @@ describe("the module's shape", () => {
         assert.equal(typeof guchho.build, "function");
     });
 
+    it("has the rest of the esbuild API as named bindings too", () => {
+        // Each one spelled out. A namespace import that quietly lost a binding
+        // would resolve, import and destructure without complaint, and fail at
+        // the first call — which is to say, at the first build.
+        assert.equal(typeof guchho.context, "function");
+        assert.equal(typeof guchho.formatMessages, "function");
+        assert.equal(typeof guchho.analyzeMetafile, "function");
+        assert.equal(typeof guchho.stop, "function");
+        assert.equal(typeof guchho.version, "function");
+    });
+
     it("keeps the helpers that were already public", () => {
         assert.equal(typeof guchho.getBinaryPath, "function");
         assert.equal(typeof guchho.getPlatformKey, "function");
@@ -75,33 +99,36 @@ describe("the module's shape", () => {
 });
 
 describe("transform()", () => {
-    it("returns the program and nothing else on the code stream", needsBinary, async () => {
+    it("returns the program and nothing else in the code", needsBinary, async () => {
         // The property the whole wrapper exists to provide. "guchho transform"
-        // is a filter, so stdout is the program; a report printed in front of
-        // it would be a syntax error in the middle of somebody's file, which is
-        // why the timing line was moved to the error stream on the C++ side.
+        // is a filter, so the output is the program; a report printed in front of
+        // it would be a syntax error in the middle of somebody's file.
         const result = await guchho.transform("const answer = 42;\nconsole.log(answer);\n");
 
-        assert.equal(result.exitCode, 0);
         assert.equal(result.errors.length, 0, `unexpected errors: ${result.errors.join("\n")}`);
+        assert.equal(typeof result.code, "string", "code should be text, not bytes");
         assert.ok(result.code.includes("answer = 42"), `got: ${JSON.stringify(result.code)}`);
         assert.ok(result.code.includes("console.log"));
         assert.ok(
             !result.code.includes("finished in"),
-            "a timing report reached the code stream"
+            "a timing report reached the code"
         );
     });
 
     it("keeps the shape of the answer the same whatever happened", needsBinary, async () => {
-        // One shape for both outcomes, so that a caller can write result.code
-        // before it knows whether there is any.
+        // A caller can write result.errors before it knows whether there are any.
+        // A thrown error has to have the same fields, or the catch block becomes
+        // the second version of everything.
         const good = await guchho.transform("const a = 1;\n");
-        const bad = await guchho.transform("const a = (;\n");
+        const bad = await guchho.transform("const a = (;\n").then(
+            () => null,
+            (error) => error
+        );
 
         for (const result of [good, bad]) {
             assert.deepEqual(
                 Object.keys(result).sort(),
-                ["code", "errors", "exitCode", "legalComments", "map", "warnings"]
+                ["code", "errors", "map", "warnings"]
             );
         }
     });
@@ -117,25 +144,37 @@ describe("transform()", () => {
         assert.ok(minified.code.includes("value"), "minifying changed the meaning");
     });
 
-    it("reports a syntax error as a result, not as a rejection", needsBinary, async () => {
-        // A caller that has to try/catch to find out whether its code compiled
-        // is a caller that will forget to, and a forgotten catch here is an
-        // unhandled rejection that takes the process with it.
-        const result = await guchho.transform("const a = (;\n");
+    it("throws on a syntax error, and the error says what is wrong", needsBinary, async () => {
+        // A caller that has to inspect a resolved value to find out whether its
+        // code compiled is a caller that will forget to check, and a forgotten
+        // check here ships a broken build. Throwing is the shape esbuild
+        // publishes, and the error carries the diagnostics so the catch block
+        // has something to render.
+        let thrown = null;
+        try {
+            await guchho.transform("const a = (;\n");
+        } catch (error) {
+            thrown = error;
+        }
 
-        assert.notEqual(result.exitCode, 0, "a syntax error should not report success");
-        assert.equal(result.code, "", "there should be no program to hand back");
-        assert.ok(result.errors.length > 0, "there should be something to say about it");
-        assert.match(result.errors.join("\n"), /ERROR/i);
+        assert.ok(thrown, "a syntax error should throw");
+        assert.ok(thrown.errors.length > 0, "the error should carry the diagnostics");
+        assert.equal(typeof thrown.errors[0].text, "string", "each error should say something");
+        assert.ok(Array.isArray(thrown.warnings), "the error should carry warnings too");
     });
 
     it("names the line the error is on", needsBinary, async () => {
-        // The command line reports a location within the text it read, and a
-        // caller showing that to a person needs it kept rather than flattened.
-        const result = await guchho.transform("const a = 1;\nconst b = (;\n");
+        // The engine reports a location within the text it read, and a caller
+        // showing that to a person needs it kept rather than flattened into a
+        // sentence.
+        const result = await guchho.transform("const a = 1;\nconst b = (;\n", {
+            sourcefile: "input.js",
+        }).then(() => null, (error) => error);
 
-        assert.notEqual(result.exitCode, 0);
-        assert.match(result.errors.join("\n"), /2/, "the second line is where the error is");
+        const error = result.errors.find((m) => m.location !== null);
+        assert.ok(error, "at least one message should carry a location");
+        assert.equal(error.location.file, "input.js", "sourcefile should be the file named");
+        assert.equal(error.location.line, 2, "the second line is where the error is");
     });
 
     it("separates warnings from errors", needsBinary, async () => {
@@ -147,68 +186,99 @@ describe("transform()", () => {
         assert.deepEqual(result.warnings, []);
     });
 
-    it("rejects a non-string before starting anything", async () => {
+    it("rejects input that is not source, before starting anything", async () => {
         // The one failure that is a programming error rather than a result, and
         // the reason it is not a resolved promise: there is no code, so there is
         // nothing to report about, and a TypeError here says so at the call site.
-        await assert.rejects(
-            () => guchho.transform(undefined),
-            TypeError
-        );
-        await assert.rejects(
-            () => guchho.transform(42),
-            TypeError
-        );
+        await assert.rejects(() => guchho.transform(undefined), TypeError);
+        await assert.rejects(() => guchho.transform(null), TypeError);
+        await assert.rejects(() => guchho.transform(42), TypeError);
     });
 
     it("rejects a bad option before starting anything", async () => {
         // Likewise. A misspelled log level is a mistake in the caller's code,
-        // and finding it here is more useful than an exit code from the binary.
+        // and finding it here is more useful than a build failure from the engine.
         await assert.rejects(
             () => guchho.transform("const a = 1;\n", { logLevel: "chatty" }),
             /logLevel/
         );
 
         await assert.rejects(
-            () => guchho.transform("const a = 1;\n", { outdir: true }),
-            /outdir/
+            () => guchho.transform("const a = 1;\n", { target: true }),
+            /target/
         );
     });
 
-    it("refuses to run silently, which would return nothing at all", async () => {
-        // The command line accepts --log-level silent, and for a build it is a
-        // sensible thing to ask. For a transform it is not: the program is the
-        // output, so a silent transform writes nothing and returns an empty
-        // string that looks like an empty program.
-        await assert.rejects(
-            () => guchho.transform("const a = 1;\n", { logLevel: "silent" }),
-            /silen/i
-        );
+    it("takes a Buffer and a Uint8Array as well as a string", needsBinary, async () => {
+        // A caller reading a file off disk already has bytes, and making it
+        // decode to a string first is a copy it did not ask for. It also matters
+        // for correctness: a file with a byte-order mark is not the text a
+        // decode would guess it was.
+        const source = "const fromBytes = 1;\n";
+
+        for (const input of [Buffer.from(source, "utf8"), new Uint8Array(Buffer.from(source, "utf8"))]) {
+            const result = await guchho.transform(input, { loader: "js" });
+            assert.deepEqual(result.errors, []);
+            assert.ok(result.code.includes("fromBytes"), `got: ${JSON.stringify(result.code)}`);
+        }
     });
 
-    it("returns null for the map and the legal comments, because it writes no file", async () => {
-        // A transform produces one string in memory. There is nothing to link a
-        // source map to, and the fields are named so that a caller moving from
-        // transform to build does not have to change shape — but they are null
-        // rather than an empty string, because empty would look like a map that
-        // was asked for and came back with nothing in it.
-        const result = await guchho.transform("const a = 1;\n", { sourcemap: true });
+    it("uses the loader it was given", needsBinary, async () => {
+        // A transform has no extensions to speak of — one input, one name for it —
+        // so the loader is a single name rather than the map a build takes.
+        const result = await guchho.transform("const x: number = 1;\nconsole.log(x);\n", {
+            loader: "ts",
+        });
 
-        assert.equal(result.map, null);
-        assert.equal(result.legalComments, null);
+        assert.deepEqual(result.errors, [], `unexpected errors: ${result.errors.join("\n")}`);
+        assert.ok(!result.code.includes(": number"), `the type annotation survived: ${result.code}`);
     });
 
-    it("survives a second call, so the binary is not left in a bad state", needsBinary, async () => {
-        // Each call is a process, and a wrapper that only worked once would be
-        // one nobody used twice.
+    it("returns an empty map when there is no sourcemap", needsBinary, async () => {
+        // esbuild's shape: "" rather than null, and rather than a field that is
+        // sometimes there. A caller moving between bundlers reads it the same way.
+        const result = await guchho.transform("const a = 1;\n");
+
+        assert.equal(result.map, "");
+    });
+
+    it("survives a second call, and does not answer with the first one's output", needsBinary, async () => {
+        // This is the whole reason there is a service. Each call used to be a
+        // process, and a wrapper that only worked once would be one nobody used
+        // twice; now it is one process answering many requests, and the failure
+        // this guards against is the answers getting crossed.
         const first = await guchho.transform("const first = 1;\n");
         const second = await guchho.transform("const second = 2;\n");
 
-        assert.equal(first.exitCode, 0);
-        assert.equal(second.exitCode, 0);
-        assert.ok(first.code.includes("first"));
-        assert.ok(second.code.includes("second"));
+        assert.ok(first.code.includes("first"), `got: ${JSON.stringify(first.code)}`);
+        assert.ok(second.code.includes("second"), `got: ${JSON.stringify(second.code)}`);
         assert.ok(!second.code.includes("first"), "the second call returned the first one's output");
+    });
+
+    it("keeps requests that overlap, which is what a long-lived process is for", needsBinary, async () => {
+        // Not sequential this time. Several requests in flight at once is the
+        // normal case for a caller building a whole project, and it is where a
+        // single reused reader or a mis-correlated id would show up.
+        const sources = Array.from({ length: 8 }, (_, i) => `const v${i} = ${i};\n`);
+
+        const results = await Promise.all(sources.map((code) => guchho.transform(code)));
+
+        for (let i = 0; i < sources.length; i++) {
+            assert.ok(
+                results[i].code.includes(`v${i}`),
+                `request ${i} got the wrong answer: ${JSON.stringify(results[i].code)}`
+            );
+            // And nothing else, so an answer cannot be right by containing
+            // everything.
+            for (let j = 0; j < sources.length; j++) {
+                if (j !== i) {
+                    assert.ok(
+                        !results[i].code.includes(`v${j}`),
+                        `request ${i} was given request ${j}'s answer`
+                    );
+                }
+            }
+        }
     });
 
     it("leaves the line endings to the platform rather than rewriting them", needsBinary, async () => {

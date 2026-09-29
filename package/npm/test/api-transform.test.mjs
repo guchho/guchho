@@ -68,21 +68,36 @@ describe("the module's shape", () => {
         assert.equal(typeof guchho.build, "function");
     });
 
-    it("has the rest of the esbuild API as named bindings too", () => {
+    it("has the rest of the API as named bindings too", () => {
         // Each one spelled out. A namespace import that quietly lost a binding
         // would resolve, import and destructure without complaint, and fail at
         // the first call — which is to say, at the first build.
         assert.equal(typeof guchho.context, "function");
-        assert.equal(typeof guchho.formatMessages, "function");
-        assert.equal(typeof guchho.analyzeMetafile, "function");
+        assert.equal(typeof guchho.analyze, "function");
         assert.equal(typeof guchho.stop, "function");
-        assert.equal(typeof guchho.version, "function");
+        assert.equal(typeof guchho.version, "string");
+        assert.equal(typeof guchho.lexHTML, "function");
+        assert.equal(typeof guchho.parseHTML, "function");
+        assert.equal(typeof guchho.transformHTML, "function");
+        assert.equal(typeof guchho.printHTML, "function");
+        assert.equal(typeof guchho.lexCSS, "function");
+        assert.equal(typeof guchho.parseCSS, "function");
+        assert.equal(typeof guchho.transformCSS, "function");
+        assert.equal(typeof guchho.printCSS, "function");
+        assert.equal(typeof guchho.lexJS, "function");
+        assert.equal(typeof guchho.parseJS, "function");
+        assert.equal(typeof guchho.transformJS, "function");
+        assert.equal(typeof guchho.printJS, "function");
     });
 
-    it("keeps the helpers that were already public", () => {
-        assert.equal(typeof guchho.getBinaryPath, "function");
-        assert.equal(typeof guchho.getPlatformKey, "function");
-        assert.equal(typeof guchho.spawnBinary, "function");
+    it("dropped the names the CHANGELOG says are gone", () => {
+        // The break is intentional and documented. A binding that is still
+        // there is a caller depending on something that was promised gone.
+        assert.equal(guchho.formatMessages, undefined);
+        assert.equal(guchho.analyzeMetafile, undefined);
+        assert.equal(guchho.getBinaryPath, undefined);
+        assert.equal(guchho.getPlatformKey, undefined);
+        assert.equal(guchho.spawnBinary, undefined);
     });
 
     it("does not leak the platform table, which is how the binary is found", () => {

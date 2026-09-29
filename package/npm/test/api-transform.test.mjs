@@ -115,22 +115,35 @@ describe("transform()", () => {
         );
     });
 
-    it("keeps the shape of the answer the same whatever happened", needsBinary, async () => {
-        // A caller can write result.errors before it knows whether there are any.
-        // A thrown error has to have the same fields, or the catch block becomes
-        // the second version of everything.
+    it("keeps the diagnostics the same shape whatever happened", needsBinary, async () => {
+        // A caller renders result.errors on the happy path and thrown.errors on
+        // the other one, and the two should not need different code. So both
+        // carry errors and warnings, and both of those are arrays of the same
+        // message shape.
         const good = await guchho.transform("const a = 1;\n");
         const bad = await guchho.transform("const a = (;\n").then(
             () => null,
             (error) => error
         );
 
+        assert.ok(bad, "a broken transform should throw");
         for (const result of [good, bad]) {
-            assert.deepEqual(
-                Object.keys(result).sort(),
-                ["code", "errors", "map", "warnings"]
-            );
+            assert.ok(Array.isArray(result.errors), "errors should be an array");
+            assert.ok(Array.isArray(result.warnings), "warnings should be an array");
+            for (const message of result.errors) {
+                assert.equal(typeof message.text, "string");
+                assert.equal(typeof message.id, "string");
+                assert.equal(typeof message.pluginName, "string");
+                assert.ok(Array.isArray(message.notes));
+                assert.ok("location" in message);
+            }
         }
+
+        // A thrown failure has no program in it, and says so by not having the
+        // field rather than by having an empty one: an empty string is a
+        // successful transform of nothing.
+        assert.equal(typeof good.code, "string");
+        assert.equal(bad.code, undefined, "a failure should carry no code");
     });
 
     it("shortens the program when asked to minify", needsBinary, async () => {

@@ -642,3 +642,172 @@ TEST(GuchhoConfig, JSLoaderIsFakedAndRestored)
 
     EXPECT_EQ(resolver::GetGuchhoConfigJSLoader(), original);
 }
+
+// ---------------------------------------------------------------------------
+// Aliases: a Vite-shaped spelling of a canonical field
+// ---------------------------------------------------------------------------
+
+// Counts the buffered messages carrying "id", so a test can assert both that a
+// warning fired and that it fired exactly once.
+size_t CountMessagesOfID(const logger::Log& log, logger::MsgID id)
+{
+    size_t count = 0;
+    for (const auto& msg : log.peek()) {
+        if (msg.id == id) ++count;
+    }
+    return count;
+}
+
+TEST(GuchhoConfig, TopLevelEntryAlias)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json", "{\"entry\":[\"src/main.html\"]}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    ASSERT_EQ(result.entry_points.size(), size_t(1));
+    EXPECT_EQ(result.entry_points[0].InputPath, std::string("/project/src/main.html"));
+
+    // "entry" is a supported spelling now, so it must not also draw the
+    // generic unknown-field warning.
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoJSON_UnknownField), size_t(0));
+}
+
+TEST(GuchhoConfig, OutputAliases)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "{\"output\":{\"dir\":\"out\",\"format\":\"cjs\",\"sourcemap\":\"inline\"}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    EXPECT_EQ(result.opts.AbsOutputDir, std::string("/project/out"));
+    EXPECT_EQ(result.opts.OutputFormat, config::Format::kCommonJS);
+    EXPECT_EQ(result.opts.SourceMapData, config::SourceMap::kInline);
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoJSON_UnknownField), size_t(0));
+}
+
+// The alias and its canonical field are read from different objects, and the
+// "output" block is parsed after the "build" block, so the precedence rule is
+// what stops the alias from overwriting the value the user set explicitly.
+TEST(GuchhoConfig, CanonicalWinsOverAlias)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "{\"build\":{\"entry\":[\"src/main.html\"],\"outdir\":\"canonical\","
+               "\"format\":\"esm\",\"sourcemap\":false},"
+               "\"entry\":[\"ignored.html\"],"
+               "\"output\":{\"dir\":\"alias\",\"format\":\"cjs\",\"sourcemap\":\"inline\"}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+
+    EXPECT_EQ(result.opts.AbsOutputDir, std::string("/project/canonical"));
+    EXPECT_EQ(result.opts.OutputFormat, config::Format::kESModule);
+    EXPECT_EQ(result.opts.SourceMapData, config::SourceMap::kNone);
+
+    // The losing alias must not append a second entry point.
+    ASSERT_EQ(result.entry_points.size(), size_t(1));
+    EXPECT_EQ(result.entry_points[0].InputPath, std::string("/project/src/main.html"));
+
+    // Four conflicts: top-level "entry", plus dir/format/sourcemap.
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_AliasIgnored), size_t(4));
+}
+
+// A config written in the flat schema must not start warning now that aliases
+// exist. This is the regression guard for the whole additive change.
+TEST(GuchhoConfig, CanonicalSchemaStaysSilent)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "{\"build\":{\"entry\":[\"src/main.html\"],\"outdir\":\"dist\","
+               "\"outfile\":\"\",\"format\":\"esm\",\"platform\":\"browser\","
+               "\"target\":\"esnext\",\"minify\":true,\"sourcemap\":false,"
+               "\"splitting\":false,\"treeShaking\":true,\"pretty\":false},"
+               "\"css\":{\"minify\":true},\"assets\":{\"inlineLimit\":4096},"
+               "\"resolve\":{\"extensions\":[\".ts\"],\"alias\":{}},"
+               "\"external\":[],\"define\":{},\"logLevel\":\"info\","
+               "\"output\":{\"entryFileNames\":\"[name]-[hash]\","
+               "\"chunkFileNames\":\"chunks/[name]-[hash]\","
+               "\"assetFileNames\":\"assets/[name]-[hash]\"}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoJSON_UnknownField), size_t(0));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_AliasIgnored), size_t(0));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_BundleIgnored), size_t(0));
+}
+
+// ---------------------------------------------------------------------------
+// Fields that are accepted but have no effect now say so
+// ---------------------------------------------------------------------------
+
+TEST(GuchhoConfig, UnsupportedFieldsWarn)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "{\"root\":\".\",\"server\":{\"port\":3000},\"watch\":true,"
+               "\"build\":{\"bundle\":true}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_RootIgnored), size_t(1));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_ServerIgnored), size_t(1));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_WatchIgnored), size_t(1));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_BundleIgnored), size_t(1));
+
+    // Each is still a recognised field, so the generic warning stays quiet and
+    // the specific one is the only thing the user has to read.
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoJSON_UnknownField), size_t(0));
+}
+
+// An absent field must stay silent; otherwise every config without a dev
+// server would get four warnings on every build.
+TEST(GuchhoConfig, UnsupportedFieldsQuietWhenAbsentOrNull)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "{\"root\":null,\"server\":null,\"watch\":null,\"build\":{\"minify\":true}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_RootIgnored), size_t(0));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_ServerIgnored), size_t(0));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_WatchIgnored), size_t(0));
+}

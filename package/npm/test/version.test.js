@@ -11,6 +11,10 @@
 // disagree about what was installed. Nothing enforces the agreement at build
 // time: the version define is a macro, the manifests are JSON, and nothing ties
 // them together.
+//
+// The exported version is a constant now, not a function, and it is read from
+// the same manifest — which is itself checked against the build and the binary
+// by the tests below.
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -37,6 +41,12 @@ function cmakeProjectVersion() {
 const mainVersion = readManifest(GUCHHO_DIR).version;
 
 describe("the version number", () => {
+    it("is what the package exports, as a string", () => {
+        const { version } = require("../guchho/lib/index.js");
+        assert.equal(typeof version, "string", "version should be a string constant");
+        assert.equal(version, mainVersion, "the exported version should be the manifest's");
+    });
+
     it("is the same in the build and in the manifest", () => {
         assert.equal(
             cmakeProjectVersion(),

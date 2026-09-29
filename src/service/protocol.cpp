@@ -6,7 +6,7 @@
 // only place that can decide what to do about a broken frame, and it cannot do
 // that without being able to recognise one.
 
-#include <algorithm>
+
 #include <cstring>
 #include <functional>
 #include <stdexcept>

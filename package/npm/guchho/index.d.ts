@@ -115,8 +115,6 @@ export interface CommonOptions {
   define?: Record<string, string>
   /** Packages to leave as imports rather than bundle. */
   external?: string[]
-  /** Which loader to use, by file extension. */
-  loader?: Record<string, Loader>
   /** How chatty the engine is. */
   logLevel?: LogLevel
   /** Where the engine's own log lines go. */
@@ -180,6 +178,9 @@ export interface CommonOptions {
 
 export interface BuildOptions extends CommonOptions {
   entryPoints: EntryPoint[] | EntryPoint
+  /** Which loader to use, by file extension. A build's loader is a map, where a
+   * transform's is a single name for its one input. */
+  loader?: Record<string, Loader>
   outdir?: string
   outfile?: string
   outbase?: string

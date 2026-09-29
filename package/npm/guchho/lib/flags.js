@@ -415,5 +415,27 @@ function toEntryPoints(options) {
  *
  * They are not flags and are not entry points: they are fields on the request
  * that the service reads itself. Kept as one list so that a caller building a
- * request by hand has the same division in front of them, and so that the
- * service-side module has one
+ * request by hand has the same division in front of them, and so that there is
+ * one place that says what a request is made of.
+ */
+const SERVICE_FIELDS = {
+    write: "boolean",
+    metafile: "boolean",
+    absWorkingDir: "string",
+    stdin: "object",
+    mangleCache: "array",
+    nodePaths: "array",
+    sourcemapRaw: "string",
+    color: "boolean",
+};
+
+// Attached to the exports rather than added to the block above, because the
+// service-facing functions were written after that block and this file is read
+// top to bottom by the next person who changes it.
+module.exports.toFlags = toFlags;
+module.exports.toEntryPoints = toEntryPoints;
+module.exports.SERVICE_FIELDS = SERVICE_FIELDS;
+module.exports.SERVICE_BOOLEANS = SERVICE_BOOLEANS;
+module.exports.SERVICE_VALUES = SERVICE_VALUES;
+module.exports.SERVICE_REPEATED = SERVICE_REPEATED;
+module.exports.SERVICE_LOG_LEVELS = SERVICE_LOG_LEVELS;

@@ -169,12 +169,20 @@ class Service extends EventEmitter {
   }
 
   // Takes the process and its pipes out of the event loop's reference count.
+  //
+  // All three, and the error stream is not an afterthought: a stream with a
+  // "data" listener on it is flowing, and a flowing stream holds a reference to
+  // its handle. The engine logs to stderr, so this one is flowing from the first
+  // byte, and leaving it out of this list is a hang that looks like nothing at
+  // all — the work is done, there is no pending request, and the process will
+  // not exit because a log nobody is reading is still arriving.
   _unref() {
     const child = this.child;
     if (child === null) return;
     child.unref();
-    if (typeof child.stdin.unref === "function") child.stdin.unref();
-    if (typeof child.stdout.unref === "function") child.stdout.unref();
+    for (const stream of [child.stdin, child.stdout, child.stderr]) {
+      if (stream && typeof stream.unref === "function") stream.unref();
+    }
   }
 
   // Puts them back, for as long as somebody is waiting.
@@ -182,8 +190,9 @@ class Service extends EventEmitter {
     const child = this.child;
     if (child === null) return;
     child.ref();
-    if (typeof child.stdin.ref === "function") child.stdin.ref();
-    if (typeof child.stdout.ref === "function") child.stdout.ref();
+    for (const stream of [child.stdin, child.stdout, child.stderr]) {
+      if (stream && typeof stream.ref === "function") stream.ref();
+    }
   }
 
   /**
@@ -250,7 +259,7 @@ class Service extends EventEmitter {
    *
    * A refusal is a rejection rather than a resolved value with a flag on it
    * because a build that failed is an exception in every tool written against
-   * esbuild, and a caller that has to remember to look is a caller that will
+   * guchho, and a caller that has to remember to look is a caller that will
    * forget.
    */
   async call(payload) {

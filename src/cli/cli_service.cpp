@@ -432,14 +432,25 @@ namespace guchho::cli {
             // The input is a value rather than a flag, for the reason it is on a
             // build: a megabyte of source does not fit in an argument in any way
             // worth relying on.
+            //
+            // The field has to be there, but it may be empty: transforming the
+            // empty string is a real operation that returns empty output, where a
+            // transform with no input field at all is a host that forgot to send
+            // one. Honouring the second as the first would answer a malformed
+            // request with a successful no-op, which is the failure a host cannot
+            // see.
+            const service::Value* text = request.Find("input");
+            if (text == nullptr || (!text->IsString() && !text->IsBytes())) {
+                return ErrorResponse(EngineError("invalid-transform-request",
+                    "a transform needs its input as a string or as bytes"));
+            }
+
             std::string input;
-            if (const service::Value* text = request.Find("input")) {
-                if (text->IsString()) {
-                    input = text->AsString();
-                } else if (text->IsBytes()) {
-                    const std::vector<uint8_t>& bytes = text->AsBytes();
-                    input = std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size());
-                }
+            if (text->IsString()) {
+                input = text->AsString();
+            } else {
+                const std::vector<uint8_t>& bytes = text->AsBytes();
+                input = std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size());
             }
 
             const api::TransformResult result = api::Transform(input, options);
@@ -818,6 +829,15 @@ namespace guchho::cli {
             if (name == "transform") return HandleTransform(request);
             if (name == "format-msgs") return HandleFormatMessages(request);
             if (name == "analyze-metafile") return HandleAnalyzeMetafile(request);
+
+            // The twelve lex/parse/transform/print commands. They are asked
+            // first rather than listed here because their table is closed and
+            // its names are a naming scheme rather than twelve spellings: a
+            // future stage for a future language is a name this recognises
+            // without this file learning it.
+            if (IsServiceCompileCommand(name)) {
+                return RunServiceCompileRequest(name, request);
+            }
 
             return ErrorResponse(ProtocolError("unknown command: " + name));
         }

@@ -2,7 +2,7 @@
 
 // The public surface of the package, as CommonJS.
 //
-// The esbuild API and the three things that were already here. Those three stay
+// The guchho API and the three things that were already here. Those three stay
 // because a caller that has to locate the binary in order to pass its own
 // arguments to it has no other way to ask, and removing an export is a break
 // that buys nothing.
@@ -23,7 +23,7 @@ const { version } = require("./info");
 // EPERM on Windows, and awaiting this is the difference between a teardown that
 // works and one that does not.
 module.exports = {
-    // The esbuild API.
+    // The guchho API.
     build,
     transform,
     context,

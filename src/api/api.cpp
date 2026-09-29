@@ -2077,20 +2077,27 @@ static void load_plugins(
     std::vector<std::shared_ptr<PluginImpl>>& plugin_impls,
     std::function<void(config::Options&)>& finalize_build_options) {
 
-    std::vector<api::Plugin> clone;
-    clone.reserve(initial_options->plugins.size());
-    for (const auto& p : initial_options->plugins) clone.push_back(p);
+    // These three live on the heap and are captured by value by the callbacks
+    // below, rather than being locals captured by reference. The callbacks
+    // outlive this function: "finalize_build_options" is called once the
+    // validated options exist, and a plugin may hold on to its resolve facade
+    // for the whole build. A reference to a stack local would be dangling the
+    // moment this function returned, and reading it is a use-after-free that
+    // only some builds happen to survive.
+    auto clone = std::make_shared<std::vector<api::Plugin>>();
+    clone->reserve(initial_options->plugins.size());
+    for (const auto& p : initial_options->plugins) clone->push_back(p);
 
-    config::Options* options_for_resolve = nullptr;
-    std::vector<config::Plugin> plugins;
+    auto options_for_resolve = std::make_shared<config::Options*>(nullptr);
+    auto plugins = std::make_shared<std::vector<config::Plugin>>();
 
-    finalize_build_options = [&](config::Options& options) {
-        options.Plugins = plugins;
-        options_for_resolve = &options;
+    finalize_build_options = [plugins, options_for_resolve](config::Options& options) {
+        options.Plugins = *plugins;
+        *options_for_resolve = &options;
     };
 
-    for (size_t i = 0; i < clone.size(); i++) {
-        api::Plugin& item = clone[i];
+    for (size_t i = 0; i < clone->size(); i++) {
+        api::Plugin& item = (*clone)[i];
         if (item.name.empty()) {
             log.AddError(nullptr, logger::Range{},
                 logger::FormatMsg(logger::MsgCat::kAPI_PluginMissingName, std::to_string(i)));
@@ -2101,11 +2108,11 @@ static void load_plugins(
             log, real_fs, config::Plugin{item.name}, DetailArena{}, true});
         plugin_impls.push_back(impl);
 
-        auto resolve_fn = [&real_fs, &caches, impl, &item, initial_options,
-                           options_for_resolve_ptr = &options_for_resolve,
-                           &plugins](const std::string& path,
+        auto resolve_fn = [&real_fs, &caches, impl, clone, i, initial_options,
+                           options_for_resolve,
+                           plugins](const std::string& path,
                                      const api::ResolveOptions& options) -> api::ResolveResult {
-            if (*options_for_resolve_ptr == nullptr) {
+            if (*options_for_resolve == nullptr) {
                 return api::ResolveResult{
                     .errors = {api::Message{
                         .id = {},
@@ -2150,7 +2157,7 @@ static void load_plugins(
                 validate_log_overrides(initial_options->log_override, pending));
             pending.ReportTo(resolve_log);
 
-            config::Options options_clone = **options_for_resolve_ptr;
+            config::Options options_clone = **options_for_resolve;
             auto resolver = resolver::NewResolver(
                 config::APICall::kBuildCall, real_fs, resolve_log, caches, &options_clone);
 
@@ -2167,7 +2174,7 @@ static void load_plugins(
             logger::ImportAttributes attrs = logger::EncodeImportAttributes(options.with);
 
             auto outcome = bundler::RunOnResolvePlugins(
-                plugins, resolver.get(), resolve_log, real_fs, caches.fs_cache,
+                *plugins, resolver.get(), resolve_log, real_fs, caches.fs_cache,
                 nullptr, logger::Range{},
                 logger::Path{.text = options.importer, .namespace_ = options.namespace_},
                 path, attrs, kind, abs_resolve_dir,
@@ -2187,11 +2194,11 @@ static void load_plugins(
                 result.suffix = rr.path_pair.primary.ignored_suffix;
                 result.plugin_data = rr.plugin_data;
             } else if (result.errors.empty()) {
-                std::string plugin_name = item.name;
+                std::string plugin_name = (*clone)[i].name;
                 if (!options.plugin_name.empty()) plugin_name = options.plugin_name;
                 auto info = bundler::ResolveFailureErrorTextSuggestionNotes(
                     *resolver, path, kind, plugin_name, real_fs, abs_resolve_dir,
-                    options_for_resolve_ptr ? (*options_for_resolve_ptr)->OutputPlatform : config::Platform::kBrowser,
+                    *options_for_resolve ? (*options_for_resolve)->OutputPlatform : config::Platform::kBrowser,
                     logger::PrettyPaths{}, "", options_clone.LogPathStyle);
                 api::Message msg;
                 msg.text = info.text;
@@ -2224,7 +2231,7 @@ static void load_plugins(
         };
 
         item.setup(build);
-        plugins.push_back(std::move(impl->plugin));
+        plugins->push_back(std::move(impl->plugin));
     }
 }
 

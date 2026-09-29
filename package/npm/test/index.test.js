@@ -3,7 +3,7 @@
 // api-transform.test.mjs covers the ES module entry, because "import * as
 // guchho" is the documented way in and a namespace import has to be static to be
 // worth anything. This file is the other half: that requiring the package gives
-// the same five things, and that the two entries cannot drift apart.
+// the same things, and that the two entries cannot drift apart.
 //
 // The reason it is a separate file rather than a couple of tests inside
 // api-build.test.js is the thing being checked. That one asks "does build() work",
@@ -25,56 +25,76 @@ const { describe, it } = require("node:test");
 const guchho = require("../guchho/lib/index.js");
 const { PLATFORM_PACKAGES } = require("../guchho/lib/platforms");
 
-// The five things the package promises. Spelled out rather than derived, so
-// that adding one to lib/index.js is a decision somebody has to notice here.
+// What the package promises. Spelled out rather than derived, so that adding
+// one to lib/index.js is a decision somebody has to notice here.
 //
-// It used to be five names. It is fourteen because the API is now the one
-// esbuild publishes, and the three that were already there are still among them:
-// getBinaryPath, getPlatformKey and spawnBinary stay because a caller that has
-// to find the binary in order to pass its own arguments to it has no other way
-// to ask.
-//
-// The three error types are on the list because a caller has to be able to tell
-// a build that failed from an installation that is broken, and the only way to
-// do that is to have both names to check.
+// The list is the naming breaking change CHANGELOG.md names: formatMessages,
+// analyzeMetafile, getBinaryPath, getPlatformKey and spawnBinary are gone, and
+// analyze is what analyzing a metafile is called now. Nothing here is a
+// leftover from the old surface, because a leftover is a promise nobody asked
+// for.
 const PUBLIC_API = [
-    "analyzeMetafile",
+    "analyze",
     "build",
     "context",
-    "formatMessages",
-    "getBinaryPath",
-    "getPlatformKey",
-    "spawnBinary",
+    "lexCSS",
+    "lexHTML",
+    "lexJS",
+    "parseCSS",
+    "parseHTML",
+    "parseJS",
+    "printCSS",
+    "printHTML",
+    "printJS",
     "stop",
     "transform",
-    "version",
+    "transformCSS",
+    "transformHTML",
+    "transformJS",
 ];
 
 // The classes. Checked as constructors rather than as functions, because what a
 // caller needs from these is `instanceof`.
 const PUBLIC_CLASSES = ["BuildContext", "BuildFailure", "ServiceError"];
 
+// The version, which is a value rather than a function, and is still part of
+// the exported surface a caller can count on.
+const PUBLIC_CONSTANTS = ["version"];
+
 describe("the package's CommonJS entry", () => {
     it("exports the public API and nothing else", () => {
         assert.deepEqual(
             Object.keys(guchho).sort(),
-            [...PUBLIC_API, ...PUBLIC_CLASSES].sort()
+            [...PUBLIC_API, ...PUBLIC_CLASSES, ...PUBLIC_CONSTANTS].sort()
         );
     });
 
-    it("exports each of them as a function, because a name is not a contract", () => {
-        // A namespace holding fourteen undefined properties resolves, imports and
+    it("exports each of them, because a name is not a contract", () => {
+        // A namespace holding undefined properties resolves, imports and
         // destructures without complaint, and only fails when called. Which is
         // to say: at the first build.
         for (const name of PUBLIC_API) {
             assert.equal(typeof guchho[name], "function", `${name} should be a function`);
         }
-    });
-
-    it("exports the error types as constructors a caller can test against", () => {
         for (const name of PUBLIC_CLASSES) {
             assert.equal(typeof guchho[name], "function", `${name} should be a constructor`);
         }
+    });
+
+    it("exports the version as a string, which is what a version is", () => {
+        assert.equal(typeof guchho.version, "string");
+        assert.ok(guchho.version.length > 0, "version should not be empty");
+    });
+
+    it("exports no name. it swore to drop", () => {
+        // The break is documented as a break. A name that still leaks out is a
+        // caller quietly depending on something the CHANGELOG said is gone.
+        for (const name of ["formatMessages", "analyzeMetafile", "getBinaryPath", "getPlatformKey", "spawnBinary"]) {
+            assert.equal(guchho[name], undefined, `${name} should not be on the surface`);
+        }
+    });
+
+    it("exports the error types as constructors a caller can test against", () => {
         // Both are Errors, because a caller that catches everything and checks
         // `instanceof Error` must not find a build failure quietly missing.
         assert.ok(guchho.BuildFailure.prototype instanceof Error);
@@ -85,24 +105,32 @@ describe("the package's CommonJS entry", () => {
         // A wrapper would be a second answer to the same question, and the two
         // would drift: a caller checking the arity of build() or relying on
         // its default argument would be reading a copy.
-        const { build, formatMessages, analyzeMetafile } = require("../guchho/lib/build");
+        const { build, analyze } = require("../guchho/lib/build");
         const { transform } = require("../guchho/lib/transform");
         const { context, BuildContext } = require("../guchho/lib/context");
         const { stopService } = require("../guchho/lib/service");
-        const { getBinaryPath, getPlatformKey, spawnBinary } = require("../guchho/lib/main");
         const { version } = require("../guchho/lib/info");
+        const compile = require("../guchho/lib/compile");
 
         assert.equal(guchho.build, build);
         assert.equal(guchho.transform, transform);
         assert.equal(guchho.context, context);
-        assert.equal(guchho.formatMessages, formatMessages);
-        assert.equal(guchho.analyzeMetafile, analyzeMetafile);
+        assert.equal(guchho.analyze, analyze);
         assert.equal(guchho.stop, stopService);
         assert.equal(guchho.version, version);
         assert.equal(guchho.BuildContext, BuildContext);
-        assert.equal(guchho.getBinaryPath, getBinaryPath);
-        assert.equal(guchho.getPlatformKey, getPlatformKey);
-        assert.equal(guchho.spawnBinary, spawnBinary);
+        assert.equal(guchho.lexHTML, compile.lexHTML);
+        assert.equal(guchho.parseHTML, compile.parseHTML);
+        assert.equal(guchho.transformHTML, compile.transformHTML);
+        assert.equal(guchho.printHTML, compile.printHTML);
+        assert.equal(guchho.lexCSS, compile.lexCSS);
+        assert.equal(guchho.parseCSS, compile.parseCSS);
+        assert.equal(guchho.transformCSS, compile.transformCSS);
+        assert.equal(guchho.printCSS, compile.printCSS);
+        assert.equal(guchho.lexJS, compile.lexJS);
+        assert.equal(guchho.parseJS, compile.parseJS);
+        assert.equal(guchho.transformJS, compile.transformJS);
+        assert.equal(guchho.printJS, compile.printJS);
     });
 
     it("keeps the platform table to itself, because a package name is not an API", () => {

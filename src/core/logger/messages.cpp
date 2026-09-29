@@ -569,6 +569,11 @@ namespace guchho::logger {
         case MsgCat::kGuchhoConfig_FailedToEvaluate: return "Failed to evaluate {}{}; falling back to a JSON config file";
         case MsgCat::kGuchhoConfig_DidNotProduceConfigObject: return "{} did not produce a config object; falling back to a JSON config file";
         case MsgCat::kGuchhoConfig_NotJSONObject: return "{} did not evaluate to a JSON object; falling back to a JSON config file";
+        case MsgCat::kGuchhoConfig_RootNotSupported: return "The \"root\" field is not supported yet and will be ignored; the project root comes from the directory guchho is run in";
+        case MsgCat::kGuchhoConfig_ServerNotSupported: return "The \"server\" field is not supported yet and will be ignored; use \"guchho serve\" for a development server";
+        case MsgCat::kGuchhoConfig_WatchNotSupported: return "The \"watch\" field is not supported yet and will be ignored; use \"guchho serve --watch\" to rebuild on change";
+        case MsgCat::kGuchhoConfig_BundleAlwaysOn: return "The \"build.bundle\" field has no effect because bundling is always enabled";
+        case MsgCat::kGuchhoConfig_ConflictingAlias: return "Both {} and {} are set; {} is the canonical field and the other will be ignored";
 
         // -------------------------------------------------------------------
         // Yarn PnP (yarnpnp.cpp)

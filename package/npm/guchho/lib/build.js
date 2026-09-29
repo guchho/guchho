@@ -5,11 +5,6 @@
 // One request, one answer, no state kept afterwards. When a caller is going to
 // build more than once, context() is the thing to reach for instead, because
 // this throws away everything the engine learned.
-//
-// The refusal is a throw, not a resolved value with an error field. That is
-// esbuild's shape and it is the right one: a build that failed is an exception
-// in every tool written against esbuild, and a result that has to be checked is a
-// result that gets ignored by somebody.
 
 const { getService } = require("./service");
 const { toFlags, toEntryPoints } = require("./flags");
@@ -20,7 +15,7 @@ const { answerFields } = require("./context");
  * Runs a build.
  *
  * @param {object} [options] The options "guchho build" takes, in the spellings
- *   esbuild uses. Anything not given is left to guchho.config.js next to the
+ *   guchho uses. Anything not given is left to guchho.config.js next to the
  *   project, or to the built-in default, so this module holds no second copy of
  *   any option.
  * @param {string|string[]|Array<[string,string]>} [options.entryPoints]

@@ -15,6 +15,10 @@
 //
 //   - the plugin system. There is no plugin API yet, and declaring the hooks
 //     would be a promise that nothing implements.
+//
+// The version is a string, not a function: it is read once from the manifest
+// the package was installed as, so comparing it against the runtime's
+// expectations is a value comparison, the way a version always is.
 
 /** Where a diagnostic points, in a file or in a namespace. */
 export interface Location {
@@ -280,6 +284,7 @@ export interface ServeOptions {
 
 /** A build that failed. Carries the diagnostics it failed with. */
 export declare class BuildFailure extends Error {
+  constructor(errors: Message[], warnings?: Message[])
   readonly errors: Message[]
   readonly warnings: Message[]
 }
@@ -316,20 +321,13 @@ export declare function transform(
 /** Sets up a build that can be repeated. */
 export declare function context(options: BuildOptions): Promise<BuildContext>
 
-/** Formats diagnostics the way a terminal would show them. */
-export declare function formatMessages(
-  messages: Message[],
-  options?: {
-    kind?: 'error' | 'warning'
-    color?: boolean
-    terminalWidth?: number
-  }
-): Promise<string>
-
-/** Pretty-prints a metafile. */
-export declare function analyzeMetafile(
-  metafile: Metafile | string
-): Promise<string>
+/**
+ * Pretty-prints a metafile.
+ *
+ * The same question "analyzeMetafile" used to answer, under the name the
+ * surface now publishes.
+ */
+export declare function analyze(metafile: Metafile | string): Promise<string>
 
 /**
  * Ends the service process, once it has actually ended.
@@ -339,17 +337,378 @@ export declare function analyzeMetafile(
  */
 export declare function stop(): Promise<void>
 
-/** This package's version. */
-export declare function version(): string
+/** This package's version, as published. A string, not a function. */
+export declare const version: string
 
-/** The path of the native binary this package found. */
-export declare function getBinaryPath(): string
+// ---------------------------------------------------------------------------
+// The compiler API: lex, parse, transform and print, one function per
+// language. Each stage sends one request to the same service a build uses, so
+// the lexer, the parser and the printer are the engine's own. The AST never
+// crosses the wire: a parse answers with a numeric handle and a structural
+// summary, a transform turns one handle into another, and a print turns a
+// handle into text.
+// ---------------------------------------------------------------------------
 
-/** The platform key, as used in the optional dependency names. */
-export declare function getPlatformKey(): string
+/** The source a compile command reads. Bytes pass through as bytes. */
+export type CompileSource = string | Uint8Array
 
-/** Runs the native binary with the given arguments. */
-export declare function spawnBinary(args?: string[]): import('child_process').ChildProcess
+/**
+ * The handle a parse returned. Opaque to this package: it is the service's id
+ * for a tree it holds, and only transform* and print* may use it, in the same
+ * language it came from.
+ */
+export type AstHandle = number
+
+/** Where a token or a node sat in the source. Zero when no location was kept. */
+export interface SourcePosition {
+  /** Offset in bytes from the start of the input. */
+  start: number
+  /** Offset in bytes from the start of the input. */
+  end: number
+  /** 1-based line. */
+  line: number
+  /** 0-based column, in bytes. */
+  column: number
+  /** In bytes. */
+  length: number
+}
+
+/** What every compile command answers with, before its own fields. */
+export interface CompileResult {
+  errors: Message[]
+  warnings: Message[]
+}
+
+export type HtmlTokenKind =
+  | 'comment'
+  | 'doctype'
+  | 'start-tag'
+  | 'end-tag'
+  | 'eof'
+  | 'character'
+  | 'null-character'
+  | 'whitespace-character'
+
+/** One HTML token. For a tag, "value" is the tag name and "length" says how
+ * many attributes it carried. */
+export interface HtmlToken extends SourcePosition {
+  kind: HtmlTokenKind
+  value: string
+}
+
+export interface LexHTMLResult extends CompileResult {
+  tokens: HtmlToken[]
+  count: number
+}
+
+export type CssTokenKind =
+  | 'endOfFile' | 'atKeyword' | 'unterminatedString' | 'badUrl' | 'cdc' | 'cdo'
+  | 'closeBrace' | 'closeBracket' | 'closeParen' | 'colon' | 'comma' | 'delim'
+  | 'ampersand' | 'asterisk' | 'bar' | 'caret' | 'dollar' | 'dot' | 'equals'
+  | 'exclamation' | 'greaterThan' | 'lessThan' | 'minus' | 'plus' | 'slash'
+  | 'tilde' | 'dimension' | 'function' | 'hash' | 'ident' | 'number'
+  | 'openBrace' | 'openBracket' | 'openParen' | 'percentage' | 'semicolon'
+  | 'string' | 'url' | 'whitespace' | 'symbol'
+
+/** One CSS token. Whitespace and comments are separate lists, not tokens. */
+export interface CssToken extends SourcePosition {
+  kind: CssTokenKind
+  value: string
+}
+
+/** One CSS comment. Its text is the whole comment, "/" fences and all. */
+export interface CssComment extends SourcePosition {
+  text: string
+}
+
+export interface LexCSSOptions {
+  /** Comment tokens, which the lexer keeps out of "tokens". Off by default. */
+  includeComments?: boolean
+}
+
+export interface LexCSSResult extends CompileResult {
+  tokens: CssToken[]
+  /** Only when includeComments was set. */
+  comments?: CssComment[]
+  count: number
+}
+
+/** One JS token. Its kind is the grammar's own name. */
+export interface JsToken extends SourcePosition {
+  kind: string
+  value: string
+}
+
+export interface LexJSResult extends CompileResult {
+  tokens: JsToken[]
+  count: number
+}
+
+/** The source name a compile-stage diagnostic blames. Defaults to "<stdin>". */
+export interface CompileSourceFileOptions {
+  sourcefile?: string
+}
+
+/**
+ * One node of the flattened tree parseHTML returns. An element carries its tag
+ * name and the names of its attributes — not their values, which belong in the
+ * printed form. "depth" is how the flat list is a tree again.
+ */
+export interface HtmlNode {
+  type: string
+  depth: number
+  tag?: string
+  attributes?: string[]
+}
+
+export interface ParseHTMLOptions extends CompileSourceFileOptions {
+  /** Parse as a fragment: no html/head/body wrappers and no doctype complaint. */
+  fragment?: boolean
+  /** Count the imports the parser resolved. */
+  collectImportRecords?: boolean
+  /** Count inline script and style elements. */
+  collectInlineCode?: boolean
+}
+
+export interface ParseHTMLResult extends CompileResult {
+  /** The handle to hand to transformHTML or printHTML. */
+  ast: AstHandle
+  nodes: HtmlNode[]
+  nodeCount: number
+  /** Only when collectImportRecords was set. */
+  importRecords?: number
+  /** Only when collectInlineCode was set. */
+  inlineScripts?: number
+  /** Only when collectInlineCode was set. */
+  inlineStyles?: number
+}
+
+export interface CssMinifyOptions {
+  minifyWhitespace?: boolean
+  minifySyntax?: boolean
+  minifyIdentifiers?: boolean
+}
+
+/** One top-level rule of the parsed stylesheet. */
+export interface CssRule {
+  kind: string
+  start: number
+}
+
+export interface ParseCSSOptions extends CompileSourceFileOptions, CssMinifyOptions {}
+
+export interface ParseCSSResult extends CompileResult {
+  /** The handle to hand to transformCSS or printCSS. */
+  ast: AstHandle
+  rules: CssRule[]
+  ruleCount: number
+  symbolCount: number
+  importRecords: number
+}
+
+/** A named thing in scope, as parseJS saw it. */
+export interface JsSymbol {
+  name: string
+  useCount: number
+}
+
+export interface ParseJSResult extends CompileResult {
+  /** The handle to hand to transformJS or printJS. */
+  ast: AstHandle
+  /** Whether the parser could finish the file without a syntax error. */
+  ok: boolean
+  partCount: number
+  symbols: JsSymbol[]
+}
+
+/** What a transform did, named. A CSS transform names the passes it ran. */
+export type TransformPass = 'removeDeadRules'
+
+/**
+ * The name of a pass that actually ran. The html and js transforms answer with
+ * an empty list and a note: nothing is rewritable in them yet, so "nothing
+ * ran" is the pass list.
+ */
+export interface TransformAudit {
+  passes: TransformPass[]
+}
+
+/** The answer of transformCSS. "removed" counts rules dropped, and the
+ * resulting "ruleCount" is what is left. */
+export interface TransformCSSResult extends CompileResult, TransformAudit {
+  /** The handle to hand to printCSS. Not the handle that was passed in. */
+  ast: AstHandle
+  removed: number
+  ruleCount: number
+}
+
+/** The answer of transformHTML and transformJS. "note" says in prose why no
+ * pass ran. */
+export interface TransformIdentityResult extends CompileResult, TransformAudit {
+  /** The handle to hand to the matching print*. Not the handle passed in. */
+  ast: AstHandle
+  note: string
+  /** Where the tree came from, for diagnostics. */
+  sourcefile: string
+}
+
+export interface TransformCSSOptions {
+  /** Drop rules that use no selector reachable from the stylesheet. */
+  removeDeadRules?: boolean
+}
+
+export interface PrintHTMLOptions {
+  /** Reindent rather than stream. Off by default. */
+  pretty?: boolean
+  /** Minify the printed document. */
+  minify?: boolean
+  /** Whether script elements run, which print can ask about. */
+  scriptingEnabled?: boolean
+}
+
+export interface PrintCSSOptions extends CssMinifyOptions {
+  /** Escape non-ASCII. */
+  asciiOnly?: boolean
+}
+
+export interface PrintJSOptions extends CssMinifyOptions {
+  /** Escape non-ASCII. */
+  asciiOnly?: boolean
+}
+
+export interface PrintResult extends CompileResult {
+  /** The printed source. */
+  code: string
+}
+
+/**
+ * Lexes HTML into a token list.
+ *
+ * @throws {TypeError} When the input is not a string or bytes.
+ * @throws {BuildFailure} When the engine refused the request.
+ */
+export declare function lexHTML(input: CompileSource): Promise<LexHTMLResult>
+
+/**
+ * Lexes CSS into a token list, with comments kept to their own list.
+ *
+ * @throws {TypeError} When the input is not a string or bytes, or options are
+ *   not an object.
+ * @throws {BuildFailure} When the engine refused the request.
+ */
+export declare function lexCSS(input: CompileSource, options?: LexCSSOptions): Promise<LexCSSResult>
+
+/**
+ * Lexes JS into a token list.
+ *
+ * @throws {TypeError} When the input is not a string or bytes.
+ * @throws {BuildFailure} When the engine refused the request.
+ */
+export declare function lexJS(input: CompileSource): Promise<LexJSResult>
+
+/**
+ * Parses HTML into a handle and a flattened tree. A document without a doctype
+ * is reported, not refused: the answer still carries the tree.
+ *
+ * @throws {TypeError} When the input is not a string or bytes, or options are
+ *   not an object.
+ * @throws {BuildFailure} When the engine refused the request.
+ */
+export declare function parseHTML(
+  input: CompileSource,
+  options?: ParseHTMLOptions
+): Promise<ParseHTMLResult>
+
+/**
+ * Parses CSS into a handle and a rule list.
+ *
+ * @throws {TypeError} When the input is not a string or bytes, or options are
+ *   not an object.
+ * @throws {BuildFailure} When the engine refused the request.
+ */
+export declare function parseCSS(
+  input: CompileSource,
+  options?: ParseCSSOptions
+): Promise<ParseCSSResult>
+
+/**
+ * Parses JS into a handle, its parts and its symbols. A syntax error resolves
+ * — with "ok" false and the errors filled in — rather than rejecting.
+ *
+ * @throws {TypeError} When the input is not a string or bytes, or options are
+ *   not an object.
+ * @throws {BuildFailure} When the engine refused the request.
+ */
+export declare function parseJS(
+  input: CompileSource,
+  options?: ParseCSSOptions
+): Promise<ParseJSResult>
+
+/**
+ * Transforms the tree a parseHTML returned. Consumes the handle and answers
+ * with a new one to the same tree; the passes list says what ran.
+ *
+ * @throws {TypeError} When the handle is not a non-negative integer.
+ * @throws {BuildFailure} When the engine refused the request.
+ */
+export declare function transformHTML(ast: AstHandle): Promise<TransformIdentityResult>
+
+/**
+ * Transforms the tree a parseCSS returned. Consumes the handle and answers
+ * with a new one; "passes" names the pass that ran.
+ *
+ * @throws {TypeError} When the handle is not a non-negative integer.
+ * @throws {BuildFailure} When the engine refused the request.
+ */
+export declare function transformCSS(
+  ast: AstHandle,
+  options?: TransformCSSOptions
+): Promise<TransformCSSResult>
+
+/**
+ * Transforms the tree a parseJS returned. Consumes the handle and answers with
+ * a new one to the same tree; the passes list says what ran.
+ *
+ * @throws {TypeError} When the handle is not a non-negative integer.
+ * @throws {BuildFailure} When the engine refused the request.
+ */
+export declare function transformJS(ast: AstHandle): Promise<TransformIdentityResult>
+
+/**
+ * Prints the tree a parseHTML (or transformHTML) returned.
+ *
+ * @throws {TypeError} When the handle is not a non-negative integer.
+ * @throws {BuildFailure} When the engine refused the request, including a
+ *   handle from another language.
+ */
+export declare function printHTML(
+  ast: AstHandle,
+  options?: PrintHTMLOptions
+): Promise<PrintResult>
+
+/**
+ * Prints the tree a parseCSS (or transformCSS) returned.
+ *
+ * @throws {TypeError} When the handle is not a non-negative integer.
+ * @throws {BuildFailure} When the engine refused the request, including a
+ *   handle from another language.
+ */
+export declare function printCSS(
+  ast: AstHandle,
+  options?: PrintCSSOptions
+): Promise<PrintResult>
+
+/**
+ * Prints the tree a parseJS (or transformJS) returned.
+ *
+ * @throws {TypeError} When the handle is not a non-negative integer.
+ * @throws {BuildFailure} When the engine refused the request, including a
+ *   handle from another language.
+ */
+export declare function printJS(
+  ast: AstHandle,
+  options?: PrintJSOptions
+): Promise<PrintResult>
 
 /** The class context() returns. Declared for instanceof. */
 export declare const BuildContext: {

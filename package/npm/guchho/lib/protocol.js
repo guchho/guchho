@@ -58,6 +58,58 @@ class DecodeError extends Error {
   }
 }
 
+// A buffer that grows as it is written to.
+//
+// The obvious alternatives are both worse here. An array of small buffers means
+// a join at the end that copies everything, and the result of that join is what
+// gets written. Allocating a worst-case buffer up front means guessing a size,
+// and a request's size is not knowable without walking it first. Growing by
+// doubling is one copy per doubling — about twenty for a megabyte, and each copy
+// of the part that is still there, which is most of it.
+class ByteWriter {
+  constructor() {
+    this.buf = Buffer.allocUnsafe(256);
+    this.length = 0;
+  }
+
+  _room(bytes) {
+    const needed = this.length + bytes;
+    if (needed <= this.buf.length) return;
+    let size = this.buf.length;
+    while (size < needed) size *= 2;
+    const grown = Buffer.allocUnsafe(size);
+    this.buf.copy(grown, 0, 0, this.length);
+    this.buf = grown;
+  }
+
+  byte(value) {
+    this._room(1);
+    this.buf[this.length++] = value;
+  }
+
+  u32(value) {
+    this._room(4);
+    this.buf.writeUInt32LE(value, this.length);
+    this.length += 4;
+  }
+
+  i32(value) {
+    this._room(4);
+    this.buf.writeInt32LE(value, this.length);
+    this.length += 4;
+  }
+
+  bytes(value) {
+    this._room(value.length);
+    value.copy(this.buf, this.length);
+    this.length += value.length;
+  }
+
+  take() {
+    return this.buf.subarray(0, this.length);
+  }
+}
+
 // The written form of a value, appended to "out".
 //
 // Appended rather than returned so that a whole packet is built in one buffer
@@ -66,13 +118,14 @@ class DecodeError extends Error {
 // nesting level for no reason.
 function writeValue(value, out) {
   if (value === null || value === undefined) {
-    out.push(TAG_NULL);
+    out.byte(TAG_NULL);
     return;
   }
 
   switch (typeof value) {
     case "boolean":
-      out.push(TAG_BOOL, value ? 1 : 0);
+      out.byte(TAG_BOOL);
+      out.byte(value ? 1 : 0);
       return;
 
     case "number":
@@ -91,17 +144,15 @@ function writeValue(value, out) {
           `the service protocol carries 32-bit numbers, and ${value} does not fit in one.`
         );
       }
-      out.push(TAG_NUMBER);
-      out.writeInt32LE(value, out.length);
-      out.length += 4;
+      out.byte(TAG_NUMBER);
+      out.i32(value);
       return;
 
     case "string": {
       const bytes = Buffer.from(value, "utf8");
-      out.push(TAG_STRING);
-      out.writeUInt32LE(bytes.length, out.length);
-      out.length += 4;
-      out.push(bytes);
+      out.byte(TAG_STRING);
+      out.u32(bytes.length);
+      out.bytes(bytes);
       return;
     }
 
@@ -113,18 +164,19 @@ function writeValue(value, out) {
   }
 
   if (Buffer.isBuffer(value) || value instanceof Uint8Array) {
+    // A typed array is copied rather than referenced, because a view over
+    // something the caller is free to mutate would be a request that changes
+    // underneath the write that is already in flight.
     const bytes = Buffer.isBuffer(value) ? value : Buffer.from(value.buffer, value.byteOffset, value.byteLength);
-    out.push(TAG_BYTES);
-    out.writeUInt32LE(bytes.length, out.length);
-    out.length += 4;
-    out.push(bytes);
+    out.byte(TAG_BYTES);
+    out.u32(bytes.length);
+    out.bytes(bytes);
     return;
   }
 
   if (Array.isArray(value)) {
-    out.push(TAG_ARRAY);
-    out.writeUInt32LE(value.length, out.length);
-    out.length += 4;
+    out.byte(TAG_ARRAY);
+    out.u32(value.length);
     for (const item of value) writeValue(item, out);
     return;
   }
@@ -133,30 +185,26 @@ function writeValue(value, out) {
   // request is a document somebody else wrote and reading it back in the order
   // it was written in is the order it is easiest to read in.
   const keys = Object.keys(value);
-  out.push(TAG_OBJECT);
-  out.writeUInt32LE(keys.length, out.length);
-  out.length += 4;
+  out.byte(TAG_OBJECT);
+  out.u32(keys.length);
   for (const key of keys) {
     const name = Buffer.from(key, "utf8");
-    out.writeUInt32LE(name.length, out.length);
-    out.length += 4;
-    out.push(name);
+    out.u32(name.length);
+    out.bytes(name);
     writeValue(value[key], out);
   }
 }
 
 /** One packet, ready to write: the length, the id, and the value. */
 function encodePacket(id, isRequest, value) {
-  const body = Buffer.alloc(4);
-  body.writeUInt32LE(((id << 1) | (isRequest ? 0 : 1)) >>> 0, 0);
+  const body = new ByteWriter();
+  body.u32(((id << 1) | (isRequest ? 0 : 1)) >>> 0);
+  writeValue(value, body);
 
-  const payload = Buffer.alloc(1);
-  writeValue(value, payload);
-
-  const out = Buffer.allocUnsafe(4 + body.length + payload.length);
-  out.writeUInt32LE(body.length + payload.length, 0);
-  body.copy(out, 4);
-  payload.copy(out, 4 + body.length);
+  const payload = body.take();
+  const out = Buffer.allocUnsafe(4 + payload.length);
+  out.writeUInt32LE(payload.length, 0);
+  payload.copy(out, 4);
   return out;
 }
 

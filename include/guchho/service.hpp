@@ -216,7 +216,6 @@ namespace guchho::service {
     // "detail" is a number and not the payload, because the payload is a
     // std::any and the union has no case for "whatever the host had in mind". A
     // handle lets the host find its own object again, and it is the same
-    // convention esbuild uses for the same reason.
     Value MessageToValue(const api::Message& message);
     std::vector<Value> MessagesToValue(const std::vector<api::Message>& messages);
 

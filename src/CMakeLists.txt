@@ -427,6 +427,17 @@ target_link_libraries(guchho_cli
         guchho_api
 )
 
+# The version the command line reports, taken from the project() version at the
+# top of the tree so there is one number rather than two. It has to be on the
+# library, not on the executable that links it: cli_help.cpp is compiled into
+# guchho_cli, and a PRIVATE definition on the executable would not reach a static
+# library, so the number would silently fall back to the literal in that file and
+# every published manifest would disagree with the binary.
+target_compile_definitions(guchho_cli
+    PRIVATE
+        GUCHHO_VERSION_STRING="${PROJECT_VERSION}"
+)
+
 guchho_set_warnings(guchho_cli)
 guchho_enable_sanitizers(guchho_cli)
 

@@ -72,6 +72,7 @@
 #include <unordered_map>
 
 #include "guchho/api.hpp"
+#include "guchho/service.hpp"
 #include "guchho/filesystem.hpp"
 
 namespace guchho::cli {
@@ -307,6 +308,46 @@ namespace guchho::cli {
     // no plugin callback crosses the wire, which is why RunWithPlugins has no
     // counterpart here yet.
     int RunService();
+
+    // Answers one service request, in this process.
+    //
+    // RunService is a loop around this: it decodes a frame, calls this, and
+    // encodes the answer. Splitting it out is what makes any of the protocol
+    // testable without a pipe, and it is why the tests can check ten commands in
+    // the time a process would take to start once.
+    //
+    // Input:  a request whose "command" names a command (guchho/service.hpp)
+    // Output: the response for it, which is what RunService would have framed
+    service::Value RunServiceRequest(const service::Value& request);
+
+    // The compiler half of the service, in one file.
+    //
+    // The commands above build; these twelve reach a single lexer, a single
+    // parser or a single printer, once, over source the request carried. They
+    // are the same engines a build uses, reached without a module graph, a
+    // resolver or a linker around them, and a command here is answered by the
+    // same code that answers a build's.
+    //
+    // They are split into their own entry point rather than added to
+    // RunServiceRequest because the trees they parse are held between requests.
+    // A build is finished when it answers; a parse leaves an AST behind for a
+    // print to come back for, which means the handler owns state that outlives
+    // the call. Keeping that state in one file keeps it in one place.
+    //
+    // The twelve names are "<stage>-<language>" — lex-html, parse-html,
+    // print-html, transform-html, and the same four for css and js. A tree does
+    // not cross the wire: a parse answers with a number, and a print or a
+    // transform answers with that number.
+    //
+    // Input:  a request whose "command" is one of the twelve above
+    // Output: the response for it, in the same shape a build answer is in
+    service::Value RunServiceCompileRequest(const std::string& name, const service::Value& request);
+
+    // Whether "name" is one of the twelve commands above, so that the main
+    // dispatch can route to this table without also having to know that it is a
+    // different table. A name this returns false for is a build command, a name
+    // this returns true for is not.
+    bool IsServiceCompileCommand(const std::string& name);
 
     // =========================================================================
     // Reading arguments without running anything

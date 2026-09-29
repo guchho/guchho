@@ -213,3 +213,207 @@ module.exports = {
     VALUE_FLAGS,
     REPEATED_FLAGS,
 };
+
+// =============================================================================
+// The service's view of an options object
+// =============================================================================
+//
+// Everything above builds a command line. What follows builds the two fields a
+// service request carries instead: a flags array, and entry points as [out, in]
+// pairs.
+//
+// The reason there is a flags array at all is the same reason there is a command
+// line: the engine has one parser, and it is the thing that decides what an
+// option means and what a misspelled one is called. Sending flags rather than
+// inventing a second field-per-option shape means an option is accepted here for
+// exactly the reason it is accepted on the command line, and refused with the
+// same words. A mapping of option names to option members in this file would be a
+// second answer to every question the engine already answers, and the two would
+// drift the first time a flag was added.
+
+// Boolean options, sent bare: "--sourcemap" rather than "--sourcemap=true".
+// A false sends nothing, because a flag is a request and the way to not make one
+// is to not make it — there is no "turn this back off" spelling in this grammar.
+//
+// Every name here is one the engine's parser accepts. One that it does not is a
+// build that fails outright with "Invalid build flag", which is caught by
+// test/flag-contract.test.js rather than by a caller discovering it in
+// production.
+const SERVICE_BOOLEANS = {
+    minify: "--minify",
+    minifyHtml: "--minify-html",
+    minifyIdentifiers: "--minify-identifiers",
+    minifySyntax: "--minify-syntax",
+    minifyWhitespace: "--minify-whitespace",
+    pretty: "--pretty",
+    sourcemap: "--sourcemap",
+    splitting: "--splitting",
+    treeShaking: "--tree-shaking",
+    bundle: "--bundle",
+    keepNames: "--keep-names",
+    sourcesContent: "--sources-content",
+    ignoreAnnotations: "--ignore-annotations",
+    preserveSymlinks: "--preserve-symlinks",
+    jsxDev: "--jsx-dev",
+    jsxSideEffects: "--jsx-side-effects",
+    mangleQuoted: "--mangle-quoted",
+    allowOverwrite: "--allow-overwrite",
+};
+
+// Options whose value goes after an "=".
+//
+// A boolean is refused rather than stringified: there is no "--minify=1" in this
+// grammar, and a boolean here is a caller who expected a different shape of
+// option. Finding that out here names the option, where the engine's refusal
+// would name a flag several steps later.
+const SERVICE_VALUES = {
+    outdir: "--outdir",
+    outfile: "--outfile",
+    outbase: "--outbase",
+    target: "--target",
+    format: "--format",
+    platform: "--platform",
+    jsx: "--jsx",
+    tsconfig: "--tsconfig",
+    logLevel: "--log-level",
+    charset: "--charset",
+    banner: "--banner",
+    footer: "--footer",
+    globalName: "--global-name",
+    mangleProps: "--mangle-props",
+    reserveProps: "--reserve-props",
+    legalComments: "--legal-comments",
+    drop: "--drop",
+    dropLabels: "--drop-labels",
+    sourceRoot: "--source-root",
+    publicPath: "--public-path",
+    resolveExtensions: "--resolve-extensions",
+    mainFields: "--main-fields",
+    conditions: "--conditions",
+    sourcefile: "--sourcefile",
+    absPaths: "--abs-paths",
+};
+
+// Options that may be given more than once, each producing its own flag.
+//
+// The separator is a colon and not an equals sign because that is what the
+// grammar reads: "--external:react" is a flag and "--external=react" is not, and
+// the binary turns the second away as an unknown flag — a build that fails
+// outright rather than one that quietly does the wrong thing.
+const SERVICE_REPEATED = {
+    external: { flag: "--external", pairs: false },
+    define: { flag: "--define", pairs: true },
+    loader: { flag: "--loader", pairs: true },
+    alias: { flag: "--alias", pairs: true },
+    logOverride: { flag: "--log-override", pairs: true },
+};
+
+// Validated against the grammar's own list, so a typo is a TypeError naming the
+// option rather than an "Invalid build flag" the caller has to decode.
+const SERVICE_LOG_LEVELS = new Set(["verbose", "debug", "info", "warning", "error", "silent"]);
+
+/**
+ * The flags a service request carries, and nothing else.
+ *
+ * Entry points are not in here: the grammar reads them positionally and the
+ * request has a field of its own for them, so they are appended to the argument
+ * list by the caller rather than being folded into it.
+ *
+ * @param {object} options
+ * @returns {string[]}
+ */
+function toFlags(options) {
+    const args = [];
+
+    for (const [name, flag] of Object.entries(SERVICE_BOOLEANS)) {
+        if (options[name] === true) args.push(flag);
+    }
+
+    for (const [name, flag] of Object.entries(SERVICE_VALUES)) {
+        const value = options[name];
+        if (value === undefined || value === null) continue;
+        if (typeof value === "boolean") {
+            throw new TypeError(`${name} takes a value, not true or false`);
+        }
+        args.push(`${flag}=${value}`);
+    }
+
+    for (const [name, spec] of Object.entries(SERVICE_REPEATED)) {
+        const value = options[name];
+        if (value === undefined || value === null) continue;
+        args.push(...repeatedArgs(spec, value));
+    }
+
+    if (options.logLevel !== undefined && !SERVICE_LOG_LEVELS.has(options.logLevel)) {
+        throw new TypeError(
+            `logLevel must be one of ${[...SERVICE_LOG_LEVELS].join(", ")}; got ${options.logLevel}`
+        );
+    }
+
+    return args;
+}
+
+/**
+ * The entry points of a request, as [out, in] pairs.
+ *
+ * A pair rather than an object because the protocol's object form is a list of
+ * string keys, which says "out -> in" well and "in, with an optional out" badly.
+ * An entry with no output name is [null, in].
+ *
+ * @param {object} options
+ * @returns {Array<[string|null, string]>}
+ */
+function toEntryPoints(options) {
+    const given = options.entryPoints !== undefined ? options.entryPoints : options.entries;
+    if (given === undefined || given === null) return [];
+
+    const list = Array.isArray(given) ? given : [given];
+    const pairs = [];
+
+    for (const entry of list) {
+        if (typeof entry === "string") {
+            if (entry.length === 0) throw new TypeError("entryPoints must be non-empty strings or [out, in] pairs");
+            pairs.push([null, entry]);
+            continue;
+        }
+
+        if (entry !== null && typeof entry === "object" && !Array.isArray(entry)) {
+            // The object spelling, because "the output is called this" reads
+            // better as { out, in } than as ["out", "in"] and both are common.
+            const input = entry.in !== undefined ? entry.in : entry.input;
+            if (typeof input !== "string" || input.length === 0) {
+                throw new TypeError('an entry point needs a non-empty "in"');
+            }
+            const out = entry.out;
+            if (out === undefined || out === null || out === "") {
+                pairs.push([null, input]);
+            } else if (typeof out === "string") {
+                pairs.push([out, input]);
+            } else {
+                throw new TypeError('an entry point\'s "out" must be a string');
+            }
+            continue;
+        }
+
+        if (Array.isArray(entry) && entry.length === 2) {
+            const [out, input] = entry;
+            if (typeof input !== "string" || input.length === 0) {
+                throw new TypeError("an entry point's input must be a non-empty string");
+            }
+            pairs.push([out === undefined || out === null || out === "" ? null : String(out), input]);
+            continue;
+        }
+
+        throw new TypeError('entryPoints takes a path, an { out, in } record, or a [out, in] pair');
+    }
+
+    return pairs;
+}
+
+/**
+ * The options that are requests about the answer rather than about the code.
+ *
+ * They are not flags and are not entry points: they are fields on the request
+ * that the service reads itself. Kept as one list so that a caller building a
+ * request by hand has the same division in front of them, and so that the
+ * service-side module has one

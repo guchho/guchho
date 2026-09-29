@@ -39,10 +39,12 @@
 
 #include "guchho/api.hpp"
 #include "guchho/cli.hpp"
+#include "guchho/service.hpp"
 
 #include <atomic>
 #include <clocale>
 #include <csignal>
+#include <cstdio>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -308,6 +310,35 @@ static int runImpl(const std::vector<std::string>& os_args,
     if (os_args.size() == 1 && (os_args[0] == "--version" || os_args[0] == "-v")) {
         printVersion(std::cout);
         return 0;
+    }
+
+    // The service, before anything is parsed as a build.
+    //
+    // This is a flag rather than a command word because a host starts this binary
+    // specifically to be a service, and a command word would put it on the same
+    // footing as "build" — where a mistyped flag would be a build option and a
+    // mistyped version would be a build. It is also the only reading of
+    // --service that exists, so the version is answered by refusing rather than
+    // by falling through to a build: a host that asked for a protocol this
+    // binary does not speak must be told, and told before it sends anything it
+    // would then have to decode.
+    if (os_args.size() == 1) {
+        const std::string service_flag = "--service=";
+        const std::string& first = os_args[0];
+        if (first.rfind(service_flag, 0) == 0) {
+            const std::string asked_for = first.substr(service_flag.size());
+            if (asked_for != service::kVersion) {
+                // On stderr, not stdout. Stdout is frames from here on, and a
+                // message there would be read as a frame by a host that is
+                // already trying to parse one.
+                std::fprintf(stderr,
+                    "The service protocol \"%s\" is not the one this binary speaks"
+                    " (\"%s\").\n",
+                    asked_for.c_str(), service::kVersion);
+                return 2;
+            }
+            return RunService();
+        }
     }
 
     // -------------------------------------------------------------------------

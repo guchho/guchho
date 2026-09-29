@@ -1,89 +1,77 @@
 "use strict";
 
-// transform(code, options) — one piece of source in, one piece of source out.
+// transform(code, options) — one file in, one file out.
 //
-// This is the smallest useful thing Guchho does, and the one most often reached
-// for by something that is not a build at all: hand a string to the same parser
-// and printer the bundler uses and get the rewritten string back. No entry
-// points, no output files, no graph, no watching.
-//
-// The work is done by "guchho transform", which is a filter — the source goes
-// in on standard input and the program comes out on standard output. Wrapping it
-// rather than opening a second route into the engine is what keeps the promise
-// that a snippet accepted here is also accepted inside a bundle.
+// The same shape as build() and the same refusal: a transform that failed throws,
+// and the error carries the diagnostics. The one thing that is different is the
+// input, which arrives as a string in the call rather than as an entry point
+// named on disk, so there is nothing to resolve and no file to read.
 
-const { toArgs } = require("./flags");
-const { run } = require("./exec");
-
-// Options that name what the code is rather than how it is printed. "loader"
-// decides how a file extension is read, "sourcefile" is the name a diagnostic
-// blames when there is no file, and the rest describe the target. They exist on
-// the command line because a transform reads the same grammar as a build.
-const TRANSFORM_ONLY = {
-    sourcefile: "--sourcefile",
-};
+const { getService } = require("./service");
+const { toFlags } = require("./flags");
+const { toTransformResult } = require("./convert");
 
 /**
- * Transforms a string of source code.
+ * Transforms a single piece of source.
  *
- * @param {string} code The source to transform.
- * @param {object} [options] The same options "guchho build" takes, minus the
- *   ones that describe a build rather than a single file. An option that is not
- *   given is left to the engine's default, so this module holds no second copy
- *   of any of them.
- * @returns {Promise<object>} The transformed source, plus whatever diagnostics
- *   the run produced. A syntax error is a resolved promise with a non-zero
- *   exitCode and an empty "code", not a rejection.
+ * @param {string|Buffer|Uint8Array} code The source. A buffer is accepted
+ *   because that is what a caller reading a file off disk already has, and
+ *   making it decode to a string first would be a copy they did not ask for.
+ * @param {object} [options]
+ * @param {string} [options.loader] The loader name: "js", "ts", "jsx", "css",
+ *   "json", "text", and so on. This is the transform's own loader, which is a
+ *   single name, where a build's is a map of extension to name.
+ * @param {string} [options.sourcefile] The name to blame in diagnostics. Worth
+ *   setting: without it every message says "<stdin>", which is true and useless.
+ * @param {string} [options.format] "iife", "cjs", "esm", "umd", "amd", "system".
+ * @param {string} [options.target] "es2020", "chrome80", "node16".
+ * @param {boolean} [options.minify]
+ * @param {boolean} [options.sourcemap] Adds a "map" to the result.
+ * @returns {Promise<{code: string, map: string, errors: object[], warnings: object[]}>}
+ * @throws {Error} When the transform failed.
  */
 async function transform(code, options = {}) {
-    if (typeof code !== "string") {
-        throw new TypeError("transform() takes a string of source code");
-    }
+  if (code === undefined || code === null) {
+    throw new TypeError("transform needs some code to transform");
+  }
 
-    // A silent transform prints nothing at all — not even the program, which is
-    // the only thing this function exists to return. It is a reasonable thing to
-    // ask of a build and an impossible thing to ask of a filter, so it is
-    // refused here rather than quietly handing back "".
-    if (String(options.logLevel).toLowerCase() === "silent") {
-        throw new TypeError(
-            'transform() cannot run silently: the transformed code is the output. ' +
-            'Use logLevel "error" to keep a successful run quiet, or build() to write to a file.'
-        );
-    }
+  const service = await getService();
 
-    const args = toArgs(options, { entries: false });
+  let input;
+  if (typeof code === "string") {
+    input = code;
+  } else if (Buffer.isBuffer(code) || code instanceof Uint8Array) {
+    // Bytes, not a string. The service accepts either, and sending the bytes a
+    // caller already has means a file with a byte-order mark or Latin-1 content
+    // is transformed as it is rather than as whatever a decode guessed it was.
+    input = code;
+  } else {
+    throw new TypeError("transform takes a string, a Buffer, or a Uint8Array");
+  }
 
-    // "transform" is the command, and it has to be in the argument list: run
-    // without it the binary has nothing to do, prints its help and exits
-    // successfully, which reaches the caller as an empty program that compiled.
-    // That is the worst possible answer, because nothing about it looks wrong.
-    args.unshift("transform");
+  const request = {
+    command: "transform",
+    // "loader" is deliberately not among the flags. A build's loader is a map of
+    // extension to name and reads as "--loader:.ts=ts", but a transform has no
+    // extensions to speak of — it has exactly one input and one name for it, so
+    // the service takes it as a field and turns it into the grammar's single-name
+    // "--loader=ts". Letting it through toFlags as well would send both, and the
+    // grammar would turn away the one that belongs to a build.
+    flags: toFlags(withoutLoader(options)),
+    sourcefile: options.sourcefile,
+    loader: options.loader,
+    input,
+  };
 
-    for (const [name, flag] of Object.entries(TRANSFORM_ONLY)) {
-        if (options[name] !== undefined && options[name] !== null) {
-            args.push(`${flag}=${options[name]}`);
-        }
-    }
+  const response = await service.call(request);
+  return toTransformResult(response);
+}
 
-    // A transform is a filter, so the bytes on the standard output are the
-    // program and nothing else. Anything else printed there would land in the
-    // middle of the caller's file, which is why the command line was changed to
-    // put its timing line on the error stream; the test that pins that is
-    // package/npm/test/api-transform.test.js.
-    const result = await run(args, { input: code });
-
-    return {
-        // The program, exactly as the engine produced it. "map" and
-        // "legalComments" are always null: a transform writes no file, so
-        // there is nothing to link a source map to. They are named here so the
-        // shape of the answer does not change when a caller switches to build().
-        code: result.exitCode === 0 ? result.stdout : "",
-        map: null,
-        legalComments: null,
-        errors: result.errors,
-        warnings: result.warnings,
-        exitCode: result.exitCode,
-    };
+// The options minus the one that is a field here rather than a flag.
+function withoutLoader(options) {
+  const copy = Object.assign({}, options);
+  delete copy.loader;
+  return copy;
 }
 
 module.exports = { transform };

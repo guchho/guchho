@@ -406,8 +406,11 @@ set(GUCHHO_CLI_SOURCES
     cli/cli_project.cpp
     cli/cli_run.cpp
     cli/cli_serve.cpp
+    cli/cli_service.cpp
     cli/cli_watch.cpp
     cli/cli_mangle.cpp
+    service/json.cpp
+    service/protocol.cpp
 )
 
 add_library(guchho_cli STATIC)

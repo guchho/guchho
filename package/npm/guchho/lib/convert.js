@@ -1,6 +1,6 @@
 "use strict";
 
-// What the service says, turned into what a caller of esbuild expects.
+// What the service says, turned into what a caller of guchho expects.
 //
 // Nothing here decides anything. Every field is either copied across, decoded
 // from bytes, or filled in with a value that means "there is none" — the whole
@@ -16,7 +16,7 @@
 //   - a "detail" sentinel becomes undefined, because the wire format has no way
 //     to say "absent" for a value and inventing a number a caller would see
 //     would be worse than the round trip through a sentinel;
-//   - an output file gains a "text" that follows its "contents", because esbuild
+//   - an output file gains a "text" that follows its "contents", because guchho
 //     callers read one or the other and holding both in sync by hand is a bug
 //     waiting for a caller to write.
 
@@ -29,7 +29,7 @@
 const NO_DETAIL = -1;
 
 /**
- * One message, in the shape esbuild documents.
+ * One message, in the shape guchho documents.
  *
  * Fields that were never there are added as undefined rather than left out. A
  * caller that does `message.notes.length` should not have to know which
@@ -79,7 +79,7 @@ function toOutputFile(file) {
   };
 }
 
-/** The engine's list of {name, value} pairs, as the record esbuild publishes. */
+/** The engine's list of {name, value} pairs, as the record guchho publishes. */
 function toMangleCache(cache) {
   if (!Array.isArray(cache)) return undefined;
 
@@ -106,7 +106,7 @@ function toText(value) {
 }
 
 /**
- * A build response, in the shape esbuild publishes.
+ * A build response, in the shape guchho publishes.
  *
  * The optional parts are left undefined rather than being defaulted to empty,
  * because "there were no output files" and "output files were not collected" are
@@ -141,7 +141,7 @@ function toBuildResult(response) {
   return result;
 }
 
-/** A transform response, in the shape esbuild publishes. */
+/** A transform response, in the shape guchho publishes. */
 function toTransformResult(response) {
   return {
     code: toText(response.code),

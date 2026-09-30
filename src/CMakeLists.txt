@@ -402,9 +402,11 @@ set(GUCHHO_CLI_SOURCES
     cli/cli_build.cpp
     cli/cli_flags.cpp
     cli/cli_help.cpp
+    cli/cli_init.cpp
     cli/cli_options.cpp
     cli/cli_project.cpp
     cli/cli_run.cpp
+    cli/cli_scaffold.cpp
     cli/cli_serve.cpp
     cli/cli_service.cpp
     cli/cli_compile.cpp

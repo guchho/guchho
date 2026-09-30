@@ -578,6 +578,7 @@ namespace guchho::resolver {
                 }
             }
             if (auto format = internal::GetProperty(build, "format")) {
+                opts.FormatFromConfig = true;
                 ApplyFormatValue(opts, format->first, log, tracker, source);
             }
             if (auto platform = internal::GetProperty(build, "platform")) {

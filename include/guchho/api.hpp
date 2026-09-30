@@ -840,6 +840,15 @@ struct BuildOptions {
     // means the struct was assembled by hand and every value in it is
     // deliberate. See ExplicitlySet for why this is needed at all.
     std::shared_ptr<const ExplicitlySet> explicit_set;
+
+    // Whether "format" was named by the user or the config file rather than
+    // arriving as a built-in default. Filled in by ResolveEffectiveBuildOptions,
+    // which is the one place the command line's "explicit_set", the config
+    // file's "FormatFromConfig" and the built-in "esm" default are all visible
+    // at once. The HTML-entry warnings consume it to tell an explicit format
+    // (which is ignored for HTML output) from the default (which is not a
+    // mistake). It only means anything after a resolution has run.
+    bool format_was_explicit{};
 };
 
 // What a build produced. On failure "errors" is non-empty and the output

@@ -39,6 +39,7 @@
 // =============================================================================
 
 #include "guchho/cli.hpp"
+#include "guchho/scaffold.hpp"
 
 #include <algorithm>
 #include <iostream>
@@ -135,7 +136,10 @@ void printBanner(std::ostream& os) {
 // The list is one line per command, with the arguments each one takes in the
 // position where the reader is looking for them, and the rest of the line
 // saying what it is for in a phrase rather than a sentence. "serve [dir]" tells
-// a person that a directory may follow; "init" tells them that it may not.
+// a person that a directory may follow; "init" tells them that it may not, and
+// that one is a decision rather than a gap. init writes into the working
+// directory and has no way to say otherwise, so a bracketed name here would
+// describe an interface the command does not have.
 //
 // The two closing lines exist so that the two other ways of asking are visible
 // from here: a command's own help, which is more specific, and the version,
@@ -359,34 +363,61 @@ void printWatchHelp(std::ostream& os) {
 
 // Project scaffolding: the command that writes files rather than reading them.
 //
-// The only help text here with a "Generates" section instead of examples,
-// because for a command that creates a project the files it will create are the
-// most useful thing to know before running it — particularly whether anything
-// already there will be touched. The configuration file is listed alongside the
-// three sources rather than apart from them, since it is as much a part of the
-// result as they are.
+// The only help text here that lists the values of two options, and it has to,
+// because they are the only two things a person has to choose and every one of
+// the twelve combinations produces a different set of files. The lists are
+// built from the same tables the command parses with, so a name that is printed
+// here and a name that works cannot drift apart — which is the reason this text
+// is assembled from the scaffold layer's tables rather than written out.
 //
-// The single flag is the one that decides whether the command may overwrite, and
-// it is the reason the section is there at all: a scaffolding command is the one
-// thing in this list that writes where the user did not ask it to.
+// There is no "Generates" section any more. It was here when the command wrote
+// four fixed files, and it became the wrong shape the moment the files depended
+// on a choice: it would have had to say "one of these four", which is a longer
+// sentence and tells a person less than the type and template lists do.
+//
+// The usage line has no positional in it, and that is a decision rather than an
+// omission. This command writes into the working directory, so a directory
+// after "init" is not something to document — it is something to refuse, and
+// the usage line that claimed otherwise would be describing an interface the
+// command does not have.
+//
+// The options are ordered by how much they change the result, and the flag that
+// does most of that is first, because the last two decide where the answer is
+// written rather than what it is.
 //
 // Input:  called by the init command when the argument list contains --help or
 //         -h
-// Output: the usage line, one sentence, the --force flag, and the four files
-//         the command generates.
+// Output: the usage line, one sentence, the options, the three types, the four
+//         templates, and four examples.
 void printInitHelp(std::ostream& os) {
     os << "Usage: guchho init [options]\n"
        << "\n"
-       << "Initialize a new project with starter files.\n"
+       << "Initialize a new project with starter files in the current directory.\n"
        << "\n"
        << "Options:\n"
-       << "  --force    Overwrite existing files\n"
+       << "  --template=<name>   Project template (default: basic)\n"
+       << "  --type=<type>       Project type (default: app)\n"
+       << "  --yes               Accept defaults and do not ask anything\n"
+       << "  --force             Overwrite existing scaffold files\n"
+       << "  -h, --help          Show this help\n"
        << "\n"
-       << "Generates:\n"
-       << "  src/index.html\n"
-       << "  src/main.js\n"
-       << "  src/style.css\n"
-       << "  guchho.config.js\n";
+       << "Types:\n";
+    for (size_t i = 0; i < scaffold::ProjectTypeNames().size(); i++) {
+        os << "  " << scaffold::ProjectTypeName(static_cast<scaffold::ProjectType>(i)) << "                 "
+           << scaffold::ProjectTypeDescription(static_cast<scaffold::ProjectType>(i)) << "\n";
+    }
+    os << "\n"
+       << "Templates:\n";
+    for (size_t i = 0; i < scaffold::TemplateNames().size(); i++) {
+        os << "  " << scaffold::TemplateName(static_cast<scaffold::ProjectTemplate>(i)) << "                  "
+           << scaffold::TemplateDescription(static_cast<scaffold::ProjectTemplate>(i)) << "\n";
+    }
+    os << "\n"
+       << "Examples:\n"
+       << "  guchho init\n"
+       << "  guchho init --template=ts\n"
+       << "  guchho init --type=library --template=ts\n"
+       << "  guchho init --type=plugin --template=ts\n";
 }
 
 // Removing what a build produced.

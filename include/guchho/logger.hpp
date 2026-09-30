@@ -745,6 +745,34 @@ namespace guchho::logger {
     // The note provides additional context (e.g. "did you mean ...?").
     void PrintErrorWithNoteToStderr(const std::vector<std::string>& os_args, const std::string& text, const std::string& note);
 
+    // Prints a one-line notice in the same "[icon] [KIND] text" shape the
+    // diagnostics use, on the stream that matches how it is meant to be read.
+    //
+    // The three below exist because a command that reports a successful outcome
+    // has nothing to log. A build either produces diagnostics or it does not,
+    // and "this finished" is not a diagnostic, so MsgKind has no success in it
+    // and adding one would put a severity where a result belongs. What these do
+    // instead is render a single line with the same colour policy and the same
+    // glyph degradation as MsgString, and go through PrintText so that
+    // --log-level and --color still decide what appears and how.
+    //
+    // They deliberately do not go through NewStderrLog. That logger counts what
+    // it is given and appends a "1 warning" line when it is finished, which is
+    // right for a build that may emit hundreds of them and wrong for a command
+    // that is allowed to say one thing once.
+    //
+    // Success goes to stdout because a run's result is its output, and is never
+    // suppressed by a log level: a command that quietly did nothing would be
+    // worse than a loud one. Information and warnings go to stderr, which is
+    // where a diagnostic belongs and which keeps them out of a piped result.
+    //
+    //   PrintSuccessToStdout(args, "Project initialized successfully.")
+    //   PrintInfoToStderr(args, "Writing 4 files")
+    //   PrintWarningToStderr(args, "Entry was renamed to index.html")
+    void PrintSuccessToStdout(const std::vector<std::string>& os_args, const std::string& text);
+    void PrintInfoToStderr(const std::vector<std::string>& os_args, const std::string& text);
+    void PrintWarningToStderr(const std::vector<std::string>& os_args, const std::string& text);
+
     // Prints a fully formatted log message to stderr, including color,
     // underlines, and source context when applicable.
     void PrintMessageToStderr(const std::vector<std::string>& os_args, const Msg& msg);
@@ -1633,6 +1661,7 @@ namespace guchho::logger {
         kAPI_InvalidLogOverride,
         kAPI_CannotCallResolveBeforeSetup,
         kAPI_MustSpecifyKindWhenResolving,
+        kAPI_FormatIgnoredForHTMLEntry,
 
         // -------------------------------------------------------------------
         // CLI mangle cache (mangle_cache.cpp)

@@ -999,6 +999,13 @@ namespace guchho::config {
         std::vector<std::string> AbsNodePaths{};
 
         Mode BuildMode{Mode::kPassThrough};
+        // True when the config file that was loaded named "build.format" (or its
+        // "output.format" alias) rather than inheriting the built-in default.
+        // This is what separates an output format a project asked for from the
+        // "esm" that CreateDefaultGuchhoConfig installs, which is the same pair
+        // the HTML-entry warnings must tell apart: only the former is an
+        // explicit value the user gets told is ignored.
+        bool FormatFromConfig{};
         Format OutputFormat{Format::kPreserve};
         bool CodeSplitting{};
         Platform OutputPlatform{Platform::kBrowser};

@@ -70,6 +70,19 @@ enum class ProjectTemplate {
     kTSX,
 };
 
+// Which configuration file the project is built from. It is the last of the
+// three choices, and the one that is decided by the machine rather than chosen
+// by the person: "guchho init" asks a type and a template and never a format,
+// because which format works is an answer the machine already has (a runtime to
+// evaluate a config means a config the runtime can evaluate, and no runtime
+// means the config Guchho can read by itself). The default keeps the file this
+// project has always written, so a caller that fills in nothing else gets a
+// JavaScript config exactly as before.
+enum class ProjectConfig {
+    kJavaScript,  // guchho.config.js, evaluated by an external JS runtime.
+    kJson,        // guchho.json, read directly by Guchho.
+};
+
 // One file the scaffold wants written, and where it goes.
 //
 // The path is relative to the target directory and always uses "/" as its
@@ -104,6 +117,11 @@ struct ScaffoldRequest {
 
     // Absolute. Where the files are written, created if it is not already there.
     std::string     target_dir;
+
+    // Which of the two config files to write. The init command fills it in from
+    // its runtime detection; the default is the JavaScript config, which is what
+    // every caller that predates the choice expects, byte for byte.
+    ProjectConfig   config = ProjectConfig::kJavaScript;
 
     bool            force = false;
 };
@@ -192,6 +210,12 @@ std::optional<std::string> ParseProjectTemplate(std::string_view value, ProjectT
 // Input:  SourceExtension(ProjectTemplate::kBasic) -> ".js"
 std::string_view SourceExtension(ProjectTemplate tmpl);
 
+// The name of the configuration file a config format is written to.
+//
+// Input:  ConfigFileName(ProjectConfig::kJavaScript) -> "guchho.config.js"
+// Input:  ConfigFileName(ProjectConfig::kJson)       -> "guchho.json"
+std::string_view ConfigFileName(ProjectConfig config);
+
 // The name to write into a package.json, or nothing when there is no honest one.
 //
 // A directory can be called almost anything and a package cannot, so this is
@@ -218,10 +242,11 @@ std::optional<std::string> NpmPackageName(std::string_view directory_name);
 // Input:  a request naming an application in TypeScript
 // Output: src/index.html, src/main.ts, src/style.css and guchho.config.js, in
 //         that order, with a document that loads "./main.ts" and a script that
-//         imports "./style.css".
+//         imports "./style.css". A request that asks for the JSON config writes
+//         guchho.json in its place, with the same build fields.
 //
 // Input:  the same request with the name "My App"
-// Output: the same four files, byte for byte. A name only reaches the files
+// Output: the same files, byte for byte. A name only reaches the files
 //         that carry it, which for an application is none of them.
 FileList BuildFileList(const ScaffoldRequest& req);
 

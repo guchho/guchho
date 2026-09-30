@@ -11,6 +11,7 @@ add_library(guchho_cli_test_objects OBJECT
     cli_transform_test.cpp
     cli_project_test.cpp
     cli_init_test.cpp
+    cli_runtime_test.cpp
     cli_serve_test.cpp
     cli_watch_test.cpp
     cli_plugins_test.cpp

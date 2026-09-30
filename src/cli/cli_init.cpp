@@ -50,6 +50,7 @@
 #include "guchho/filesystem.hpp"
 #include "guchho/helpers.hpp"
 #include "guchho/logger.hpp"
+#include "guchho/runtime.hpp"
 #include "guchho/scaffold.hpp"
 
 #include <iostream>
@@ -268,8 +269,9 @@ int RejectName(const std::vector<std::string>& args, const std::string& rejected
 // can be used from a build script at all.
 //
 // What it writes, and what it refuses to write over, belongs to
-// guchho::scaffold. This function reads a command line, fills in three values,
-// asks about whichever of them were not given when there is somebody to ask,
+// guchho::scaffold. This function reads a command line, fills in the values
+// (type, template, and the config format the machine asks for), asks about
+// whichever of the two choices were not given when there is somebody to ask,
 // and prints what happened.
 //
 // Returns 0 for help and for a project that was created or was already there.
@@ -278,12 +280,13 @@ int RejectName(const std::vector<std::string>& args, const std::string& rejected
 // opposed to the file system refusing it, which is worth 1.
 //
 // Input:  { "init" } in an empty directory
-// Output: four "  Create" lines, a success line, "Next steps:", "  guchho dev",
-//         and 0.
+// Output: four "  Create" lines, a "  Config:" line naming the format that was
+//         chosen, a success line, "Next steps:", "  guchho dev", and 0.
 //
 // Input:  { "init", "--template=ts" }
-// Output: src/index.html, src/main.ts, src/style.css and guchho.config.js in
-//         the working directory, a success line, and 0.
+// Output: src/index.html, src/main.ts, src/style.css and guchho.config.js (or
+//         guchho.json when no runtime is found) in the working directory, a
+//         success line, and 0.
 //
 // Input:  { "init", "--type", "library", "--template", "ts", "--yes" }
 // Output: src/index.ts, guchho.config.js, package.json and README.md in the
@@ -440,6 +443,15 @@ int runInit(const std::vector<std::string>& args) {
         std::cout << "\n";
     }
 
+    // The config format is not a question, it is an answer the machine already
+    // has: a runtime that can evaluate a config means the config is written as
+    // one, and the only decision that is a real decision — no runtime to
+    // evaluate anything — is the fallback a JSON config exists for. It is asked
+    // of the machine once, here, and handed to the scaffolder in the request,
+    // which is the only place the file name is ever seen.
+    const scaffold::ProjectConfig config =
+        SelectInitConfigFormat(runtime::DetectJavaScriptRuntime());
+
     // The target is the working directory. There is no second mechanism for
     // choosing one, so this is not a decision and there is nothing to ask about
     // it — and the name is the name of this directory rather than a value from
@@ -448,6 +460,7 @@ int runInit(const std::vector<std::string>& args) {
     scaffold::ScaffoldRequest req;
     req.type = type;
     req.tmpl = tmpl;
+    req.config = config;
     req.name = fs->Base(cwd);
     req.target_dir = cwd;
     req.force = opts.force;
@@ -465,6 +478,13 @@ int runInit(const std::vector<std::string>& args) {
     }
     for (const std::string& path : result.skipped) {
         std::cout << "  Skip " << path << " (already exists)\n";
+    }
+    // The chosen format is part of the summary of a run that happened, not of a
+    // run that was refused. Detection only decides the default for files that
+    // are generated, and naming it here is how somebody knows which of the two
+    // files they are being shown.
+    if (result.Ok()) {
+        std::cout << "  Config: " << scaffold::ConfigFileName(config) << "\n";
     }
     std::cout << "\n";
 

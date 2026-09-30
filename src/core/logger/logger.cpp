@@ -1090,6 +1090,71 @@ namespace guchho::logger{
         PrintTextWithColor(fd, options.color, callback);
     }
 
+    // The one line of grammar every "this happened" notice is written in.
+    //
+    // It is MsgString's line format with nothing else in it: an icon, a bracketed
+    // kind, and the text. There is deliberately no location, no message ID and no
+    // trailing newline beyond the one that ends the line, because the three
+    // callers have no source to point at and no ID a user could override.
+    //
+    // The colours are the ones MsgString gives the same kind, so a notice and a
+    // diagnostic about the same run are visibly of the same kind. They are
+    // passed in already resolved rather than looked up from a MsgKind, because
+    // "success" is not a MsgKind and has no entry in that switch to be found in.
+    std::string NoticeLine(const Colors& colors, std::string_view icon_color, std::string_view icon,
+                           std::string_view bracket_color, std::string_view bracket_text_color,
+                           std::string_view kind, const std::string& text)
+    {
+        return std::format("{}{}{} {}{}[{}]{}{} {}{}{}\n",
+            icon_color, icon, colors.reset,
+
+            bracket_color, bracket_text_color, kind, bracket_color, colors.reset,
+
+            colors.bold, text, colors.reset);
+    }
+
+    // The glyph a success notice uses, and the one place that decides it.
+    //
+    // Checkmark and the error cross are both outside the ASCII range, and the
+    // Command Prompt renders both of them as something else entirely, which is
+    // why MsgKindToIcon drops the cross to "X" there. A checkmark is dropped the
+    // same way and to the same kind of character: a plus reads as "that happened"
+    // in a console that would otherwise print a filled box.
+    std::string_view SuccessIcon() {
+        return IsProbablyWindowsCommandPrompt() ? std::string_view("+") : std::string_view("✓");
+    }
+
+    // A run finished, and what it finished is the output rather than a
+    // diagnostic. The one asymmetry against the other two is the log level:
+    // success prints at kError, which no --log-level value can raise above,
+    // because a command that did its work silently is a command that looks
+    // broken to whoever is watching it.
+    void PrintSuccessToStdout(const std::vector<std::string>& os_args, const std::string& text) {
+        PrintText(1, LogLevel::kError, os_args, [&](const Colors& colors) -> std::string {
+            return NoticeLine(colors, colors.green, SuccessIcon(),
+                              colors.green_bg_green, colors.green_bg_white, "SUCCESS", text);
+        });
+    }
+
+    // The two below are the ordinary severities, printed the way MsgString
+    // prints them and at the level MsgString would print them at. They are here
+    // rather than a Msg handed to NewStderrLog because a single notice is not a
+    // build: there is nothing to count and nothing to summarise, and a "1
+    // warning" under a one-line warning says less than the warning did.
+    void PrintInfoToStderr(const std::vector<std::string>& os_args, const std::string& text) {
+        PrintText(2, LogLevel::kInfo, os_args, [&](const Colors& colors) -> std::string {
+            return NoticeLine(colors, colors.blue, MsgKindToIcon(MsgKind::kInfo),
+                              colors.blue_bg_blue, colors.blue_bg_white, "INFO", text);
+        });
+    }
+
+    void PrintWarningToStderr(const std::vector<std::string>& os_args, const std::string& text) {
+        PrintText(2, LogLevel::kWarning, os_args, [&](const Colors& colors) -> std::string {
+            return NoticeLine(colors, colors.yellow, MsgKindToIcon(MsgKind::kWarning),
+                              colors.yellow_bg_yellow, colors.yellow_bg_black, "WARNING", text);
+        });
+    }
+
     //------------------------------------------------------------------------------
     // Wraps HTTPS URLs in `text` with ANSI underline escape sequences so they
     // appear as clickable links in modern terminal emulators.
@@ -1512,36 +1577,42 @@ namespace guchho::logger{
         }
 
         std::string iconColor;
-        std::string kindColorBrackets;
-        std::string kindColorText;
+        std::string bracketColor;
+        std::string bracketTextColor;
 
         switch (kind) {
             case MsgKind::kVerbose:
                 iconColor = colors.cyan;
-                kindColorBrackets = colors.cyan_bg_cyan;
-                kindColorText = colors.cyan_bg_black;
+                bracketColor = colors.cyan_bg_cyan;
+                bracketTextColor = colors.cyan_bg_black;
                 break;
+
             case MsgKind::kDebug:
                 iconColor = colors.green;
-                kindColorBrackets = colors.green_bg_green;
-                kindColorText = colors.green_bg_white;
+                bracketColor = colors.green_bg_green;
+                bracketTextColor = colors.green_bg_white;
                 break;
+
             case MsgKind::kInfo:
                 iconColor = colors.blue;
-                kindColorBrackets = colors.blue_bg_blue;
-                kindColorText = colors.blue_bg_white;
+                bracketColor = colors.blue_bg_blue;
+                bracketTextColor = colors.blue_bg_white;
                 break;
+
             case MsgKind::kError:
                 iconColor = colors.red;
-                kindColorBrackets = colors.red_bg_red;
-                kindColorText = colors.red_bg_white;
+                bracketColor = colors.red_bg_red;
+                bracketTextColor = colors.red_bg_white;
                 break;
+
             case MsgKind::kWarning:
                 iconColor = colors.yellow;
-                kindColorBrackets = colors.yellow_bg_yellow;
-                kindColorText = colors.yellow_bg_black;
+                bracketColor = colors.yellow_bg_yellow;
+                bracketTextColor = colors.yellow_bg_black;
                 break;
-            default: break;
+
+            default:
+                break;
         }
 
         std::string location;
@@ -1576,10 +1647,16 @@ namespace guchho::logger{
             msgIDSuffix = std::format(" [{}]", msgIDStr);
         }
 
-        return std::format("{}{} {}[{}{}]{} {}{}{}{}{}{}\n{}",
-            iconColor, MsgKindToIcon(kind),
-            kindColorBrackets, kindColorText, MsgKindToString(kind), kindColorBrackets, colors.reset,
-            colors.bold, data.text, colors.reset, pluginName, msgIDSuffix,
+
+
+        return std::format("{}{}{} {}{}[{}]{}{} {}{}{}{}{}{}\n",
+            iconColor, MsgKindToIcon(kind), colors.reset,
+
+            bracketColor, bracketTextColor, MsgKindToString(kind),
+            bracketColor, colors.reset,
+
+            colors.bold, data.text, colors.reset,
+            pluginName, msgIDSuffix,
             location);
     }
 

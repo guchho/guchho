@@ -1007,6 +1007,12 @@ namespace guchho::config {
         // explicit value the user gets told is ignored.
         bool FormatFromConfig{};
         Format OutputFormat{Format::kPreserve};
+        // True when the "format" in force was named by the user or a config
+        // file rather than being the built-in default. Written by the API from
+        // "api::BuildOptions::format_was_explicit"; consumed by the HTML-entry
+        // warnings in the bundler, which need to tell an explicit format from
+        // the default so the default does not get reported as ignored.
+        bool FormatWasExplicit{};
         bool CodeSplitting{};
         Platform OutputPlatform{Platform::kBrowser};
         bool NeedsMetafile{};

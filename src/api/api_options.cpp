@@ -299,6 +299,15 @@ EffectiveBuildOptions ResolveEffectiveBuildOptions(const BuildOptions& explicit_
         cfg.OutputFormat != config::Format::kPreserve) {
         out.format = ToApiFormat(cfg.OutputFormat);
     }
+    // Whether "format" was somebody's decision rather than the built-in
+    // default. The HTML-entry warnings need to tell an explicit format apart
+    // from the "esm" installed below, so the record is taken here, before the
+    // built-in default has a chance to look like a request. The config merge
+    // above only decides the value; the fact that a config file named
+    // "build.format" is a request even when the merge never ran (an HTML entry
+    // bundles only after this function has returned), so the two are read
+    // separately.
+    out.format_was_explicit = WasSet(out, kOptFormat) || cfg.FormatFromConfig;
     if (!WasSet(out, kOptPlatform) && out.platform == api::Platform::kDefault) {
         out.platform = ToApiPlatform(cfg.OutputPlatform);
     }

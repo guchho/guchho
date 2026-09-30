@@ -147,6 +147,12 @@ std::string_view SourceExtension(ProjectTemplate tmpl)
     return kExtensions[static_cast<size_t>(tmpl)];
 }
 
+std::string_view ConfigFileName(ProjectConfig config)
+{
+    return config == ProjectConfig::kJson ? "guchho.json"
+                                          : "guchho.config.js";
+}
+
 std::optional<std::string> ParseProjectType(std::string_view value, ProjectType& out)
 {
     for (size_t i = 0; i < std::size(kProjectTypes); i++) {
@@ -338,49 +344,102 @@ std::string AppStyle()
         "}\n";
 }
 
-// The configuration an application is built with.
+// The "build" fields a generated config carries. They are the whole config, in
+// the order they are written, and there is exactly one list of them: the two
+// formats below share it, so "the same defaults" is true by construction rather
+// than by whatever the two renderers happen to agree on. Every key is one the
+// parser already accepts (see the "build" list in guchho_json.cpp) and most of
+// the values are the defaults a build would use anyway, which is the point: a
+// person can open this file, see what a build is being asked for, and change
+// one line.
 //
-// Every value here is one the parser already accepts (see the "build" list in
-// guchho_json.cpp) and most of them are the defaults a build would use anyway,
-// which is the point: a person can open this file, see what a build is being
-// asked for, and change one line.
-std::string AppConfig()
+// "quote" is the flag that says whether the value is a string, and it is the
+// only way the two formats need to differ about a value: both write booleans
+// bare, and both quote strings — in the quote the other format uses.
+struct ConfigEntry {
+    std::string_view key;
+    std::string      value;
+    bool             quote;
+};
+
+std::vector<ConfigEntry> AppConfigFields()
 {
-    return
-        "export default {\n"
-        "  build: {\n"
-        "    entry: 'src/index.html',\n"
-        "    outdir: 'dist',\n"
-        "    format: 'esm',\n"
-        "    target: 'esnext',\n"
-        "    minify: true,\n"
-        "    pretty: true,\n"
-        "    minifyHtml: false,\n"
-        "  },\n"
-        "};\n";
+    return {
+        {"entry", "src/index.html", true},
+        {"outdir", "dist", true},
+        {"format", "esm", true},
+        {"target", "esnext", true},
+        {"minify", "true", false},
+        {"pretty", "true", false},
+        {"minifyHtml", "false", false},
+    };
 }
 
-// The configuration a library or a plugin is built with: the source file is the
-// entry, the output is a directory of its own, and the platform is neutral
+// The "build" fields a library or a plugin is built with: the source file is
+// the entry, the output is a directory of its own, and the platform is neutral
 // because a package is not loaded by a browser. Nothing else is here, and in
 // particular there is no "types" field — the build does not produce a
-// declaration file, and a package.json that points at one that is never written
-// is a broken package rather than a helpful one.
-std::string PackageConfig(std::string_view ext)
+// declaration file, and a package.json that points at one that is never
+// written is a broken package rather than a helpful one.
+std::vector<ConfigEntry> PackageConfigFields(std::string_view ext)
 {
-    return std::format(
-        "export default {{\n"
-        "  build: {{\n"
-        "    entry: 'src/index{}',\n"
-        "    outdir: 'dist',\n"
-        "    format: 'esm',\n"
-        "    platform: 'neutral',\n"
-        "    target: 'esnext',\n"
-        "    minify: true,\n"
-        "    pretty: true,\n"
-        "  }},\n"
-        "}};\n",
-        ext);
+    return {
+        {"entry", "src/index" + std::string(ext), true},
+        {"outdir", "dist", true},
+        {"format", "esm", true},
+        {"platform", "neutral", true},
+        {"target", "esnext", true},
+        {"minify", "true", false},
+        {"pretty", "true", false},
+    };
+}
+
+// The config written for a JavaScript runtime: an ES module carrying the same
+// fields as the loader accepts from a .js config file. The layout is fixed —
+// one field per line, trailing commas — so that the tests that diff the two
+// formats and the tests that diff two runs can rely on byte-for-byte equality.
+std::string RenderConfigJavaScript(const std::vector<ConfigEntry>& fields)
+{
+    std::string out = "export default {\n"
+                      "  build: {\n";
+    for (const ConfigEntry& field : fields) {
+        out += "    ";
+        out += field.key;
+        out += ": ";
+        out += field.quote ? "'" + field.value + "'" : std::string(field.value);
+        out += ",\n";
+    }
+    out += "  },\n"
+           "};\n";
+    return out;
+}
+
+// The config written when there is no runtime to evaluate one: the same fields
+// as the JavaScript form, in strict JSON. There are no trailing commas and the
+// strings are double-quoted, and nothing else differs — the field list above is
+// what makes the two forms say the same thing.
+std::string RenderConfigJson(const std::vector<ConfigEntry>& fields)
+{
+    std::string out = "{\n"
+                      "  \"build\": {\n";
+    for (size_t i = 0; i < fields.size(); i++) {
+        const ConfigEntry& field = fields[i];
+        out += "    \"";
+        out += field.key;
+        out += "\": ";
+        out += field.quote ? "\"" + field.value + "\"" : std::string(field.value);
+        out += (i + 1 < fields.size()) ? ",\n" : "\n";
+    }
+    out += "  }\n"
+           "}\n";
+    return out;
+}
+
+// Renders the fields in the format a request asks for.
+std::string RenderConfig(ProjectConfig config, const std::vector<ConfigEntry>& fields)
+{
+    return config == ProjectConfig::kJson ? RenderConfigJson(fields)
+                                          : RenderConfigJavaScript(fields);
 }
 
 // The one source file of a library: an export, so that importing the built
@@ -506,24 +565,34 @@ FileList BuildFileList(const ScaffoldRequest& req)
         package_name = *name;
     }
 
+    // The one config. The fields are the project's, the format is the
+    // request's, and the file name is the two of them looking at each other —
+    // computed once so the three uses of it (the path, the contents, the
+    // message) cannot disagree.
+    const std::vector<ConfigEntry> config_fields =
+        req.type == ProjectType::kApp ? AppConfigFields()
+                                      : PackageConfigFields(ext);
+    const std::string config_name = std::string(ConfigFileName(req.config));
+    const std::string config_text = RenderConfig(req.config, config_fields);
+
     switch (req.type) {
         case ProjectType::kApp:
             list.files.push_back({"src/index.html", AppHtml("main" + ext)});
             list.files.push_back({script_path, AppScript(req.tmpl)});
             list.files.push_back({"src/style.css", AppStyle()});
-            list.files.push_back({"guchho.config.js", AppConfig()});
+            list.files.push_back({config_name, config_text});
             break;
 
         case ProjectType::kLibrary:
             list.files.push_back({source_path, LibrarySource(req.tmpl)});
-            list.files.push_back({"guchho.config.js", PackageConfig(ext)});
+            list.files.push_back({config_name, config_text});
             list.files.push_back({"package.json", PackageJson(package_name)});
             list.files.push_back({"README.md", LibraryReadme(package_name)});
             break;
 
         case ProjectType::kPlugin:
             list.files.push_back({source_path, PluginSource()});
-            list.files.push_back({"guchho.config.js", PackageConfig(ext)});
+            list.files.push_back({config_name, config_text});
             list.files.push_back({"package.json", PackageJson(package_name)});
             list.files.push_back({"README.md", PluginReadme(package_name)});
             break;

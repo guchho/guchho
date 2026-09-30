@@ -842,6 +842,7 @@ namespace guchho::resolver {
                     WarnConflictingAlias(log, source, tracker, *format, "output.format",
                                          "build.format");
                 } else {
+                    opts.FormatFromConfig = true;
                     ApplyFormatValue(opts, format->first, log, tracker, source);
                 }
             }

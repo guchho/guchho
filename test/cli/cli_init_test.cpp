@@ -40,12 +40,17 @@
 // tests are about what ends up on disk and a shared directory would let one
 // test's project be the next test's "not empty" case.
 
+#include "guchho/runtime.hpp"
 #include "guchho/scaffold.hpp"
 #include "test/helpers/cli_test.hpp"
 #include "test/guchho_test.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
+#include <map>
+#include <optional>
+#include <sstream>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -114,6 +119,94 @@ std::string SourceExtension(const std::string& tmpl) {
     return tmpl == "basic" ? ".js" : "." + tmpl;
 }
 
+// Pins the runtime detector to one answer for the duration of a test, and puts
+// the machine back when the test is done. The config file a run writes depends
+// on what a run sees on the PATH, which is the developer's machine — not a
+// variable a test controls — so every test that looks at a config file name
+// pins the answer it wants in advance. The previous detector is handed back
+// straight on the way out, so the next test sees the machine, not this one.
+class RuntimeDetectorScope {
+public:
+    explicit RuntimeDetectorScope(guchho::runtime::JavaScriptRuntime runtime)
+        : previous_(guchho::runtime::SetRuntimeDetector([runtime] {
+              return runtime;
+          })) {}
+
+    ~RuntimeDetectorScope() {
+        guchho::runtime::SetRuntimeDetector(previous_);
+    }
+
+    RuntimeDetectorScope(const RuntimeDetectorScope&) = delete;
+    RuntimeDetectorScope& operator=(const RuntimeDetectorScope&) = delete;
+
+private:
+    guchho::runtime::JavaScriptRuntimeDetector previous_;
+};
+
+// One build field out of a generated config, whichever of the two formats wrote
+// it. "json" says which format, and the only difference is the spelling of the
+// delimiters: a key and a value on their own line. Lines that are not a field —
+// the braces and the "build" opener — yield nothing, so the map a test builds
+// below is exactly the set of fields, whichever format produced them.
+struct Field {
+    std::string key;
+    std::string value;
+};
+
+std::optional<Field> ReadConfigField(std::string_view line, bool json)
+{
+    size_t i = 0;
+    while (i < line.size() && line[i] == ' ') i++;
+    if (i >= line.size()) return std::nullopt;
+
+    std::string key;
+    if (json) {
+        if (line[i] != '"') return std::nullopt;
+        i++;
+        while (i < line.size() && line[i] != '"') key += line[i++];
+        if (i >= line.size()) return std::nullopt;
+        i++;
+    } else {
+        while (i < line.size() &&
+               (std::isalnum(static_cast<unsigned char>(line[i])) || line[i] == '_')) {
+            key += line[i++];
+        }
+        if (key.empty()) return std::nullopt;
+    }
+    while (i < line.size() && line[i] == ' ') i++;
+    if (i >= line.size() || line[i] != ':') return std::nullopt;
+    i++;
+    while (i < line.size() && line[i] == ' ') i++;
+
+    std::string value;
+    if (i < line.size() && (line[i] == '\'' || line[i] == '"')) {
+        const char quote = line[i++];
+        while (i < line.size() && line[i] != quote) value += line[i++];
+    } else {
+        while (i < line.size() && line[i] != ',' && line[i] != ' ' && line[i] != '\t') {
+            value += line[i++];
+        }
+    }
+    if (key.empty() || value.empty()) return std::nullopt;
+    return Field{key, value};
+}
+
+// The build fields of a generated config as key -> value, so the two formats
+// can be compared field for field without caring how each one spells its
+// quotes.
+std::map<std::string, std::string> ConfigFields(const std::string& text, bool json)
+{
+    std::map<std::string, std::string> out;
+    std::istringstream                 lines(text);
+    std::string                        line;
+    while (std::getline(lines, line)) {
+        if (auto field = ReadConfigField(line, json)) {
+            out[field->key] = field->value;
+        }
+    }
+    return out;
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -132,6 +225,7 @@ TEST(CliInit, EveryTypeAndTemplateProducesItsOwnFiles) {
         for (const std::string& tmpl : kTemplates) {
             CliWorkspace ws("matrix");
 
+            RuntimeDetectorScope scope(guchho::runtime::JavaScriptRuntime::kNode);
             const CliResult result = RunCli(
                 {"init", "--type=" + type, "--template=" + tmpl, "--yes"});
 
@@ -196,6 +290,7 @@ TEST(CliInit, EveryCombinationBuilds) {
         for (const std::string& tmpl : kTemplates) {
             CliWorkspace ws("builds");
 
+            RuntimeDetectorScope scope(guchho::runtime::JavaScriptRuntime::kNode);
             ASSERT_EQ(RunCli({"init", "--type=" + type, "--template=" + tmpl, "--yes"}).exit_code,
                       kSuccess)
                 << type << "/" << tmpl;
@@ -220,6 +315,7 @@ TEST(CliInit, EveryCombinationBuilds) {
 TEST(CliInit, TheConfigEntryIsTheFileThatWasWritten) {
     CliWorkspace ws("entry");
 
+    RuntimeDetectorScope scope(guchho::runtime::JavaScriptRuntime::kNode);
     ASSERT_EQ(RunCli({"init", "--type=library", "--template=ts", "--yes"}).exit_code, kSuccess);
 
     EXPECT_TRUE(OutputContains(ws.Read("guchho.config.js"), "src/index.ts"));
@@ -473,6 +569,7 @@ TEST(CliInit, ADirectoryHoldingPartOfAProjectIsFinishedNotRefused) {
     CliWorkspace ws("partial");
     ws.MakeDir("src");
 
+    RuntimeDetectorScope scope(guchho::runtime::JavaScriptRuntime::kNode);
     EXPECT_EQ(RunCli({"init", "--yes"}).exit_code, kSuccess);
 
     EXPECT_TRUE(ws.Exists("src/index.html"));
@@ -619,6 +716,7 @@ TEST(CliInit, ANameNpmCannotUseIsRefusedForMetadata) {
 TEST(CliInit, ARunWithNoTerminalUsesTheDefaultsAndDoesNotWait) {
     CliWorkspace ws("notty");
 
+    RuntimeDetectorScope scope(guchho::runtime::JavaScriptRuntime::kNode);
     const CliResult result = RunCli({"init"});
 
     EXPECT_EQ(result.exit_code, kSuccess);
@@ -632,6 +730,7 @@ TEST(CliInit, ARunWithNoTerminalUsesTheDefaultsAndDoesNotWait) {
 TEST(CliInit, YesReadsNothingFromStandardInput) {
     CliWorkspace ws("yes");
 
+    RuntimeDetectorScope scope(guchho::runtime::JavaScriptRuntime::kNode);
     const CliResult result = RunCliWithStdin({"init", "--yes"}, "a different answer\n");
 
     EXPECT_EQ(result.exit_code, kSuccess);
@@ -652,6 +751,7 @@ TEST(CliInit, YesReadsNothingFromStandardInput) {
 TEST(CliInit, TheWorkingDirectoryIsTheTarget) {
     CliWorkspace ws("cwd");
 
+    RuntimeDetectorScope scope(guchho::runtime::JavaScriptRuntime::kNode);
     ASSERT_EQ(RunCli({"init", "--yes"}).exit_code, kSuccess);
 
     const std::string got = Tree(ws);
@@ -665,6 +765,7 @@ TEST(CliInit, TheWorkingDirectoryIsTheTarget) {
 TEST(CliInit, StandardInputIsNotReadWhenThereIsNoTerminal) {
     CliWorkspace ws("nostdin");
 
+    RuntimeDetectorScope scope(guchho::runtime::JavaScriptRuntime::kNode);
     const CliResult result = RunCliWithStdin({"init"}, "something-else\n");
 
     EXPECT_EQ(result.exit_code, kSuccess);
@@ -823,6 +924,123 @@ TEST(CliInit, AnUnknownFlagStopsTheCommandLineBeingUsedAtAll) {
 }
 
 // ---------------------------------------------------------------------------
+// The config format
+// ---------------------------------------------------------------------------
+
+// The four combinations of the detection table end in exactly one of the two
+// config files, and it is the one the table names: node or bun in an empty
+// directory writes the JavaScript config, and neither writes the JSON one. The
+// detector is pinned by each loop rather than left to the developer's machine.
+TEST(CliInit, TheConfigFileFollowsTheRuntimeThatWasFound) {
+    const struct {
+        guchho::runtime::JavaScriptRuntime runtime;
+        const char*                        file;
+    } cases[] = {
+        {guchho::runtime::JavaScriptRuntime::kNode, "guchho.config.js"},
+        {guchho::runtime::JavaScriptRuntime::kBun, "guchho.config.js"},
+        {guchho::runtime::JavaScriptRuntime::kNone, "guchho.json"},
+    };
+
+    for (const auto& cs : cases) {
+        CliWorkspace        ws("fmt");
+        RuntimeDetectorScope scope(cs.runtime);
+
+        const CliResult result = RunCli({"init", "--yes"});
+        ASSERT_EQ(result.exit_code, kSuccess) << cs.file;
+        EXPECT_TRUE(ws.Exists(cs.file)) << cs.file;
+        const std::string other = cs.file == std::string("guchho.config.js")
+            ? std::string("guchho.json")
+            : std::string("guchho.config.js");
+        EXPECT_FALSE(ws.Exists(other)) << "a run for " << cs.file << " also wrote " << other;
+    }
+}
+
+// The command says which format it chose, in the same indentation as the file
+// list, so the decision is never a guess made from whichever file turns up in
+// the listing.
+TEST(CliInit, TheOutputNamesTheConfigFileThatWasChosen) {
+    CliWorkspace ws("fmt-out");
+    {
+        RuntimeDetectorScope scope(guchho::runtime::JavaScriptRuntime::kNode);
+        const CliResult     result = RunCli({"init", "--yes"});
+        EXPECT_EQ(result.exit_code, kSuccess) << result.out << result.err;
+        EXPECT_TRUE(OutputContains(result.out, "Config: guchho.config.js"))
+            << result.out;
+    }
+
+    CliWorkspace ws2("fmt-out2");
+    {
+        RuntimeDetectorScope scope(guchho::runtime::JavaScriptRuntime::kNone);
+        const CliResult     result = RunCli({"init", "--yes"});
+        EXPECT_EQ(result.exit_code, kSuccess) << result.out << result.err;
+        EXPECT_TRUE(OutputContains(result.out, "Config: guchho.json"))
+            << result.out;
+    }
+}
+
+// The JSON fallback is not a config that parses in principle only: a project
+// configured by guchho.json builds, which is the acceptance check for "both
+// formats are equivalent" that would notice a field the two forms read
+// differently.
+TEST(CliInit, AJsonConfiguredProjectBuilds) {
+    CliWorkspace        ws("json-build");
+    RuntimeDetectorScope scope(guchho::runtime::JavaScriptRuntime::kNone);
+
+    ASSERT_EQ(RunCli({"init", "--type=library", "--template=ts", "--yes"}).exit_code,
+              kSuccess);
+
+    EXPECT_TRUE(ws.Exists("guchho.json"));
+
+    const CliResult build = RunCli({"build"});
+    EXPECT_EQ(build.exit_code, kSuccess) << build.out << build.err;
+    EXPECT_TRUE(ws.Exists("dist/index.js"));
+}
+
+// Detection picks the default for files that need to be generated, and nothing
+// else. A directory holding a config of the other format is somebody's
+// directory — exactly as if it held notes.txt — and Node being installed does
+// not hand that file to the scaffold. Without force the directory is refused;
+// with force the generated config is added beside it, and the other format's
+// file is never touched in either case.
+TEST(CliInit, AnExistingConfigOfTheOtherFormatIsLeftAlone) {
+    CliWorkspace ws("keep-format");
+    const std::string theirs = "{ \"build\": { \"outdir\": \"out\" } }\n";
+    ws.Write("guchho.json", theirs);
+
+    RuntimeDetectorScope scope(guchho::runtime::JavaScriptRuntime::kNode);
+
+    const CliResult refused = RunCli({"init", "--yes"});
+    EXPECT_EQ(refused.exit_code, kUsageError) << refused.out << refused.err;
+    EXPECT_TRUE(OutputContains(refused.err, "not empty")) << refused.err;
+    EXPECT_EQ(ws.Read("guchho.json"), theirs);
+    EXPECT_FALSE(ws.Exists("guchho.config.js"));
+
+    const CliResult forced = RunCli({"init", "--force", "--yes"});
+    EXPECT_EQ(forced.exit_code, kSuccess) << forced.out << forced.err;
+    EXPECT_TRUE(ws.Exists("guchho.config.js"));
+    EXPECT_EQ(ws.Read("guchho.json"), theirs)
+        << "--force wrote over the other format's file";
+}
+
+// And the other direction: a directory holding somebody's guchho.config.js is
+// just as much somebody's when the detected format is the JSON one.
+TEST(CliInit, AJavaScriptConfigOfItsOwnIsAlsoLeftAlone) {
+    CliWorkspace ws("keep-format2");
+    const std::string theirs = "export default { build: { outdir: 'out' } };\n";
+    ws.Write("guchho.config.js", theirs);
+
+    RuntimeDetectorScope scope(guchho::runtime::JavaScriptRuntime::kNone);
+
+    const CliResult refused = RunCli({"init", "--yes"});
+    EXPECT_EQ(refused.exit_code, kUsageError) << refused.out << refused.err;
+
+    const CliResult forced = RunCli({"init", "--force", "--yes"});
+    EXPECT_EQ(forced.exit_code, kSuccess) << forced.out << forced.err;
+    EXPECT_TRUE(ws.Exists("guchho.json"));
+    EXPECT_EQ(ws.Read("guchho.config.js"), theirs);
+}
+
+// ---------------------------------------------------------------------------
 // The scaffolding layer on its own
 // ---------------------------------------------------------------------------
 
@@ -871,6 +1089,71 @@ TEST(Scaffold, EveryPathIsRelativeAndInsideTheTarget) {
         EXPECT_NE(file.path.front(), '/') << "an absolute path: " << file.path;
         EXPECT_NE(file.path.front(), '\\') << "a rooted path: " << file.path;
         EXPECT_EQ(file.path.find(".."), std::string::npos) << "a path that climbs out: " << file.path;
+    }
+}
+
+// The two formats are written from one list of fields, and a field dropped or
+// renamed in only one of the two renderers is a field the project stops
+// carrying in that format alone. Parsing both texts and comparing them field
+// by field is the test that would notice that drift, for each project type.
+TEST(Scaffold, TheTwoConfigFormatsCarryTheSameBuildFields) {
+    const struct {
+        guchho::scaffold::ProjectType     type;
+        guchho::scaffold::ProjectTemplate tmpl;
+    } cases[] = {
+        {guchho::scaffold::ProjectType::kApp, guchho::scaffold::ProjectTemplate::kBasic},
+        {guchho::scaffold::ProjectType::kLibrary, guchho::scaffold::ProjectTemplate::kTypeScript},
+        {guchho::scaffold::ProjectType::kPlugin, guchho::scaffold::ProjectTemplate::kBasic},
+    };
+
+    for (const auto& cs : cases) {
+        guchho::scaffold::ScaffoldRequest req;
+        req.type = cs.type;
+        req.tmpl = cs.tmpl;
+        req.name = "equiv";
+
+        req.config = guchho::scaffold::ProjectConfig::kJavaScript;
+        const guchho::scaffold::FileList js =
+            guchho::scaffold::BuildFileList(req);
+
+        req.config = guchho::scaffold::ProjectConfig::kJson;
+        const guchho::scaffold::FileList json =
+            guchho::scaffold::BuildFileList(req);
+
+        ASSERT_EQ(js.files.size(), json.files.size());
+
+        const std::string js_name = std::string(guchho::scaffold::ConfigFileName(
+            guchho::scaffold::ProjectConfig::kJavaScript));
+        const std::string json_name = std::string(guchho::scaffold::ConfigFileName(
+            guchho::scaffold::ProjectConfig::kJson));
+
+        const guchho::scaffold::ProjectFile* js_file = nullptr;
+        const guchho::scaffold::ProjectFile* json_file = nullptr;
+        for (const guchho::scaffold::ProjectFile& file : js.files) {
+            if (file.path == js_name) js_file = &file;
+        }
+        for (const guchho::scaffold::ProjectFile& file : json.files) {
+            if (file.path == json_name) json_file = &file;
+        }
+        ASSERT_TRUE(js_file != nullptr) << "the JavaScript request wrote no " << js_name;
+        ASSERT_TRUE(json_file != nullptr) << "the JSON request wrote no " << json_name;
+
+        const std::map<std::string, std::string> js_fields =
+            ConfigFields(js_file->contents, /*json=*/false);
+        const std::map<std::string, std::string> json_fields =
+            ConfigFields(json_file->contents, /*json=*/true);
+
+        EXPECT_EQ(js_fields.size(), json_fields.size())
+            << "the two formats list different numbers of build fields";
+        for (const auto& [key, value] : js_fields) {
+            auto it = json_fields.find(key);
+            EXPECT_TRUE(it != json_fields.end())
+                << "the JSON format lost a field: " << key;
+            if (it != json_fields.end()) {
+                EXPECT_EQ(it->second, value)
+                    << "a build field differs between the formats: " << key;
+            }
+        }
     }
 }
 

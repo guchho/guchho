@@ -3043,6 +3043,7 @@ validate_build_options(api::BuildOptions& build_opts, logger::Log& log, filesyst
     options.SystemNullSetters = build_opts.system_null_setters;
     options.CodeSplitting = build_opts.splitting;
     options.OutputFormat = validate_format(build_opts.format);
+    options.FormatWasExplicit = build_opts.format_was_explicit;
     options.AbsOutputFile = validate_path(log, real_fs, build_opts.outfile, "outfile path");
     options.AbsOutputDir = validate_path(log, real_fs, build_opts.outdir, "outdir path");
     options.AbsOutputBase = validate_path(log, real_fs, build_opts.outbase, "outbase path");

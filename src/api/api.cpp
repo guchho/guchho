@@ -3107,7 +3107,26 @@ validate_build_options(api::BuildOptions& build_opts, logger::Log& log, filesyst
         options.Stdin = &*stdin_owner;
     }
 
-    if (options.AbsOutputDir.empty() && (entry_count > 1 || has_wildcard)) {
+    bool all_html_entries = !entry_points.empty();
+    if (all_html_entries) {
+        for (const auto& ep : entry_points) {
+            const std::string& path = ep.InputPath;
+            if (path.size() < 5 || path.compare(path.size() - 5, 5, ".html") != 0) {
+                all_html_entries = false;
+                break;
+            }
+        }
+    }
+
+    if (!options.AbsOutputFile.empty() && all_html_entries && entry_count > 1) {
+        // A single named output file cannot stand for several documents, and it
+        // would not even if it could: HTML output is named after the entry, so
+        // the "outfile" would be honoured by nothing written. Multiple HTML
+        // entries need an output directory, and saying so here is the honest
+        // form of the generic "outdir required" error below.
+        log.AddError(nullptr, logger::Range{},
+                     logger::FormatMsg(logger::MsgCat::kAPI_MustUseOutdirMultipleHTMLInputs));
+    } else if (options.AbsOutputDir.empty() && (entry_count > 1 || has_wildcard)) {
         log.AddError(nullptr, logger::Range{}, logger::FormatMsg(logger::MsgCat::kAPI_MustUseOutdirMultipleInputFiles));
     } else if (options.AbsOutputDir.empty() && options.CodeSplitting) {
         log.AddError(nullptr, logger::Range{}, logger::FormatMsg(logger::MsgCat::kAPI_MustUseOutdirCodeSplitting));

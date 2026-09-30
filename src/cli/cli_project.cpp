@@ -1,32 +1,37 @@
 // =============================================================================
-// src/cli/cli_project.cpp — the three commands that manage a project
+// src/cli/cli_project.cpp — the two commands that manage a project in place
 // =============================================================================
 //
-// Everything here is about the shape of a project rather than about its output.
-// One command writes a starting point, one removes what a build left behind,
-// and one answers questions about the machine. None of them builds anything,
-// and none of them hands a set of options to the engine.
+// Everything here is about the working directory rather than about a project's
+// output. One command removes what a build left behind and the other answers
+// questions about the machine. Neither builds anything, and neither hands a set
+// of options to the engine.
 //
 // That is why this file does not use the flag grammar. The grammar in
 // cli_options.cpp exists to fill in api::BuildOptions and
-// api::TransformOptions, and each of these three commands has nothing to fill
-// in: "guchho init" has no build settings, and "guchho clean" has exactly one
-// switch. So each command reads its own arguments, in a few lines, looking for
-// the two or three spellings it answers to.
+// api::TransformOptions, and neither of these two commands has anything to fill
+// in: "guchho clean" has exactly one switch and "guchho info" has none. So each
+// reads its own arguments, in a few lines, looking for the two or three
+// spellings it answers to.
 //
-// One consequence is worth knowing before using them. Because there is no
-// grammar here, an argument these commands do not recognise is not a mistake
-// they will tell you about: "guchho init --outdir=dist" creates the same four
-// files as "guchho init", and the flag is never looked at. The build commands
-// are strict about this because a misspelt build flag would otherwise produce a
-// build that quietly differs from what was asked for. A starter project either
-// gets written or it does not, so there is nothing here for a wrong flag to
-// change.
+// The third command that used to live here, init, moved to cli_init.cpp when it
+// grew two values to choose between, a mode that asks questions, and a refusal
+// of arguments it does not recognise. It was the one of the three that could be
+// given something to misunderstand, and a file whose banner argued that an
+// unrecognised argument could not matter was the wrong place for a command that
+// has four options and a refusal of its own.
 //
-// Two of the three write to the file system and one only reads, and all three
-// reach it through the filesystem interface rather than around it, so the same
-// code can be run against an in-memory tree. Each builds the interface the same
-// way
+// One consequence of not using the grammar is worth knowing before using these.
+// An argument "clean" and "info" do not recognise is not a mistake they will
+// tell you about, with one exception: "clean" hands whatever is left to the
+// build grammar so that a directory named on the command line is the one it
+// removes, and that grammar does complain. "info" is the loosest of the
+// commands here, because a report that answers a question nobody asked is
+// harmless in a way a deletion is not.
+//
+// Both reach the file system through the filesystem interface rather than around
+// it, so the same code can be run against an in-memory tree. Each builds the
+// interface the same way
 // — default options, an error string, and a check — and treats a failure to
 // create it as a failure of the run rather than as a rejected command line.
 // That distinction shows up in the exit code: a command line that was not
@@ -47,253 +52,6 @@
 #include <vector>
 
 namespace guchho::cli {
-// =============================================================================
-// Command: init
-// =============================================================================
-//
-// Writes a project that builds: a document, a script, a stylesheet and a
-// configuration file, each small enough to be read at a glance and each
-// referring to the others by relative path.
-//
-// The generated layout is the one the rest of the command line expects. The
-// document goes to src/index.html rather than to the top of the project, and
-// that is not a matter of taste: it is the second place applyDefaultHtmlEntry
-// looks when a run is given no entry point, so a project created here builds
-// and serves with no arguments at all, which is the point of the command.
-//
-// Nothing is overwritten unless it is asked for. A file that already exists is
-// reported and left alone, and the command still counts as a success, because
-// running "guchho init" twice should be harmless. The one switch that changes
-// this is the one that says so out loud.
-//
-// All four files are attempted even if one of them fails, and the outcome is
-// reported once at the end. The operator used to combine the four results is
-// the one that always evaluates both sides, so a directory that cannot be
-// created does not stop the three files that do not need it — and the summary
-// at the end is the only place the failure is mentioned.
-
-// Creates a starter project in the working directory: src/index.html,
-// src/main.js, src/style.css and guchho.config.js.
-//
-// Reads "--help" and "-h" before doing anything, and "--force" to overwrite.
-// Both are found by scanning the arguments from the second one onwards, since
-// the first is the command word; everything else on the line is ignored.
-//
-// Returns 0 for help, for a project that was created, and for a project where
-// every file already existed. Returns 1 if the filesystem could not be reached,
-// or if at least one file could not be written.
-//
-// Input:  { "init" } in an empty directory
-// Output: a blank line, "  Initializing project...", four "  Create" lines, a
-//         blank line, "  Done! Get started with:", "    guchho dev", and 0.
-//
-// Input:  { "init" } in a directory that already has src/main.js
-// Output: the same, with "  Skip src/main.js (already exists)" where that file
-//         would have been created, and 0.
-//
-// Input:  { "init", "--force" } where src/main.js exists and differs
-// Output: "  Create src/main.js", the file replaced with the starter contents,
-//         and 0.
-//
-// Input:  { "init", "--help" }
-// Output: the init help text, nothing written, and 0.
-//
-// Input:  { "init" } where the working directory cannot be used
-// Output: "Error: " followed by the reason on the error stream, and 1.
-int runInit(const std::vector<std::string>& args) {
-    bool force = false;
-
-    for (size_t i = 1; i < args.size(); ++i) {
-        if (args[i] == "--help" || args[i] == "-h") {
-            printInitHelp(std::cout);
-            return 0;
-        }
-        if (args[i] == "--force") {
-            force = true;
-            continue;
-        }
-    }
-
-    filesystem::RealFsOptions fs_opts;
-    std::string fs_err;
-    auto fs = filesystem::MakeRealFS(fs_opts, fs_err);
-    if (!fs) {
-        // A build failure rather than a usage error, and the wording of the
-        // message is the reason: it names what went wrong rather than what was
-        // typed, because nothing was. The run failed to start.
-        std::cerr << "Error: " << fs_err << "\n";
-        return static_cast<int>(ExitCode::kBuildFailure);
-    }
-
-    // Read once, here, rather than per file: the working directory does not
-    // change while a command runs, and every path below is built from it.
-    auto cwd = fs->Cwd();
-
-    // Writes one file, creating whatever directories it needs on the way, and
-    // reports what it did. Returns whether this one file succeeded, and the
-    // caller combines the four answers.
-    auto createFile = [&](const std::string& rel_path, const std::string& content) -> bool {
-        std::string full_path = fs->Join({cwd, rel_path});
-
-        // Only asked when overwriting was not requested, since the answer
-        // cannot change what happens next if it is going to be ignored.
-        if (!force) {
-            // The file is not asked about directly. Its directory is listed and
-            // its name looked up in the listing, which is how the interface
-            // answers "is there such a file" without a separate call for it.
-            auto entries = fs->ReadDirectory(fs->Dir(full_path));
-            if (entries.Ok()) {
-                // The listing also carries what it found under a different
-                // spelling, for file systems that do not distinguish case. It is
-                // unpacked because the pair is the interface's shape, and only
-                // the first half is of any use here: a name that matched
-                // differently is still a file that is there.
-                auto [entry, diff] = entries.value.Get(fs->Base(full_path));
-                // Checked to be a file and not merely to exist, because a
-                // directory of the same name is a different thing entirely — and
-                // the write below is what discovers that it cannot be one.
-                if (entry && entry->Kind(*fs) == filesystem::EntryKind::kFile) {
-                    std::cout << "  Skip " << rel_path << " (already exists)\n";
-                    return true;
-                }
-            }
-        }
-
-        // Created before the file rather than assumed, so the caller does not
-        // have to know that the first of the four paths is the only one with a
-        // directory in front of it. A failure here needs no message of its own:
-        // the open that follows reports the same problem in terms of the file
-        // the person asked for.
-        std::string dir_err;
-        filesystem::MkdirAll(*fs, fs->Dir(full_path), dir_err);
-
-        // The permit pair either side of the open. Taking a permit before an
-        // open is what keeps a process from exceeding the number of handles the
-        // operating system will give it, and here it is given back as soon as
-        // the stream exists — the stream is still open, and the write below
-        // happens after the permit is back. Four files written one after
-        // another cannot exhaust anything, so there was nothing to hold here.
-        filesystem::BeforeFileOpen();
-        std::ofstream ofs(full_path, std::ios::binary);
-        filesystem::AfterFileClose();
-        if (!ofs.is_open()) {
-            std::cerr << "  Error: Could not create " << rel_path << "\n";
-            return false;
-        }
-        // Written as bytes rather than as text, because the contents include a
-        // stylesheet and a document and neither of them should have its line
-        // endings rewritten by whatever the platform considers correct. The
-        // length is cast because the count is a size and the stream takes a
-        // count.
-        ofs.write(content.data(), static_cast<std::streamsize>(content.size()));
-        std::cout << "  Create " << rel_path << "\n";
-        return true;
-    };
-
-    // Announced before anything is written rather than after, so that a run
-    // which is about to touch the file system says so first. The blank lines
-    // are what separate this from the banner the commands above it have already
-    // printed, and from the list that follows.
-    std::cout << "\n  Initializing project...\n\n";
-
-    bool ok = true;
-    // The document. It loads the script as a module and links the stylesheet by
-    // relative path, so the two files below are found from this one alone and
-    // the project works wherever it is copied to.
-    ok &= createFile("src/index.html",
-        "<!DOCTYPE html>\n"
-        "<html lang=\"en\">\n"
-        "<head>\n"
-        "  <meta charset=\"UTF-8\">\n"
-        "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n"
-        "  <title>My App</title>\n"
-        "  <link rel=\"stylesheet\" href=\"./style.css\">\n"
-        "</head>\n"
-        "<body>\n"
-        "  <h1>Hello from Guchho!</h1>\n"
-        "  <script type=\"module\" src=\"./main.js\"></script>\n"
-        "</body>\n"
-        "</html>\n");
-
-    // The script. It imports the stylesheet as well, which is what makes a
-    // build of this project pull all three files into one output rather than
-    // copying them side by side, and it touches the document's heading so that
-    // the effect of a rebuild is visible without opening a console.
-    ok &= createFile("src/main.js",
-        "import './style.css';\n"
-        "\n"
-        "const app = document.querySelector('h1');\n"
-        "if (app) {\n"
-        "  app.textContent = 'Hello from Guchho!';\n"
-        "}\n");
-
-    // The stylesheet. It is here to be imported by the script above rather than
-    // only linked from the document, which is the same file reached by a
-    // different route and is what a person would expect to happen to it.
-    ok &= createFile("src/style.css",
-        "* {\n"
-        "  margin: 0;\n"
-        "  padding: 0;\n"
-        "  box-sizing: border-box;\n"
-        "}\n"
-        "\n"
-        "body {\n"
-        "  font-family: system-ui, -apple-system, sans-serif;\n"
-        "  display: flex;\n"
-        "  justify-content: center;\n"
-        "  align-items: center;\n"
-        "  min-height: 100vh;\n"
-        "  background: #0a0a0a;\n"
-        "  color: #fafafa;\n"
-        "}\n"
-        "\n"
-        "h1 {\n"
-        "  font-size: 2rem;\n"
-        "}\n");
-
-    // The configuration. Every value in it is the default a build would use
-    // anyway, which is the point: a person can open this file, see what a build
-    // is being asked for, and change one line. The entry matches the document
-    // above and the output directory is the one "guchho clean" looks for.
-    //
-    // Nothing that changed recently is written here, and the omissions are
-    // deliberate. The previous version named "sourcemap: true", which was never
-    // the default and is now further from it than ever: a scaffold that turns a
-    // feature on by default is a scaffold that teaches people the feature is
-    // normally on, and they then find out otherwise the first time a build map
-    // shows up in a "dist" they were not expecting. "format" stays, because the
-    // entry above is a document and a document is bundled, so the module format
-    // of the result is a real question here rather than one that is answered
-    // with the default.
-    ok &= createFile("guchho.config.js",
-        "export default {\n"
-        "  build: {\n"
-        "    entry: 'src/index.html',\n"
-        "    outdir: 'dist',\n"
-        "    format: 'esm',\n"
-        "    target: 'esnext',\n"
-        "    minify: true,\n"
-        "    pretty: true,\n"
-        "    minifyHtml: false,\n"
-        "  },\n"
-        "};\n");
-
-    // Closes the list. On the failure side the detail has already been printed
-    // by whichever file could not be written, so this says only that it
-    // happened and the exit code carries it — a run that created three of four
-    // files has not done what was asked and should not report success.
-    std::cout << "\n";
-    if (ok) {
-        std::cout << "  Done! Get started with:\n\n"
-                  << "    guchho dev\n\n";
-    } else {
-        std::cout << "  Some files could not be created.\n";
-        return static_cast<int>(ExitCode::kBuildFailure);
-    }
-
-    return static_cast<int>(ExitCode::kSuccess);
-}
-
 // =============================================================================
 // Command: clean
 // =============================================================================

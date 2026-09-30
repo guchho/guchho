@@ -406,6 +406,7 @@ set(GUCHHO_CLI_SOURCES
     cli/cli_options.cpp
     cli/cli_project.cpp
     cli/cli_run.cpp
+    cli/cli_runtime.cpp
     cli/cli_scaffold.cpp
     cli/cli_serve.cpp
     cli/cli_service.cpp

@@ -233,44 +233,68 @@ TEST(CliBuild, NoEntryPointsAtAllIsAUsageError) {
 // passed below is the one that used to be refused, which is why it is the flag
 // this test passes.
 //
-// The other half is a finding rather than a test. The request is now recognised
-// and the build starts, and then fails inside the engine with "Unable to
-// determine how to load path: <stdin>": there is no file to infer a loader
-// from, and the value the --loader flag is parsed into does not reach the place
-// the entry point is resolved. Naming the file with --sourcefile does not help,
-// and neither does --loader=text, and neither does both — the second test below
-// is the record of that.
+// The second half is fixed as well: the source that arrived on the standard
+// input used to be lost between the option validation and the scan, because the
+// options hold a plain pointer to the text and that text was moved twice on its
+// way to the owner that was supposed to keep it. A build fed from standard input
+// therefore found an empty string where its source should have been, printed a
+// success, and wrote a zero-byte file — the worst shape a failure can take,
+// because everything it reported was true and the program was gone.
 //
-// So this asserts what the command line does today rather than what the feature
-// promises, and the exit code is the part that matters: 1, from a build that ran,
-// and not the 2 the grammar used to return. A build-from-stdin that works fails
-// this test, which is the point. The gap is in the engine's loader resolution
-// rather than in the grammar this suite fixed, and it should not be able to get
-// any quieter about it.
-TEST(CliBuild, ABuildWithNoEntryPointIsRecognisedButFailsToLoadIt) {
+// So the exit code is the first half of this assertion and the contents are the
+// second, and the second is the load-bearing one: a build that reported success
+// and wrote nothing would satisfy an exit-code test alone. The output is
+// therefore read back off disk and compared, rather than trusted.
+TEST(CliBuild, ABuildWithNoEntryPointBuildsTheStandardInput) {
     CliWorkspace ws("stdin");
 
     const guchho::test::CliResult result =
         RunCliWithStdin({"build", "--outdir=dist"}, "console.log(1);\n");
 
-    EXPECT_EQ(result.exit_code, kBuildFailure);
+    EXPECT_EQ(result.exit_code, kSuccess);
     EXPECT_FALSE(OutputContains(result.err, "Invalid transform flag"))
         << "the build was read as a transform again";
-    EXPECT_TRUE(OutputContains(result.err, "<stdin>"));
+    EXPECT_TRUE(ws.Exists("dist/stdin.js")) << "nothing was written: [" << ws.Tree() << "]";
+    EXPECT_EQ(ws.Read("dist/stdin.js"), "console.log(1);\n")
+        << "the program on the standard input did not survive the build";
 }
 
-// The half that was supposed to close the gap above, and does not. It is its own
-// test so that a fix in either place shows up on its own: a loader that started
-// working fails this one, and a diagnostic that started naming the loader fails
-// the one above.
-TEST(CliBuild, NamingTheLoaderDoesNotMakeAStdinBuildWork) {
+// Naming the loader and the file, which is what the first test's predecessor
+// recorded as making no difference. It does now, and the point of keeping the
+// test is the loader it asks for: --loader=text wraps the program as a string
+// rather than printing it as JavaScript, so the two builds of the same input
+// differ in a way only the loader can explain.
+//
+// The output is still named after the standard input and not after --sourcefile,
+// because that flag names the source for diagnostics and does not rename the
+// output; the file is therefore read from where the build says it wrote it.
+TEST(CliBuild, NamingTheLoaderAndTheSourceFileChangesTheStdinBuild) {
     CliWorkspace ws("stdin-loader");
 
-    const guchho::test::CliResult result = RunCliWithStdin(
+    const guchho::test::CliResult plain =
+        RunCliWithStdin({"build", "--outdir=dist"}, "console.log(1);\n");
+    EXPECT_EQ(plain.exit_code, kSuccess);
+    EXPECT_TRUE(ws.Exists("dist/stdin.js")) << "nothing was written: [" << ws.Tree() << "]";
+    // Read between the two runs rather than after both, because both write to
+    // the same file: a second build would leave only the last one's bytes on
+    // disk and the first would have nothing left to compare.
+    const std::string as_js = ws.Read("dist/stdin.js");
+
+    const guchho::test::CliResult named = RunCliWithStdin(
         {"build", "--outdir=dist", "--loader=text", "--sourcefile=entry.js"},
         "console.log(1);\n");
 
-    EXPECT_NE(result.exit_code, kSuccess);
+    EXPECT_EQ(named.exit_code, kSuccess);
+    EXPECT_FALSE(OutputContains(named.err, "Unable to determine how to load"))
+        << "naming the loader still does not reach the entry point: [" << named.err << "]";
+    const std::string as_text = ws.Read("dist/stdin.js");
+
+    EXPECT_TRUE(OutputContains(as_js, "console.log(1)"))
+        << "the program did not survive the build: [" << as_js << "]";
+    EXPECT_TRUE(OutputContains(as_text, "console.log(1)"))
+        << "the program did not survive the build: [" << as_text << "]";
+    EXPECT_NE(as_js, as_text)
+        << "the loader was asked for and nothing about the build changed";
 }
 
 // The table in cli_flags.cpp that keeps the two halves of the grammar in step,

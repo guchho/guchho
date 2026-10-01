@@ -836,13 +836,13 @@ struct BuildOptions {
     std::vector<Plugin> plugins;
 
     // Which of the above somebody actually said out loud. Filled in by the
-    // command-line parser and consumed by ResolveEffectiveBuildOptions; null
+    // command-line parser and consumed by ResolveEffectiveBuildConfigs; null
     // means the struct was assembled by hand and every value in it is
     // deliberate. See ExplicitlySet for why this is needed at all.
     std::shared_ptr<const ExplicitlySet> explicit_set;
 
     // Whether "format" was named by the user or the config file rather than
-    // arriving as a built-in default. Filled in by ResolveEffectiveBuildOptions,
+    // arriving as a built-in default. Filled in by ResolveEffectiveBuildConfigs,
     // which is the one place the command line's "explicit_set", the config
     // file's "FormatFromConfig" and the built-in "esm" default are all visible
     // at once. The HTML-entry warnings consume it to tell an explicit format
@@ -903,33 +903,44 @@ BuildResult Build(const BuildOptions& options);
 // Everything the resolution decided is reported back, so a command can print
 // where its settings came from instead of guessing again.
 
-// One build's settings after the four steps above.
-struct EffectiveBuildOptions {
-    BuildOptions options;      // ready to hand to Build()
-    std::string root;          // absolute directory resolution started from
-    std::string config_path;   // the config file that won, or "" for none
-    std::string config_dir;    // its directory, or "" for none
-    bool        config_found{false};      // a config file was read
-    bool        config_invalid{false};    // one was found and could not be parsed
+// Every build a project's configuration resolves to, after the four steps
+// above. A config file whose root is an object produces one entry; an array
+// root produces one entry per element, each resolved independently from the
+// same explicit options and the same built-in defaults.
+struct EffectiveBuildConfigs {
+    std::vector<BuildOptions> builds;   // each ready to hand to Build()
+    std::string root;                   // absolute directory resolution started from
+    std::string config_path;            // the config file that won, or "" for none
+    std::string config_dir;             // its directory, or "" for none
+    bool        config_found{false};    // a config file was read
+    bool        config_invalid{false};  // one was found and cannot be built as written
 };
 
 // Resolves "explicit_options" against the config file above "start_dir" and the
-// built-in defaults, and returns what the build should actually run with. This
-// is the only implementation of that ranking: the command line, "dev", "watch",
-// "serve", "clean" and every embedding of the C++ API go through it, so a
-// project sees the same settings whichever way it is driven.
+// built-in defaults, and returns what each of the project's builds should
+// actually run with. This is the only implementation of that ranking: the
+// command line, "dev", "watch", "serve", "clean" and every embedding of the C++
+// API go through it, so a project sees the same settings whichever way it is
+// driven.
 //
-// Messages about a config file that exists but cannot be parsed are returned in
+// Every configuration is resolved against the same explicit options and the
+// same defaults: an explicit CLI option overrides that field in all of them,
+// and nothing one configuration says can leak into another.
+//
+// Messages about a config file that exists but cannot be used — it could not be
+// parsed, or two configurations write the same output — are returned in
 // "config_invalid" rather than raised here, so a caller decides for itself
-// whether an unreadable config is an error or a warning.
+// whether that is an error or a warning. "builds" is empty when the config file
+// could not be parsed; a collision leaves "builds" populated, so a caller that
+// already has the request in hand can still fall back to it.
 //
 // Input:  explicit_options with outdir = "release" and bundle = true, and a
 //         guchho.config.json in "start_dir" that says outdir = "out" and
 //         minify = false
-// Output: options with outdir = "release" (explicit beats config), bundle =
-//         true, minify_whitespace = false (config beats the built-in default),
-//         and AbsOutputDir derived from any outfile
-EffectiveBuildOptions ResolveEffectiveBuildOptions(const BuildOptions& explicit_options,
+// Output: builds[0].options with outdir = "release" (explicit beats config),
+//         bundle = true, minify_whitespace = false (config beats the built-in
+//         default), and AbsOutputDir derived from any outfile
+EffectiveBuildConfigs ResolveEffectiveBuildConfigs(const BuildOptions& explicit_options,
                                                    const std::string& start_dir);
 
 // =============================================================================

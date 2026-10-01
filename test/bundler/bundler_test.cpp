@@ -249,9 +249,9 @@ void Suite::ExpectBundledImpl(Bundled args,
         guchho_config = guchho::resolver::LoadGuchhoConfigFromText(
             log, caches->json_cache, *mock_fs, args.options,
             args.guchho_config, config_path);
-        args.options = guchho_config->opts;
+        args.options = guchho_config->builds[0].opts;
         derive_output_dir_from_output_file();
-        for (auto& entry_point : guchho_config->entry_points) {
+        for (auto& entry_point : guchho_config->builds[0].entry_points) {
             entry_points.push_back(std::move(entry_point));
         }
     }

@@ -237,7 +237,34 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
         // built-in "index.html" default is a default and is not handed over, so
         // a command line with no entry point and no config still has none when
         // the gate looks.
-        build_opts = resolveRunOptions(build_opts);
+        api::EffectiveBuildConfigs effective = resolveRunConfigs(build_opts);
+
+        // A config file that exists but could not be turned into configurations
+        // — it did not parse, or two configurations write the same output — has
+        // nothing to build. The resolver has already explained why; a build
+        // that carried on with built-in defaults would build something the
+        // project never asked for.
+        if (effective.config_invalid) {
+            logger::PrintErrorToStderr(
+                args_copy, "The project configuration could not be used; see the error above");
+            return static_cast<int>(ExitCode::kCLIUsageError);
+        }
+
+        std::vector<api::BuildOptions>& builds = effective.builds;
+        const size_t build_count                = builds.size();
+        const bool   multiple                   = build_count > 1;
+
+        // These three describe the run, not one build, so there is no honest way
+        // to share them between several configurations. Each is named rather
+        // than silently attached to the first build, which is what writing one
+        // metafile for many builds would amount to.
+        if (multiple && (extras.metafile || extras.mangle_cache || extras.watch)) {
+            logger::PrintErrorToStderr(
+                args_copy,
+                "\"--metafile\", \"--mangle-cache\" and \"--watch\" describe a single build and "
+                "cannot be used when the project configuration defines more than one");
+            return static_cast<int>(ExitCode::kCLIUsageError);
+        }
 
         // There is a build to run when something was named to build from, or
         // when bundling or writing was asked for on its own — the last of which
@@ -251,8 +278,58 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
         // command with nothing to build is then carried on into the standard
         // input path and reported as an unreadable "<stdin>" instead of as the
         // missing entry point it actually is.
-        if (!build_opts.entry_points.empty() || !build_opts.entry_points_advanced.empty() ||
-            build_opts.bundle || build_opts.write) {
+        bool any_buildable = false;
+        for (const api::BuildOptions& b : builds) {
+            if (!b.entry_points.empty() || !b.entry_points_advanced.empty() || b.bundle ||
+                b.write) {
+                any_buildable = true;
+                break;
+            }
+        }
+        if (!any_buildable) {
+            logger::PrintErrorToStderr(args_copy, "No entry points specified");
+            return static_cast<int>(ExitCode::kCLIUsageError);
+        }
+
+        // The standard input is read once, so it cannot feed several builds. A
+        // configuration with no entry point is exactly the one that would reach
+        // for it, so any such configuration makes the request ambiguous.
+        if (multiple) {
+            for (const api::BuildOptions& b : builds) {
+                if (b.entry_points.empty() && b.entry_points_advanced.empty()) {
+                    logger::PrintErrorToStderr(
+                        args_copy,
+                        "The standard input is read once and cannot be built into more than one "
+                        "configuration; name an entry point for every configuration");
+                    return static_cast<int>(ExitCode::kCLIUsageError);
+                }
+            }
+        }
+
+        // "NODE_PATH" adds directories to search for packages, and it is
+        // spelled with the separator of the host: a semicolon on Windows and
+        // a colon everywhere else, which is the one place the path syntax of
+        // the two platforms leaks into a value rather than into how Guchho
+        // writes its own paths. An empty element is refused rather than
+        // dropped, because dropping one would quietly search a different
+        // directory than the person setting the variable meant.
+        //
+        // Read once rather than per configuration, because the environment is
+        // the same for all of them.
+        std::optional<std::vector<std::string>> node_paths;
+        if (auto node_path = GetEnvValue("NODE_PATH")) {
+            char separator = filesystem::CheckIfWindows() ? ';' : ':';
+            node_paths = splitWithEmptyCheck(*node_path, separator);
+        }
+
+        for (size_t build_index = 0; build_index < build_count; ++build_index) {
+            api::BuildOptions& config_opts = builds[build_index];
+
+            // A run that builds several configurations says which one it is on,
+            // so that a later failure is not read as a failure of the first.
+            if (multiple && !quiet) {
+                std::cout << "\nBuild " << (build_index + 1) << "/" << build_count << "\n";
+            }
 
             // "guchho build" writes its output, and this is where that is
             // decided. It cannot be left to the flag reader, which sets it only
@@ -265,31 +342,23 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
             // result is meant to be handed back to a caller who is not there. A
             // caller who wants the bytes is using the library, where
             // BuildOptions{} still defaults to not writing.
-            build_opts.write = true;
+            config_opts.write = true;
 
             if (analyze != AnalyzeMode::kDisabled) {
-                addAnalyzePlugin(build_opts);
+                addAnalyzePlugin(config_opts);
             }
 
-            // "NODE_PATH" adds directories to search for packages, and it is
-            // spelled with the separator of the host: a semicolon on Windows and
-            // a colon everywhere else, which is the one place the path syntax of
-            // the two platforms leaks into a value rather than into how Guchho
-            // writes its own paths. An empty element is refused rather than
-            // dropped, because dropping one would quietly search a different
-            // directory than the person setting the variable meant.
-            if (auto node_path = GetEnvValue("NODE_PATH")) {
-                char separator = filesystem::CheckIfWindows() ? ';' : ':';
-                build_opts.node_paths = splitWithEmptyCheck(*node_path, separator);
+            if (node_paths) {
+                config_opts.node_paths = *node_paths;
             }
 
             // No entry point means the source is arriving on the standard input.
             // It is read here, in full, and handed over as one virtual file: the
             // graph then sees the text as it is, unsaved, and the build is
             // otherwise an ordinary build.
-            if (build_opts.entry_points.empty() && build_opts.entry_points_advanced.empty()) {
-                if (!build_opts.stdin_data.has_value()) {
-                    build_opts.stdin_data = api::StdinOptions{};
+            if (config_opts.entry_points.empty() && config_opts.entry_points_advanced.empty()) {
+                if (!config_opts.stdin_data.has_value()) {
+                    config_opts.stdin_data = api::StdinOptions{};
                 }
                 std::string contents((std::istreambuf_iterator<char>(std::cin)),
                                       std::istreambuf_iterator<char>());
@@ -301,7 +370,7 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
                     logger::PrintErrorToStderr(args_copy, "Could not read from stdin");
                     return static_cast<int>(ExitCode::kBuildFailure);
                 }
-                build_opts.stdin_data->contents = std::move(contents);
+                config_opts.stdin_data->contents = std::move(contents);
                 // Relative imports in text that has no file of its own are
                 // resolved against the working directory, which is the only
                 // place such a build can be said to be happening.
@@ -309,13 +378,13 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
                 std::string fs_err;
                 auto fs = filesystem::MakeRealFS(fs_opts, fs_err);
                 if (fs) {
-                    build_opts.stdin_data->resolve_dir = fs->Cwd();
+                    config_opts.stdin_data->resolve_dir = fs->Cwd();
                 }
-            } else if (build_opts.stdin_data.has_value()) {
+            } else if (config_opts.stdin_data.has_value()) {
                 // Two ways of naming the same thing at once. Each is named
                 // specifically, because "that option does not apply here" on its
                 // own leaves the reader to work out which of their flags it was.
-                if (!build_opts.stdin_data->sourcefile.empty()) {
+                if (!config_opts.stdin_data->sourcefile.empty()) {
                     logger::PrintErrorToStderr(args_copy, "\"sourcefile\" only applies when reading from stdin");
                 } else {
                     logger::PrintErrorToStderr(args_copy, "\"loader\" without extension only applies when reading from stdin");
@@ -326,7 +395,7 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
             // A document entry point cannot be served as one copied file,
             // because it refers to the scripts and styles it needs, so bundling
             // is switched on for it rather than refused.
-            ApplyHtmlBundleDefault(build_opts);
+            ApplyHtmlBundleDefault(config_opts);
 
             // The metafile is the report of what the build read and produced, and
             // it is written by the run rather than by the engine. Two things are
@@ -336,7 +405,7 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
             std::string metafile_abs_path;
             std::string metafile_abs_dir;
             if (extras.metafile) {
-                if (build_opts.outfile.empty() && build_opts.outdir.empty()) {
+                if (config_opts.outfile.empty() && config_opts.outdir.empty()) {
                     logger::PrintErrorToStderr(args_copy, "Cannot use \"metafile\" without an output path");
                     return static_cast<int>(ExitCode::kCLIUsageError);
                 }
@@ -364,7 +433,7 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
             std::string mangle_abs_dir;
             std::vector<std::string> mangle_cache_order;
             if (extras.mangle_cache) {
-                if (build_opts.outfile.empty() && build_opts.outdir.empty()) {
+                if (config_opts.outfile.empty() && config_opts.outdir.empty()) {
                     logger::PrintErrorToStderr(args_copy, "Cannot use \"mangle-cache\" without an output path");
                     return static_cast<int>(ExitCode::kCLIUsageError);
                 }
@@ -391,7 +460,7 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
                     // decision; the order the names were written in is kept for
                     // the file this run will write back.
                     for (const auto& [k, v] : result.cache) {
-                        build_opts.mangle_cache[k] = v.has_value();
+                        config_opts.mangle_cache[k] = v.has_value();
                     }
                     mangle_cache_order = std::move(result.order);
                 }
@@ -403,7 +472,7 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
             // wait, and the process stays alive because of it.
             if (extras.watch) {
                 std::vector<api::Message> ctx_errors;
-                auto ctx = api::Context(build_opts, ctx_errors);
+                auto ctx = api::Context(config_opts, ctx_errors);
                 if (!ctx) {
                     for (const auto& msg : ctx_errors) {
                         logger::PrintErrorToStderr(args_copy, msg.text);
@@ -420,7 +489,7 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
             // is the thing the summary is reporting, so a clock that the system
             // adjusting mid-build would make would overstate the run.
             auto start = std::chrono::steady_clock::now();
-            auto result = api::Build(build_opts);
+            auto result = api::Build(config_opts);
             auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - start).count();
 
@@ -450,7 +519,7 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
                     cache[k] = v ? std::optional<std::string>{""} : std::nullopt;
                 }
                 auto bytes = printMangleCache(cache, mangle_cache_order,
-                                             build_opts.charset == api::Charset::kASCII);
+                                             config_opts.charset == api::Charset::kASCII);
                 writeFileContent(mangle_abs_path, bytes, args_copy);
             }
 
@@ -458,6 +527,11 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
             // is the one answer a caller needs most and the one that cannot be
             // inferred from the output: the two failures a command can have are
             // told apart by the code, and both write to the error stream.
+            //
+            // The loop stops here rather than continuing, which is the behaviour
+            // a single build has always had: a failure ends the run. Later
+            // configurations are left unbuilt so that the run does not report
+            // success for a project it could only half build.
             if (!result.errors.empty()) {
                 return static_cast<int>(ExitCode::kBuildFailure);
             }
@@ -468,12 +542,9 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
                 std::cout << "\n";
                 printBuildSummary(result, static_cast<double>(elapsed), quiet);
             }
-
-            return static_cast<int>(ExitCode::kSuccess);
         }
 
-        logger::PrintErrorToStderr(args_copy, "No entry points specified");
-        return static_cast<int>(ExitCode::kCLIUsageError);
+        return static_cast<int>(ExitCode::kSuccess);
     }
 
 // ============================================================================

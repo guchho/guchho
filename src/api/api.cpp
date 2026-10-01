@@ -2615,6 +2615,14 @@ struct InternalContext : public api::BuildContext {
         local_args.options.CancelFlagData = cancel.get();
         build->cancel = cancel;
 
+        // The copy of the standard input in this pass's own options is
+        // deliberately not pointed at. It is left addressing the session's
+        // copy, which is what the options already address and which outlives
+        // everything this function hands back: RebuildState keeps a copy of
+        // these options, so a pointer into local_args would be dangling the
+        // moment rebuild() returns. The session's copy is written once, when
+        // the context is made, and is never changed afterwards, so every pass
+        // and every state that outlives a pass reads the same live text.
         state = rebuild_impl(local_args, latest_hashes);
 
         // The result of a finished pass is kept alive separately from the state
@@ -2876,6 +2884,18 @@ context_impl(api::BuildOptions build_options) {
     ctx->args.write = build_options.write;
     ctx->args.defines_owner = std::move(defines_owner);
     ctx->args.stdin_owner = std::move(stdin_owner);
+    // "options.Stdin" was pointed at the validation-local owner, and both it and
+    // that owner have since been moved, so the pointer names a destination that
+    // is no longer where the text is. It is re-bound here, to the owner that
+    // actually lives as long as the build does. Without this a build fed from
+    // the standard input finds an empty string where its source should be and
+    // writes an empty file, which is silent rather than loud: the run reports a
+    // success and a zero-byte output.
+    if (ctx->args.stdin_owner.has_value()) {
+        ctx->args.options.Stdin = &*ctx->args.stdin_owner;
+    } else {
+        ctx->args.options.Stdin = nullptr;
+    }
     return {std::move(ctx), std::vector<api::Message>{}};
 }
 

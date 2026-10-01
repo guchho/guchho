@@ -120,9 +120,9 @@ namespace guchho::logger{
             }
 
             else {
-                // অজানা বা অবৈধ Message ID উপেক্ষা করো.
-                // কারণ এই কোড লেখার পর Message ID-এর নাম
-                // পরিবর্তন বা মুছে ফেলা হয়ে থাকতে পারে.
+                // Ignore unknown or invalid Message IDs.
+                // Because the Message ID name
+                // may have been changed or deleted after writing this code.
             }
 
         #undef MATCH
@@ -1621,14 +1621,14 @@ namespace guchho::logger{
             auto d = DetailStruct(data, path_style, terminal_info, maxMargin);
 
             if (!d.suggestion.empty()) {
-                location = std::format("\n    {}:{}:{}:\n{}{}{}{}{}{}\n{}{}{}{}{}\n{}{}{}{}{}\n{}",
+                location = std::format("\n\n    {}:{}:{}:\n{}{}{}{}{}{}\n{}{}{}{}{}\n{}{}{}{}{}\n{}",
                     d.path, d.line, d.column,
                     colors.dim, d.source_before, colors.green, d.source_marked, colors.dim, d.source_after,
                     EmptyMarginText(maxMargin, false), d.indent, colors.green, d.marker, colors.dim,
                     EmptyMarginText(maxMargin, true), d.indent, colors.green, d.suggestion, colors.reset,
                     d.content_after);
             } else {
-                location = std::format("\n    {}:{}:{}:\n{}{}{}{}{}{}\n{}{}{}{}{}\n{}",
+                location = std::format("\n\n    {}:{}:{}:\n{}{}{}{}{}{}\n{}{}{}{}{}\n{}",
                     d.path, d.line, d.column,
                     colors.dim, d.source_before, colors.green, d.source_marked, colors.dim, d.source_after,
                     EmptyMarginText(maxMargin, true), d.indent, colors.green, d.marker, colors.reset,
@@ -1649,15 +1649,22 @@ namespace guchho::logger{
 
 
 
-        return std::format("{}{}{} {}{}[{}]{}{} {}{}{}{}{}{}\n",
+        std::string header = std::format("{}{}{} {}{}[{}]{}{} {}{}{}{}{}",
             iconColor, MsgKindToIcon(kind), colors.reset,
 
             bracketColor, bracketTextColor, MsgKindToString(kind),
             bracketColor, colors.reset,
 
             colors.bold, data.text, colors.reset,
-            pluginName, msgIDSuffix,
-            location);
+            pluginName, msgIDSuffix);
+
+        // `location` already carries its own leading blank line and a trailing
+        // newline, so only the source-less form needs one appended here.
+        if (!location.empty()) {
+            return header + location;
+        }
+
+        return header + "\n";
     }
 
     // Formats this message and all its notes into a single string.

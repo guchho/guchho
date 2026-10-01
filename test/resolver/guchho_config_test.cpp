@@ -294,22 +294,22 @@ void ExpectDefaults(const resolver::GuchhoConfig& result, const std::string& roo
     EXPECT_TRUE(result.config_dir.empty());
     EXPECT_TRUE(result.config_path.empty());
 
-    EXPECT_EQ(result.entry_points.size(), size_t(1));
-    EXPECT_EQ(result.entry_points[0].InputPath, TestFs::JoinPath(root_dir, "index.html"));
+    EXPECT_EQ(result.builds[0].entry_points.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].entry_points[0].InputPath, TestFs::JoinPath(root_dir, "index.html"));
 
-    EXPECT_EQ(result.opts.AbsOutputDir, TestFs::JoinPath(root_dir, "dist"));
-    EXPECT_TRUE(result.opts.AbsOutputFile.empty());
+    EXPECT_EQ(result.builds[0].opts.AbsOutputDir, TestFs::JoinPath(root_dir, "dist"));
+    EXPECT_TRUE(result.builds[0].opts.AbsOutputFile.empty());
 
-    EXPECT_EQ(result.opts.OutputFormat, config::Format::kESModule);
-    EXPECT_EQ(result.opts.OutputPlatform, config::Platform::kBrowser);
-    EXPECT_EQ(result.opts.OriginalTargetEnv, std::string("esnext"));
+    EXPECT_EQ(result.builds[0].opts.OutputFormat, config::Format::kESModule);
+    EXPECT_EQ(result.builds[0].opts.OutputPlatform, config::Platform::kBrowser);
+    EXPECT_EQ(result.builds[0].opts.OriginalTargetEnv, std::string("esnext"));
 
-    EXPECT_TRUE(result.opts.MinifyWhitespace);
-    EXPECT_TRUE(result.opts.MinifyIdentifiers);
-    EXPECT_TRUE(result.opts.MinifySyntax);
-    EXPECT_EQ(result.opts.SourceMapData, config::SourceMap::kNone);
-    EXPECT_FALSE(result.opts.CodeSplitting);
-    EXPECT_TRUE(result.opts.TreeShaking);
+    EXPECT_TRUE(result.builds[0].opts.MinifyWhitespace);
+    EXPECT_TRUE(result.builds[0].opts.MinifyIdentifiers);
+    EXPECT_TRUE(result.builds[0].opts.MinifySyntax);
+    EXPECT_EQ(result.builds[0].opts.SourceMapData, config::SourceMap::kNone);
+    EXPECT_FALSE(result.builds[0].opts.CodeSplitting);
+    EXPECT_TRUE(result.builds[0].opts.TreeShaking);
 }
 
 } // namespace
@@ -369,11 +369,11 @@ TEST(GuchhoConfig, FilenamePriorityConfigJSBeatsJson)
     EXPECT_TRUE(result.found);
     EXPECT_FALSE(result.parse_error);
     EXPECT_EQ(result.config_path, std::string("/project/guchho.config.js"));
-    EXPECT_EQ(result.opts.AbsOutputDir, std::string("/project/from-js"));
+    EXPECT_EQ(result.builds[0].opts.AbsOutputDir, std::string("/project/from-js"));
 
     // The two JSON files were never merged in and the default entry is kept.
-    EXPECT_EQ(result.entry_points.size(), size_t(1));
-    EXPECT_EQ(result.entry_points[0].InputPath, std::string("/project/index.html"));
+    EXPECT_EQ(result.builds[0].entry_points.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].entry_points[0].InputPath, std::string("/project/index.html"));
     EXPECT_EQ(g_fake_js_calls, 1);
 }
 
@@ -392,7 +392,7 @@ TEST(GuchhoConfig, FilenamePriorityConfigJSONBeatsPlainJSON)
     EXPECT_TRUE(result.found);
     EXPECT_FALSE(result.parse_error);
     EXPECT_EQ(result.config_path, std::string("/project/guchho.config.json"));
-    EXPECT_EQ(result.opts.AbsOutputDir, std::string("/project/from-config-json"));
+    EXPECT_EQ(result.builds[0].opts.AbsOutputDir, std::string("/project/from-config-json"));
 }
 
 // ---------------------------------------------------------------------------
@@ -414,12 +414,12 @@ TEST(GuchhoConfig, ParentDiscovery)
     EXPECT_TRUE(result.found);
     EXPECT_FALSE(result.parse_error);
     EXPECT_EQ(result.config_path, std::string("/project/guchho.config.js"));
-    EXPECT_EQ(result.opts.AbsOutputDir, std::string("/project/root-out"));
+    EXPECT_EQ(result.builds[0].opts.AbsOutputDir, std::string("/project/root-out"));
 
     // Only "outdir" was overridden; the entry default stays rooted at the
     // discovery start directory.
-    EXPECT_EQ(result.entry_points.size(), size_t(1));
-    EXPECT_EQ(result.entry_points[0].InputPath, std::string("/project/src/index.html"));
+    EXPECT_EQ(result.builds[0].entry_points.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].entry_points[0].InputPath, std::string("/project/src/index.html"));
 }
 
 // ---------------------------------------------------------------------------
@@ -445,8 +445,8 @@ TEST(GuchhoConfig, OnlyOneConfigSelected)
     EXPECT_TRUE(result.found);
     EXPECT_FALSE(result.parse_error);
     EXPECT_EQ(result.config_path, std::string("/project/guchho.config.js"));
-    EXPECT_EQ(result.opts.AbsOutputDir, std::string("/project/js-out"));
-    EXPECT_TRUE(result.opts.MinifyWhitespace);
+    EXPECT_EQ(result.builds[0].opts.AbsOutputDir, std::string("/project/js-out"));
+    EXPECT_TRUE(result.builds[0].opts.MinifyWhitespace);
 }
 
 // ---------------------------------------------------------------------------
@@ -472,9 +472,7 @@ TEST(GuchhoConfig, InvalidJsonStopsDiscovery)
     EXPECT_TRUE(result.found);
     EXPECT_TRUE(result.parse_error);
     EXPECT_EQ(result.config_path, std::string("/project/src/guchho.config.json"));
-    EXPECT_EQ(result.opts.AbsOutputDir, std::string("/project/src/dist"));
-    EXPECT_EQ(result.entry_points.size(), size_t(1));
-    EXPECT_EQ(result.entry_points[0].InputPath, std::string("/project/src/index.html"));
+    EXPECT_TRUE(result.builds.empty());
 }
 
 TEST(GuchhoConfig, InvalidJSConfigStopsDiscovery)
@@ -496,10 +494,7 @@ TEST(GuchhoConfig, InvalidJSConfigStopsDiscovery)
     EXPECT_TRUE(result.found);
     EXPECT_TRUE(result.parse_error);
     EXPECT_EQ(result.config_path, std::string("/project/guchho.config.js"));
-    EXPECT_EQ(result.opts.AbsOutputDir, std::string("/project/dist"));
-    EXPECT_TRUE(result.opts.MinifyWhitespace);
-    EXPECT_EQ(result.entry_points.size(), size_t(1));
-    EXPECT_EQ(result.entry_points[0].InputPath, std::string("/project/index.html"));
+    EXPECT_TRUE(result.builds.empty());
 }
 
 // ---------------------------------------------------------------------------
@@ -521,21 +516,21 @@ TEST(GuchhoConfig, PartialOverrideKeepsDefaults)
     EXPECT_TRUE(result.found);
     EXPECT_FALSE(result.parse_error);
 
-    EXPECT_EQ(result.opts.AbsOutputDir, std::string("/project/custom-out"));
-    EXPECT_FALSE(result.opts.MinifyWhitespace);
-    EXPECT_FALSE(result.opts.MinifyIdentifiers);
-    EXPECT_FALSE(result.opts.MinifySyntax);
+    EXPECT_EQ(result.builds[0].opts.AbsOutputDir, std::string("/project/custom-out"));
+    EXPECT_FALSE(result.builds[0].opts.MinifyWhitespace);
+    EXPECT_FALSE(result.builds[0].opts.MinifyIdentifiers);
+    EXPECT_FALSE(result.builds[0].opts.MinifySyntax);
 
     // Everything else keeps its default.
-    EXPECT_EQ(result.opts.OutputFormat, config::Format::kESModule);
-    EXPECT_EQ(result.opts.OutputPlatform, config::Platform::kBrowser);
-    EXPECT_EQ(result.opts.OriginalTargetEnv, std::string("esnext"));
-    EXPECT_EQ(result.opts.SourceMapData, config::SourceMap::kNone);
-    EXPECT_FALSE(result.opts.CodeSplitting);
-    EXPECT_TRUE(result.opts.TreeShaking);
-    EXPECT_TRUE(result.opts.AbsOutputFile.empty());
-    EXPECT_EQ(result.entry_points.size(), size_t(1));
-    EXPECT_EQ(result.entry_points[0].InputPath, std::string("/project/index.html"));
+    EXPECT_EQ(result.builds[0].opts.OutputFormat, config::Format::kESModule);
+    EXPECT_EQ(result.builds[0].opts.OutputPlatform, config::Platform::kBrowser);
+    EXPECT_EQ(result.builds[0].opts.OriginalTargetEnv, std::string("esnext"));
+    EXPECT_EQ(result.builds[0].opts.SourceMapData, config::SourceMap::kNone);
+    EXPECT_FALSE(result.builds[0].opts.CodeSplitting);
+    EXPECT_TRUE(result.builds[0].opts.TreeShaking);
+    EXPECT_TRUE(result.builds[0].opts.AbsOutputFile.empty());
+    EXPECT_EQ(result.builds[0].entry_points.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].entry_points[0].InputPath, std::string("/project/index.html"));
 }
 
 // ---------------------------------------------------------------------------
@@ -565,7 +560,7 @@ TEST(GuchhoConfig, EquivalentSchemas)
         resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/a");
         EXPECT_TRUE(result.found);
         EXPECT_FALSE(result.parse_error);
-        js_opts = result.opts;
+        js_opts = result.builds[0].opts;
     }
 
     {
@@ -578,7 +573,7 @@ TEST(GuchhoConfig, EquivalentSchemas)
         resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/a");
         EXPECT_TRUE(result.found);
         EXPECT_FALSE(result.parse_error);
-        config_json_opts = result.opts;
+        config_json_opts = result.builds[0].opts;
     }
 
     {
@@ -591,7 +586,7 @@ TEST(GuchhoConfig, EquivalentSchemas)
         resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/a");
         EXPECT_TRUE(result.found);
         EXPECT_FALSE(result.parse_error);
-        plain_json_opts = result.opts;
+        plain_json_opts = result.builds[0].opts;
     }
 
     EXPECT_EQ(js_opts.AbsOutputDir, config_json_opts.AbsOutputDir);
@@ -671,8 +666,8 @@ TEST(GuchhoConfig, TopLevelEntryAlias)
 
     EXPECT_TRUE(result.found);
     EXPECT_FALSE(result.parse_error);
-    ASSERT_EQ(result.entry_points.size(), size_t(1));
-    EXPECT_EQ(result.entry_points[0].InputPath, std::string("/project/src/main.html"));
+    ASSERT_EQ(result.builds[0].entry_points.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].entry_points[0].InputPath, std::string("/project/src/main.html"));
 
     // "entry" is a supported spelling now, so it must not also draw the
     // generic unknown-field warning.
@@ -693,9 +688,9 @@ TEST(GuchhoConfig, OutputAliases)
 
     EXPECT_TRUE(result.found);
     EXPECT_FALSE(result.parse_error);
-    EXPECT_EQ(result.opts.AbsOutputDir, std::string("/project/out"));
-    EXPECT_EQ(result.opts.OutputFormat, config::Format::kCommonJS);
-    EXPECT_EQ(result.opts.SourceMapData, config::SourceMap::kInline);
+    EXPECT_EQ(result.builds[0].opts.AbsOutputDir, std::string("/project/out"));
+    EXPECT_EQ(result.builds[0].opts.OutputFormat, config::Format::kCommonJS);
+    EXPECT_EQ(result.builds[0].opts.SourceMapData, config::SourceMap::kInline);
     EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoJSON_UnknownField), size_t(0));
 }
 
@@ -720,13 +715,13 @@ TEST(GuchhoConfig, CanonicalWinsOverAlias)
     EXPECT_TRUE(result.found);
     EXPECT_FALSE(result.parse_error);
 
-    EXPECT_EQ(result.opts.AbsOutputDir, std::string("/project/canonical"));
-    EXPECT_EQ(result.opts.OutputFormat, config::Format::kESModule);
-    EXPECT_EQ(result.opts.SourceMapData, config::SourceMap::kNone);
+    EXPECT_EQ(result.builds[0].opts.AbsOutputDir, std::string("/project/canonical"));
+    EXPECT_EQ(result.builds[0].opts.OutputFormat, config::Format::kESModule);
+    EXPECT_EQ(result.builds[0].opts.SourceMapData, config::SourceMap::kNone);
 
     // The losing alias must not append a second entry point.
-    ASSERT_EQ(result.entry_points.size(), size_t(1));
-    EXPECT_EQ(result.entry_points[0].InputPath, std::string("/project/src/main.html"));
+    ASSERT_EQ(result.builds[0].entry_points.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].entry_points[0].InputPath, std::string("/project/src/main.html"));
 
     // Four conflicts: top-level "entry", plus dir/format/sourcemap.
     EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_AliasIgnored), size_t(4));
@@ -810,4 +805,216 @@ TEST(GuchhoConfig, UnsupportedFieldsQuietWhenAbsentOrNull)
     EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_RootIgnored), size_t(0));
     EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_ServerIgnored), size_t(0));
     EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_WatchIgnored), size_t(0));
+}
+
+// ---------------------------------------------------------------------------
+// Multiple configurations (array root)
+// ---------------------------------------------------------------------------
+
+// An array root is one build per element, each resolved on its own.
+TEST(GuchhoConfig, ArrayRootProducesOneBuildPerElement)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "[{\"build\":{\"outdir\":\"one\",\"minify\":false}},"
+               " {\"build\":{\"outdir\":\"two\",\"minify\":true}}]");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    ASSERT_EQ(result.builds.size(), size_t(2));
+
+    EXPECT_EQ(result.builds[0].opts.AbsOutputDir, std::string("/project/one"));
+    EXPECT_FALSE(result.builds[0].opts.MinifyWhitespace);
+    EXPECT_EQ(result.builds[1].opts.AbsOutputDir, std::string("/project/two"));
+    EXPECT_TRUE(result.builds[1].opts.MinifyWhitespace);
+}
+
+// Nothing one element says may leak into another: the first disables minify,
+// the second says nothing about it, so the second keeps the built-in default.
+TEST(GuchhoConfig, ArrayElementsDoNotShareState)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "[{\"build\":{\"minify\":false}}, {\"build\":{\"outdir\":\"two\"}}]");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    ASSERT_EQ(result.builds.size(), size_t(2));
+    EXPECT_FALSE(result.builds[0].opts.MinifyWhitespace);
+    EXPECT_TRUE(result.builds[1].opts.MinifyWhitespace);
+    EXPECT_TRUE(result.builds[1].opts.MinifySyntax);
+}
+
+// "format" is recorded per element, so the HTML-entry warning can tell which
+// configuration actually named one.
+TEST(GuchhoConfig, ArrayFormatRecordedPerElement)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "[{\"build\":{\"format\":\"iife\"}}, {\"build\":{\"outdir\":\"two\"}}]");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    ASSERT_EQ(result.builds.size(), size_t(2));
+    EXPECT_EQ(result.builds[0].opts.OutputFormat, config::Format::kIIFE);
+    EXPECT_TRUE(result.builds[0].opts.FormatFromConfig);
+    EXPECT_EQ(result.builds[1].opts.OutputFormat, config::Format::kESModule);
+    EXPECT_FALSE(result.builds[1].opts.FormatFromConfig);
+}
+
+// Each element owns its processed defines, and "opts.Defines" points at its own
+// storage rather than at a shared or dangling object.
+TEST(GuchhoConfig, ArrayElementsHaveIndependentDefines)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "[{\"define\":{\"A\":\"1\"}}, {\"define\":{\"B\":\"2\"}}]");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    ASSERT_EQ(result.builds.size(), size_t(2));
+    EXPECT_TRUE(result.builds[0].defines_owned != nullptr);
+    EXPECT_TRUE(result.builds[1].defines_owned != nullptr);
+    EXPECT_TRUE(result.builds[0].opts.Defines == result.builds[0].defines_owned.get());
+    EXPECT_TRUE(result.builds[1].opts.Defines == result.builds[1].defines_owned.get());
+    EXPECT_TRUE(result.builds[0].opts.Defines != result.builds[1].opts.Defines);
+}
+
+// An element without "build.entry" falls back to the default entry on its own;
+// the element beside it keeps the entry it named.
+TEST(GuchhoConfig, ArrayElementWithoutEntryGetsDefaultEntry)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "[{\"build\":{\"entry\":\"app.js\"}}, {\"build\":{\"outdir\":\"two\"}}]");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    ASSERT_EQ(result.builds.size(), size_t(2));
+    ASSERT_EQ(result.builds[0].entry_points.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].entry_points[0].InputPath, std::string("/project/app.js"));
+    EXPECT_TRUE(result.builds[0].entry_from_config);
+    ASSERT_EQ(result.builds[1].entry_points.size(), size_t(1));
+    EXPECT_EQ(result.builds[1].entry_points[0].InputPath, std::string("/project/index.html"));
+    EXPECT_FALSE(result.builds[1].entry_from_config);
+}
+
+// A config file whose root is an array is found where a single config would
+// have been; discovery still stops at the first config it may use.
+TEST(GuchhoConfig, ArrayRootStopsDiscovery)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json", "[{\"build\":{\"outdir\":\"a\"}},{}]");
+    fs.SetFile("/project/src/index.html", "");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result =
+        resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project/src");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    ASSERT_EQ(result.builds.size(), size_t(2));
+    // The second element named nothing, so it keeps the built-in output
+    // directory rooted at the discovery start.
+    EXPECT_EQ(result.builds[1].opts.AbsOutputDir, std::string("/project/src/dist"));
+}
+
+// A rejected config is rejected whole: no configurations, a logged diagnostic,
+// and "parse_error" set.
+TEST(GuchhoConfig, EmptyArrayIsParseError)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json", "[]");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_TRUE(result.parse_error);
+    EXPECT_TRUE(result.builds.empty());
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_EmptyArray), size_t(1));
+}
+
+TEST(GuchhoConfig, ScalarRootIsParseError)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json", "\"just a string\"");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_TRUE(result.parse_error);
+    EXPECT_TRUE(result.builds.empty());
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_InvalidRoot), size_t(1));
+}
+
+TEST(GuchhoConfig, ArrayElementNotObjectIsParseError)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json", "[{\"build\":{\"outdir\":\"ok\"}}, 42]");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_TRUE(result.parse_error);
+    EXPECT_TRUE(result.builds.empty());
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_InvalidArrayElement), size_t(1));
+}
+
+// The JS loader shares the text path, so an array returned from
+// "guchho.config.js" resolves the same way.
+TEST(GuchhoConfig, JSArrayRootProducesMultipleBuilds)
+{
+    TestFs fs;
+    JSLoaderGuard guard(&FakeJSLoader);
+    fs.SetFile("/project/guchho.config.js",
+               "[{\"build\":{\"outdir\":\"js-one\"}}, {\"build\":{\"outdir\":\"js-two\"}}]");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    ASSERT_EQ(result.builds.size(), size_t(2));
+    EXPECT_EQ(result.builds[0].opts.AbsOutputDir, std::string("/project/js-one"));
+    EXPECT_EQ(result.builds[1].opts.AbsOutputDir, std::string("/project/js-two"));
 }

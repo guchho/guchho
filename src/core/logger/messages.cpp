@@ -570,10 +570,17 @@ namespace guchho::logger {
         case MsgCat::kGuchhoConfig_DidNotProduceConfigObject: return "{} did not produce a config object; falling back to a JSON config file";
         case MsgCat::kGuchhoConfig_NotJSONObject: return "{} did not evaluate to a JSON object; falling back to a JSON config file";
         case MsgCat::kGuchhoConfig_RootNotSupported: return "The \"root\" field is not supported yet and will be ignored; the project root comes from the directory guchho is run in";
+        case MsgCat::kGuchhoConfig_RootNotObjectOrArray: return "{} did not evaluate to a configuration object or an array of configuration objects";
+        case MsgCat::kGuchhoConfig_ArrayElementNotObject: return "Configuration {} in {} is not an object";
+        case MsgCat::kGuchhoConfig_NoConfigurationsInArray: return "{} exported an empty array; there is no configuration to build";
+        case MsgCat::kGuchhoConfig_OnlyFirstConfigurationUsed: return "{} defines {} build configurations; only the first is used here. Run \"guchho build\" to build all of them";
         case MsgCat::kGuchhoConfig_ServerNotSupported: return "The \"server\" field is not supported yet and will be ignored; use \"guchho serve\" for a development server";
         case MsgCat::kGuchhoConfig_WatchNotSupported: return "The \"watch\" field is not supported yet and will be ignored; use \"guchho serve --watch\" to rebuild on change";
         case MsgCat::kGuchhoConfig_BundleAlwaysOn: return "The \"build.bundle\" field has no effect because bundling is always enabled";
         case MsgCat::kGuchhoConfig_ConflictingAlias: return "Both {} and {} are set; {} is the canonical field and the other will be ignored";
+        case MsgCat::kGuchhoConfig_ConflictingOutputFile: return "{} and {} write to the same file; the later one would overwrite the earlier one";
+        case MsgCat::kGuchhoConfig_PlatformMismatchForHTML: return "\"platform: {}\" may not be appropriate for an HTML entry.";
+        case MsgCat::kGuchhoConfig_OutfileIgnoredForHTML: return "\"outfile\" is not used for HTML entry output.";
 
         // -------------------------------------------------------------------
         // Yarn PnP (yarnpnp.cpp)
@@ -733,6 +740,7 @@ namespace guchho::logger {
         case MsgCat::kAPI_FailedToCreateOutputDirectory: return "Failed to create output directory: {}";
         case MsgCat::kAPI_FailedToWriteOutputFile: return "Failed to write to output file: {}";
         case MsgCat::kAPI_MustUseOutdirMultipleInputFiles: return "Must use \"outdir\" when there are multiple input files";
+        case MsgCat::kAPI_MustUseOutdirMultipleHTMLInputs: return "\"outfile\" cannot be used with multiple HTML entry points.";
         case MsgCat::kAPI_MustUseOutdirCodeSplitting: return "Must use \"outdir\" when code splitting is enabled";
         case MsgCat::kAPI_CannotUseBothOutfileAndOutdir: return "Cannot use both \"outfile\" and \"outdir\"";
         case MsgCat::kAPI_CannotUseExternalSourceMap: return "Cannot use an external source map without an output path";
@@ -747,6 +755,7 @@ namespace guchho::logger {
         case MsgCat::kAPI_CannotTransformWithLinkedLegalComments: return "Cannot transform with linked legal comments";
         case MsgCat::kAPI_InvalidLogLevel: return "Invalid \"log_level\": {}";
         case MsgCat::kAPI_InvalidLogOverride: return "Invalid \"log_override\" value for \"{}\": {}";
+        case MsgCat::kAPI_FormatIgnoredForHTMLEntry: return "\"format\" is ignored when the entry point is HTML.";
 
             default:
                 return "";

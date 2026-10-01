@@ -565,6 +565,14 @@ namespace guchho::cli {
     api::BuildOptions resolveRunOptions(const api::BuildOptions& options,
                                         const std::string& abs_working_dir = "");
 
+    // Settles everything a command line left open for every configuration the
+    // project defines. "runBuild" uses this so a config file whose root is an
+    // array builds each element; the commands that can only act on one build
+    // use "resolveRunOptions" above, which resolves to the first configuration
+    // and names the others rather than dropping them without a word.
+    api::EffectiveBuildConfigs resolveRunConfigs(const api::BuildOptions& options,
+                                                 const std::string& abs_working_dir = "");
+
     // Whether "arg" is "flag" on its own or "flag=...", and whether it is
     // something a build can use at all (a path, or the one flag that is both a
     // switch and a value).

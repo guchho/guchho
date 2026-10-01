@@ -84,21 +84,52 @@ namespace guchho::resolver {
     // override on top of the built-in defaults produced by
     // "CreateDefaultGuchhoConfig".
 
-    // The result of loading a Guchho project config file.
-    struct GuchhoConfig {
+    // One configuration within a Guchho config file.
+    //
+    // A config file describes a single build when its root is an object, and
+    // several independent builds when its root is an array. Each element is
+    // resolved on its own: every "GuchhoBuildConfig" starts from a fresh copy
+    // of the built-in defaults, so one element can never inherit another
+    // element's fields. Keeping the per-configuration state in its own struct
+    // is what makes that independence the default rather than a convention.
+    struct GuchhoBuildConfig {
         // The resolved build options: the built-in defaults from
-        // "CreateDefaultGuchhoConfig" with the explicitly-specified fields of
-        // the found config file applied on top.
+        // "CreateDefaultGuchhoBuildConfig" with the explicitly-specified fields
+        // of this configuration applied on top.
         config::Options opts;
 
-        // Build entry points from the "build.entry" field. These are passed to
-        // the bundler separately from "opts" (which does not carry entries).
+        // Build entry points from this configuration's "build.entry" field.
+        // These are passed to the bundler separately from "opts" (which does
+        // not carry entries).
         std::vector<config::EntryPoint> entry_points;
 
         // Owns the processed defines that "opts.Defines" points at.
         // "config::Options" keeps only a raw pointer, so the storage must move
-        // along with this struct for the pointer to stay valid.
+        // along with this struct for the pointer to stay valid. Because each
+        // element owns its own "defines_owned", the pointees stay heap-stable
+        // when the enclosing vector of configurations is reallocated.
         std::unique_ptr<config::ProcessedDefines> defines_owned;
+
+        // True when this configuration supplied at least one "build.entry"
+        // value. This is what separates an entry point a project asked for
+        // from the built-in default entry that
+        // "CreateDefaultGuchhoBuildConfig" installs: both arrive in
+        // "entry_points", and only the latter may be discarded when a caller
+        // names its own entries.
+        bool entry_from_config = false;
+    };
+
+    // The result of loading a Guchho project config file. "builds" holds one
+    // element for an object root and one element per array element for an array
+    // root. It is empty when a config file was found but could not be turned
+    // into usable configurations; "parse_error" is then true and a diagnostic
+    // has already been logged.
+    struct GuchhoConfig {
+        // The configurations to build, in the order the config file listed
+        // them. Every consumer of a GuchhoConfig must decide what to do with
+        // each element, which is what keeps extra configurations from being
+        // dropped without a word.
+        std::vector<GuchhoBuildConfig> builds;
 
         // Absolute path of the directory containing the config file.
         std::string config_dir;
@@ -107,37 +138,38 @@ namespace guchho::resolver {
         // was found on disk).
         std::string config_path;
 
-        // True when the loaded config file supplied at least one "build.entry"
-        // value. This is what separates an entry point a project asked for from
-        // the built-in default entry that "CreateDefaultGuchhoConfig" installs:
-        // both arrive in "entry_points", and only the latter may be discarded
-        // when a caller names its own entries.
-        bool entry_from_config = false;
-
         // True when a config file was found and successfully parsed.
         bool found = false;
 
-        // True when a config file was found but could not be parsed. When this
-        // is set alongside "found == false", a diagnostic has already been
-        // logged to the log sink.
+        // True when a config file was found but could not be parsed, or named
+        // configurations that cannot be built as written (for example two of
+        // them writing the same output file). When this is set alongside
+        // "found == false", a diagnostic has already been logged to the log
+        // sink.
         bool parse_error = false;
     };
 
-    // Creates the built-in default GuchhoConfig for "root_dir". Relative
-    // paths in the defaults — the default entry "index.html" and the default
-    // output directory "dist" — are resolved against "root_dir". The result
-    // carries the documented defaults, has "found == false" and
-    // "parse_error == false", and never depends on a config file existing.
-    // Config discovery starts from these defaults and overlays only the
-    // explicitly-specified fields of a found config file, so this function is
-    // the single source of truth for the default configuration.
+    // Creates the built-in default configuration for "root_dir". Relative paths
+    // in the defaults — the default entry "index.html" and the default output
+    // directory "dist" — are resolved against "root_dir". Config discovery
+    // starts from these defaults and overlays only the explicitly-specified
+    // fields of a found config file, so this function is the single source of
+    // truth for the default configuration.
+    //
+    // Example:
+    //   CreateDefaultGuchhoBuildConfig("C:/app") =>
+    //     GuchhoBuildConfig { entry_points = { { path = "C:/app/index.html" } },
+    //                         opts.Outdir  = "C:/app/dist" }
+    GuchhoBuildConfig CreateDefaultGuchhoBuildConfig(const std::string& root_dir);
+
+    // Creates the built-in default GuchhoConfig for "root_dir": a single
+    // default configuration, with "found == false" and "parse_error == false".
+    // This is what discovery returns when no config file exists anywhere.
     //
     // Example:
     //   CreateDefaultGuchhoConfig("C:/app") =>
-    //     GuchhoConfig { entry_points  = { { path = "C:/app/index.html" } },
-    //                    opts.Outdir   = "C:/app/dist",
-    //                    found         = false,
-    //                    parse_error   = false }
+    //     GuchhoConfig { builds = { CreateDefaultGuchhoBuildConfig("C:/app") },
+    //                    found = false, parse_error = false }
     GuchhoConfig CreateDefaultGuchhoConfig(const std::string& root_dir);
 
     // The supported Guchho config file names, in the priority order discovery
@@ -166,16 +198,24 @@ namespace guchho::resolver {
     // JSON config is only a fallback when no JS config exists anywhere.
     // Config files from multiple directories are never merged. "opts" is used
     // only for diagnostic path-style settings — the configuration base is
-    // always the built-in defaults from "CreateDefaultGuchhoConfig". When no
-    // config exists anywhere the defaults are returned with "found == false"
-    // and "parse_error == false". A config that exists but cannot be read or
-    // parsed is FOUND + INVALID ("found == true", "parse_error == true") and
-    // never falls back to parent directories or to the defaults.
+    // always the built-in defaults from "CreateDefaultGuchhoBuildConfig". When
+    // no config exists anywhere the single default configuration is returned
+    // with "found == false" and "parse_error == false". A config that exists
+    // but cannot be read or parsed is FOUND + INVALID ("found == true",
+    // "parse_error == true") and never falls back to parent directories or to
+    // the defaults.
+    //
+    // "builds" holds one element for an object root and one element per array
+    // element for an array root; every element is resolved from the defaults
+    // on its own, so elements never share state. The discovery walk itself
+    // stops at the first config file it may legally use, so an array root is
+    // found exactly where a single config would have been.
     //
     // Example:
     //   LoadGuchhoConfig(log, cache, fs, opts, "C:/app/src") when
     //   "C:/app/guchho.json" sets "outdir" =>
-    //     GuchhoConfig { opts.Outdir = "C:/app/build", config_dir = "C:/app",
+    //     GuchhoConfig { builds = { { opts.Outdir = "C:/app/build" } },
+    //                    config_dir = "C:/app",
     //                    config_path = "C:/app/guchho.json", found = true }
     GuchhoConfig LoadGuchhoConfig(
         logger::Log&             log,
@@ -206,10 +246,17 @@ namespace guchho::resolver {
     // synthetic configs. Returns "parse_error = true" (with a logged
     // diagnostic) when "json_text" is not valid JSON.
     //
+    // The root may be an object or an array of objects. Anything else — a
+    // string, number, boolean, "null", or an empty array — is a diagnostic and
+    // a "parse_error" with no configurations, as is an array holding a
+    // non-object element. A rejected config is rejected whole: the valid
+    // elements around a bad one are not built.
+    //
     // Example:
     //   LoadGuchhoConfigFromText(log, cache, fs, opts,
     //     "{ \"outdir\": \"build\" }", "C:/app/guchho.json") =>
-    //     GuchhoConfig { opts.Outdir = "C:/app/build", found = true }
+    //     GuchhoConfig { builds = { { opts.Outdir = "C:/app/build" } },
+    //                    found = true }
     GuchhoConfig LoadGuchhoConfigFromText(
         logger::Log&             log,
         cache::JSONCache&        json_cache,

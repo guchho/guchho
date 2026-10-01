@@ -685,9 +685,10 @@ api::TransformOptions newTransformOptions() {
 // The grammar has already recorded which options somebody typed, so this is
 // where the other two sources get their turn: the project's config file, and the
 // built-in defaults behind it. The work is not done here, only asked for — the
-// ranking lives in api::ResolveEffectiveBuildOptions, which is the same code an
+// ranking lives in api::ResolveEffectiveBuildConfigs, which is the same code an
 // embedding of the C++ API reaches, so there is one answer to "what does this
-// project build with" rather than one per caller.
+// project build with" rather than one per caller. This command can only act on
+// one configuration, so it takes the first and names the rest.
 //
 // The HTML-first default is applied after the resolution rather than before it,
 // because a config file that names its own entry points can bring an HTML entry
@@ -703,11 +704,41 @@ api::TransformOptions newTransformOptions() {
 //         beside the project had to say about the rest
 api::BuildOptions resolveRunOptions(const api::BuildOptions& options,
                                     const std::string& abs_working_dir) {
-    api::EffectiveBuildOptions effective =
-        api::ResolveEffectiveBuildOptions(options, abs_working_dir);
-    api::BuildOptions resolved = std::move(effective.options);
+    api::EffectiveBuildConfigs effective =
+        api::ResolveEffectiveBuildConfigs(options, abs_working_dir);
+
+    if (effective.builds.empty()) {
+        // The config file was found but could not be turned into configurations,
+        // and the resolver has already logged why. This command cannot act on a
+        // config it cannot read, so it carries on with the request it was given,
+        // with the parse state cleared exactly as a resolution would.
+        api::BuildOptions unresolved = options;
+        unresolved.explicit_set = nullptr;
+        return unresolved;
+    }
+
+    if (effective.builds.size() > 1) {
+        // This command can only build one configuration. Say so rather than
+        // silently dropping the rest, and point at the command that builds them
+        // all.
+        logger::Log log = logger::NewStderrLog({});
+        log.AddID(logger::MsgID::kGuchhoConfig_MultipleConfigsIgnored,
+                  logger::MsgKind::kWarning, nullptr, logger::Range{},
+                  logger::FormatMsg(logger::MsgCat::kGuchhoConfig_OnlyFirstConfigurationUsed,
+                                    effective.config_path.empty()
+                                        ? std::string("the project configuration")
+                                        : effective.config_path,
+                                    std::to_string(effective.builds.size())));
+    }
+
+    api::BuildOptions resolved = std::move(effective.builds.front());
     ApplyHtmlBundleDefault(resolved);
     return resolved;
+}
+
+api::EffectiveBuildConfigs resolveRunConfigs(const api::BuildOptions& options,
+                                             const std::string& abs_working_dir) {
+    return api::ResolveEffectiveBuildConfigs(options, abs_working_dir);
 }
 
 // =============================================================================

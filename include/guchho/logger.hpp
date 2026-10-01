@@ -162,7 +162,18 @@ namespace guchho::logger {
         kGuchhoConfig_WatchIgnored,
         kGuchhoConfig_BundleIgnored,
         kGuchhoConfig_AliasIgnored,
+        kGuchhoConfig_InvalidRoot,
+        kGuchhoConfig_InvalidArrayElement,
+        kGuchhoConfig_EmptyArray,
+        kGuchhoConfig_MultipleConfigsIgnored,
+        kGuchhoConfig_ConflictingOutput,
+        kGuchhoConfig_ConflictingOutputFile,
+        kGuchhoConfig_PlatformMismatchForHTML,
+        kGuchhoConfig_OutfileIgnoredForHTML,
         kGuchhoConfig_LAST,
+
+        // api
+        kAPI_FormatIgnoredForHTMLEntry,
 
         kEND,
     };
@@ -1384,10 +1395,17 @@ namespace guchho::logger {
         kGuchhoConfig_DidNotProduceConfigObject,
         kGuchhoConfig_NotJSONObject,
         kGuchhoConfig_RootNotSupported,
+        kGuchhoConfig_RootNotObjectOrArray,
+        kGuchhoConfig_ArrayElementNotObject,
+        kGuchhoConfig_NoConfigurationsInArray,
+        kGuchhoConfig_OnlyFirstConfigurationUsed,
         kGuchhoConfig_ServerNotSupported,
         kGuchhoConfig_WatchNotSupported,
         kGuchhoConfig_BundleAlwaysOn,
         kGuchhoConfig_ConflictingAlias,
+        kGuchhoConfig_ConflictingOutputFile,
+        kGuchhoConfig_PlatformMismatchForHTML,
+        kGuchhoConfig_OutfileIgnoredForHTML,
 
         // -------------------------------------------------------------------
         // Yarn PnP (yarnpnp.cpp)
@@ -1645,6 +1663,7 @@ namespace guchho::logger {
         kAPI_FailedToCreateOutputDirectory,
         kAPI_FailedToWriteOutputFile,
         kAPI_MustUseOutdirMultipleInputFiles,
+        kAPI_MustUseOutdirMultipleHTMLInputs,
         kAPI_MustUseOutdirCodeSplitting,
         kAPI_CannotUseBothOutfileAndOutdir,
         kAPI_CannotUseExternalSourceMap,

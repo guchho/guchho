@@ -523,12 +523,12 @@ Bundled ScenarioForProject(
     std::unordered_map<std::string, std::string> files,
     const guchho::resolver::GuchhoConfig&         config)
 {
-    guchho::config::Options options = config.opts;
+    guchho::config::Options options = config.builds[0].opts;
     options.BuildMode              = guchho::config::Mode::kBundle;
 
     Bundled scenario;
     scenario.files = std::move(files);
-    for (const auto& entry_point : config.entry_points) {
+    for (const auto& entry_point : config.builds[0].entry_points) {
         scenario.entry_paths.push_back(entry_point.InputPath);
     }
     scenario.options = std::move(options);
@@ -571,8 +571,8 @@ TEST(BundlerGuchhoJSON, DefaultEntryIsThePage) {
     EXPECT_TRUE(project.log.empty());
 
     // One entry, and it is the page next to the config rather than a module.
-    ASSERT_EQ(project.config.entry_points.size(), size_t{1});
-    EXPECT_EQ(project.config.entry_points[0].InputPath,
+    ASSERT_EQ(project.config.builds[0].entry_points.size(), size_t{1});
+    EXPECT_EQ(project.config.builds[0].entry_points[0].InputPath,
               std::string("/project/index.html"));
 
     guchhojson_suite.ExpectBundledUnix(
@@ -627,7 +627,7 @@ TEST(BundlerGuchhoJSON, ConfigJSFileNameWins) {
     EXPECT_TRUE(project.config.found);
     EXPECT_FALSE(project.config.parse_error);
     EXPECT_EQ(project.config.config_path, std::string("/project/guchho.config.js"));
-    EXPECT_EQ(project.config.opts.OutputFormat, guchho::config::Format::kIIFE);
+    EXPECT_EQ(project.config.builds[0].opts.OutputFormat, guchho::config::Format::kIIFE);
     EXPECT_TRUE(project.log.empty());
 
     guchhojson_suite.ExpectBundledUnix(

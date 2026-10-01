@@ -21,6 +21,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include "guchho/api.hpp"
@@ -48,7 +49,7 @@ namespace {
     //
     // Reading a null set as "everything was named" was the other option, and it
     // is wrong in a way that only shows up later. A library caller who wrote
-    // "BuildOptions opts; ResolveEffectiveBuildOptions(opts, dir);" to ask what
+    // "BuildOptions opts; ResolveEffectiveBuildConfigs(opts, dir);" to ask what
     // a project builds with would get back the struct it already had — no
     // config, no "dist", nothing — and a helper that cannot answer a question
     // about a project it has already found is not an aid to anybody. A caller
@@ -214,13 +215,21 @@ TargetParse ParseTargetSpec(std::string_view text, TargetSpec& out, std::string_
     return TargetParse::kOk;
 }
 
-EffectiveBuildOptions ResolveEffectiveBuildOptions(const BuildOptions& explicit_options,
-                                                   const std::string& start_dir)
-{
-    EffectiveBuildOptions result;
-    BuildOptions& out = result.options;
-    out = explicit_options;
+namespace {
 
+// Applies one configuration's fields, then the built-in defaults, to "out".
+//
+// "out" already holds the explicit options, because it starts as a copy of the
+// request. Nothing below is allowed to take any of those back. The function is
+// called once per configuration a config file resolved to, and never sees any
+// other configuration, which is what keeps one element's fields from leaking
+// into another.
+void ResolveOneBuild(BuildOptions& out,
+                     const config::Options& cfg,
+                     const std::vector<config::EntryPoint>& config_entries,
+                     bool entry_from_config,
+                     filesystem::Fs& fs)
+{
     // The one place the parse state survives into the answer. The resolved
     // options are no longer a description of what somebody typed — they are a
     // description of what the build will do — so keeping the set on them would
@@ -234,36 +243,6 @@ EffectiveBuildOptions ResolveEffectiveBuildOptions(const BuildOptions& explicit_
     // and the built-in defaults are both skipped. A resolution that quietly
     // answers with the request it was given is the one failure this whole
     // function exists to prevent.
-
-    // ---- A file system to look for the config with -------------------------
-    std::string fs_error;
-    std::unique_ptr<filesystem::Fs> fs =
-        filesystem::MakeRealFS({.abs_working_dir = start_dir}, fs_error);
-    if (!fs) {
-        // Without a file system there is nothing to discover and nothing to
-        // derive, so the request is answered as best it can be from the
-        // explicit options alone. A build that still needs an output directory
-        // says so through the ordinary "must use outdir" message, which names
-        // the problem rather than the failure to look for it.
-        out.explicit_set = nullptr;
-        return result;
-    }
-
-    result.root = fs->Cwd();
-
-    // ---- The config file ---------------------------------------------------
-    config::Options base;
-    std::unique_ptr<cache::CacheSet> caches = cache::MakeCacheSet();
-    logger::Log log = logger::NewStderrLog({});
-    resolver::GuchhoConfig config = resolver::LoadGuchhoConfig(
-        log, caches->json_cache, *fs, base, result.root);
-
-    result.config_path   = config.config_path;
-    result.config_dir    = config.config_dir;
-    result.config_found  = config.found;
-    result.config_invalid = config.parse_error;
-
-    const config::Options& cfg = config.opts;
 
     // ---- 1. Explicit options ----------------------------------------------
     // Already in "out", because "out" is a copy of what was asked for. Nothing
@@ -282,13 +261,13 @@ EffectiveBuildOptions ResolveEffectiveBuildOptions(const BuildOptions& explicit_
             // a consequence. Handing Build() an outfile it can derive the
             // directory from would be correct, but handing it both is an error
             // there, so only the file is carried across.
-            out.outfile = Relativize(*fs, cfg.AbsOutputFile);
+            out.outfile = Relativize(fs, cfg.AbsOutputFile);
         } else if (!cfg.AbsOutputDir.empty()) {
-            out.outdir = Relativize(*fs, cfg.AbsOutputDir);
+            out.outdir = Relativize(fs, cfg.AbsOutputDir);
         }
     }
     if (!WasSet(out, kOptOutbase) && out.outbase.empty() && !cfg.AbsOutputBase.empty()) {
-        out.outbase = Relativize(*fs, cfg.AbsOutputBase);
+        out.outbase = Relativize(fs, cfg.AbsOutputBase);
     }
     // A format is only a question where something needs one. An unbundled entry
     // is converted or copied and the answer "leave it as it was" is the only
@@ -372,12 +351,12 @@ EffectiveBuildOptions ResolveEffectiveBuildOptions(const BuildOptions& explicit_
         out.pretty = false;
     }
     if (!WasSet(out, kOptEntryPoints) && out.entry_points.empty() &&
-        out.entry_points_advanced.empty() && config.entry_from_config) {
+        out.entry_points_advanced.empty() && entry_from_config) {
         // Only the entries the project actually asked for. The built-in
         // "index.html" is a default, and a default does not become a build's
         // entry point behind the back of a command that named none: a build
         // with no entry point is a usage error, and that is still true.
-        for (const config::EntryPoint& ep : config.entry_points) {
+        for (const config::EntryPoint& ep : config_entries) {
             if (!ep.InputPath.empty()) {
                 out.entry_points.push_back(ep.InputPath);
             }
@@ -400,7 +379,7 @@ EffectiveBuildOptions ResolveEffectiveBuildOptions(const BuildOptions& explicit_
     }
     if (!WasSet(out, kOptAlias) && out.alias.empty()) {
         for (const auto& [from, to] : cfg.PackageAliases) {
-            out.alias.emplace(from, Relativize(*fs, to));
+            out.alias.emplace(from, Relativize(fs, to));
         }
     }
     if (!WasSet(out, kOptSourceRoot) && out.source_root.empty() && !cfg.SourceRoot.empty()) {
@@ -444,6 +423,112 @@ EffectiveBuildOptions ResolveEffectiveBuildOptions(const BuildOptions& explicit_
     // The parse state is dropped here, where every "WasSet" above is finished
     // with it, and not one line earlier.
     out.explicit_set = nullptr;
+}
+
+} // namespace
+
+EffectiveBuildConfigs ResolveEffectiveBuildConfigs(const BuildOptions& explicit_options,
+                                                   const std::string& start_dir)
+{
+    EffectiveBuildConfigs result;
+
+    // ---- A file system to look for the config with -------------------------
+    std::string fs_error;
+    std::unique_ptr<filesystem::Fs> fs =
+        filesystem::MakeRealFS({.abs_working_dir = start_dir}, fs_error);
+    if (!fs) {
+        // Without a file system there is nothing to discover and nothing to
+        // derive, so the request is answered as best it can be from the
+        // explicit options alone. A build that still needs an output directory
+        // says so through the ordinary "must use outdir" message, which names
+        // the problem rather than the failure to look for it.
+        BuildOptions out = explicit_options;
+        out.explicit_set = nullptr;
+        result.builds.push_back(std::move(out));
+        return result;
+    }
+
+    result.root = fs->Cwd();
+
+    // ---- The config file ---------------------------------------------------
+    config::Options base;
+    std::unique_ptr<cache::CacheSet> caches = cache::MakeCacheSet();
+    logger::Log log = logger::NewStderrLog({});
+    resolver::GuchhoConfig config = resolver::LoadGuchhoConfig(
+        log, caches->json_cache, *fs, base, result.root);
+
+    result.config_path    = config.config_path;
+    result.config_dir     = config.config_dir;
+    result.config_found   = config.found;
+    result.config_invalid = config.parse_error;
+
+    // A config file that could not be turned into configurations has nothing to
+    // resolve. The caller reads "config_invalid" and decides what to do; there
+    // is no single build to answer with.
+    if (config.parse_error) {
+        return result;
+    }
+
+    result.builds.reserve(config.builds.size());
+    for (const resolver::GuchhoBuildConfig& item : config.builds) {
+        BuildOptions out = explicit_options;
+        ResolveOneBuild(out, item.opts, item.entry_points, item.entry_from_config, *fs);
+        result.builds.push_back(std::move(out));
+    }
+
+    // ---- Output collisions -------------------------------------------------
+    // Configurations are independent builds, but they share a disk. Two of them
+    // that resolve to the same destination would have the later one silently
+    // overwrite the earlier one, so the collision is named here rather than
+    // discovered as a missing file afterwards. Only destinations that can be
+    // compared exactly are considered: a named output file, or the same output
+    // directory fed the same entry points (distinct entry points get distinct
+    // output names).
+    if (result.builds.size() > 1) {
+        auto target_key = [&](const BuildOptions& b) -> std::optional<std::string> {
+            if (!b.outfile.empty()) {
+                auto abs = fs->Abs(b.outfile);
+                return std::string("file:") + (abs ? *abs : b.outfile);
+            }
+            if (b.outdir.empty()) {
+                return std::nullopt;
+            }
+            if (b.entry_points.empty() && b.entry_points_advanced.empty()) {
+                return std::nullopt;
+            }
+            auto abs = fs->Abs(b.outdir);
+            std::string key = std::string("dir:") + (abs ? *abs : b.outdir);
+            if (!b.outbase.empty()) {
+                key += "|outbase:" + b.outbase;
+            }
+            for (const std::string& ep : b.entry_points) {
+                key += "|" + ep;
+            }
+            for (const EntryPoint& ep : b.entry_points_advanced) {
+                key += "|" + ep.input_path + ">" + ep.output_path;
+            }
+            return key;
+        };
+
+        std::unordered_map<std::string, size_t> seen;
+        for (size_t i = 0; i < result.builds.size(); ++i) {
+            std::optional<std::string> key = target_key(result.builds[i]);
+            if (!key) {
+                continue;
+            }
+            auto [it, inserted] = seen.emplace(*key, i);
+            if (!inserted) {
+                log.AddID(logger::MsgID::kGuchhoConfig_ConflictingOutput,
+                          logger::MsgKind::kError, nullptr, logger::Range{},
+                          logger::FormatMsg(logger::MsgCat::kGuchhoConfig_ConflictingOutputFile,
+                                            "configuration " + std::to_string(it->second + 1),
+                                            "configuration " + std::to_string(i + 1)));
+                result.config_invalid = true;
+                break;
+            }
+        }
+    }
+
     return result;
 }
 

@@ -89,7 +89,11 @@ namespace guchho::resolver {
                 "const configPath = " + quoted + ";\n"
                 "(async () => {\n"
                 "  const mod = await import(pathToFileURL(configPath).href);\n"
-                "  const config = mod ? (mod.default || mod) : {};\n"
+                "  // Use the default export when one exists, even when it is a\n"
+                "  // falsy value such as null, 0, \"\" or false. Testing the value\n"
+                "  // itself with '||' would let those fall through to the module\n"
+                "  // namespace object, hiding exactly the roots the loader rejects.\n"
+                "  const config = (mod && 'default' in mod) ? mod.default : mod;\n"
                 "  process.stdout.write(JSON.stringify(config));\n"
                 "})().catch((err) => {\n"
                 "  process.stderr.write((err && err.stack) ? err.stack : String(err));\n"
@@ -484,9 +488,9 @@ namespace guchho::resolver {
         opts.AbsOutputDir = fs.Dir(opts.AbsOutputFile);
     }
 
-    GuchhoConfig CreateDefaultGuchhoConfig(const std::string& root_dir)
+    GuchhoBuildConfig CreateDefaultGuchhoBuildConfig(const std::string& root_dir)
     {
-        GuchhoConfig result;
+        GuchhoBuildConfig result;
 
         config::Options& opts = result.opts;
         opts.OutputFormat      = config::Format::kESModule;  // "format": "esm"
@@ -510,6 +514,13 @@ namespace guchho::resolver {
         // "build.clean" has no "config::Options" field — it is handled by the
         // CLI/build runner — so the default "clean: false" is implicit.
 
+        return result;
+    }
+
+    GuchhoConfig CreateDefaultGuchhoConfig(const std::string& root_dir)
+    {
+        GuchhoConfig result;
+        result.builds.push_back(CreateDefaultGuchhoBuildConfig(root_dir));
         return result;
     }
 
@@ -946,7 +957,6 @@ namespace guchho::resolver {
         const std::string& config_path)
     {
         GuchhoConfig result;
-        result.opts = opts;
 
         logger::Path key_path;
         if (config_path.empty()) {
@@ -975,23 +985,82 @@ namespace guchho::resolver {
         result.config_path     = config_path;
         result.found           = true;
 
-        std::vector<config::DefineData> user_defines;
-        ApplyGuchhoJsonConfig(log, fs, result.opts, result.entry_points, user_defines,
-                              json, config_dir, source);
+        // The root is either one configuration object or an array of them. Any
+        // other shape is a diagnostic rather than a silent fall-through to the
+        // defaults, which is what "GetProperty" would do with a non-object.
+        logger::LineColumnTracker tracker(&source);
+        const std::string root_name = config_path.empty() ? "<guchho config>" : config_path;
+        const auto* root_array =
+            std::get_if<std::shared_ptr<javascript::EArray>>(&json.data);
+        const bool root_is_object =
+            std::holds_alternative<std::shared_ptr<javascript::EObject>>(json.data);
 
-        // Whether the entries came from the file is decided here, before
-        // discovery has a chance to put the built-in default entry in their
-        // place, because that is the only moment the two are told apart.
-        result.entry_from_config = !result.entry_points.empty();
+        if (root_array) {
+            if ((*root_array)->items.empty()) {
+                log.AddID(logger::MsgID::kGuchhoConfig_EmptyArray, logger::MsgKind::kError,
+                          &tracker, source.RangeOfString(json.loc),
+                          logger::FormatMsg(logger::MsgCat::kGuchhoConfig_NoConfigurationsInArray,
+                                            root_name));
+                result.parse_error = true;
+                return result;
+            }
 
-        // "build.outfile" discards the built-in output directory, so the
-        // directory is derived here — for every loader, since all of them reach
-        // this function — rather than left to each caller to rediscover.
-        DeriveOutputDirFromOutputFile(result.opts, fs);
+            // Validate every element before building any of them, so a bad
+            // element cannot leave a partially-applied config behind.
+            for (size_t i = 0; i < (*root_array)->items.size(); ++i) {
+                const javascript::Expr& element = (*root_array)->items[i];
+                if (!std::holds_alternative<std::shared_ptr<javascript::EObject>>(element.data)) {
+                    log.AddID(logger::MsgID::kGuchhoConfig_InvalidArrayElement,
+                              logger::MsgKind::kError, &tracker, source.RangeOfString(element.loc),
+                              logger::FormatMsg(
+                                  logger::MsgCat::kGuchhoConfig_ArrayElementNotObject,
+                                  std::to_string(i + 1), root_name));
+                    result.parse_error = true;
+                    return result;
+                }
+            }
+        } else if (!root_is_object) {
+            log.AddID(logger::MsgID::kGuchhoConfig_InvalidRoot, logger::MsgKind::kError, &tracker,
+                      source.RangeOfString(json.loc),
+                      logger::FormatMsg(logger::MsgCat::kGuchhoConfig_RootNotObjectOrArray,
+                                        root_name));
+            result.parse_error = true;
+            return result;
+        }
 
-        result.defines_owned = std::make_unique<config::ProcessedDefines>(
-            config::ProcessDefines(user_defines));
-        result.opts.Defines = result.defines_owned.get();
+        // An object root is one configuration; an array root is one per
+        // element. Each starts from its own copy of "opts", so no element can
+        // observe another element's fields, and "defines_owned" is per element
+        // so the "opts.Defines" raw pointer stays valid and unshared.
+        const size_t count = root_array ? (*root_array)->items.size() : 1;
+        result.builds.reserve(count);
+
+        for (size_t i = 0; i < count; ++i) {
+            result.builds.emplace_back();
+            GuchhoBuildConfig& build = result.builds.back();
+            build.opts               = opts;
+
+            const javascript::Expr& element = root_array ? (*root_array)->items[i] : json;
+
+            std::vector<config::DefineData> user_defines;
+            ApplyGuchhoJsonConfig(log, fs, build.opts, build.entry_points, user_defines,
+                                  element, config_dir, source);
+
+            // Whether the entries came from the file is decided here, before
+            // discovery has a chance to put the built-in default entry in their
+            // place, because that is the only moment the two are told apart.
+            build.entry_from_config = !build.entry_points.empty();
+
+            // "build.outfile" discards the built-in output directory, so the
+            // directory is derived here — for every loader, since all of them
+            // reach this function — rather than left to each caller to
+            // rediscover.
+            DeriveOutputDirFromOutputFile(build.opts, fs);
+
+            build.defines_owned =
+                std::make_unique<config::ProcessedDefines>(config::ProcessDefines(user_defines));
+            build.opts.Defines = build.defines_owned.get();
+        }
 
         return result;
     }
@@ -1004,7 +1073,6 @@ namespace guchho::resolver {
         const std::string& file_path)
     {
         GuchhoConfig result;
-        result.opts = opts;
 
         logger::Path key_path;
         key_path.text       = file_path;
@@ -1040,10 +1108,12 @@ namespace guchho::resolver {
         // The caller's "opts" is only consulted for diagnostic path-style
         // settings; the configuration base is always the built-in defaults.
         GuchhoConfig result = CreateDefaultGuchhoConfig(start_dir);
-        result.opts.LogPathStyle       = opts.LogPathStyle;
-        result.opts.CodePathStyle      = opts.CodePathStyle;
-        result.opts.MetafilePathStyle  = opts.MetafilePathStyle;
-        result.opts.SourcemapPathStyle = opts.SourcemapPathStyle;
+        for (GuchhoBuildConfig& build : result.builds) {
+            build.opts.LogPathStyle       = opts.LogPathStyle;
+            build.opts.CodePathStyle      = opts.CodePathStyle;
+            build.opts.MetafilePathStyle  = opts.MetafilePathStyle;
+            build.opts.SourcemapPathStyle = opts.SourcemapPathStyle;
+        }
 
         std::string dir = start_dir;
         if (!fs.IsAbs(dir)) {
@@ -1051,6 +1121,18 @@ namespace guchho::resolver {
                 dir = *abs;
             }
         }
+
+        // The default entry that "CreateDefaultGuchhoConfig" installed, used
+        // when a configuration does not name its own entry. A config element
+        // that specifies "build.entry" keeps its own entries; one that does not
+        // falls back to this default, independently of the other elements.
+        auto apply_default_entry = [&](GuchhoConfig& loaded) {
+            for (GuchhoBuildConfig& build : loaded.builds) {
+                if (!build.entry_from_config) {
+                    build.entry_points = result.builds[0].entry_points;
+                }
+            }
+        };
 
         // The discovery never merges configs and never silently skips a file
         // that exists. The primary "guchho.config.js" takes precedence over
@@ -1063,13 +1145,15 @@ namespace guchho::resolver {
         std::optional<GuchhoConfig> json_fallback;
 
         auto invalid_found = [&](const std::string& candidate) -> GuchhoConfig {
+            // A config that exists but cannot be turned into configurations
+            // carries none. Returning the built-in default here would let a
+            // command that only reads "builds" build the default entry behind
+            // the back of a project whose real configuration was rejected.
             GuchhoConfig invalid;
-            invalid.opts          = result.opts;
-            invalid.entry_points  = result.entry_points;
-            invalid.config_dir    = fs.Dir(candidate);
-            invalid.config_path   = candidate;
-            invalid.found         = true;
-            invalid.parse_error   = true;
+            invalid.config_dir  = fs.Dir(candidate);
+            invalid.config_path = candidate;
+            invalid.found       = true;
+            invalid.parse_error = true;
             return invalid;
         };
 
@@ -1084,14 +1168,17 @@ namespace guchho::resolver {
 
                         if (IsJSConfigName(name)) {
                             GuchhoConfig js_result = (GetGuchhoConfigJSLoader())(
-                                log, json_cache, fs, result.opts, candidate);
+                                log, json_cache, fs, result.builds[0].opts, candidate);
                             if (js_result.found) {
-                                if (!js_result.entry_from_config) {
-                                    // "build.entry" was not specified, so the
-                                    // default entry (index.html rooted at the
-                                    // discovery start) stays in effect.
-                                    js_result.entry_points = result.entry_points;
+                                if (js_result.parse_error) {
+                                    // The file evaluated but its root is not a
+                                    // shape that describes configurations. The
+                                    // precise diagnostic was already logged by
+                                    // the loader; treat it like any other
+                                    // found-but-unusable config.
+                                    return invalid_found(candidate);
                                 }
+                                apply_default_entry(js_result);
                                 return js_result;
                             }
                             // The file exists but could not be evaluated or
@@ -1102,7 +1189,8 @@ namespace guchho::resolver {
                         }
 
                         GuchhoConfig json_result =
-                            LoadGuchhoConfigFromFile(log, json_cache, fs, result.opts, candidate);
+                            LoadGuchhoConfigFromFile(log, json_cache, fs, result.builds[0].opts,
+                                                     candidate);
                         if (!json_result.found || json_result.parse_error) {
                             // The file exists (confirmed above) but could not
                             // be read or parsed. That is FOUND + INVALID;
@@ -1114,12 +1202,7 @@ namespace guchho::resolver {
                             // returned yet: a JS config in a parent directory
                             // still takes precedence over it.
                             json_fallback = std::move(json_result);
-                            if (!json_fallback->entry_from_config) {
-                                // "build.entry" was not specified, so the
-                                // default entry (index.html rooted at the
-                                // discovery start) stays in effect.
-                                json_fallback->entry_points = result.entry_points;
-                            }
+                            apply_default_entry(*json_fallback);
                         }
                     }
                 }
@@ -1147,7 +1230,6 @@ namespace guchho::resolver {
         const std::string& file_path)
     {
         GuchhoConfig result;
-        result.opts = opts;
 
         logger::Path key_path;
         key_path.text       = file_path;
@@ -1191,17 +1273,12 @@ namespace guchho::resolver {
             return result;
         }
 
-        GuchhoConfig parsed = LoadGuchhoConfigFromText(log, json_cache, fs, opts,
-                                                       run.stdout_data, file_path);
-        if (parsed.parse_error) {
-            log.AddID(logger::MsgID::kGuchhoConfig_InvalidOutput, logger::MsgKind::kWarning,
-                      nullptr, logger::Range{},
-                      logger::FormatMsg(logger::MsgCat::kGuchhoConfig_NotJSONObject,
-                                        Q(pretty.Select(opts.LogPathStyle))));
-            return parsed;
-        }
-
-        return parsed;
+        // "LoadGuchhoConfigFromText" already logs a precise diagnostic for
+        // every way "run.stdout_data" can fail to describe configurations —
+        // malformed JSON, a scalar root, a non-object array element, or an
+        // empty array — so there is nothing left to add here. A config that
+        // parsed cleanly comes back with "parse_error == false".
+        return LoadGuchhoConfigFromText(log, json_cache, fs, opts, run.stdout_data, file_path);
     }
 
     GuchhoConfigJSLoader GetGuchhoConfigJSLoader()

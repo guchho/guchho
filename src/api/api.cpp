@@ -3118,6 +3118,39 @@ validate_build_options(api::BuildOptions& build_opts, logger::Log& log, filesyst
         }
     }
 
+    // An HTML entry is a document rather than a script, so two of the build's
+    // settings describe something the document ultimately is not. Say so
+    // instead of accepting an option that then does nothing: a "format" names
+    // the module system of the scripts inside the document (not of the document
+    // itself), and an "outfile" cannot stand for a document whose output is
+    // named after its entry. The messages are warnings because the build still
+    // succeeds; only the option's effect is missing.
+    //
+    // Every one of these reads the resolved options of a single build, so a
+    // configuration that named a format or an outfile is told about its own
+    // HTML entries and not about another configuration's.
+    if (all_html_entries) {
+        if (options.FormatWasExplicit) {
+            log.AddID(logger::MsgID::kAPI_FormatIgnoredForHTMLEntry, logger::MsgKind::kWarning,
+                      nullptr, logger::Range{},
+                      logger::FormatMsg(logger::MsgCat::kAPI_FormatIgnoredForHTMLEntry));
+        }
+        if (!options.AbsOutputFile.empty()) {
+            log.AddID(logger::MsgID::kGuchhoConfig_OutfileIgnoredForHTML,
+                      logger::MsgKind::kWarning, nullptr, logger::Range{},
+                      logger::FormatMsg(logger::MsgCat::kGuchhoConfig_OutfileIgnoredForHTML));
+        }
+        if (options.OutputPlatform != config::Platform::kBrowser) {
+            const char* platform_name = options.OutputPlatform == config::Platform::kNode
+                                            ? "node"
+                                            : "neutral";
+            log.AddID(logger::MsgID::kGuchhoConfig_PlatformMismatchForHTML,
+                      logger::MsgKind::kWarning, nullptr, logger::Range{},
+                      logger::FormatMsg(logger::MsgCat::kGuchhoConfig_PlatformMismatchForHTML,
+                                        platform_name));
+        }
+    }
+
     if (!options.AbsOutputFile.empty() && all_html_entries && entry_count > 1) {
         // A single named output file cannot stand for several documents, and it
         // would not even if it could: HTML output is named after the entry, so

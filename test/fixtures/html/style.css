@@ -1,0 +1,12 @@
+/* Styles referenced from entry.html. No @import here on purpose: this file is
+   what the document entry has to resolve and bundle on its own. */
+
+body {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+}
+
+.title {
+    color: #222;
+    font-size: 1.5rem;
+}

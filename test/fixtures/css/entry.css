@@ -1,0 +1,16 @@
+/* @import has to come before every other rule, so this file leads with it. */
+@import "./nested.css";
+
+/* A data URI rather than a separate image file: this fixture is two files, and
+   a url() pointing at something absent would make the build fail instead of
+   exercising the import. */
+body {
+    background: #fff
+        url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='8'%20height='8'%3E%3C/svg%3E")
+        no-repeat top left;
+}
+
+.wrapper {
+    display: grid;
+    gap: var(--gutter);
+}

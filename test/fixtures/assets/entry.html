@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Asset fixture</title>
+    <!-- The same asset reached two ways: an <img> element, and a url() inside
+         an inline <style>. Both have to be copied out and rewritten. -->
+    <style>
+      body {
+        margin: 0;
+        background: url("./logo.svg") no-repeat top left;
+      }
+    </style>
+  </head>
+  <body>
+    <img src="./logo.svg" width="64" height="64" alt="logo" />
+  </body>
+</html>

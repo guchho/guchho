@@ -601,14 +601,16 @@ struct PluginBuild;
 // Most option defaults are the value a field holds when nobody has an opinion
 // ("false" for minify, "" for outdir), so an unset field and a field explicitly
 // set to that same value look identical. Where a default is the other way round
-// — minification is on unless you ask for it not to be — that difference decides
-// whether a config file or a command line still gets a say, so the parser
+// — pretty printing is on unless you ask for it not to be — that difference
+// decides whether a config file or a command line still gets a say, so the parser
 // records what it saw and the resolution consults this instead of guessing.
 //
 // A caller assembling BuildOptions by hand does not need it: leave
 // BuildOptions::explicit_set null and every value in the struct counts as
 // deliberate. This exists for the one case that cannot be expressed any other
-// way, which is "turn this off" when the default is "on".
+// way, which is "turn this off" when the default is "on", and for the switches
+// whose bare form means the same thing as "--flag=false" but still has to
+// outrank a project that turned the other way.
 struct ExplicitlySet {
     std::unordered_set<std::string_view> keys;
 
@@ -671,8 +673,11 @@ struct BuildOptions {
     // -- Minification ------------------------------------------------------
     // The three minify_* switches are independent, so "minify_whitespace" alone
     // is a safe way to shrink a file for debugging while keeping names intact.
-    // They default to on: a build is the finished artefact, and a bundle
-    // nobody asked to minify is a bundle they will have to minify themselves.
+    // All three default to off and are asked for by name: minification is a
+    // choice about the bytes a build leaves behind, and a person who has not
+    // made it should get output they can still read. "--minify" on a command
+    // line is the shorthand for all three, and each of them keeps working on its
+    // own, so a caller that wants two passes says two.
     // The flag is not shared with Format, because the wrapper's own quoting and
     // interop constraints are not negotiable.
     // "mangle_props" is a regular expression matching property names to
@@ -688,9 +693,9 @@ struct BuildOptions {
     // outright — the classic way of fencing off development-only code:
     //   drop_labels = {"DEBUG"};  while (DEBUG) { ... }   // the loop is gone
     std::vector<std::string> drop_labels;
-    bool         minify_whitespace{true};
-    bool         minify_identifiers{true};
-    bool         minify_syntax{true};
+    bool         minify_whitespace{};
+    bool         minify_identifiers{};
+    bool         minify_syntax{};
     int          line_limit{}; // error out if any single line grows past this
     Charset      charset{Charset::kDefault};
     TreeShaking  tree_shaking{TreeShaking::kDefault};
@@ -936,9 +941,9 @@ struct EffectiveBuildConfigs {
 //
 // Input:  explicit_options with outdir = "release" and bundle = true, and a
 //         guchho.config.json in "start_dir" that says outdir = "out" and
-//         minify = false
+//         minify = true
 // Output: builds[0].options with outdir = "release" (explicit beats config),
-//         bundle = true, minify_whitespace = false (config beats the built-in
+//         bundle = true, minify_whitespace = true (config beats the built-in
 //         default), and AbsOutputDir derived from any outfile
 EffectiveBuildConfigs ResolveEffectiveBuildConfigs(const BuildOptions& explicit_options,
                                                    const std::string& start_dir);

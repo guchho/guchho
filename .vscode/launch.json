@@ -1,0 +1,328 @@
+// ─────────────────────────────────────────────
+// Guchho — VS Code Debug Configurations
+//
+// Debugger ........ cppdbg (Microsoft C/C++ extension). Both the
+//                   Ninja+clang/lld and the MSBuild presets emit a
+//                   .pdb next to each .exe, so one backend covers
+//                   them all and no MIMode is needed.
+// Preset .......... release-win32-x64, hardcoded to match
+//                   clangd --compile-commands-dir and
+//                   cmake.buildDirectory in .vscode/settings.json.
+// Output layout ... FLAT. cmake/StandardProjectSettings.cmake sets
+//                   CMAKE_RUNTIME_OUTPUT_DIRECTORY[_<CONFIG>] to
+//                   ${CMAKE_BINARY_DIR}/bin for every configuration,
+//                   so there is no bin/Debug/ level.
+//                    -> ${workspaceFolder}/build/<preset>/bin/<exe>
+//
+// Console .......... internalConsole is the default, so no config sets
+//                   "console". cpptools only accepts that attribute on
+//                   cppvsdbg (the MSVC adapter); on cppdbg it is not in
+//                   the schema at all and writing it trips
+//                   "Property console is not allowed." The effect is
+//                   unchanged either way -- output goes to the Debug
+//                   Console rather than spawning a PowerShell window.
+//
+// Building ......... No config sets preLaunchTask on purpose. The
+//                   tasks in .vscode/tasks.json reference the
+//                   ${input:preset} and ${input:target} inputs, so a
+//                   preLaunchTask would prompt twice per launch -- and
+//                   ${input:preset} defaults to debug-win32-x64
+//                   (MSBuild), which would rebuild a different preset
+//                   than the hardcoded program path above and leave you
+//                   stepping through a stale binary. Build first with
+//                   Ctrl+Shift+B ("Guchho: Build Debug") or the task
+//                   picker, then debug.
+//
+// Test protocols ... guchho_<suite>_tests.exe accepts (see
+//                   include/test/guchho_test.hpp:869 RunAll):
+//                     --list-tests         one Suite.Name per line
+//                     --run=Suite.Name     run exactly one
+//                     --filter=<substr>    substring of Suite.Name
+//                   An empty --filter matches everything (the code
+//                   guards with `if (!filter.empty())`), which is why
+//                   the ${input:testFilter} default of "" is safe.
+//
+// Not covered      ... transform reads stdin, which cppdbg cannot
+//                   supply; watch/init/clean/info are one-shot with
+//                   nothing to step through.
+// ─────────────────────────────────────────────
+
+{
+    "version": "0.2.0",
+
+    // ─────────────────────────────────────────────
+    // Configurations
+    //
+    //   CLI ..... 7 configs for the guchho executable
+    //   Tests ... 1 config per guchho_*_tests.exe
+    //
+    // Every test config sets cwd to the WORKING_DIRECTORY that
+    // test/CMakeLists.txt gives CTest. This is load-bearing: the
+    // golden files under test/bundler/snapshots/ are opened relative
+    // to the working directory, so the wrong cwd silently fails
+    // tests instead of finding them.
+    //
+    // Note for a fresh clone: test/fixtures/ and lab/ are not
+    // tracked by git, so the CLI configs below reference paths that
+    // only exist locally. The test configs are unaffected -- they
+    // point at build/ and at tracked test/ sources.
+    // ─────────────────────────────────────────────
+
+    "configurations": [
+
+        // ─────────────────────────────────────────────
+        // CLI
+        // ─────────────────────────────────────────────
+
+        {
+            // Full pipeline: HTML -> CSS -> JS -> linker -> emit.
+            "name": "Guchho: build HTML fixture",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho.exe",
+            "args": [
+                "build",
+                "${workspaceFolder}/test/fixtures/html/entry.html",
+                "--log-level=verbose"
+            ],
+            // --outdir defaults to dist, which .gitignore covers.
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false
+        },
+        {
+            // No subcommand: a bare entry path implies `build`
+            // (src/cli/cli_run.cpp:362). Steps through the command
+            // detection and the default-output-dir path.
+            "name": "Guchho: build JS, implicit command",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho.exe",
+            "args": [
+                "${workspaceFolder}/test/fixtures/basic/entry.js",
+                "--log-level=verbose"
+            ],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false
+        },
+        {
+            // Same entry as above with the minifier and source maps
+            // switched on -- set breakpoints in the printer/lexer code
+            // and watch the mangled output appear.
+            "name": "Guchho: build minified + sourcemap",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho.exe",
+            "args": [
+                "build",
+                "${workspaceFolder}/test/fixtures/basic/entry.js",
+                "--minify",
+                "--sourcemap",
+                "--log-level=verbose"
+            ],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false
+        },
+        {
+            // `build [entry...]` takes more than one; good for the
+            // chunking and multi-entry code in linker/linker_chunk.cpp.
+            "name": "Guchho: build multi-entry",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho.exe",
+            "args": [
+                "build",
+                "${workspaceFolder}/test/fixtures/multi-entry/app.js",
+                "${workspaceFolder}/test/fixtures/multi-entry/admin.js",
+                "--log-level=verbose"
+            ],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false
+        },
+        {
+            // The only fixture with a real node_modules/, so this is
+            // the config to use for node_modules resolution and
+            // package.json exports (src/resolver/*).
+            "name": "Guchho: build lab/ (node_modules resolution)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho.exe",
+            "args": [
+                "build",
+                "index.js",
+                "--log-level=verbose"
+            ],
+            "cwd": "${workspaceFolder}/lab",
+            "stopAtEntry": false
+        },
+        {
+            // Long-running. F5 starts it, then set breakpoints in
+            // src/api/* and hit them from a browser on localhost:3000.
+            "name": "Guchho: dev server",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho.exe",
+            "args": ["dev", "--port=3000"],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false
+        },
+        {
+            // Serves whatever is already in dist/ without rebuilding,
+            // so it isolates the serving path in src/api/api_serve.cpp
+            // from the build path.
+            "name": "Guchho: serve dist",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho.exe",
+            "args": ["serve", "dist", "--port=8080"],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false
+        },
+
+        // ─────────────────────────────────────────────
+        // Tests
+        //
+        // All 13 use --filter=${input:testFilter}. Leave the input
+        // blank to run the whole suite; type a Suite.Name prefix
+        // (Bundler, CliRun, IsInRangesTest, ...) to narrow it. Use
+        // --list-tests on the binary directly for the exact names.
+        //
+        // core and helpers pass no WORKING_DIRECTORY to
+        // guchho_discover_tests(), so CTest runs them from the
+        // default ${CMAKE_CURRENT_BINARY_DIR} -- matched here.
+        // ─────────────────────────────────────────────
+
+        {
+            "name": "Guchho: test core",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_core_tests.exe",
+            "args": ["--filter=${input:testFilter}"],
+            "cwd": "${workspaceFolder}/build/release-win32-x64/test",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Guchho: test helpers",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_helpers_tests.exe",
+            "args": ["--filter=${input:testFilter}"],
+            "cwd": "${workspaceFolder}/build/release-win32-x64/test",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Guchho: test javascript",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_js_tests.exe",
+            "args": ["--filter=${input:testFilter}"],
+            "cwd": "${workspaceFolder}/test/javascript",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Guchho: test css",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_css_tests.exe",
+            "args": ["--filter=${input:testFilter}"],
+            "cwd": "${workspaceFolder}/test/css",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Guchho: test html",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_html_tests.exe",
+            "args": ["--filter=${input:testFilter}"],
+            "cwd": "${workspaceFolder}/test/html",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Guchho: test cache",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_cache_tests.exe",
+            "args": ["--filter=${input:testFilter}"],
+            "cwd": "${workspaceFolder}/test/cache",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Guchho: test resolver",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_resolver_tests.exe",
+            "args": ["--filter=${input:testFilter}"],
+            "cwd": "${workspaceFolder}/test/resolver",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Guchho: test graph",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_graph_tests.exe",
+            "args": ["--filter=${input:testFilter}"],
+            "cwd": "${workspaceFolder}/test/graph",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Guchho: test linker",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_linker_tests.exe",
+            "args": ["--filter=${input:testFilter}"],
+            "cwd": "${workspaceFolder}/test/linker",
+            "stopAtEntry": false
+        },
+        {
+            // The big one -- 1195 discovered tests. Set the filter.
+            "name": "Guchho: test bundler",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_bundler_tests.exe",
+            "args": ["--filter=${input:testFilter}"],
+            "cwd": "${workspaceFolder}/test/bundler",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Guchho: test api",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_api_tests.exe",
+            "args": ["--filter=${input:testFilter}"],
+            "cwd": "${workspaceFolder}/test/api",
+            "stopAtEntry": false
+        },
+        {
+            // 212 tests. CliExe.* spawn the real guchho.exe via
+            // helpers::RunProcess, so guchho.exe must exist for them.
+            "name": "Guchho: test cli",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_cli_tests.exe",
+            "args": ["--filter=${input:testFilter}"],
+            "cwd": "${workspaceFolder}/test/cli",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Guchho: test npm",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_npm_tests.exe",
+            "args": ["--filter=${input:testFilter}"],
+            "cwd": "${workspaceFolder}/test/npm",
+            "stopAtEntry": false
+        }
+    ],
+
+    // ─────────────────────────────────────────────
+    // Inputs
+    // ─────────────────────────────────────────────
+
+    "inputs": [
+        {
+            "id": "testFilter",
+            "type": "promptString",
+            "description": "Test filter (substring of Suite.Name -- blank runs the whole suite)",
+            "default": ""
+        }
+    ]
+}

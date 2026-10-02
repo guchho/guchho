@@ -391,38 +391,71 @@ void printWatchHelp(std::ostream& os) {
 // does most of that is first, because the last two decide where the answer is
 // written rather than what it is.
 //
+// Three of the five have a short form, and each is printed beside its long one
+// rather than in a list of its own. The command accepts both spellings, and the
+// long one is written first because that is the one that survives a copy-paste
+// and the one that reads the same in a bug report.
+//
+// The descriptions all start in one column, and the two lists below are padded
+// out to it rather than carrying a typed run of spaces after each name. Those
+// runs were written for the widths the names had when they were written, and
+// the names changed under them afterwards: the shortest name in each list ended
+// up a column in from the longest, and a list of three or four names read as
+// that many ragged sentences rather than as two columns.
+//
 // Input:  called by the init command when the argument list contains --help or
 //         -h
 // Output: the usage line, one sentence, the options, the three types, the four
 //         templates, and four examples.
+
+// The two spaces every line in a list starts with, and the column every
+// description in this text starts in. Both are counted from the beginning of
+// the line, and the padding between a name and its description is measured
+// against them because a name on its own cannot know where the line began.
+static constexpr size_t kHelpIndent         = 2;
+static constexpr size_t kHelpDescriptColumn = 26;
+
+// The spaces between one name and its description. Two at least, so that a name
+// long enough to reach the column on its own still has something between it and
+// the sentence after it.
+static std::string HelpGap(std::string_view name)
+{
+    const size_t pad = kHelpDescriptColumn - (kHelpIndent + name.size());
+    return std::string(pad > 2 ? pad : 2, ' ');
+}
+
 void printInitHelp(std::ostream& os) {
     os << "Usage: guchho init [options]\n"
        << "\n"
-       << "Initialize a new project with starter files in the current directory.\n"
+       << "Create a new Guchho project in the current directory.\n"
        << "\n"
        << "Options:\n"
-       << "  --template=<name>   Project template (default: basic)\n"
-       << "  --type=<type>       Project type (default: app)\n"
-       << "  --yes               Accept defaults and do not ask anything\n"
-       << "  --force             Overwrite existing scaffold files\n"
-       << "  -h, --help          Show this help\n"
+       << "  -t, --template=<name>   Starter template (default: basic)\n"
+       << "  --type=<type>           Project type (default: app)\n"
+       << "  -y, --yes               Use default options without prompting\n"
+       << "  -f, --force             Overwrite existing scaffold files\n"
+       << "  -h, --help              Show this help message\n"
        << "\n"
-       << "Types:\n";
+       << "Project types:\n";
     for (size_t i = 0; i < scaffold::ProjectTypeNames().size(); i++) {
-        os << "  " << scaffold::ProjectTypeName(static_cast<scaffold::ProjectType>(i)) << "                 "
-           << scaffold::ProjectTypeDescription(static_cast<scaffold::ProjectType>(i)) << "\n";
+        const auto type = static_cast<scaffold::ProjectType>(i);
+        os << std::string(kHelpIndent, ' ') << scaffold::ProjectTypeName(type)
+           << HelpGap(scaffold::ProjectTypeName(type))
+           << scaffold::ProjectTypeDescription(type) << "\n";
     }
     os << "\n"
        << "Templates:\n";
     for (size_t i = 0; i < scaffold::TemplateNames().size(); i++) {
-        os << "  " << scaffold::TemplateName(static_cast<scaffold::ProjectTemplate>(i)) << "                  "
-           << scaffold::TemplateDescription(static_cast<scaffold::ProjectTemplate>(i)) << "\n";
+        const auto tmpl = static_cast<scaffold::ProjectTemplate>(i);
+        os << std::string(kHelpIndent, ' ') << scaffold::TemplateName(tmpl)
+           << HelpGap(scaffold::TemplateName(tmpl))
+           << scaffold::TemplateDescription(tmpl) << "\n";
     }
     os << "\n"
        << "Examples:\n"
        << "  guchho init\n"
        << "  guchho init --template=ts\n"
-       << "  guchho init --type=library --template=ts\n"
+       << "  guchho init --type=lib --template=ts\n"
        << "  guchho init --type=plugin --template=ts\n";
 }
 

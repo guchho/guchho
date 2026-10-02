@@ -87,8 +87,14 @@ struct InitOptions {
 // The two options that take a value, named once because they are named in every
 // error message and in the usage line, and three copies of a spelling is three
 // chances to disagree with the help.
+//
+// The short forms are named next to them for the same reason. A short form is a
+// spelling the command accepts and the help prints, which makes it one more
+// place the two can drift apart, and it is also a place where a diagnostic can
+// be wrong: a person who typed "-t" is owed to be told about "--template".
 constexpr std::string_view kTypeOption = "--type";
 constexpr std::string_view kTemplateOption = "--template";
+constexpr std::string_view kShortTemplateOption = "-t";
 
 // The value that follows "--option", whether it was written as "--option value"
 // or "--option=value". Both spellings work and neither is preferred, because a
@@ -288,7 +294,7 @@ int RejectName(const std::vector<std::string>& args, const std::string& rejected
 //         guchho.json when no runtime is found) in the working directory, a
 //         success line, and 0.
 //
-// Input:  { "init", "--type", "library", "--template", "ts", "--yes" }
+// Input:  { "init", "--type", "lib", "--template", "ts", "--yes" }
 // Output: src/index.ts, guchho.config.js, package.json and README.md in the
 //         working directory, a success line, and 0, with nothing read from the
 //         terminal even though there is one.
@@ -311,7 +317,7 @@ int runInit(const std::vector<std::string>& args) {
             opts.help = true;
             continue;
         }
-        if (arg == "--force") {
+        if (arg == "--force" || arg == "-f") {
             opts.force = true;
             continue;
         }
@@ -337,11 +343,19 @@ int runInit(const std::vector<std::string>& args) {
             continue;
         }
 
-        if (arg == kTemplateOption || arg.starts_with(std::string(kTemplateOption) + "=")) {
-            if (!TakeOptionValue(args, i, kTemplateOption, value)) {
+        // Both spellings of the option and both spellings of its value. The long
+        // form is tried first because it is the one a diagnostic talks about,
+        // and TakeOptionValue cannot mistake the two for each other: "--template"
+        // starts with "-t" but does not go on to spell "=something", so the short
+        // form's own check rejects it.
+        if (arg == kTemplateOption || arg == kShortTemplateOption ||
+            arg.starts_with(std::string(kTemplateOption) + "=") ||
+            arg.starts_with(std::string(kShortTemplateOption) + "=")) {
+            if (!TakeOptionValue(args, i, kTemplateOption, value) &&
+                !TakeOptionValue(args, i, kShortTemplateOption, value)) {
                 logger::PrintErrorWithNoteToStderr(
                     args, std::format("Option '{}' requires a value", kTemplateOption),
-                    "Usage: guchho init --template=<name>");
+                    "Usage: guchho init --template=<name>, or -t <name>");
                 return static_cast<int>(ExitCode::kCLIUsageError);
             }
             scaffold::ProjectTemplate parsed;
@@ -412,7 +426,7 @@ int runInit(const std::vector<std::string>& args) {
     // directory they are standing in is asking them what they are already doing.
     //
     // Answering a flag on the command line is taken as the answer, not as a
-    // request to confirm it: somebody who wrote --type=library in a script, or
+    // request to confirm it: somebody who wrote --type=lib in a script, or
     // in a terminal while testing one, did not type it to be asked what they
     // meant by it.
     const bool interactive = !opts.yes && IsInteractive();

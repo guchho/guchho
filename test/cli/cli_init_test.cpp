@@ -73,8 +73,15 @@ namespace {
 // table gained a name and the test loop followed it, the test would cover the new
 // name without anybody having decided the new name is supposed to work, and a
 // template that was never finished would be reported as covered.
-const std::vector<std::string> kTypes     = {"app", "library", "plugin"};
+const std::vector<std::string> kTypes     = {"app", "lib", "plugin"};
 const std::vector<std::string> kTemplates = {"basic", "ts", "jsx", "tsx"};
+
+// The column every description in the init help starts in, counted from the
+// first character of the line. Written out here rather than taken from the help
+// code's own constant: a test that read the number the code pads to would agree
+// with whatever that number was, and this is the one that says whether 26 is the
+// right column at all.
+constexpr size_t kDescriptionColumn = 26;
 
 // The files a project of this type and template is made of, as a sorted list so
 // two orders of the same set are not reported as two different projects.
@@ -316,7 +323,7 @@ TEST(CliInit, TheConfigEntryIsTheFileThatWasWritten) {
     CliWorkspace ws("entry");
 
     RuntimeDetectorScope scope(guchho::runtime::JavaScriptRuntime::kNode);
-    ASSERT_EQ(RunCli({"init", "--type=library", "--template=ts", "--yes"}).exit_code, kSuccess);
+    ASSERT_EQ(RunCli({"init", "--type=lib", "--template=ts", "--yes"}).exit_code, kSuccess);
 
     EXPECT_TRUE(OutputContains(ws.Read("guchho.config.js"), "src/index.ts"));
     EXPECT_TRUE(ws.Exists("src/index.ts"));
@@ -342,7 +349,7 @@ TEST(CliInit, ThePageLoadsTheSourceThatWasWritten) {
 TEST(CliInit, TheGeneratedPackageJsonSaysOnlyWhatItKnows) {
     CliWorkspace ws("pkg");
 
-    ASSERT_EQ(RunCli({"init", "--type=library", "--yes"}).exit_code, kSuccess);
+    ASSERT_EQ(RunCli({"init", "--type=lib", "--yes"}).exit_code, kSuccess);
 
     const std::string pkg = ws.Read("package.json");
     EXPECT_TRUE(OutputContains(pkg, "\"name\""));
@@ -360,7 +367,7 @@ TEST(CliInit, TheGeneratedPackageJsonSaysOnlyWhatItKnows) {
 TEST(CliInit, ThePackageNameIsTheDirectoryName) {
     CliWorkspace ws("pkgname");
 
-    ASSERT_EQ(RunCli({"init", "--type=library", "--yes"}).exit_code, kSuccess);
+    ASSERT_EQ(RunCli({"init", "--type=lib", "--yes"}).exit_code, kSuccess);
 
     // The workspace is a temporary directory whose name the harness invented
     // rather than a test, so the assertion asks the scaffolder for the name it
@@ -393,11 +400,11 @@ TEST(CliInit, ThePluginSaysItIsNotLoadableYet) {
 // to remember which one it was.
 TEST(CliInit, BothSpellingsOfAnOptionValueWork) {
     CliWorkspace eq("eq");
-    EXPECT_EQ(RunCli({"init", "--type=library", "--yes"}).exit_code, kSuccess);
+    EXPECT_EQ(RunCli({"init", "--type=lib", "--yes"}).exit_code, kSuccess);
     EXPECT_TRUE(eq.Exists("README.md"));
 
     CliWorkspace sep("sep");
-    EXPECT_EQ(RunCli({"init", "--type", "library", "--yes"}).exit_code, kSuccess);
+    EXPECT_EQ(RunCli({"init", "--type", "lib", "--yes"}).exit_code, kSuccess);
     EXPECT_TRUE(sep.Exists("README.md"));
 }
 
@@ -407,7 +414,7 @@ TEST(CliInit, BothSpellingsOfAnOptionValueWork) {
 TEST(CliInit, TheLastOfARempeatedOptionWins) {
     CliWorkspace ws("repeat");
 
-    EXPECT_EQ(RunCli({"init", "--type=library", "--type=app", "--yes"}).exit_code, kSuccess);
+    EXPECT_EQ(RunCli({"init", "--type=lib", "--type=app", "--yes"}).exit_code, kSuccess);
 
     EXPECT_TRUE(ws.Exists("src/index.html")) << "the earlier --type was not replaced";
     EXPECT_FALSE(ws.Exists("README.md"));
@@ -415,15 +422,36 @@ TEST(CliInit, TheLastOfARempeatedOptionWins) {
 
 // A name that is nearly right is answered with the name that is right, because
 // the list of valid names does not tell somebody which of them they meant.
+//
+// The name corrected here is the longest of the three on purpose. A correction
+// is only offered for a name of four characters or more (src/helpers/typo.cpp:
+// a name that short has too many ways of being spelled wrongly to point at one),
+// so "app" and "lib" are refused with the list and no guess, and "plugin" is
+// the only type name this question can be asked about.
 TEST(CliInit, ANameMissingOneCharacterIsCorrected) {
     CliWorkspace ws("typo");
 
-    const CliResult result = RunCli({"init", "--type=librry", "--yes"});
+    const CliResult result = RunCli({"init", "--type=plugni", "--yes"});
 
     EXPECT_EQ(result.exit_code, kUsageError);
-    EXPECT_TRUE(OutputContains(result.err, "Did you mean 'library'?"))
+    EXPECT_TRUE(OutputContains(result.err, "Did you mean 'plugin'?"))
         << "no correction offered: " << result.err;
     EXPECT_FALSE(ws.Exists("README.md"));
+}
+
+// And the three-character type names are refused with the list rather than with a
+// guess, which is the other half of the same rule: "lb" is close to "lib" and
+// also close to a slip of the keyboard, and a wrong correction above the list
+// costs more than the list does.
+TEST(CliInit, AShortTypeNameIsNotGuessedAt) {
+    CliWorkspace ws("typo-short");
+
+    const CliResult result = RunCli({"init", "--type=lb", "--yes"});
+
+    EXPECT_EQ(result.exit_code, kUsageError);
+    EXPECT_FALSE(OutputContains(result.err, "Did you mean")) << result.err;
+    EXPECT_TRUE(OutputContains(result.err, "app, lib, plugin")) << result.err;
+    EXPECT_EQ(Tree(ws), "");
 }
 
 // And the correction is offered for templates too, which is the same question
@@ -447,7 +475,7 @@ TEST(CliInit, ANameThatIsNotCloseIsNotGuessedAt) {
 
     EXPECT_EQ(result.exit_code, kUsageError);
     EXPECT_FALSE(OutputContains(result.err, "Did you mean"));
-    EXPECT_TRUE(OutputContains(result.err, "app, library, plugin"))
+    EXPECT_TRUE(OutputContains(result.err, "app, lib, plugin"))
         << "the list of real names is what somebody needs: " << result.err;
 }
 
@@ -467,6 +495,21 @@ TEST(CliInit, ARejectedNameListsTheOnesThatWork) {
     for (const std::string& name : kTemplates) {
         EXPECT_TRUE(OutputContains(tmpl.err, name)) << "did not offer " << name;
     }
+}
+
+// The name a type had before it was shortened is not a second spelling of it.
+// It is refused like any other name nobody knows, with the list of the ones that
+// are — which is the whole of what somebody who typed it needs, and is the
+// reason it is worth a test rather than a hidden alias.
+TEST(CliInit, TheTypeNameFromBeforeTheRenameIsRefused) {
+    CliWorkspace ws("oldname");
+
+    const CliResult result = RunCli({"init", "--type=library", "--yes"});
+
+    EXPECT_EQ(result.exit_code, kUsageError);
+    EXPECT_TRUE(OutputContains(result.err, "Unknown project type 'library'")) << result.err;
+    EXPECT_TRUE(OutputContains(result.err, "app, lib, plugin")) << result.err;
+    EXPECT_EQ(Tree(ws), "");
 }
 
 // A flag with no value is a half-typed command line, and reading the next flag as
@@ -700,7 +743,7 @@ TEST(CliInit, ANameNpmCannotUseIsRefusedForMetadata) {
     std::filesystem::current_path(CliWorkspace::Native(ws.At("@@")), ec);
     ASSERT_FALSE(ec) << "could not enter the ill-named directory";
 
-    const CliResult result = RunCli({"init", "--type=library", "--yes"});
+    const CliResult result = RunCli({"init", "--type=lib", "--yes"});
 
     EXPECT_EQ(result.exit_code, kBuildFailure);
     EXPECT_FALSE(ws.Exists("@@/package.json"));
@@ -814,8 +857,8 @@ TEST(CliInit, TheSummarySaysWhichOfTheThreeThingsHappened) {
         // The three names as the summary spells them, which is not the spelling
         // on the command line: a sentence starts with a capital.
         const std::string word = type == "app" ? "Project"
-                                  : type == "library" ? "Library"
-                                                      : "Plugin";
+                                  : type == "lib" ? "Library"
+                                                  : "Plugin";
         EXPECT_TRUE(OutputContains(result.out, word + " initialized successfully."))
             << type << ": " << result.out;
     }
@@ -828,7 +871,7 @@ TEST(CliInit, TheNextStepDependsOnTheType) {
     EXPECT_TRUE(OutputContains(RunCli({"init", "--yes"}).out, "guchho dev"));
 
     CliWorkspace lib("next-lib");
-    EXPECT_TRUE(OutputContains(RunCli({"init", "--type=library", "--yes"}).out, "guchho build"));
+    EXPECT_TRUE(OutputContains(RunCli({"init", "--type=lib", "--yes"}).out, "guchho build"));
 }
 
 // There is no directory to change into, because the project was written into
@@ -841,30 +884,113 @@ TEST(CliInit, TheNextStepNeverSaysToChangeDirectory) {
     EXPECT_FALSE(OutputContains(as_app.out, "cd ")) << as_app.out;
 
     CliWorkspace lib("next-lib");
-    const CliResult as_lib = RunCli({"init", "--type=library", "--yes"});
+    const CliResult as_lib = RunCli({"init", "--type=lib", "--yes"});
     EXPECT_EQ(as_lib.exit_code, kSuccess);
     EXPECT_FALSE(OutputContains(as_lib.out, "cd ")) << as_lib.out;
 }
 
 // The help has to carry the two lists, because they are the only two things a
 // person has to choose and each of the twelve combinations is a different project.
+//
+// The five options are written out rather than ranged over, because unlike the
+// two lists they are not generated from a table: they are five sentences that
+// somebody wrote, and a sentence is what this checks.
 TEST(CliInit, TheHelpListsEveryTypeAndTemplate) {
     CliWorkspace ws("help");
 
     const CliResult result = RunCli({"init", "--help"});
 
     EXPECT_EQ(result.exit_code, kSuccess);
+    EXPECT_TRUE(OutputContains(result.out, "Usage: guchho init [options]"));
+    EXPECT_TRUE(OutputContains(result.out,
+                               "Create a new Guchho project in the current directory."));
+    EXPECT_TRUE(OutputContains(result.out, "Project types:"));
+    EXPECT_TRUE(OutputContains(result.out, "Templates:"));
     for (const std::string& type : kTypes) {
         EXPECT_TRUE(OutputContains(result.out, type)) << "the help does not offer " << type;
     }
     for (const std::string& tmpl : kTemplates) {
         EXPECT_TRUE(OutputContains(result.out, tmpl)) << "the help does not offer " << tmpl;
     }
-    EXPECT_TRUE(OutputContains(result.out, "--force"));
-    EXPECT_TRUE(OutputContains(result.out, "--yes"));
-    EXPECT_TRUE(OutputContains(result.out, "Usage: guchho init [options]"));
+
+    // Each option beside its short form, because a short form the help does not
+    // print is a short form nobody finds out about.
+    const std::vector<std::string> options = {
+        "-t, --template=<name>", "--type=<type>", "-y, --yes", "-f, --force", "-h, --help"};
+    for (const std::string& option : options) {
+        EXPECT_TRUE(OutputContains(result.out, option))
+            << "the help does not offer " << option;
+    }
+
+    // The examples are the whole of the command's grammar in four lines, so they
+    // are spelled out with the type names the command takes. "lib" and not
+    // "library": the second one is not a name any more, and an example is the
+    // first line anybody copies.
+    EXPECT_TRUE(OutputContains(result.out, "guchho init --template=ts"));
+    EXPECT_TRUE(OutputContains(result.out, "guchho init --type=lib --template=ts"));
+    EXPECT_TRUE(OutputContains(result.out, "guchho init --type=plugin --template=ts"));
+    EXPECT_FALSE(OutputContains(result.out, "--type=library"))
+        << "the help offers a type name the command refuses";
+
     EXPECT_FALSE(OutputContains(result.out, "[directory]"))
         << "the help offers a directory interface this command does not have";
+}
+
+// Every description starts in the same column, so the three lists read as two
+// columns rather than as eleven ragged sentences.
+//
+// The column is checked by counting the spaces after each name rather than by
+// looking at the text, because that is the thing that drifts: the padding used
+// to be a run of typed spaces written for the widths the names had then, and a
+// name that changes its width takes the run with it — which is exactly how
+// "app" came to sit seven columns in from the longest name beside it.
+TEST(CliInit, EveryHelpDescriptionStartsInOneColumn) {
+    CliWorkspace ws("columns");
+
+    const std::string out = RunCli({"init", "--help"}).out;
+
+    std::vector<std::string> names = kTypes;
+    names.insert(names.end(), kTemplates.begin(), kTemplates.end());
+    for (const std::string& name : names) {
+        const std::string padded =
+            "\n  " + name + std::string(kDescriptionColumn - 2 - name.size(), ' ');
+        EXPECT_TRUE(OutputContains(out, padded))
+            << "the description for " << name << " is not in the description column:\n"
+            << out;
+    }
+}
+
+// -t and -f are the two answers their long forms give, in either spelling of the
+// first one's value. A short form that means something other than its long form
+// is worse than no short form, so this is a test of what is written rather than
+// of what is accepted.
+TEST(CliInit, TheShortFlagsDoWhatTheLongOnesDo) {
+    CliWorkspace spaced("short-t");
+    EXPECT_EQ(RunCli({"init", "-t", "ts", "-y"}).exit_code, kSuccess);
+    EXPECT_TRUE(spaced.Exists("src/main.ts")) << "-t with a value after it chose nothing";
+
+    CliWorkspace joined("short-t-eq");
+    EXPECT_EQ(RunCli({"init", "-t=ts", "-y"}).exit_code, kSuccess);
+    EXPECT_TRUE(joined.Exists("src/main.ts")) << "-t=value chose nothing";
+
+    CliWorkspace forced("short-f");
+    forced.Write("src/main.js", "// mine\n");
+    EXPECT_EQ(RunCli({"init", "-f", "-y"}).exit_code, kSuccess);
+    EXPECT_NE(forced.Read("src/main.js"), std::string("// mine\n"))
+        << "-f left a file it was asked to replace";
+}
+
+// And the short form that takes a value still refuses to be one without it,
+// rather than reading the next flag as a template name.
+TEST(CliInit, TheShortTemplateFlagStillNeedsItsValue) {
+    CliWorkspace ws("short-t-missing");
+
+    const CliResult result = RunCli({"init", "-t", "-y"});
+
+    EXPECT_EQ(result.exit_code, kUsageError);
+    EXPECT_TRUE(OutputContains(result.err, "--template"))
+        << "the complaint does not name the option: " << result.err;
+    EXPECT_EQ(Tree(ws), "");
 }
 
 // -h is the short spelling of the same question and gets the same answer, and
@@ -916,7 +1042,7 @@ TEST(CliInit, AnUnknownFlagIsRefusedAndPointsAtTheHelp) {
 TEST(CliInit, AnUnknownFlagStopsTheCommandLineBeingUsedAtAll) {
     CliWorkspace ws("unknown2");
 
-    const CliResult result = RunCli({"init", "--type=library", "--nope", "--yes"});
+    const CliResult result = RunCli({"init", "--type=lib", "--nope", "--yes"});
 
     EXPECT_EQ(result.exit_code, kUsageError);
     EXPECT_TRUE(OutputContains(result.err, "--nope"));
@@ -986,7 +1112,7 @@ TEST(CliInit, AJsonConfiguredProjectBuilds) {
     CliWorkspace        ws("json-build");
     RuntimeDetectorScope scope(guchho::runtime::JavaScriptRuntime::kNone);
 
-    ASSERT_EQ(RunCli({"init", "--type=library", "--template=ts", "--yes"}).exit_code,
+    ASSERT_EQ(RunCli({"init", "--type=lib", "--template=ts", "--yes"}).exit_code,
               kSuccess);
 
     EXPECT_TRUE(ws.Exists("guchho.json"));

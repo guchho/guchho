@@ -369,7 +369,7 @@ std::vector<ConfigEntry> AppConfigFields()
         {"outdir", "dist", true},
         {"format", "esm", true},
         {"target", "esnext", true},
-        {"minify", "true", false},
+        {"minify", "false", false},
         {"pretty", "true", false},
         {"minifyHtml", "false", false},
     };
@@ -389,7 +389,7 @@ std::vector<ConfigEntry> PackageConfigFields(std::string_view ext)
         {"format", "esm", true},
         {"platform", "neutral", true},
         {"target", "esnext", true},
-        {"minify", "true", false},
+        {"minify", "false", false},
         {"pretty", "true", false},
     };
 }

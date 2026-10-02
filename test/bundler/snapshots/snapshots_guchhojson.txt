@@ -34,7 +34,7 @@ BundlerGuchhoJSON.BuildFormatUMD
   typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory(require) :
   typeof define === "function" && define.amd ? define(["require"], factory) :
   (global = typeof globalThis !== "undefined" ? globalThis : global || self, factory(void 0));
-})(this , function(require) {
+})(this, function(require) {
   // app.js
   var app_exports = {};
   __export(app_exports, {
@@ -46,13 +46,28 @@ BundlerGuchhoJSON.BuildFormatUMD
 });
 
 ================================================================================
+BundlerGuchhoJSON.BuildFormatUMDMinified
+---------- /out.js ----------
+(function(global,factory){typeof exports ==="object"&&typeof module !=="undefined"?module.exports=factory(require):typeof define ==="function"&&define.amd ?define(["require"],factory):(global=typeof globalThis !=="undefined"?globalThis:global||self,factory(void 0));})(this,function(require){var app_exports={};__export(app_exports,{answer:()=>answer});var answer=42;console.log(answer);return __toCommonJS(app_exports);});
+
+================================================================================
+BundlerGuchhoJSON.BuildFormatUMDMinifiedWithExternal
+---------- /out.js ----------
+(function(global,factory){typeof exports ==="object"&&typeof module !=="undefined"?module.exports=factory(require,require("vue")):typeof define ==="function"&&define.amd ?define(["require","vue"],factory):(global=typeof globalThis !=="undefined"?globalThis:global||self,factory(void 0,global.vue));})(this,function(require,dep0){var app_exports={};__export(app_exports,{app:()=>app});var import_vue=__require("vue");var app=(0,import_vue.create)();return __toCommonJS(app_exports);});
+
+================================================================================
+BundlerGuchhoJSON.BuildFormatUMDMinifiedWithGlobalName
+---------- /out.js ----------
+(function(global,factory){typeof exports ==="object"&&typeof module !=="undefined"?module.exports=factory(require):typeof define ==="function"&&define.amd ?define(["require"],factory):(global=typeof globalThis !=="undefined"?globalThis:global||self,(global.MyLib=global.MyLib||{},global.MyLib=factory(void 0)));})(this,function(require){var app_exports={};__export(app_exports,{answer:()=>answer});var answer=42;console.log(answer);return __toCommonJS(app_exports);});
+
+================================================================================
 BundlerGuchhoJSON.BuildFormatUMDWithExternal
 ---------- /out.js ----------
 (function(global, factory) {
   typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory(require, require("vue")) :
   typeof define === "function" && define.amd ? define(["require", "vue"], factory) :
   (global = typeof globalThis !== "undefined" ? globalThis : global || self, factory(void 0, global.vue));
-})(this , function(require, dep0) {
+})(this, function(require, dep0) {
   // app.js
   var app_exports = {};
   __export(app_exports, {
@@ -70,7 +85,7 @@ BundlerGuchhoJSON.BuildFormatUMDWithGlobalName
   typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory(require) :
   typeof define === "function" && define.amd ? define(["require"], factory) :
   (global = typeof globalThis !== "undefined" ? globalThis : global || self, (global.MyLib = global.MyLib || {}, global.MyLib = factory(void 0)));
-})(this , function(require) {
+})(this, function(require) {
   // app.js
   var app_exports = {};
   __export(app_exports, {
@@ -196,20 +211,35 @@ console.log(used);
 ================================================================================
 BundlerGuchhoJSON.ConfigJSDrivesBundle
 ---------- /project/out/app.js ----------
-(()=>{var o=42;console.log(42);})();
+(() => {
+  // project/src/app.js
+  var answer = 42;
+  console.log(answer);
+})();
 
 ================================================================================
 BundlerGuchhoJSON.ConfigJSFileNameWins
 ---------- /project/dist/app.js ----------
-(()=>{var o=42;console.log(42);})();
+(() => {
+  // project/app.js
+  var answer = 42;
+  console.log(answer);
+})();
 
 ================================================================================
 BundlerGuchhoJSON.DefaultEntryIsThePage
 ---------- /project/out/style.css ----------
-p{color:red}
+/* project/style.css */
+p {
+  color: red;
+}
 
 ---------- /project/out/app.js ----------
-console.log(42);
+// project/dep.js
+var x = 42;
+
+// project/app.js
+console.log(x);
 
 ---------- /project/out/logo.png ----------
 fake-png-data

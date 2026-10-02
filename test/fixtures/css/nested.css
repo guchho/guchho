@@ -1,0 +1,18 @@
+/* Custom properties first, then a rule that consumes them, then the rules
+   entry.css pulls in. Custom properties declared here have to reach the
+   consuming rule for the cascade to be right after bundling. */
+
+:root {
+    --brand: #0a7;
+    --gutter: 8px;
+}
+
+.panel {
+    border: 1px solid var(--brand);
+    padding: var(--gutter);
+}
+
+.panel__title {
+    color: var(--brand);
+    font-weight: 600;
+}

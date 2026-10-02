@@ -138,7 +138,12 @@ TEST(CliBuild, TheOutputIsPrintedRatherThanCopied) {
              "const b = compute(2);\n"
              "console.log(a, b);\n");
 
-    EXPECT_EQ(RunCli({"build", "entry.js", "--outfile=out.js"}).exit_code, kSuccess);
+    // Whitespace minification is asked for by name rather than inherited from
+    // the default, which no longer minifies anything. The test is about the
+    // printer, so it says what it needs from the printer.
+    EXPECT_EQ(
+        RunCli({"build", "entry.js", "--outfile=out.js", "--minify-whitespace"}).exit_code,
+        kSuccess);
 
     const std::string out = ws.Read("out.js");
     EXPECT_TRUE(OutputContains(out, "a=compute(1)")) << "nothing survived the build: [" << out << "]";
@@ -155,12 +160,9 @@ TEST(CliBuild, TheOutputIsPrintedRatherThanCopied) {
 // Minify is a flag the grammar takes and the printer honours, so this is the
 // test that the flag reached the build rather than being quietly dropped.
 //
-// It cannot be one build and an assertion about the result. Minification is on
-// by default, so a build with the flag and a build without it come out the same
-// and an assertion about either one alone would pass with the flag dropped on
-// the floor. What the flag does is change the answer, so the flag is checked by
-// the change: the same entry point built twice, once with the flag and once
-// with the flag turned off, and the two have to come out different.
+// What the flag does is change the answer, so the flag is checked by the
+// change: the same entry point built twice, once with the flag and once with
+// the flag turned off, and the two have to come out different.
 //
 // The call is here for the reason it is in the test above: a bare declaration
 // would be tree-shaken or folded away, and then there would be nothing in the
@@ -182,6 +184,144 @@ TEST(CliBuild, MinifyReachesTheOutput) {
     EXPECT_TRUE(OutputContains(plain, "console.log(value);")) << "[" << plain << "]";
     EXPECT_TRUE(OutputContains(min, "console.log(value);")) << "[" << min << "]";
     EXPECT_NE(plain, min) << "the flag changed nothing, so it never reached the build";
+}
+
+// The default half of the same pair, and the one the help text states: a build
+// that says nothing about minification is a build whose output can still be
+// read. The comparison is against "--minify=false" rather than against a
+// literal, so the two spellings of "off" cannot drift apart either, and the
+// bytes are compared whole because a snapshot of one unminified build would be
+// a second copy of what the printer is already tested for elsewhere.
+TEST(CliBuild, ABuildWithNoMinifyFlagIsNotMinified) {
+    CliWorkspace ws("minify-default");
+    ws.Write("entry.js", "const value = compute(1);\nconsole.log(value);\n");
+
+    EXPECT_EQ(RunCli({"build", "entry.js", "--outfile=silent.js"}).exit_code, kSuccess);
+    EXPECT_EQ(RunCli({"build", "entry.js", "--outfile=off.js", "--minify=false"}).exit_code, kSuccess);
+
+    const std::string silent = ws.Read("silent.js");
+    const std::string off    = ws.Read("off.js");
+
+    EXPECT_EQ(silent, off) << "a build with no flag and a build with \"--minify=false\" differ: ["
+                           << silent << "] vs [" << off << "]";
+    EXPECT_TRUE(OutputContains(silent, "const value = compute(1);"))
+        << "a build with no minify flag came out minified: [" << silent << "]";
+}
+
+// Each of the three passes, asked for on its own, and what the other two are
+// still doing in the output. The source is chosen so each pass has one visible
+// effect and no other does: "localValue" survives whitespace minification and
+// does not survive identifier minification, the newlines survive identifier
+// minification and do not survive whitespace minification, and the "const"
+// survives both of them but not the syntax pass, which inlines the return.
+//
+// The grammar test in cli_minify_test.cpp says which switches were written;
+// this one says what the printer did with them, which is the half that only a
+// real build can answer.
+TEST(CliBuild, EachMinifyPassFlagChangesOnlyItsOwnPass) {
+    CliWorkspace ws("minify-passes");
+    ws.Write("entry.js",
+             "function outer() {\n"
+             "  const localValue = compute(1);\n"
+             "  return localValue;\n"
+             "}\n"
+             "console.log(outer());\n");
+
+    struct Case {
+        std::string flag;
+        std::string outfile;
+    };
+    const Case cases[] = {
+        {"--minify-whitespace",  "ws.js"},
+        {"--minify-identifiers", "ids.js"},
+        {"--minify-syntax",      "syntax.js"},
+        {"--minify",             "all.js"},
+    };
+
+    for (const Case& one : cases) {
+        const std::vector<std::string> args{"build", "entry.js",
+                                            "--outfile=" + one.outfile, one.flag};
+        ASSERT_EQ(RunCli(args).exit_code, kSuccess) << one.flag;
+    }
+
+    const std::string whitespace_only = ws.Read("ws.js");
+    const std::string identifiers_only = ws.Read("ids.js");
+    const std::string syntax_only = ws.Read("syntax.js");
+    const std::string everything = ws.Read("all.js");
+
+    // Whitespace: the names are the reader's own and the layout is gone.
+    EXPECT_TRUE(OutputContains(whitespace_only, "localValue")) << "[" << whitespace_only << "]";
+    EXPECT_TRUE(OutputContains(whitespace_only, "const localValue=compute(1)"))
+        << "[" << whitespace_only << "]";
+    EXPECT_EQ(std::count(whitespace_only.begin(), whitespace_only.end(), '\n'), 1L)
+        << "[" << whitespace_only << "]";
+
+    // Identifiers: the names are gone and the line breaks are still there.
+    EXPECT_FALSE(OutputContains(identifiers_only, "localValue")) << "[" << identifiers_only << "]";
+    EXPECT_TRUE(OutputContains(identifiers_only, "const ") &&
+                OutputContains(identifiers_only, "= compute(1)"))
+        << "[" << identifiers_only << "]";
+    EXPECT_GT(std::count(identifiers_only.begin(), identifiers_only.end(), '\n'), 1L)
+        << "[" << identifiers_only << "]";
+
+    // Syntax: the binding and its one use collapse into the call, and the
+    // spaces around them go with them. Nothing was renamed and the layout is
+    // still one statement per line, so the name that survives is the call's.
+    EXPECT_TRUE(OutputContains(syntax_only, "return compute(1)")) << "[" << syntax_only << "]";
+    EXPECT_FALSE(OutputContains(syntax_only, "const localValue"))
+        << "the syntax pass was asked for and the declaration is still there: ["
+        << syntax_only << "]";
+    EXPECT_FALSE(OutputContains(syntax_only, "outer(){"))
+        << "the whitespace pass ran even though only the syntax one was asked for: ["
+        << syntax_only << "]";
+    EXPECT_GT(std::count(syntax_only.begin(), syntax_only.end(), '\n'), 1L)
+        << "[" << syntax_only << "]";
+
+    // The shorthand is all three at once, which is what makes it the shorthand.
+    EXPECT_FALSE(OutputContains(everything, "localValue")) << "[" << everything << "]";
+    EXPECT_FALSE(OutputContains(everything, "const localValue")) << "[" << everything << "]";
+}
+
+// A project whose config turns minification on, and a command line that asked
+// for one pass: the flag wins, and it wins as the pass that was named rather
+// than as the whole of "--minify". This is the case the explicit record is for,
+// and it is why each of the three marks minification as asked for.
+TEST(CliBuild, AMinifyPassFlagOverridesAConfigThatMinifies) {
+    CliWorkspace ws("minify-config");
+    ws.Write("entry.js",
+             "function outer() {\n"
+             "  const localValue = compute(1);\n"
+             "  return localValue;\n"
+             "}\n"
+             "console.log(outer());\n");
+    ws.Write("guchho.config.json", R"({"build":{"entry":"entry.js","minify":true}})");
+
+    EXPECT_EQ(RunCli({"build", "--outfile=from-flag.js", "--minify-whitespace"}).exit_code, kSuccess);
+    EXPECT_EQ(RunCli({"build", "--outfile=from-config.js"}).exit_code, kSuccess);
+
+    const std::string from_flag   = ws.Read("from-flag.js");
+    const std::string from_config = ws.Read("from-config.js");
+
+    EXPECT_TRUE(OutputContains(from_flag, "localValue"))
+        << "the config answered the flag and renamed what it named: [" << from_flag << "]";
+    EXPECT_FALSE(OutputContains(from_config, "localValue"))
+        << "the config asked for minification and the names survived: [" << from_config << "]";
+}
+
+// The other direction, and the one that only exists because minification is off
+// by default now: a config that turns it on and a command line that turns it
+// back off. "--minify=false" was already accepted, but before the default
+// flipped there was almost nothing for it to disagree with.
+TEST(CliBuild, MinifyFalseOverridesAConfigThatMinifies) {
+    CliWorkspace ws("minify-config-off");
+    ws.Write("entry.js", "const value = compute(1);\nconsole.log(value);\n");
+    ws.Write("guchho.config.json", R"({"build":{"entry":"entry.js","minify":true}})");
+
+    EXPECT_EQ(RunCli({"build", "--outfile=off.js", "--minify=false"}).exit_code, kSuccess);
+
+    const std::string off = ws.Read("off.js");
+    EXPECT_TRUE(OutputContains(off, "const value = compute(1);"))
+        << "\"--minify=false\" left the config in charge: [" << off << "]";
 }
 
 // The metafile is the description of what the build read and produced, and it

@@ -269,13 +269,31 @@ void ResolveOneBuild(BuildOptions& out,
     if (!WasSet(out, kOptOutbase) && out.outbase.empty() && !cfg.AbsOutputBase.empty()) {
         out.outbase = Relativize(fs, cfg.AbsOutputBase);
     }
-    // A format is only a question where something needs one. An unbundled entry
-    // is converted or copied and the answer "leave it as it was" is the only
-    // honest one, so the config's format is carried across only when the build
-    // is bundling — which is also the only case in which a config's "iife" and
-    // a command line's "--format iife" are statements about the same thing.
-    if (!WasSet(out, kOptFormat) && out.format == api::Format::kDefault && out.bundle &&
-        cfg.OutputFormat != config::Format::kPreserve) {
+    // A format named in a config file is carried across whatever the build is
+    // doing, bundled or not, because that is what asking for one means and it
+    // is what the same request on the command line already does: "--format cjs"
+    // on a lone .js file is answered by converting it, through kConvertFormat
+    // rather than by ignoring the request. Gating this on bundling used to
+    // mean a config's "format" meant nothing at all unless the build was
+    // bundling, and it did so silently: two configurations asking for different
+    // formats wrote the same bytes to their two different files.
+    //
+    // The question this asks is "did a config file name a format", and that is
+    // "FormatFromConfig" and not "the format is not kPreserve". Those are not
+    // the same question, and the difference is a default rather than a corner
+    // case: every configuration starts from CreateDefaultGuchhoBuildConfig,
+    // which sets OutputFormat to kESModule, so a project with no config file at
+    // all arrives here with a concrete format nobody asked for. Reading the
+    // field instead of the flag gave every build a format, which turned a lone
+    // .js entry from kPassThrough into kConvertFormat and had it printed under
+    // new names by the converter. "FormatFromConfig" is set only where a
+    // config file names a format, so it says what this needs to know.
+    //
+    // The two flags ahead of it keep the rest of the ranking: a format on the
+    // command line is not taken back, and "kDefault" is still "nobody has
+    // mentioned a format yet" for the bundling default further down to fill in.
+    if (!WasSet(out, kOptFormat) && out.format == api::Format::kDefault &&
+        cfg.FormatFromConfig) {
         out.format = ToApiFormat(cfg.OutputFormat);
     }
     // Whether "format" was somebody's decision rather than the built-in
@@ -309,12 +327,17 @@ void ResolveOneBuild(BuildOptions& out,
         // minification off, which is the half of this that used to be missing.
         // The old guard here was "unless all three are already on", on the
         // reasoning that a request for no minification should not be undone —
-        // but those three are the structure's own initializers, so a caller who
-        // simply left the struct alone was indistinguishable from one who asked
-        // for minification, and a project saying "minify: false" was ignored
-        // unless it had also been contradicted on the command line. The
-        // explicit set is the only record of somebody having said something, and
-        // when there is none the config's answer is the answer.
+        // but a build that said nothing about minification and a build that
+        // asked for all three passes were then indistinguishable, so a project
+        // saying "minify: false" was ignored unless it had also been
+        // contradicted on the command line. The explicit set is the only record
+        // of somebody having said something, and when there is none the config's
+        // answer is the answer.
+        //
+        // The three fields stay independent either way: any of "--minify",
+        // "--minify-syntax", "--minify-whitespace" and "--minify-identifiers"
+        // marks kOptMinify, so a project that turned every pass on is overruled
+        // by one that named the passes it wanted rather than all of them.
         out.minify_whitespace  = cfg.MinifyWhitespace;
         out.minify_identifiers = cfg.MinifyIdentifiers;
         out.minify_syntax      = cfg.MinifySyntax;

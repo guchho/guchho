@@ -8,6 +8,7 @@
 add_library(guchho_cli_test_objects OBJECT
     cli_run_test.cpp
     cli_build_test.cpp
+    cli_minify_test.cpp
     cli_multi_config_test.cpp
     cli_transform_test.cpp
     cli_project_test.cpp

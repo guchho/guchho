@@ -1,0 +1,307 @@
+// ─────────────────────────────────────────────
+// Guchho — VS Code Tasks
+//
+// Wraps scripts/build.sh, scripts/test.sh and the
+// equivalent raw CMake commands.
+//
+//   Run task ...... Ctrl+Shift+P -> "Tasks: Run Task"
+//   Default build . Ctrl+Shift+B -> Guchho: Build Debug
+//
+// Inputs are prompted when a task is launched from the
+// Run Task picker. Tasks started from a keyboard
+// shortcut or as a dependsOn step use the defaults
+// declared below instead (e.g. debug-win32-x64).
+//
+// Presets are host-conditioned in CMakePresets.json
+// (the *-win32-x64 presets require a Windows host), so
+// pick one that exists for the current platform.
+// ─────────────────────────────────────────────
+
+{
+    "$schema": "https://www.schemastore.org/task.json",
+    "version": "2.0.0",
+
+    // Applied to every task; no task overrides it.
+    "options": {
+        "cwd": "${workspaceFolder}"
+    },
+
+    // ─────────────────────────────────────────────
+    // Inputs
+    // ─────────────────────────────────────────────
+
+    "inputs": [
+        {
+            "id": "preset",
+            "type": "pickString",
+            "description": "CMake preset",
+            "default": "debug-win32-x64",
+            "options": [
+                { "label": "Windows x64 Debug (MSBuild)", "value": "debug-win32-x64" },
+                { "label": "Windows x64 Debug (Ninja)", "value": "debug-win32-x64-ninja" },
+                { "label": "Windows x64 Release (MSBuild)", "value": "release-win32-x64" },
+                { "label": "Windows x64 Release (Ninja)", "value": "release-win32-x64-ninja" },
+                { "label": "Windows x64 RelWithDebInfo", "value": "relwithdebinfo-win32-x64" },
+                { "label": "Windows x64 MinSizeRel", "value": "minsizerel-win32-x64" },
+                { "label": "Linux x64 Debug", "value": "debug-linux-x64" },
+                { "label": "Linux x64 Release", "value": "release-linux-x64" },
+                { "label": "Linux ARM64 Debug", "value": "debug-linux-arm64" },
+                { "label": "Linux ARM64 Release", "value": "release-linux-arm64" },
+                { "label": "macOS ARM64 Debug", "value": "debug-darwin-arm64" },
+                { "label": "macOS ARM64 Release", "value": "release-darwin-arm64" },
+                { "label": "macOS x64 Debug", "value": "debug-darwin-x64" },
+                { "label": "macOS x64 Release", "value": "release-darwin-x64" },
+                { "label": "CI (strict warnings as errors)", "value": "ci" },
+                { "label": "ASan (Linux x64)", "value": "asan-linux-x64" },
+                { "label": "UBSan (Linux x64)", "value": "ubsan-linux-x64" }
+            ]
+        },
+
+        {
+            "id": "suite",
+            "type": "pickString",
+            "description": "Test suite (CTest -R regex)",
+            "default": "bundler\\.",
+            "options": [
+                { "label": "All tests (.*)", "value": ".*" },
+                { "label": "Bundler (bundler\\.) - build.sh default", "value": "bundler\\." },
+                { "label": "JavaScript (js\\.)", "value": "js\\." },
+                { "label": "CSS (css\\.)", "value": "css\\." },
+                { "label": "HTML (html\\.)", "value": "html\\." },
+                { "label": "Helpers (helpers\\.)", "value": "helpers\\." },
+                { "label": "Core (core\\.)", "value": "core\\." },
+                { "label": "Cache (cache\\.)", "value": "cache\\." },
+                { "label": "Resolver (resolver\\.)", "value": "resolver\\." },
+                { "label": "Graph (graph\\.)", "value": "graph\\." },
+                { "label": "Linker (linker\\.)", "value": "linker\\." },
+                { "label": "API (api\\.)", "value": "api\\." },
+                { "label": "CLI (cli\\.)", "value": "cli\\." },
+                { "label": "npm (npm\\.)", "value": "npm\\." }
+            ]
+        },
+
+        {
+            "id": "filter",
+            "type": "promptString",
+            "description": "Test filter (CTest -R regex, e.g. bundler\\.BundlerCSS\\.)",
+            "default": ".*"
+        },
+
+        {
+            "id": "target",
+            "type": "pickString",
+            "description": "CMake target to build",
+            "default": "guchho",
+            "options": [
+                { "label": "guchho (CLI binary)", "value": "guchho" },
+                { "label": "guchho_bundler_tests", "value": "guchho_bundler_tests" },
+                { "label": "guchho_core_tests", "value": "guchho_core_tests" },
+                { "label": "guchho_linker_tests", "value": "guchho_linker_tests" },
+                { "label": "guchho_resolver_tests", "value": "guchho_resolver_tests" },
+                { "label": "guchho_cache_tests", "value": "guchho_cache_tests" },
+                { "label": "guchho_graph_tests", "value": "guchho_graph_tests" },
+                { "label": "guchho_api_tests", "value": "guchho_api_tests" },
+                { "label": "guchho_cli_tests", "value": "guchho_cli_tests" },
+                { "label": "guchho_js_tests", "value": "guchho_js_tests" },
+                { "label": "guchho_css_tests", "value": "guchho_css_tests" },
+                { "label": "guchho_html_tests", "value": "guchho_html_tests" },
+                { "label": "guchho_helpers_tests", "value": "guchho_helpers_tests" },
+                { "label": "guchho_npm_tests", "value": "guchho_npm_tests" }
+            ]
+        }
+    ],
+
+    // ─────────────────────────────────────────────
+    // Tasks
+    //
+    // CMake tasks use --parallel without a job count;
+    // scripts/build.sh detects the core count via nproc.
+    // ─────────────────────────────────────────────
+
+    "tasks": [
+        {
+            "label": "Guchho: Build Debug",
+            "detail": "scripts/build.sh - configure, build, run the selected test suite",
+            "type": "process",
+            "command": "bash",
+            "args": [
+                "scripts/build.sh",
+                "--preset", "${input:preset}",
+                "--filter", "${input:suite}"
+            ],
+            "problemMatcher": ["$gcc", "$msCompile"],
+            "group": { "kind": "build", "isDefault": true },
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true,
+                "echo": true,
+                "showReuseMessage": true
+            }
+        },
+        {
+            "label": "Guchho: Build + Test (all errors)",
+            "detail": "scripts/build.sh --all-errors - verbose compiler output, no stop-on-failure, writes build-errors.log",
+            "type": "process",
+            "command": "bash",
+            "args": [
+                "scripts/build.sh",
+                "--preset", "${input:preset}",
+                "--filter", "${input:suite}",
+                "--all-errors",
+                "--log", "build-errors.log"
+            ],
+            "problemMatcher": ["$gcc", "$msCompile"],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true,
+                "echo": true,
+                "showReuseMessage": true
+            }
+        },
+        {
+            "label": "Guchho: Configure only",
+            "detail": "cmake --preset - no build, no tests",
+            "type": "process",
+            "command": "cmake",
+            "args": ["--preset", "${input:preset}"],
+            "problemMatcher": ["$gcc", "$msCompile"],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true,
+                "echo": true
+            }
+        },
+        {
+            "label": "Guchho: Configure (fresh)",
+            "detail": "cmake --preset --fresh - drop the CMake cache first (same as CI)",
+            "type": "process",
+            "command": "cmake",
+            "args": ["--preset", "${input:preset}", "--fresh"],
+            "problemMatcher": ["$gcc", "$msCompile"],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true,
+                "echo": true
+            }
+        },
+        {
+            "label": "Guchho: Build (single target)",
+            "detail": "cmake --build --target - build one target, skip tests",
+            "type": "process",
+            "command": "cmake",
+            "args": [
+                "--build", "--preset", "${input:preset}",
+                "--target", "${input:target}",
+                "--parallel"
+            ],
+            "problemMatcher": ["$gcc", "$msCompile"],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true,
+                "echo": true
+            }
+        },
+        {
+            "label": "Guchho: Test (suite)",
+            "detail": "scripts/test.sh - run the selected suite against an existing build",
+            "type": "process",
+            "command": "bash",
+            "args": [
+                "scripts/test.sh",
+                "--preset", "${input:preset}",
+                "--filter", "${input:suite}"
+            ],
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true,
+                "echo": true,
+                "showReuseMessage": true
+            }
+        },
+        {
+            "label": "Guchho: Test (regex)",
+            "detail": "scripts/test.sh - free-form CTest -R regex, verbose, no stop-on-failure",
+            "type": "process",
+            "command": "bash",
+            "args": [
+                "scripts/test.sh",
+                "--preset", "${input:preset}",
+                "--filter", "${input:filter}",
+                "--test-verbose",
+                "--no-stop"
+            ],
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true,
+                "echo": true,
+                "showReuseMessage": true
+            }
+        },
+        {
+            "label": "Guchho: CMake workflow",
+            "detail": "cmake --workflow - configure + build + test; only presets that define a workflowPreset are valid",
+            "type": "process",
+            "command": "cmake",
+            "args": ["--workflow", "--preset", "${input:preset}"],
+            "problemMatcher": ["$gcc", "$msCompile"],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true,
+                "echo": true,
+                "showReuseMessage": true
+            }
+        },
+        {
+            "label": "Guchho: Refresh compile_commands.json",
+            "detail": "scripts/compile-commands.sh - rebuild and copy the compile database to the project root for clangd",
+            "type": "process",
+            "command": "bash",
+            "args": ["scripts/compile-commands.sh"],
+            "problemMatcher": ["$gcc", "$msCompile"],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true,
+                "echo": true
+            }
+        },
+        {
+            "label": "Guchho: Clean",
+            "detail": "cmake --build --target clean",
+            "type": "process",
+            "command": "cmake",
+            "args": ["--build", "--preset", "${input:preset}", "--target", "clean"],
+            "problemMatcher": ["$gcc", "$msCompile"],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true,
+                "echo": true
+            }
+        },
+        {
+            "label": "Guchho: Clean + Configure",
+            "detail": "Clean, then Configure (fresh) for the same preset",
+            "dependsOrder": "sequence",
+            "dependsOn": ["Guchho: Clean", "Guchho: Configure (fresh)"],
+            "problemMatcher": ["$gcc", "$msCompile"],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true,
+                "echo": true,
+                "showReuseMessage": true
+            }
+        }
+    ]
+}

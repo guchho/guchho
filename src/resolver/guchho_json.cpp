@@ -496,9 +496,9 @@ namespace guchho::resolver {
         opts.OutputFormat      = config::Format::kESModule;  // "format": "esm"
         opts.OutputPlatform    = config::Platform::kBrowser; // "platform": "browser"
         opts.OriginalTargetEnv = "esnext";                   // "target": "esnext"
-        opts.MinifyWhitespace  = true;                       // "minify": true
-        opts.MinifyIdentifiers = true;
-        opts.MinifySyntax      = true;
+        opts.MinifyWhitespace  = false;                      // "minify": false
+        opts.MinifyIdentifiers = false;
+        opts.MinifySyntax      = false;
         opts.SourceMapData     = config::SourceMap::kNone;   // "sourcemap": false
         opts.CodeSplitting     = false;                      // "splitting": false
         opts.TreeShaking       = true;                       // "treeShaking": true
@@ -566,9 +566,14 @@ namespace guchho::resolver {
             const javascript::Expr& build = build_prop->first;
 
             if (auto bundle = internal::GetProperty(build, "bundle")) {
-                // Bundling is not optional, so the field is accepted but has
-                // nothing to switch. Warn so a Vite-shaped config does not
-                // read as if "bundle: false" would do something.
+                // Bundling is the one build choice a config file does not get to
+                // make: it is the caller's to make and "no" is a real answer, so
+                // there is nothing here a config could switch on or off. The
+                // field is accepted so that a Vite-shaped config does not also
+                // draw the generic unknown-field warning, and warned about so
+                // that "bundle: false" is not left reading as if it did
+                // something. It is a warning and not an error because a config
+                // that is merely redundant is still a config that can be used.
                 log.AddID(logger::MsgID::kGuchhoConfig_BundleIgnored,
                           logger::MsgKind::kWarning, &tracker,
                           source.RangeOfString(bundle->second),
@@ -619,7 +624,8 @@ namespace guchho::resolver {
                            std::get_if<std::shared_ptr<javascript::EObject>>(&minify->first.data)) {
                     // The user supplied an explicit object, so the unmentioned
                     // sub-options default to off rather than inheriting the
-                    // built-in "minify: true" defaults.
+                    // built-in "minify: false" defaults. Naming one pass is a
+                    // request for that pass alone.
                     opts.MinifyWhitespace  = false;
                     opts.MinifyIdentifiers = false;
                     opts.MinifySyntax      = false;

@@ -165,7 +165,10 @@ Production-oriented build. Processes HTML, JS, CSS and assets.
 | ------ | ----------- |
 | `--outdir=<dir>` | Output directory (default: `dist`) |
 | `--outfile=<file>` | Output file |
-| `--minify` | Minify all output (default: on) |
+| `--minify` | Minify all output (default: off) |
+| `--minify-whitespace` | Minify whitespace only |
+| `--minify-identifiers` | Mangle identifiers only |
+| `--minify-syntax` | Optimize syntax only |
 | `--minify-html` | Minify the markup (default: off) |
 | `--pretty` | Indent the markup (default: on) |
 | `--sourcemap` | Enable source maps |
@@ -205,7 +208,10 @@ Development server: watches, rebuilds on change, serves over HTTP.
 | `--port=<port>` | Bind port (default: `3000`) |
 | `--open` | Open a browser on start |
 | `--outdir=<dir>` | Output directory (default: `dist`) |
-| `--minify` | Minify output (default: on) |
+| `--minify` | Minify output (default: off) |
+| `--minify-whitespace` | Minify whitespace only |
+| `--minify-identifiers` | Mangle identifiers only |
+| `--minify-syntax` | Optimize syntax only |
 | `--sourcemap` | Enable source maps |
 | `--target=<target>` | Target environment |
 | `--log-level=<level>` | Log level |

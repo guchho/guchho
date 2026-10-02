@@ -991,6 +991,16 @@ config::Format format = options->OutputFormat;
         bool is_executable = false;
         std::string space = options->MinifyWhitespace ? "" : " ";
         std::string newline = options->MinifyWhitespace ? "" : "\n";
+        // The wrapper text below is built by string concatenation rather than
+        // through the printer, so it has to derive its own whitespace from the
+        // same switch the printer reads. Every space in it is written out as
+        // "space" and every indent level as a multiple of "indent_unit",
+        // otherwise minify_whitespace reaches the file body and stops at the
+        // wrapper. A wrapper with no global name still indents, so this is
+        // set per wrapper format below and left empty for the bare formats.
+        const std::string indent_unit = options->MinifyWhitespace ? "" : "  ";
+        const std::string indent2 = indent_unit + indent_unit;
+        const std::string indent3 = indent2 + indent_unit;
         std::string indent;
 
         if (chunk.is_entry_point) {
@@ -1071,7 +1081,7 @@ config::Format format = options->OutputFormat;
 
         if (options->OutputFormat == config::Format::kIIFE) {
             std::string text;
-            indent = "  ";
+            indent = indent_unit;
             if (!options->GlobalName.empty()) {
                 text = GenerateGlobalNamePrefix();
             }
@@ -1084,7 +1094,7 @@ config::Format format = options->OutputFormat;
             j.AddString(text);
             newline_before_comment = false;
         } else if (options->OutputFormat == config::Format::kAMD) {
-            indent = "  ";
+            indent = indent_unit;
             std::string text = options->Amd.define + "([" + quote_json("require");
             for (auto& dep : wrapper_external_deps) {
                 text += "," + space + quote_json(dep);
@@ -1098,35 +1108,42 @@ config::Format format = options->OutputFormat;
             j.AddString(text);
             newline_before_comment = false;
         } else if (options->OutputFormat == config::Format::kUMD) {
-            indent = "  ";
+            indent = indent_unit;
 
             auto global_parts = options->GlobalName;
 
             std::string text;
-            text += "(function(global, factory) {" + newline;
-            text += indent + "typeof exports === " + quote_json("object") +
-                    " && typeof module !== " + quote_json("undefined") + " ? module.exports = factory(require";
+            // "typeof " keeps a literal space even when minifying: without it
+            // the keyword and the name in front of it lex as one identifier
+            // ("typeofexports"). Every other space here is cosmetic and goes
+            // through "space", so minify_whitespace reaches all of them.
+            text += "(function(global," + space + "factory)" + space + "{" + newline;
+            text += indent + "typeof exports ===" + space + quote_json("object") +
+                    space + "&&" + space + "typeof module !==" + space + quote_json("undefined") +
+                    space + "?" + space + "module.exports" + space + "=" + space + "factory(require";
             for (auto& dep : wrapper_external_deps) {
                 text += "," + space + "require(" + quote_json(dep) + ")";
             }
-            text += ") :" + newline;
-            text += indent + "typeof define === " + quote_json("function") +
-                    " && define.amd ? define([" + quote_json("require");
+            text += ")" + space + ":" + newline;
+            text += indent + "typeof define ===" + space + quote_json("function") +
+                    space + "&&" + space + "define.amd ?" + space + "define([" + quote_json("require");
             for (auto& dep : wrapper_external_deps) {
                 text += "," + space + quote_json(dep);
             }
-            text += "], factory) :" + newline;
+            text += "]," + space + "factory)" + space + ":" + newline;
             std::string global_close;
-            text += indent + "(global = typeof globalThis !== " + quote_json("undefined") +
-                    " ? globalThis : global || self, ";
+            text += indent + "(global" + space + "=" + space + "typeof globalThis !==" + space + quote_json("undefined") +
+                    space + "?" + space + "globalThis" + space + ":" + space + "global" + space + "||" + space + "self," + space;
             if (!global_parts.empty()) {
                 text += "(";
                 std::string ns = "global";
                 for (size_t i = 0; i < global_parts.size(); i++) {
-                    text += ns + "." + global_parts[i] + " = " + ns + "." + global_parts[i] + " || {}, ";
+                    text += ns + "." + global_parts[i] + space + "=" + space + ns + "." + global_parts[i] +
+                            space + "||" + space + "{}," + space;
                     ns += "." + global_parts[i];
                 }
-                text += ns + " = factory(void 0";
+                // "void 0" is a keyword plus a literal, so it keeps its space.
+                text += ns + space + "=" + space + "factory(void 0";
                 global_close = "))";
             } else {
                 text += "factory(void 0";
@@ -1145,8 +1162,8 @@ config::Format format = options->OutputFormat;
                 }
                 text += "," + space + "global." + global_dep;
             }
-            text += global_close + ")" + ";" + newline;
-            text += "})(this" + space + "," + space + "function(require";
+            text += global_close + ");" + newline;
+            text += "})(this," + space + "function(require";
             for (size_t i = 0; i < wrapper_external_deps.size(); i++) {
                 text += "," + space + "dep" + std::to_string(i);
             }
@@ -1155,7 +1172,7 @@ config::Format format = options->OutputFormat;
             j.AddString(text);
             newline_before_comment = false;
         } else if (options->OutputFormat == config::Format::kSystem) {
-            indent = "  ";
+            indent = indent_unit;
             std::string text = "System.register([";
             for (size_t i = 0; i < wrapper_external_deps.size(); i++) {
                 if (i > 0) text += "," + space;
@@ -1164,11 +1181,13 @@ config::Format format = options->OutputFormat;
             text += "]," + space + "function(exports)" + space + "{" + newline;
             for (auto& dep_captures : setter_captures) {
                 for (auto& capture : dep_captures) {
-                    text += "  " + space + "var " + r->NameForSymbol(capture.namespace_ref) + ";" + newline;
+                    // "var " keeps its space even when minifying: without it
+                    // "var" and the name would lex as a single identifier.
+                    text += indent_unit + space + "var " + r->NameForSymbol(capture.namespace_ref) + ";" + newline;
                 }
             }
-            text += "  " + space + "return {" + newline;
-            text += "    " + space + "setters: [";
+            text += indent_unit + space + "return {" + newline;
+            text += indent2 + space + "setters: [";
             for (size_t i = 0; i < wrapper_external_deps.size(); i++) {
                 if (i > 0) text += "," + space;
                 text += "function(dep" + std::to_string(i) + ")" + space + "{";
@@ -1179,7 +1198,7 @@ config::Format format = options->OutputFormat;
                 text += space + "}";
             }
             text += "]," + newline;
-            text += "    " + space + "execute:" + space + "function()" + space + "{" + newline;
+            text += indent2 + space + "execute:" + space + "function()" + space + "{" + newline;
             prev_offset.AdvanceString(text);
             j.AddString(text);
             newline_before_comment = false;
@@ -1376,9 +1395,9 @@ config::Format format = options->OutputFormat;
         } else if (options->OutputFormat == config::Format::kUMD) {
             j.AddString("});" + newline);
         } else if (options->OutputFormat == config::Format::kSystem) {
-            j.AddString("      " + space + "}" + newline);
-            j.AddString("    " + space + "};" + newline);
-            j.AddString("  });" + newline);
+            j.AddString(indent3 + space + "}" + newline);
+            j.AddString(indent2 + space + "};" + newline);
+            j.AddString(indent_unit + "});" + newline);
         }
 
         j.EnsureNewlineAtEnd();

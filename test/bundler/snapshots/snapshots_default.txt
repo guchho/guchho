@@ -1628,7 +1628,7 @@ TestExportFormsUMD
   typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory(require) :
   typeof define === "function" && define.amd ? define(["require"], factory) :
   (global = typeof globalThis !== "undefined" ? globalThis : global || self, (global.globalName = global.globalName || {}, global.globalName = factory(void 0)));
-})(this , function(require) {
+})(this, function(require) {
   // entry.js
   var entry_exports = {};
   __export(entry_exports, {

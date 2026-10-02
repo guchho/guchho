@@ -9,6 +9,7 @@
 
 #include "guchho/api.hpp"
 
+#include <algorithm>
 #include <cstdio>
 #include <ctime>
 #include <filesystem>
@@ -389,6 +390,67 @@ TEST(Api, TransformEmptyInputProducesEmptyCode) {
     api::TransformResult r = api::Transform("", opts);
     EXPECT_TRUE(r.errors.empty());
     EXPECT_TRUE(r.code.empty());
+}
+
+// ===========================================================================
+// Defaults
+// ===========================================================================
+
+// A struct nobody touched has to mean "no minification", on both option types.
+// This is the field's own default rather than anything the resolution does, so
+// it is asserted on a fresh struct with no entry points and no working
+// directory: a caller who writes nothing gets readable output, and the two
+// structures cannot disagree about that.
+TEST(Api, MinificationIsOffUntilItIsAskedFor) {
+    const api::BuildOptions build;
+    EXPECT_FALSE(build.minify_whitespace);
+    EXPECT_FALSE(build.minify_identifiers);
+    EXPECT_FALSE(build.minify_syntax);
+
+    const api::TransformOptions transform;
+    EXPECT_FALSE(transform.minify_whitespace);
+    EXPECT_FALSE(transform.minify_identifiers);
+    EXPECT_FALSE(transform.minify_syntax);
+}
+
+// The three are independent fields, so one of them can be on with the other two
+// off. Each gets its own transform below rather than a loop over the three,
+// because a loop would only report that "one" was wrong and not which pass.
+TEST(Api, EachMinifyPassWorksOnItsOwn) {
+    api::TransformOptions whitespace;
+    whitespace.minify_whitespace = true;
+    whitespace.log_level = quiet();
+    const std::string collapsed = to_string(
+        api::Transform("function outer() { const value = 1; return value; }", whitespace).code);
+    EXPECT_TRUE(contains(collapsed, "const value=1"));
+    EXPECT_TRUE(contains(collapsed, "value"));
+
+    api::TransformOptions identifiers;
+    identifiers.minify_identifiers = true;
+    identifiers.log_level = quiet();
+    const std::string mangled = to_string(
+        api::Transform("function outer() { const value = 1; return value; }", identifiers).code);
+    EXPECT_FALSE(contains(mangled, "value"));
+    // The line breaks are still there, which is what "only identifiers" means.
+    EXPECT_GT(std::count(mangled.begin(), mangled.end(), '\n'), 1);
+
+    // A value that came from a call cannot be folded into the return, so the
+    // only thing the syntax pass can do here is drop the statement and the
+    // spacing around it. "sideEffect()" stays put, which is what tells the two
+    // passes apart from the identifier pass, which would have renamed it.
+    api::TransformOptions syntax;
+    syntax.minify_syntax = true;
+    syntax.log_level = quiet();
+    const std::string folded = to_string(
+        api::Transform("function outer() { const value = sideEffect(); return value; }", syntax)
+            .code);
+    EXPECT_TRUE(contains(folded, "sideEffect()"));
+    // The binding and its single use collapse into the return, and the spaces
+    // around it go with them, but the identifier was not renamed and the body
+    // still has one statement per line.
+    EXPECT_FALSE(contains(folded, "const value"));
+    EXPECT_FALSE(contains(folded, "function outer(){"));
+    EXPECT_TRUE(contains(folded, "function outer() {"));
 }
 
 // ===========================================================================

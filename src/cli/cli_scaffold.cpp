@@ -60,10 +60,13 @@ struct NameEntry {
     std::string_view description;
 };
 
+// The project types, as the command line spells them. "lib" and not "library":
+// a name that gets typed often enough is worth shortening, and it is the one of
+// the three that reads as a name for nothing else.
 constexpr NameEntry kProjectTypes[] = {
-    {"app",     "Web application"},
-    {"library", "Reusable JavaScript/TypeScript library"},
-    {"plugin",  "Guchho build-system plugin"},
+    {"app",    "Web application"},
+    {"lib",    "Reusable JavaScript/TypeScript library"},
+    {"plugin", "Guchho build-system plugin"},
 };
 
 constexpr NameEntry kTemplates[] = {

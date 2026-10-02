@@ -194,7 +194,7 @@ const std::vector<std::string>& TemplateNames();
 // this build knows, so a caller that gets a message back can keep whatever it
 // had stored there.
 //
-// Input:  ParseProjectType("library", out)
+// Input:  ParseProjectType("lib", out)
 // Output: out = ProjectType::kLibrary and an empty optional, meaning success.
 //
 // Input:  ParseProjectTemplate("vanila", out)

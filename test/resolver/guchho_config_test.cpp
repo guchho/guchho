@@ -304,9 +304,12 @@ void ExpectDefaults(const resolver::GuchhoConfig& result, const std::string& roo
     EXPECT_EQ(result.builds[0].opts.OutputPlatform, config::Platform::kBrowser);
     EXPECT_EQ(result.builds[0].opts.OriginalTargetEnv, std::string("esnext"));
 
-    EXPECT_TRUE(result.builds[0].opts.MinifyWhitespace);
-    EXPECT_TRUE(result.builds[0].opts.MinifyIdentifiers);
-    EXPECT_TRUE(result.builds[0].opts.MinifySyntax);
+    // No config file means no minification. A build that has to be asked before
+    // it shortens the output is one where turning minify on is a decision someone
+    // made, not something that happened on the way to a production bundle.
+    EXPECT_FALSE(result.builds[0].opts.MinifyWhitespace);
+    EXPECT_FALSE(result.builds[0].opts.MinifyIdentifiers);
+    EXPECT_FALSE(result.builds[0].opts.MinifySyntax);
     EXPECT_EQ(result.builds[0].opts.SourceMapData, config::SourceMap::kNone);
     EXPECT_FALSE(result.builds[0].opts.CodeSplitting);
     EXPECT_TRUE(result.builds[0].opts.TreeShaking);
@@ -430,7 +433,10 @@ TEST(GuchhoConfig, OnlyOneConfigSelected)
 {
     TestFs fs;
     JSLoaderGuard guard(&FakeJSLoader);
-    fs.SetFile("/project/guchho.config.js", "{\"build\":{\"outdir\":\"js-out\"}}");
+    // The JS config asks for minification so that the assertion below has
+    // something to disagree with the JSON file, which turns minification off.
+    fs.SetFile("/project/guchho.config.js",
+               "{\"build\":{\"outdir\":\"js-out\",\"minify\":true}}");
     fs.SetFile("/project/src/guchho.config.json",
                "{\"build\":{\"outdir\":\"json-out\",\"minify\":false}}");
 
@@ -835,13 +841,14 @@ TEST(GuchhoConfig, ArrayRootProducesOneBuildPerElement)
     EXPECT_TRUE(result.builds[1].opts.MinifyWhitespace);
 }
 
-// Nothing one element says may leak into another: the first disables minify,
-// the second says nothing about it, so the second keeps the built-in default.
+// Nothing one element says may leak into another. The two elements disagree
+// about minification on purpose, so a shared struct would show up here as the
+// second build taking the first one's answer.
 TEST(GuchhoConfig, ArrayElementsDoNotShareState)
 {
     TestFs fs;
     fs.SetFile("/project/guchho.config.json",
-               "[{\"build\":{\"minify\":false}}, {\"build\":{\"outdir\":\"two\"}}]");
+               "[{\"build\":{\"minify\":false}}, {\"build\":{\"outdir\":\"two\",\"minify\":true}}]");
 
     config::Options  opts;
     cache::JSONCache json_cache;

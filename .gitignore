@@ -9,6 +9,7 @@
 build/
 out/
 dist/
+lab/
 
 cmake-build-*/
 

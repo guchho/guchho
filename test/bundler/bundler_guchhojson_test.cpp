@@ -121,6 +121,72 @@ TEST(BundlerGuchhoJSON, BuildFormatUMDWithExternal) {
     });
 }
 
+// The three tests above leave "MinifyWhitespace" at its false default, so
+// their snapshots show the wrapper pretty-printed. The wrapper is built by
+// string concatenation in the linker rather than printed from the AST, which
+// means it has to derive its own whitespace from the same switch; these three
+// set the switch and pin the result. "minify": true is the value a real
+// build takes here, because "CreateDefaultGuchhoBuildConfig" turns it on and
+// the config above says nothing about it.
+
+TEST(BundlerGuchhoJSON, BuildFormatUMDMinified) {
+    // The bare wrapper: three branch arms, no global namespace. Every space
+    // that is only there for legibility is gone; the ones after "typeof" and
+    // inside "void 0" stay, because dropping them would fuse two tokens.
+    guchhojson_suite.ExpectBundled(Bundled{
+        .files = {
+            {"/app.js", "export const answer = 42;\nconsole.log(answer);\n"},
+        },
+        .entry_paths = {"/app.js"},
+        .options = guchho::config::Options{
+            .BuildMode = guchho::config::Mode::kBundle,
+            .AbsOutputFile = "/out.js",
+            .MinifyWhitespace = true,
+        },
+        .guchho_config = R"({"build":{"format":"umd"}})",
+    });
+}
+
+TEST(BundlerGuchhoJSON, BuildFormatUMDMinifiedWithGlobalName) {
+    // The same wrapper with a namespace to create. The "|| {}" extend form is
+    // generated with the switch set, so the assignments and the separators
+    // around them both collapse.
+    guchhojson_suite.ExpectBundled(Bundled{
+        .files = {
+            {"/app.js", "export const answer = 42;\nconsole.log(answer);\n"},
+        },
+        .entry_paths = {"/app.js"},
+        .options = guchho::config::Options{
+            .BuildMode = guchho::config::Mode::kBundle,
+            .AbsOutputFile = "/out.js",
+            .GlobalName = {"MyLib"},
+            .MinifyWhitespace = true,
+        },
+        .guchho_config = R"({"build":{"format":"umd"}})",
+    });
+}
+
+TEST(BundlerGuchhoJSON, BuildFormatUMDMinifiedWithExternal) {
+    // The external case is the one with the most wrapper text, because the
+    // dependency name is written three times: into "require(...)" for the
+    // CommonJS arm, into the "define([...])" list for the AMD arm, and onto
+    // the global for the browser arm. All three are minified, which is what
+    // makes the missed spacing easy to see.
+    guchhojson_suite.ExpectBundled(Bundled{
+        .files = {
+            {"/app.js", "import {create} from 'vue'\nexport const app = create();\n"},
+            {"/node_modules/vue/index.js", "export const create = () => 1;\n"},
+        },
+        .entry_paths = {"/app.js"},
+        .options = guchho::config::Options{
+            .BuildMode = guchho::config::Mode::kBundle,
+            .AbsOutputFile = "/out.js",
+            .MinifyWhitespace = true,
+        },
+        .guchho_config = R"({"build":{"format":"umd"},"external":["vue"]})",
+    });
+}
+
 TEST(BundlerGuchhoJSON, BuildPlatformNodeKeepsBuiltin) {
     // Under "platform": "node" a Node built-in is external, so the import is
     // preserved instead of being resolved against the file system.

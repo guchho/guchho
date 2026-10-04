@@ -424,10 +424,9 @@ TEST(CliInit, TheLastOfARempeatedOptionWins) {
 // the list of valid names does not tell somebody which of them they meant.
 //
 // The name corrected here is the longest of the three on purpose. A correction
-// is only offered for a name of four characters or more (src/helpers/typo.cpp:
-// a name that short has too many ways of being spelled wrongly to point at one),
-// so "app" and "lib" are refused with the list and no guess, and "plugin" is
-// the only type name this question can be asked about.
+// is only offered for a name of four characters or more (src/helpers/typo.cpp:14
+// skips the shorter ones), so "app" and "lib" are refused with the list and no
+// guess, and "plugin" is the only type name this question can be asked about.
 TEST(CliInit, ANameMissingOneCharacterIsCorrected) {
     CliWorkspace ws("typo");
 
@@ -439,10 +438,9 @@ TEST(CliInit, ANameMissingOneCharacterIsCorrected) {
     EXPECT_FALSE(ws.Exists("README.md"));
 }
 
-// And the three-character type names are refused with the list rather than with a
-// guess, which is the other half of the same rule: "lb" is close to "lib" and
-// also close to a slip of the keyboard, and a wrong correction above the list
-// costs more than the list does.
+// And the three-character type names get the list rather than a guess, which is
+// the other half of the same rule: a name that short has too many neighbours to
+// point at, so naming the three is the more useful answer of the two.
 TEST(CliInit, AShortTypeNameIsNotGuessedAt) {
     CliWorkspace ws("typo-short");
 

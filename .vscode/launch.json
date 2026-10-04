@@ -5,9 +5,13 @@
 //                   Ninja+clang/lld and the MSBuild presets emit a
 //                   .pdb next to each .exe, so one backend covers
 //                   them all and no MIMode is needed.
-// Preset .......... release-win32-x64, hardcoded to match
-//                   clangd --compile-commands-dir and
-//                   cmake.buildDirectory in .vscode/settings.json.
+// Preset .......... release-win32-x64, hardcoded in every "program"
+//                   below. Note this is NOT the build dir that
+//                   .vscode/settings.json points clangd and CMake
+//                   Tools at (build/debug-win32-x64-ninja), so the
+//                   binary you step through and the one clangd
+//                   indexes come from different configurations. Build
+//                   the release preset before F5.
 // Output layout ... FLAT. cmake/StandardProjectSettings.cmake sets
 //                   CMAKE_RUNTIME_OUTPUT_DIRECTORY[_<CONFIG>] to
 //                   ${CMAKE_BINARY_DIR}/bin for every configuration,
@@ -34,7 +38,7 @@
 //                   picker, then debug.
 //
 // Test protocols ... guchho_<suite>_tests.exe accepts (see
-//                   include/test/guchho_test.hpp:869 RunAll):
+//                   include/test/guchho_test.hpp:870 RunAll):
 //                     --list-tests         one Suite.Name per line
 //                     --run=Suite.Name     run exactly one
 //                     --filter=<substr>    substring of Suite.Name
@@ -43,8 +47,11 @@
 //                   the ${input:testFilter} default of "" is safe.
 //
 // Not covered      ... transform reads stdin, which cppdbg cannot
-//                   supply; watch/init/clean/info are one-shot with
-//                   nothing to step through.
+//                   supply; init/clean/info are one-shot with nothing
+//                   to step through. watch is absent only because
+//                   "Guchho: dev server" already covers the
+//                   long-running case (cli_watch.cpp keeps a session
+//                   up for as long as the files change).
 // ─────────────────────────────────────────────
 
 {
@@ -53,7 +60,7 @@
     // ─────────────────────────────────────────────
     // Configurations
     //
-    //   CLI ..... 7 configs for the guchho executable
+    //   CLI ..... 6 configs for the guchho executable
     //   Tests ... 1 config per guchho_*_tests.exe
     //
     // Every test config sets cwd to the WORKING_DIRECTORY that
@@ -62,10 +69,9 @@
     // to the working directory, so the wrong cwd silently fails
     // tests instead of finding them.
     //
-    // Note for a fresh clone: test/fixtures/ are not
-    // tracked by git, so the CLI configs below reference paths that
-    // only exist locally. The test configs are unaffected -- they
-    // point at build/ and at tracked test/ sources.
+    // The CLI configs below read test/fixtures/, which is tracked, so
+    // they work in a fresh clone. The test configs only point at
+    // build/ plus tracked test/ sources.
     // ─────────────────────────────────────────────
 
     "configurations": [
@@ -115,6 +121,7 @@
             "args": [
                 "build",
                 "${workspaceFolder}/test/fixtures/basic/entry.js",
+                "--bundle",
                 "--minify",
                 "--sourcemap",
                 "--log-level=verbose"
@@ -257,7 +264,8 @@
             "stopAtEntry": false
         },
         {
-            // The big one -- 1195 discovered tests. Set the filter.
+            // The big one by far. Set the filter unless you want the whole
+            // suite; --list-tests on the binary gives the exact names.
             "name": "Guchho: test bundler",
             "type": "cppdbg",
             "request": "launch",
@@ -276,7 +284,7 @@
             "stopAtEntry": false
         },
         {
-            // 212 tests. CliExe.* spawn the real guchho.exe via
+            // CliExe.* spawn the real guchho.exe via
             // helpers::RunProcess, so guchho.exe must exist for them.
             "name": "Guchho: test cli",
             "type": "cppdbg",

@@ -519,6 +519,25 @@ namespace guchho::linker {
             compiler::Ref to_commonjs_ref,
             compiler::Ref to_esm_ref,
             uint32_t source_index);
+        // Reports whether the generated output for this entry point will
+        // actually contain a "__toCommonJS(...)" call.
+        //
+        // This is the single source of truth for the helper's *reachability*: the
+        // site that pulls the helper into the bundle and every tail branch that
+        // prints the call route through here, so requesting the helper can never
+        // drift from printing it and leave a dead declaration behind. SystemJS in
+        // particular reports its exports with "exports(...)" and never calls
+        // __toCommonJS.
+        //
+        // Note this does not cover the CommonJS "module.exports = __toCommonJS()"
+        // assignment in the namespace-export part: that is a distinct mechanism
+        // that needs "unbound_module_ref", which only the CommonJS tail has, so it
+        // is gated on the format directly. CommonJS satisfies this predicate too,
+        // so the helper is still requested exactly once for it.
+        //
+        // Input : source_index of an entry point.
+        // Output: true when a __toCommonJS call will be printed.
+        bool EntryPointEmitsToCommonJS(uint32_t source_index) const;
 
         void MaybeAppendLegalComments(
             config::LegalComments legal_comments,

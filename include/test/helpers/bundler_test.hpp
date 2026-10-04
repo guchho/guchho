@@ -32,6 +32,13 @@ struct Bundled {
     std::vector<std::string>                    entry_paths = {};
     std::vector<guchho::config::EntryPoint>     entry_paths_advanced = {};
     std::string                                 abs_working_dir = {};
+    // When set, the generated runtime helpers stay in the compared output.
+    // By default the harness sets "OmitRuntimeForTests", which drops every
+    // runtime part range from the bundle so snapshots only cover application
+    // code.  Scenarios that assert on helper emission itself (which helpers
+    // are present, which are absent) must opt in here, otherwise the runtime
+    // text they inspect is never generated.
+    bool                                        include_runtime = false;
     guchho::config::Options                     options = {};
     // The text of a "guchho.json" project config that configures this run.
     // When non-empty the config is mapped onto `options` exactly as

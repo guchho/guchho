@@ -62,7 +62,7 @@
     // to the working directory, so the wrong cwd silently fails
     // tests instead of finding them.
     //
-    // Note for a fresh clone: test/fixtures/ and lab/ are not
+    // Note for a fresh clone: test/fixtures/ are not
     // tracked by git, so the CLI configs below reference paths that
     // only exist locally. The test configs are unaffected -- they
     // point at build/ and at tracked test/ sources.
@@ -136,22 +136,6 @@
                 "--log-level=verbose"
             ],
             "cwd": "${workspaceFolder}",
-            "stopAtEntry": false
-        },
-        {
-            // The only fixture with a real node_modules/, so this is
-            // the config to use for node_modules resolution and
-            // package.json exports (src/resolver/*).
-            "name": "Guchho: build lab/ (node_modules resolution)",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho.exe",
-            "args": [
-                "build",
-                "index.js",
-                "--log-level=verbose"
-            ],
-            "cwd": "${workspaceFolder}/lab",
             "stopAtEntry": false
         },
         {

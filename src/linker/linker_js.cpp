@@ -628,6 +628,42 @@ namespace guchho::linker {
 
 
 
+    // Decides whether an entry point's generated code will contain a
+    // "__toCommonJS(...)" call.
+    //
+    // Every site that emits a __toCommonJS call in a tail, and the one site that
+    // pulls the helper into the bundle, routes through here so the two can never
+    // disagree. The cases mirror the tail below: CommonJS, UMD and AMD call it,
+    // and IIFE returns it instead of assigning the global name -- but only for an
+    // entry that was not already wrapped in CommonJS, because then the wrapper
+    // call is what gets emitted. SystemJS and ESM never call it.
+    //
+    // Input : source_index of an entry point.
+    // Output: true when a __toCommonJS call will be printed.
+    bool LinkerContext::EntryPointEmitsToCommonJS(uint32_t source_index) const {
+        auto* repr_ptr = std::get_if<std::shared_ptr<graph::JSRepr>>(
+            &graph.files[source_index].input_file.repr);
+        if (!repr_ptr || !*repr_ptr) return false;
+        auto& repr = **repr_ptr;
+
+        // Set for the formats that bind an entry point's exports at all.
+        if (!repr.meta.force_include_exports_for_entry_point) return false;
+
+        switch (options->OutputFormat) {
+        case config::Format::kCommonJS:
+        case config::Format::kUMD:
+        case config::Format::kAMD:
+            return true;
+        case config::Format::kIIFE:
+            return repr.meta.wrap != graph::WrapKind::kCJS;
+        case config::Format::kESModule:
+        case config::Format::kSystem:
+        case config::Format::kPreserve:
+        default:
+            return false;
+        }
+    }
+
     // Prints the trailing code that runs an entry point for the chosen output format.
     //
     // Depending on the format it calls the wrapper, assigns or returns the exports
@@ -674,7 +710,7 @@ namespace guchho::linker {
                 if (repr.meta.wrap == graph::WrapKind::kESM) {
                     stmts.push_back(javascript::Stmt{.data = std::make_shared<javascript::SExpr>(javascript::SExpr{.value = make_wrapper_call()})});
                 }
-                if (repr.meta.force_include_exports_for_entry_point) {
+                if (EntryPointEmitsToCommonJS(source_index)) {
                     auto ecall = std::make_shared<javascript::ECall>();
                     ecall->target = javascript::Expr(std::make_shared<javascript::EIdentifier>(javascript::EIdentifier{.ref = to_commonjs_ref}), {});
                     ecall->args.push_back(javascript::Expr(std::make_shared<javascript::EIdentifier>(javascript::EIdentifier{.ref = repr.ast.exports_ref}), {}));
@@ -812,7 +848,7 @@ namespace guchho::linker {
                     stmts.push_back(javascript::Stmt{.data = std::make_shared<javascript::SExpr>(javascript::SExpr{.value = make_wrapper_call()})});
                 }
             }
-            if (repr.meta.force_include_exports_for_entry_point) {
+            if (EntryPointEmitsToCommonJS(source_index)) {
                 auto ecall = std::make_shared<javascript::ECall>();
                 ecall->target = javascript::Expr(std::make_shared<javascript::EIdentifier>(javascript::EIdentifier{.ref = to_commonjs_ref}), {});
                 ecall->args.push_back(javascript::Expr(std::make_shared<javascript::EIdentifier>(javascript::EIdentifier{.ref = repr.ast.exports_ref}), {}));

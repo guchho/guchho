@@ -114,6 +114,22 @@
     // ─────────────────────────────────────────────
     // Tasks
     //
+    // Every task runs as "type": "shell", never "type": "process".
+    // With "process" VS Code treats "command" as a literal executable path
+    // and resolves it against "options.cwd", so "bash" becomes
+    // "<workspaceFolder>/bash" and the task dies with
+    // 'Path to shell executable ... does not exist'.
+    //
+    // Because a shell task hands the concatenated command line to the shell
+    // unescaped, every "${input:...}" below is wrapped in escaped quotes
+    // ("\"${input:suite}\""). The suite and filter inputs hold CTest regexes,
+    // and an unquoted ".*" would be glob-expanded by bash into the dotted
+    // entries in the repo root (.cache, .git, .vscode, ...) instead of being
+    // passed through as one argument.
+    //
+    // "bash" is resolved from PATH. On Windows that must be Git Bash, not a
+    // WSL bash, or the Windows-only presets break.
+    //
     // CMake tasks use --parallel without a job count;
     // scripts/build.sh detects the core count via nproc.
     // ─────────────────────────────────────────────
@@ -122,12 +138,12 @@
         {
             "label": "Guchho: Build Debug",
             "detail": "scripts/build.sh - configure, build, run the selected test suite",
-            "type": "process",
+            "type": "shell",
             "command": "bash",
             "args": [
                 "scripts/build.sh",
-                "--preset", "${input:preset}",
-                "--filter", "${input:suite}"
+                "--preset", "\"${input:preset}\"",
+                "--filter", "\"${input:suite}\""
             ],
             "problemMatcher": ["$gcc", "$msCompile"],
             "group": { "kind": "build", "isDefault": true },
@@ -142,12 +158,12 @@
         {
             "label": "Guchho: Build + Test (all errors)",
             "detail": "scripts/build.sh --all-errors - verbose compiler output, no stop-on-failure, writes build-errors.log",
-            "type": "process",
+            "type": "shell",
             "command": "bash",
             "args": [
                 "scripts/build.sh",
-                "--preset", "${input:preset}",
-                "--filter", "${input:suite}",
+                "--preset", "\"${input:preset}\"",
+                "--filter", "\"${input:suite}\"",
                 "--all-errors",
                 "--log", "build-errors.log"
             ],
@@ -163,9 +179,9 @@
         {
             "label": "Guchho: Configure only",
             "detail": "cmake --preset - no build, no tests",
-            "type": "process",
+            "type": "shell",
             "command": "cmake",
-            "args": ["--preset", "${input:preset}"],
+            "args": ["--preset", "\"${input:preset}\""],
             "problemMatcher": ["$gcc", "$msCompile"],
             "presentation": {
                 "reveal": "always",
@@ -177,9 +193,9 @@
         {
             "label": "Guchho: Configure (fresh)",
             "detail": "cmake --preset --fresh - drop the CMake cache first (same as CI)",
-            "type": "process",
+            "type": "shell",
             "command": "cmake",
-            "args": ["--preset", "${input:preset}", "--fresh"],
+            "args": ["--preset", "\"${input:preset}\"", "--fresh"],
             "problemMatcher": ["$gcc", "$msCompile"],
             "presentation": {
                 "reveal": "always",
@@ -191,11 +207,11 @@
         {
             "label": "Guchho: Build (single target)",
             "detail": "cmake --build --target - build one target, skip tests",
-            "type": "process",
+            "type": "shell",
             "command": "cmake",
             "args": [
-                "--build", "--preset", "${input:preset}",
-                "--target", "${input:target}",
+                "--build", "--preset", "\"${input:preset}\"",
+                "--target", "\"${input:target}\"",
                 "--parallel"
             ],
             "problemMatcher": ["$gcc", "$msCompile"],
@@ -209,12 +225,12 @@
         {
             "label": "Guchho: Test (suite)",
             "detail": "scripts/test.sh - run the selected suite against an existing build",
-            "type": "process",
+            "type": "shell",
             "command": "bash",
             "args": [
                 "scripts/test.sh",
-                "--preset", "${input:preset}",
-                "--filter", "${input:suite}"
+                "--preset", "\"${input:preset}\"",
+                "--filter", "\"${input:suite}\""
             ],
             "problemMatcher": [],
             "presentation": {
@@ -228,12 +244,12 @@
         {
             "label": "Guchho: Test (regex)",
             "detail": "scripts/test.sh - free-form CTest -R regex, verbose, no stop-on-failure",
-            "type": "process",
+            "type": "shell",
             "command": "bash",
             "args": [
                 "scripts/test.sh",
-                "--preset", "${input:preset}",
-                "--filter", "${input:filter}",
+                "--preset", "\"${input:preset}\"",
+                "--filter", "\"${input:filter}\"",
                 "--test-verbose",
                 "--no-stop"
             ],
@@ -249,9 +265,9 @@
         {
             "label": "Guchho: CMake workflow",
             "detail": "cmake --workflow - configure + build + test; only presets that define a workflowPreset are valid",
-            "type": "process",
+            "type": "shell",
             "command": "cmake",
-            "args": ["--workflow", "--preset", "${input:preset}"],
+            "args": ["--workflow", "--preset", "\"${input:preset}\""],
             "problemMatcher": ["$gcc", "$msCompile"],
             "presentation": {
                 "reveal": "always",
@@ -264,7 +280,7 @@
         {
             "label": "Guchho: Refresh compile_commands.json",
             "detail": "scripts/compile-commands.sh - rebuild and copy the compile database to the project root for clangd",
-            "type": "process",
+            "type": "shell",
             "command": "bash",
             "args": ["scripts/compile-commands.sh"],
             "problemMatcher": ["$gcc", "$msCompile"],
@@ -278,9 +294,9 @@
         {
             "label": "Guchho: Clean",
             "detail": "cmake --build --target clean",
-            "type": "process",
+            "type": "shell",
             "command": "cmake",
-            "args": ["--build", "--preset", "${input:preset}", "--target", "clean"],
+            "args": ["--build", "--preset", "\"${input:preset}\"", "--target", "clean"],
             "problemMatcher": ["$gcc", "$msCompile"],
             "presentation": {
                 "reveal": "always",

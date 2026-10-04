@@ -104,6 +104,7 @@ void Suite::ExpectBundled(Bundled args) {
     win_args.expected_compile_log = args.expected_compile_log;
     win_args.debug_logs = args.debug_logs;
     win_args.source_logs = args.source_logs;
+    win_args.include_runtime = args.include_runtime;
 
     win_args.options = args.options;
     for (auto& p : win_args.options.InjectPaths) {
@@ -231,7 +232,6 @@ void Suite::ExpectBundledImpl(Bundled args,
     auto caches = guchho::cache::MakeCacheSet();
     auto mock_fs = guchho::test::MakeMockFS(
         args.files, fs_kind, args.abs_working_dir);
-    args.options.OmitRuntimeForTests = true;
 
     // ---- Project config ----
     // A "guchho.json" in the scenario is mapped onto the options exactly the
@@ -255,6 +255,10 @@ void Suite::ExpectBundledImpl(Bundled args,
             entry_points.push_back(std::move(entry_point));
         }
     }
+
+    // Set after the config overlay, which replaces "options" wholesale and so
+    // would otherwise discard the harness's own runtime-omission choice.
+    args.options.OmitRuntimeForTests = !args.include_runtime;
 
     auto bundle = guchho::bundler::ScanBundle(
         guchho::config::APICall::kBuildCall, log, *mock_fs, *caches,

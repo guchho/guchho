@@ -18,6 +18,7 @@ add_library(guchho_bundler_test_objects OBJECT
     bundler_default_test.cpp
     bundler_guchhojson_test.cpp
     bundler_html_test.cpp
+    bundler_runtime_test.cpp
 
 )
 

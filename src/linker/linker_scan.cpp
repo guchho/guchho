@@ -666,6 +666,10 @@ namespace guchho::linker {
             repr.ast.uses_exports_ref = true;
         }
 
+        // Only the CommonJS tail assigns through "module.exports" here. UMD and AMD
+        // return the value from their factory in GenerateEntryPointTailJS instead,
+        // and "unbound_module_ref" only exists for the formats that assign it, so
+        // this must not widen past kCommonJS.
         if (repr.meta.force_include_exports_for_entry_point &&
             options->OutputFormat == config::Format::kCommonJS) {
             auto& runtime_repr = *std::get<std::shared_ptr<graph::JSRepr>>(
@@ -1817,7 +1821,7 @@ std::string hint;
                     });
                     repr.meta.entry_point_part_index = compiler::Index32::Make(entry_part_index);
 
-                    if (repr.meta.force_include_exports_for_entry_point) {
+                    if (EntryPointEmitsToCommonJS(source_index)) {
                         graph.GenerateRuntimeSymbolImportAndUse(source_index, entry_part_index, "__toCommonJS", 1);
                     }
                 }
@@ -1844,7 +1848,17 @@ std::string hint;
                                     (record.kind != compiler::ImportKind::kStmt ||
                                      compiler::Has(record.flags, compiler::ImportRecordFlags::kContainsImportStar) ||
                                      compiler::Has(record.flags, compiler::ImportRecordFlags::kContainsDefaultAlias) ||
-                                     compiler::Has(record.flags, compiler::ImportRecordFlags::kContainsESModuleAlias))) {
+                                     compiler::Has(record.flags, compiler::ImportRecordFlags::kContainsESModuleAlias)) &&
+                                    // The printer only wraps a dynamic import in
+                                    // __toESM when it has to lower "import()" into
+                                    // "Promise.resolve().then(...)"; when the target
+                                    // supports "import()" natively it emits the call
+                                    // unchanged and never references __toESM. Requesting
+                                    // the helper here anyway would drag __toESM and
+                                    // its whole dependency chain (__copyProps,
+                                    // __create, __getProtoOf) into the output unused.
+                                    (record.kind != compiler::ImportKind::kDynamic ||
+                                     compat::Has(options->UnsupportedJSFeatures, compat::JSFeature::kDynamicImport))) {
                                     record.flags = record.flags | compiler::ImportRecordFlags::kWrapWithToESM;
                                     to_esm_uses++;
                                 }

@@ -24,7 +24,7 @@
 
 **One tool, not five.** Lexer, parser, transformer, printer, minifier, linker, resolver, watcher and dev server are all in the same binary. There is no plugin process, no worker pool, and no separate CSS toolchain to configure.
 
-**A real API.** The CLI is a thin shim over a long-lived service protocol. Everything `guchho build` does is also callable from JavaScript — including the compiler stages (`lexer`, `parse`, `print`), so the engine can be embedded in your own tools.
+**A real API.** The CLI is a thin shim over a long-lived service protocol. Everything `guchho build` does is also callable from JavaScript - including the compiler stages (`lexer`, `parse`, `print`), so the engine can be embedded in your own tools.
 
 **A programmatic surface that stays out of the way.** `build()` is one call and one result. `context()` holds the expensive half of a build so the second one is cheap. Both ship with full TypeScript declarations.
 
@@ -149,7 +149,7 @@ Loaders: `js`, `jsx`, `ts`, `tsx`, `json`, `text`, `css`, `html`, `base64`, `dat
 
 ### Compiler API
 
-The engine's own lexer, parser and printer. One function per stage, told which language it is for — not one function per stage per language, which is the same three operations spelled twelve times.
+The engine's own lexer, parser and printer. One function per stage, told which language it is for - not one function per stage per language, which is the same three operations spelled twelve times.
 
 Each stage sends one request to the same service a build uses, so the code you get is the engine's code.
 
@@ -175,7 +175,7 @@ const css = await parse('.used { color: red } .dead { color: blue }', { language
 const out = await print(css.ast, { language: 'css', minifyWhitespace: true })
 ```
 
-A summary is the language's own: `nodes` for HTML, `rules` for CSS, `parts` and `symbols` for JS. `sourcefile` is worth setting on a parse — without it a syntax error reports a position and no file.
+A summary is the language's own: `nodes` for HTML, `rules` for CSS, `parts` and `symbols` for JS. `sourcefile` is worth setting on a parse - without it a syntax error reports a position and no file.
 
 A handle is only valid for the language it came from, and passing one to the wrong printer throws rather than being sent somewhere it does not belong.
 

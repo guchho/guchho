@@ -619,7 +619,7 @@ export interface JsToken extends SourcePosition {
 }
 
 /**
- * One node of the flattened tree parseHTML returns. An element carries its tag
+ * One node of the flattened tree an HTML parse returns. An element carries its tag
  * name and the names of its attributes — not their values, which belong in the
  * printed form. "depth" is how the flat list is a tree again.
  */
@@ -642,7 +642,7 @@ export interface CssRule {
   start: number
 }
 
-/** A named thing in scope, as parseJS saw it. */
+/** A named thing in scope, as a JS parse saw it. */
 export interface JsSymbol {
   name: string
   useCount: number
@@ -655,9 +655,6 @@ export interface PrintResult extends CompileResult {
 
 /** The languages the engine has a lexer, a parser and a printer for. */
 export type Language = 'html' | 'css' | 'js'
-
-/** The list, published for a caller that would otherwise have to keep it. */
-export declare const LANGUAGES: readonly Language[]
 
 /** The source name a diagnostic blames. Defaults to "<stdin>". */
 export interface CompileSourceFileOptions {
@@ -673,9 +670,6 @@ export interface CompileSourceFileOptions {
  */
 export interface CompileOptions extends CompileSourceFileOptions {
   language: Language
-  /** Accepted as a spelling of "language", because transform() takes a loader
-   * under that name. "language" is canonical. */
-  loader?: Language
 }
 
 export interface LexOptions extends CompileOptions {

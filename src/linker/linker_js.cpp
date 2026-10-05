@@ -7,6 +7,7 @@
 #include <unordered_set>
 
 #include "guchho/bundler.hpp"
+#include "guchho/javascript/js_parser.hpp"
 #include "guchho/javascript/js_renamer.hpp"
 #include "guchho/javascript/js_runtime.hpp"
 
@@ -53,7 +54,7 @@ namespace guchho::linker {
     //
     // Input : chunk and its files in output order.
     // Output: a renamer to pass to the printer.
-    std::unique_ptr<javascript::Renamer> LinkerContext::RenameSymbolsInChunk(ChunkInfo& chunk, std::vector<uint32_t>& files_in_order) {
+    std::unique_ptr<javascript::Renamer> LinkerContext::RenameSymbolsInChunk(ChunkInfo& chunk, std::vector<uint32_t>& files_in_order, compiler::NameMinifier* out_minifier) {
         auto* chunk_repr = std::get_if<ChunkReprJS>(&chunk.chunk_repr);
         if (!chunk_repr) {
             return javascript::NewNoOpRenamer(graph.symbols);
@@ -141,6 +142,9 @@ namespace guchho::linker {
             r->AllocateTopLevelSymbolSlots(topLevelSymbols);
 
             auto minifier = compiler::kDefaultNameMinifierJS.ShuffleByCharFreq(freq);
+            if (out_minifier != nullptr) {
+                *out_minifier = minifier;
+            }
             r->AssignNamesByFrequency(minifier);
             return r;
         }
@@ -994,6 +998,112 @@ namespace guchho::linker {
 
 
 
+    // The statement that marks where the bundle body belongs inside the
+    // synthesized UMD wrapper source. The whole wrapper source — dispatcher,
+    // factory header, directives and this marker — is parsed and printed as
+    // one script, then split back apart at the marker: everything up to it
+    // becomes the wrapper's open text, everything after it becomes the close
+    // text, and the joiner splices the body in where the marker stood.
+    constexpr char kUMDBodyMarker[] = "__guchho_umd_body__";
+
+    // Runs one synthesized UMD wrapper through the same parse and print
+    // pipeline the bundle body goes through, so minification reaches the
+    // wrapper: whitespace goes through the printer, expressions simplify
+    // through the binder ("typeof x === \"undefined\"" becomes
+    // "typeof x < \"u\"", comparison constants move to the right of "=="),
+    // and the spacing is the printer's rather than the template's.
+    //
+    // The wrapper parses as kPassThrough with defines and injected files
+    // removed: it is synthetic text, so a user's defines must not rewrite it,
+    // and pass-through keeps the binder from touching what the template
+    // spelled — "require(...)" stays a plain call, top-level "this" stays
+    // "this", and "exports" stays an unbound reference.
+    //
+    // Input : the wrapper's open text as the template spelled it (ending in
+    //         the factory's directives), the build options, the linker log.
+    // Output: {open, close} split at the marker; {"", ""} after reporting an
+    //         error, meaning the caller must keep the raw template text.
+    std::pair<std::string, std::string> MinifyUMDWrapper(const std::string& open_text, config::Options* options, logger::Log& log) {
+        const std::string source_text = open_text + kUMDBodyMarker + "();" + "});";
+
+        config::Options wrapper_options = *options;
+        wrapper_options.BuildMode = config::Mode::kPassThrough;
+        wrapper_options.Defines = nullptr;
+        wrapper_options.TSAlwaysStrictData = nullptr;
+        wrapper_options.InjectedFiles.clear();
+
+        logger::Source source;
+        source.index = 0;
+        source.identifier_name = "<umd-wrapper>";
+        source.pretty_paths = {std::string("<umd-wrapper>"), std::string("<umd-wrapper>")};
+        source.key_path = logger::Path{"<umd-wrapper>", {}, {}, {}, {}};
+        source.contents = source_text;
+
+        logger::Log parse_log = logger::NewDeferLog(logger::DeferLogKind::kDeferLogAll, {});
+        auto parsed = javascript::Parse(parse_log, std::move(source), javascript::OptionsFromConfig(&wrapper_options));
+        auto msgs = parse_log.done();
+
+        std::string error_text;
+        if (!parsed.second) {
+            error_text = "the UMD wrapper failed to parse";
+        }
+        for (const auto& msg : msgs) {
+            if (msg.kind != logger::MsgKind::kError) {
+                continue;
+            }
+            error_text += msg.String(logger::OutputOptions{}, logger::TerminalInfo{});
+        }
+        if (!error_text.empty()) {
+            log.AddError(nullptr, logger::Range{}, "internal error: " + error_text);
+            return {"", ""};
+        }
+
+        // A top-level directive list here would print ahead of the wrapper
+        // (the parser fills one in for a tsconfig that asks for alwaysStrict),
+        // and the wrapper's own directives live inside the factory where they
+        // were written.
+        parsed.first.directives.clear();
+
+        compiler::SymbolMap symbols;
+        symbols.symbols_for_source.resize(1);
+        symbols.symbols_for_source[0] = parsed.first.symbols;
+        auto renamer = javascript::NewNoOpRenamer(symbols);
+
+        javascript::PrinterOptions print_options;
+        print_options.indent = 0;
+        print_options.line_limit = options->LineLimit;
+        print_options.output_format = options->OutputFormat;
+        print_options.minify_whitespace = options->MinifyWhitespace;
+        print_options.minify_identifiers = options->MinifyIdentifiers;
+        print_options.minify_syntax = options->MinifySyntax;
+        print_options.ascii_only = options->ASCIIOnly;
+        print_options.unsupported_features = options->UnsupportedJSFeatures;
+
+        javascript::PrintResult printed = javascript::Print(parsed.first, symbols, *renamer, print_options);
+        const std::string& js = printed.js;
+
+        // Split at the marker. The open half keeps everything up to the
+        // marker's line indent (stripped, since the body arrives with its own
+        // indentation); the close half starts at the marker statement's
+        // semicolon with the whitespace that followed it removed, so it opens
+        // with the factory's closing brace whatever the printer's layout was.
+        size_t marker_pos = js.find(kUMDBodyMarker);
+        size_t marker_end = marker_pos == std::string::npos ? std::string::npos : js.find(';', marker_pos);
+        if (marker_end == std::string::npos) {
+            log.AddError(nullptr, logger::Range{}, "internal error: the UMD wrapper body marker was lost during minification");
+            return {"", ""};
+        }
+
+        std::string open = js.substr(0, marker_pos);
+        while (!open.empty() && (open.back() == ' ' || open.back() == '\t')) {
+            open.pop_back();
+        }
+        std::string close = js.substr(marker_end + 1);
+        size_t close_start = close.find_first_not_of(" \t\r\n");
+        close = close_start == std::string::npos ? std::string("});") : close.substr(close_start);
+        return {open, close};
+    }
+
     // Renders one JavaScript chunk to its final text, source map and metafile.
     //
     // It renames the chunk's symbols, generates code for each part range, prints the
@@ -1012,7 +1122,8 @@ namespace guchho::linker {
 
         auto dfs_js = data_for_source_maps();
 
-        auto r = RenameSymbolsInChunk(chunk, chunk_repr->files_in_chunk_in_order);
+        compiler::NameMinifier wrapper_name_minifier;
+        auto r = RenameSymbolsInChunk(chunk, chunk_repr->files_in_chunk_in_order, &wrapper_name_minifier);
 
         auto& runtime_repr = *std::get<std::shared_ptr<graph::JSRepr>>(graph.files[javascript::kSourceIndex].input_file.repr);
         auto to_commonjs_ref = compiler::FollowSymbols(graph.symbols, runtime_repr.ast.named_exports["__toCommonJS"].ref);
@@ -1088,15 +1199,25 @@ config::Format format = options->OutputFormat;
         std::string newline = options->MinifyWhitespace ? "" : "\n";
         // The wrapper text below is built by string concatenation rather than
         // through the printer, so it has to derive its own whitespace from the
-        // same switch the printer reads. Every space in it is written out as
-        // "space" and every indent level as a multiple of "indent_unit",
+        // same switch the printer reads: every cosmetic space in it is written
+        // out as "space" and every indent level as a multiple of "indent_unit",
         // otherwise minify_whitespace reaches the file body and stops at the
-        // wrapper. A wrapper with no global name still indents, so this is
-        // set per wrapper format below and left empty for the bare formats.
+        // wrapper. (The UMD wrapper, whose template still spells a few spaces
+        // literally, gets a second pass through the printer when minifying, so
+        // those are removed there.) A wrapper with no global name still indents,
+        // so this is set per wrapper format below and left empty for the bare
+        // formats.
         const std::string indent_unit = options->MinifyWhitespace ? "" : "  ";
         const std::string indent2 = indent_unit + indent_unit;
         const std::string indent3 = indent2 + indent_unit;
         std::string indent;
+        // What the UMD wrapper's close is written with. The template's close
+        // is the raw "});" plus newline — the factory's closing brace, the
+        // invocation's closing paren and the statement's semicolon; when the
+        // wrapper goes through the printer below, the close half that the
+        // split at the body marker produced replaces it, and the body is
+        // spliced in between the two.
+        std::string umd_wrapper_close = "});" + newline;
 
         if (chunk.is_entry_point) {
             if (auto* repr_ptr = std::get_if<std::shared_ptr<graph::JSRepr>>(&graph.files[chunk.source_index].input_file.repr)) {
@@ -1267,14 +1388,30 @@ config::Format format = options->OutputFormat;
         } else if (options->OutputFormat == config::Format::kUMD) {
             indent = indent_unit;
 
+            // The dispatcher's two parameters are identifiers like any other,
+            // so identifier minification renames them. Both names are drawn
+            // from the minifier that named this chunk's symbols and are
+            // spelled at every declaration and use in the template below.
+            // The factory's own parameters ("exports", "require", "dep0" ...)
+            // stay as written: the body spliced into the factory refers to
+            // them by exactly those names.
+            std::string global_param = "global";
+            std::string factory_param = "factory";
+            if (options->MinifyIdentifiers) {
+                global_param = wrapper_name_minifier.NumberToMinifiedName(0);
+                factory_param = wrapper_name_minifier.NumberToMinifiedName(1);
+            }
+
             auto global_parts = options->GlobalName;
 
             std::string text;
             // "typeof " keeps a literal space even when minifying: without it
             // the keyword and the name in front of it lex as one identifier
-            // ("typeofexports"). Every other space here is cosmetic and goes
-            // through "space", so minify_whitespace reaches all of them.
-            text += "(function(global," + space + "factory)" + space + "{" + newline;
+            // ("typeofexports"). The template also spells a few spaces of its
+            // own that do not go through "space"; those are removed by the
+            // printer when the wrapper's minification pass runs, and are
+            // wanted as written when it does not.
+            text += "(function(" + global_param + "," + space + factory_param + ")" + space + "{" + newline;
             // The factory receives the exports object rather than returning
             // one. That is what lets the body assign "exports.add = add"
             // directly instead of building an object, handing it to
@@ -1288,7 +1425,7 @@ config::Format format = options->OutputFormat;
             // order. "exports" is threaded in ahead of it at each call site.
             text += indent + "typeof exports ===" + space + quote_json("object") +
                     space + "&&" + space + "typeof module !==" + space + quote_json("undefined") +
-                    space + "?" + space + "factory(exports," + space + "require";
+                    space + "?" + space + factory_param + "(exports," + space + "require";
             for (auto& dep : wrapper_external_deps) {
                 text += "," + space + "require(" + quote_json(dep) + ")";
             }
@@ -1305,10 +1442,10 @@ config::Format format = options->OutputFormat;
             for (auto& dep : wrapper_external_deps) {
                 text += "," + space + quote_json(dep);
             }
-            text += "]," + space + "factory)" + space + ":" + newline;
+            text += "]," + space + factory_param + ")" + space + ":" + newline;
             std::string global_close;
-            text += indent + "(global" + space + "=" + space + "typeof globalThis !==" + space + quote_json("undefined") +
-                    space + "?" + space + "globalThis" + space + ":" + space + "global" + space + "||" + space + "self," + space;
+            text += indent + "(" + global_param + space + "=" + space + "typeof globalThis !==" + space + quote_json("undefined") +
+                    space + "?" + space + "globalThis" + space + ":" + space + global_param + space + "||" + space + "self," + space;
             if (!global_parts.empty()) {
                 // The namespace is created here, before the factory runs, and
                 // the same object is both what the exports land in and what
@@ -1318,13 +1455,13 @@ config::Format format = options->OutputFormat;
                 // factory's return. "void 0" keeps the parameter in place for
                 // the "require" that follows it.
                 text += "(";
-                std::string ns = "global";
+                std::string ns = global_param;
                 for (size_t i = 0; i < global_parts.size(); i++) {
                     text += ns + "." + global_parts[i] + space + "=" + space + ns + "." + global_parts[i] +
                             space + "||" + space + "{}," + space;
                     ns += "." + global_parts[i];
                 }
-                text += "factory(" + ns;
+                text += factory_param + "(" + ns;
                 global_close = ")," + space + ns + ")";
             } else {
                 // No name to publish to, so the exports object is a plain
@@ -1332,7 +1469,7 @@ config::Format format = options->OutputFormat;
                 // linker rejects this combination when the entry exports
                 // something, so reaching here means a build that only runs
                 // side effects.
-                text += "factory({}";
+                text += factory_param + "({}";
                 global_close = ")";
             }
             text += "," + space + "void 0";
@@ -1347,7 +1484,7 @@ config::Format format = options->OutputFormat;
                         if (global_dep.empty()) global_dep = "dep";
                     }
                 }
-                text += "," + space + "global." + global_dep;
+                text += "," + space + global_param + "." + global_dep;
             }
             text += global_close + ");" + newline;
             text += "})(this," + space + "function(exports," + space + "require";
@@ -1387,8 +1524,26 @@ config::Format format = options->OutputFormat;
                 }
             }
 
-            prev_offset.AdvanceString(text);
-            j.AddString(text);
+            // With either minification on, the wrapper goes through the same
+            // parse and print pipeline as the body so the printer's spacing,
+            // the binder's expression simplifications and (above) the mangled
+            // parameter names all reach it. The raw template text is kept when
+            // that fails, so a failure here degrades to the wrapper as spelled
+            // rather than to no wrapper at all.
+            if (options->MinifyWhitespace || options->MinifySyntax) {
+                auto minified_wrapper = MinifyUMDWrapper(text, options, log);
+                if (!minified_wrapper.first.empty()) {
+                    prev_offset.AdvanceString(minified_wrapper.first);
+                    j.AddString(minified_wrapper.first);
+                    umd_wrapper_close = std::move(minified_wrapper.second);
+                } else {
+                    prev_offset.AdvanceString(text);
+                    j.AddString(text);
+                }
+            } else {
+                prev_offset.AdvanceString(text);
+                j.AddString(text);
+            }
             newline_before_comment = false;
         } else if (options->OutputFormat == config::Format::kSystem) {
             indent = indent_unit;
@@ -1612,7 +1767,7 @@ config::Format format = options->OutputFormat;
         } else if (options->OutputFormat == config::Format::kAMD) {
             j.AddString("});" + newline);
         } else if (options->OutputFormat == config::Format::kUMD) {
-            j.AddString("});" + newline);
+            j.AddString(umd_wrapper_close);
         } else if (options->OutputFormat == config::Format::kSystem) {
             j.AddString(indent3 + space + "}" + newline);
             j.AddString(indent2 + space + "};" + newline);

@@ -92,17 +92,17 @@ const STAGES = {
 
 // Which language each outstanding handle belongs to.
 //
-// The engine numbers handles per language, so handle 0 is a valid JS tree and a
-// valid CSS tree and they are not the same tree. Handing one to the wrong printer
-// is refused by the engine, but the engine's refusal is "that AST has been
-// released, or was never created" — which is a true sentence about a tree the
-// caller did not pass, and a useless one. Remembering the language here makes
-// the mistake a message that names it: a handle is a value the caller was just
-// given, and the one thing they cannot see about it is which language it is for.
+// The engine hands out ids from one counter shared by all three languages, so a
+// number says which tree it is — but not which language that tree was parsed for,
+// which is the thing a caller cannot see about a value they were just given.
+// Remembering the language here turns "handed a CSS tree to the HTML printer" into
+// a message that names it. Left to the engine, the same mistake comes back as "that
+// AST has been released, or was never created": a true sentence about a tree the
+// caller did not pass, and a useless one.
 //
 // Bounded by the number of parse calls in a process, and never cleared: a handle
-// is only forgotten by a process that has stopped parsing, which is a process
-// that is about to exit.
+// is only forgotten by a process that has stopped parsing, which is a process that
+// is about to exit.
 const handleLanguages = new Map();
 
 /**
@@ -240,19 +240,17 @@ async function compileRequest(payload) {
 /**
  * The language a call is for, checked here rather than sent on to be refused.
  *
- * "loader" is accepted as a spelling of "language" because transform() takes its
- * loader under that name and a caller holding a loader has it in hand already.
- * Two spellings for one thing in one package is the inconsistency this module
- * removes, so one of them is accepted and the other is documented as the
- * canonical one. "language" is canonical because this is not a bundler and there
- * is no loader resolution happening here.
+ * There is no "loader" spelling to go with it, though transform() takes its
+ * loader under that name. One package with two spellings for one thing is the
+ * inconsistency this module exists to remove, and "language" is the honest one:
+ * this is not a bundler and no loader resolution happens here.
  */
 function languageOf(options, stage) {
     if (options === null || typeof options !== "object") {
         throw new TypeError(`${stage} takes an options object with a "language"`);
     }
 
-    const given = options.language !== undefined ? options.language : options.loader;
+    const given = options.language;
 
     if (given === undefined) {
         throw new TypeError(
@@ -293,8 +291,7 @@ function assertHandle(ast, language) {
     if (owner !== undefined && owner !== language) {
         throw new TypeError(
             `handle ${ast} is a ${owner} tree, and this is print for ${language}. ` +
-                `Handles are numbered per language, so ${ast} also names a ${language} tree — ` +
-                "which is a different one. Print it with the language it was parsed for."
+                `Print it with the language it was parsed for: ${JSON.stringify(owner)}.`
         );
     }
 }
@@ -316,4 +313,4 @@ function forward(payload, options, stage) {
     }
 }
 
-module.exports = { lexer, parse, print, LANGUAGES };
+module.exports = { lexer, parse, print };

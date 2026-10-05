@@ -45,29 +45,34 @@ BundlerGuchhoJSON.BuildFormatUMD
 });
 
 ================================================================================
+BundlerGuchhoJSON.BuildFormatUMDFullMinify
+---------- /out.js ----------
+(function(o,e){typeof exports=="object"&&typeof module<"u"?e(exports,require):typeof define=="function"&&define.amd?define(["exports"],e):(o=typeof globalThis<"u"?globalThis:o||self,o.MyLib=o.MyLib||{},e(o.MyLib,void 0),o.MyLib)})(this,function(exports,require){"use strict";var o=42;console.log(42);exports.answer=o;});
+
+================================================================================
 BundlerGuchhoJSON.BuildFormatUMDKeepsExplicitUseStrict
 ---------- /out.js ----------
-(function(global,factory){typeof exports ==="object"&&typeof module !=="undefined"?factory(exports,require):typeof define ==="function"&&define.amd ?define(["exports"],factory):(global=typeof globalThis !=="undefined"?globalThis:global||self,(global.MyLib=global.MyLib||{},factory(global.MyLib,void 0),global.MyLib));})(this,function(exports,require){"use strict";var answer=42;exports.answer=answer;});
+(function(global,factory){typeof exports==="object"&&typeof module!=="undefined"?factory(exports,require):typeof define==="function"&&define.amd?define(["exports"],factory):(global=typeof globalThis!=="undefined"?globalThis:global||self,global.MyLib=global.MyLib||{},factory(global.MyLib,void 0),global.MyLib)})(this,function(exports,require){"use strict";var answer=42;exports.answer=answer;});
 
 ================================================================================
 BundlerGuchhoJSON.BuildFormatUMDMinified
 ---------- /out.js ----------
-(function(global,factory){typeof exports ==="object"&&typeof module !=="undefined"?factory(exports,require):typeof define ==="function"&&define.amd ?define(["exports"],factory):(global=typeof globalThis !=="undefined"?globalThis:global||self,factory({},void 0));})(this,function(exports,require){"use strict";console.log(42);});
+(function(global,factory){typeof exports==="object"&&typeof module!=="undefined"?factory(exports,require):typeof define==="function"&&define.amd?define(["exports"],factory):(global=typeof globalThis!=="undefined"?globalThis:global||self,factory({},void 0))})(this,function(exports,require){"use strict";console.log(42);});
 
 ================================================================================
 BundlerGuchhoJSON.BuildFormatUMDMinifiedDirectExports
 ---------- /out.js ----------
-(function(global,factory){typeof exports ==="object"&&typeof module !=="undefined"?factory(exports,require):typeof define ==="function"&&define.amd ?define(["exports"],factory):(global=typeof globalThis !=="undefined"?globalThis:global||self,(global.MyLib=global.MyLib||{},factory(global.MyLib,void 0),global.MyLib));})(this,function(exports,require){"use strict";var answer=42;console.log(answer);exports.answer=answer;});
+(function(global,factory){typeof exports==="object"&&typeof module!=="undefined"?factory(exports,require):typeof define==="function"&&define.amd?define(["exports"],factory):(global=typeof globalThis!=="undefined"?globalThis:global||self,global.MyLib=global.MyLib||{},factory(global.MyLib,void 0),global.MyLib)})(this,function(exports,require){"use strict";var answer=42;console.log(answer);exports.answer=answer;});
 
 ================================================================================
 BundlerGuchhoJSON.BuildFormatUMDMinifiedWithExternal
 ---------- /out.js ----------
-(function(global,factory){typeof exports ==="object"&&typeof module !=="undefined"?factory(exports,require,require("vue")):typeof define ==="function"&&define.amd ?define(["exports","require","vue"],factory):(global=typeof globalThis !=="undefined"?globalThis:global||self,(global.MyLib=global.MyLib||{},factory(global.MyLib,void 0,global.vue),global.MyLib));})(this,function(exports,require,dep0){"use strict";var import_vue=__require("vue");var app=(0,import_vue.create)();exports.app=app;});
+(function(global,factory){typeof exports==="object"&&typeof module!=="undefined"?factory(exports,require,require("vue")):typeof define==="function"&&define.amd?define(["exports","require","vue"],factory):(global=typeof globalThis!=="undefined"?globalThis:global||self,global.MyLib=global.MyLib||{},factory(global.MyLib,void 0,global.vue),global.MyLib)})(this,function(exports,require,dep0){"use strict";var import_vue=__require("vue");var app=(0,import_vue.create)();exports.app=app;});
 
 ================================================================================
 BundlerGuchhoJSON.BuildFormatUMDMinifiedWithGlobalName
 ---------- /out.js ----------
-(function(global,factory){typeof exports ==="object"&&typeof module !=="undefined"?factory(exports,require):typeof define ==="function"&&define.amd ?define(["exports"],factory):(global=typeof globalThis !=="undefined"?globalThis:global||self,(global.MyLib=global.MyLib||{},factory(global.MyLib,void 0),global.MyLib));})(this,function(exports,require){"use strict";var answer=42;console.log(answer);exports.answer=answer;});
+(function(global,factory){typeof exports==="object"&&typeof module!=="undefined"?factory(exports,require):typeof define==="function"&&define.amd?define(["exports"],factory):(global=typeof globalThis!=="undefined"?globalThis:global||self,global.MyLib=global.MyLib||{},factory(global.MyLib,void 0),global.MyLib)})(this,function(exports,require){"use strict";var answer=42;console.log(answer);exports.answer=answer;});
 
 ================================================================================
 BundlerGuchhoJSON.BuildFormatUMDNameWinsOverGlobalNameAlias

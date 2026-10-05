@@ -23,8 +23,13 @@
 // (and the rebuild() it wraps) work on the same warm context watch() and serve()
 // share, and closing the server disposes of it.
 
+const path = require("path");
 const { context } = require("./context");
 const { normalize } = require("./options");
+
+// Where a build writes when the caller did not say. Guchho's own default, read
+// from the engine's options rather than guessed at here.
+const DEFAULT_OUTDIR = "dist";
 
 /**
  * A running dev server.
@@ -148,10 +153,13 @@ if (typeof Symbol.asyncDispose === "symbol") {
  * @param {object} [config.server]
  * @param {string} [config.server.host] The interface to bind. The engine's own
  *   default, which binds every interface.
- * @param {number} [config.server.port] The port to bind. Zero asks the operating
- *   system for a free one, which is why the port is reported rather than assumed.
- * @param {string} [config.server.servedir] The directory to serve, when it is not
- *   the build's output directory.
+ * @param {number} [config.server.port] The port to bind. Zero asks for the
+ *   engine's own choice — it tries 8000 upwards and takes the first that is free —
+ *   rather than an arbitrary one, which is why the port that was bound is
+ *   reported on the handle instead of being assumed to be the one asked for.
+ * @param {string} [config.server.servedir] The directory to serve. Defaults to the
+ *   build's output directory, which is what makes the server serve the build at
+ *   all; name it only to serve somewhere else.
  * @param {string} [config.server.fallback] The file to serve for a path that
  *   matches nothing, which is how a single-page app's routes are handled.
  * @returns {Promise<DevServer>}
@@ -178,7 +186,7 @@ async function serve(config = {}) {
     const ctx = await context({ build });
     try {
         const info = await ctx.serve({
-            servedir: server.servedir,
+            servedir: servedirFor(build, server),
             port: server.port,
             host: server.host,
             fallback: server.fallback,
@@ -192,6 +200,28 @@ async function serve(config = {}) {
         await ctx.dispose();
         throw error;
     }
+}
+
+// The directory to serve, which is the build's output directory unless the caller
+// named another one.
+//
+// This is not a convenience default; without it the server serves nothing. The
+// engine serves a context's build output from an in-memory layer, and the service
+// command that starts a context's server leaves that layer empty — it is the
+// `guchho serve` command that wires a build's outputs in, and that is a different
+// path. So a context served with no servedir answers every request with a 404,
+// which is a dev server that is running, reachable, and serves no files. Pointing
+// it at the output directory is what makes it serve the build.
+//
+// A relative directory is resolved here rather than sent on, because the engine
+// resolves a relative path against the service's working directory — which is not
+// necessarily the caller's, and is not the build's working directory either.
+function servedirFor(build, server) {
+    if (server.servedir !== undefined) {
+        return server.servedir;
+    }
+
+    return path.resolve(build.absWorkingDir === undefined ? process.cwd() : build.absWorkingDir, build.outdir === undefined ? DEFAULT_OUTDIR : build.outdir);
 }
 
 module.exports = { DevServer, serve };

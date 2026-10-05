@@ -1,0 +1,48 @@
+// Guchho — VS Code C/C++ Properties (Microsoft C/C++ extension).
+// clangd stays the primary language server; this file is what keeps
+// cpptools IntelliSense ("C_Cpp.intelliSenseEngine": "default" in
+// settings.json) and the cppdbg debugger in launch.json agreeing with
+// the real build.
+//
+// All values mirror the debug-win32-x64-ninja preset — the same build
+// dir clangd and CMake Tools use — and are also recorded in
+// build/debug-win32-x64-ninja/compile_commands.json, which cpptools
+// merges in for the -I/-D flags not repeated here.
+//
+// Defines:
+//   _DEBUG              Debug build type
+//   _DLL, _MT           CMake's shared-lib, static-CRT target
+//   RC_INVOKED          emitted when compiling .rc resources
+//   GUCHHO_VERSION_STRING   src/CMakeLists.txt:445 (keep in sync with
+//                           PROJECT_VERSION in the top-level CMakeLists)
+//   GUCHHO_TEST_EXE     test/cli/CMakeLists.txt:40. Preset-specific
+//                       absolute path — correct only for
+//                       debug-win32-x64-ninja, stale for the
+//                       release-win32-x64 preset launch.json uses.
+//
+// NOTE: cpptools rewrites this file and drops these comments when it
+// regenerates its config. Re-add them if that happens.
+{
+    "configurations": [
+        {
+            "name": "Guchho: win32-x64 (clang-clangd-ninja)",
+            "compilerPath": "C:\\Program Files\\LLVM\\bin\\clang++.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "windows-clang-x64",
+            "includePath": [
+                "${workspaceFolder}/include/**"
+            ],
+            "defines": [
+                "_DEBUG",
+                "_DLL",
+                "_MT",
+                "RC_INVOKED",
+                "GUCHHO_VERSION_STRING=\"1.0.1\"",
+                "GUCHHO_TEST_EXE=\"${workspaceFolder}/build/debug-win32-x64-ninja/bin/guchho.exe\""
+            ],
+            "compileCommands": "${workspaceFolder}/build/debug-win32-x64-ninja/compile_commands.json"
+        }
+    ],
+    "version": 4
+}

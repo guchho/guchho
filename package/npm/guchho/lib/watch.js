@@ -218,7 +218,7 @@ if (typeof Symbol.asyncDispose === "symbol") {
 
 // An interval, or zero for "do not drive yourself".
 //
-// A negative interval is refused rather than treated as zero, because the two
+// A negative interval is refused rather than folded into zero, because the two
 // readings are opposites — "as fast as possible" and "never" — and a caller who
 // meant one and got the other would find out by watching nothing happen.
 function normalizeInterval(given) {

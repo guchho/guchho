@@ -756,6 +756,7 @@ namespace guchho::logger {
         case MsgCat::kAPI_InvalidLogLevel: return "Invalid \"log_level\": {}";
         case MsgCat::kAPI_InvalidLogOverride: return "Invalid \"log_override\" value for \"{}\": {}";
         case MsgCat::kAPI_FormatIgnoredForHTMLEntry: return "\"format\" is ignored when the entry point is HTML.";
+        case MsgCat::kAPI_UMDRequiresName: return "UMD output with exports requires a global name (--name=<name>)";
 
             default:
                 return "";

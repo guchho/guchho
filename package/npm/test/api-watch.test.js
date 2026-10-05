@@ -46,7 +46,7 @@ function makeProject(initial = "const answer = 42;\nconsole.log(answer);\n") {
 function watchConfig(root, extra = {}) {
     return {
         absWorkingDir: root,
-        entryPoints: ["src/main.js"],
+        entrypoints: ["src/main.js"],
         write: false,
         logLevel: "silent",
         watch: { interval: 0 },

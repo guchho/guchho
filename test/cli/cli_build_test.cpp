@@ -25,6 +25,8 @@
 #include <string>
 #include <vector>
 
+#include "guchho/helpers.hpp"
+
 namespace cli::test {
 
 using guchho::test::CliResult;
@@ -35,6 +37,8 @@ using guchho::test::kUsageError;
 using guchho::test::OutputContains;
 using guchho::test::RunCli;
 using guchho::test::RunCliWithStdin;
+using guchho::helpers::ProcessResult;
+using guchho::helpers::RunProcess;
 
 namespace {
 
@@ -502,6 +506,147 @@ TEST(CliBuild, UMDWithNoExportsAndNoNameIsAllowed) {
 
     EXPECT_EQ(result.exit_code, kSuccess) << result.err;
     EXPECT_TRUE(OutputContains(ws.Read("out.js"), "console.log(\"ran\")"));
+}
+
+// ---------------------------------------------------------------------------
+// UMD: the minified wrapper
+// ---------------------------------------------------------------------------
+
+// The wrapper of a "--minify" UMD build must come back with no whitespace in
+// it that is only there to be read, and with the expression rewrites the body
+// gets. Both halves matter: the wrapper used to be assembled as text after the
+// body had been minified, so it kept the spaces around its operators, its
+// "define.amd ?" question mark and its unminified "global, factory" parameter
+// names while everything inside the factory was minified around them.
+//
+// The spaces that survive are the ones that cannot go: between "typeof" and
+// its operand, inside "void 0", and inside the "use strict" directive. Those
+// are asserted by name, because "no unnecessary whitespace" proved easy to
+// satisfy by deleting the wrong thing.
+TEST(CliBuild, MinifiedUMDOutputHasNoUnnecessaryWhitespace) {
+    CliWorkspace ws("umd-minified-ws");
+    ws.Write("entry.js", "export const add = (a, b) => a + b;\nconsole.log(add(2, 3));\n");
+
+    const CliResult result = RunCli({"build", "entry.js", "--format=umd", "--name=Lib",
+                                     "--minify", "--outfile=out.js"});
+    ASSERT_EQ(result.exit_code, kSuccess) << result.err;
+    const std::string out = ws.Read("out.js");
+
+    // One line: the wrapper and the body collapsed onto it together. The
+    // newline that ends the file, if the printer wrote one, is not a line
+    // break in the middle of the output and is not what this counts.
+    EXPECT_LE(std::count(out.begin(), out.end(), '\n'), 1L)
+        << "the minified output still breaks into lines: [" << out << "]";
+
+    // Spacing that was only there for a reader, around every operator the
+    // template used to spell by hand.
+    for (const char* pattern : {" === ", " !== ", " && ", " || ", " ? ", " : ", ", ",
+                                "( ", " )", "{ ", " }", "; "}) {
+        EXPECT_FALSE(OutputContains(out, pattern))
+            << "\"" << pattern << "\" survived minification: [" << out << "]";
+    }
+
+    // The dispatcher's parameters are identifiers, so they were minified
+    // rather than left as "global" and "factory".
+    EXPECT_FALSE(OutputContains(out, "(function(global"))
+        << "the wrapper parameters were not minified: [" << out << "]";
+    EXPECT_FALSE(OutputContains(out, ",factory)"))
+        << "the wrapper parameters were not minified: [" << out << "]";
+
+    // Expression minification reached the wrapper: the comparisons were
+    // rewritten the same way the body's are, which is what puts the constants
+    // in the form the binder chooses rather than the form the template
+    // spelled.
+    EXPECT_TRUE(OutputContains(out, "typeof exports==\"object\""))
+        << "the wrapper's comparisons were not minified: [" << out << "]";
+    EXPECT_TRUE(OutputContains(out, "define.amd?"))
+        << "the AMD arm kept its reader-facing space: [" << out << "]";
+
+    // The spaces that cannot go.
+    EXPECT_TRUE(OutputContains(out, "typeof ")) << "the typeof space was fused: [" << out << "]";
+    EXPECT_TRUE(OutputContains(out, "void 0")) << "void 0 lost its space: [" << out << "]";
+    EXPECT_TRUE(OutputContains(out, "\"use strict\""))
+        << "the directive did not survive: [" << out << "]";
+    EXPECT_TRUE(OutputContains(out, "exports.add="))
+        << "the export assignment is missing: [" << out << "]";
+}
+
+// The other half of the same requirement: the wrapper that comes out of the
+// minification pipeline still has to be a working UMD wrapper. Each of the
+// three arms gets exercised the way it is loaded for real — the file run as a
+// script, the file required as a module, and the file evaluated where the only
+// entry point is the global the browser arm publishes — plus the AMD arm
+// through a define() that records what the factory was handed.
+//
+// node is the executor because it is already the suite's other half's runtime;
+// where it is not on the PATH the child never starts, which RunProcess reports
+// rather than hiding, and the test says so and stops. What is being proven is
+// that the minified wrapper executes, not that this machine has node.
+TEST(CliBuild, MinifiedUMDOutputExecutes) {
+    CliWorkspace ws("umd-minified-exec");
+    ws.Write("entry.js", "export const add = (a, b) => a + b;\nconsole.log(add(2, 3));\n");
+
+    const CliResult build = RunCli({"build", "entry.js", "--format=umd", "--name=Lib",
+                                    "--minify", "--outfile=out.js"});
+    ASSERT_EQ(build.exit_code, kSuccess) << build.err;
+
+    // As a script. Node loads the file as CommonJS, so this runs the
+    // CommonJS arm, and the entry's own console.log is the bundle having
+    // executed far enough to call its own body.
+    const ProcessResult script = RunProcess({"node", "out.js"}, ws.path());
+    if (!script.started) {
+        std::cout << "node is not on PATH; skipping the execution half of "
+                     "MinifiedUMDOutputExecutes"
+                  << std::endl;
+        return;
+    }
+    EXPECT_EQ(script.exit_code, 0) << script.stderr_data;
+    EXPECT_TRUE(OutputContains(script.stdout_data, "5"))
+        << "the bundle did not run to its own console.log: [" << script.stdout_data << "]";
+
+    // As a module: the CommonJS arm passes the exports object in, so what
+    // comes back out of require() is what the wrapper assembled.
+    const ProcessResult as_module = RunProcess(
+        {"node", "-e", "const m = require('./out.js'); process.stdout.write(String(m.add(40, 2)));"},
+        ws.path());
+    ASSERT_TRUE(as_module.started);
+    EXPECT_EQ(as_module.exit_code, 0) << as_module.stderr_data;
+    EXPECT_TRUE(OutputContains(as_module.stdout_data, "42"))
+        << "require() did not hand back the wrapper's exports: [" << as_module.stdout_data << "]";
+
+    // As a browser would load it: a context with no module, no exports and no
+    // define, where the only arm left is the global one and the namespace has
+    // to appear on the global object.
+    const ProcessResult as_global = RunProcess(
+        {"node", "-e",
+         "const fs = require('fs'), vm = require('vm');"
+         "const ctx = { console: { log: function () {} } };"
+         "ctx.globalThis = ctx; ctx.self = ctx;"
+         "vm.runInNewContext(fs.readFileSync('out.js', 'utf8'), ctx);"
+         "process.stdout.write(String(ctx.Lib.add(1, 2)));"},
+        ws.path());
+    ASSERT_TRUE(as_global.started);
+    EXPECT_EQ(as_global.exit_code, 0) << as_global.stderr_data;
+    EXPECT_TRUE(OutputContains(as_global.stdout_data, "3"))
+        << "the global arm did not publish a working namespace: [" << as_global.stdout_data << "]";
+
+    // As AMD: define() receives the dependency list and the factory, and the
+    // object the factory writes into is what the arm has to deliver.
+    const ProcessResult as_amd = RunProcess(
+        {"node", "-e",
+         "const fs = require('fs'), vm = require('vm');"
+         "let got = null;"
+         "function define(deps, factory) { const exp = {}; factory(exp); got = { deps: deps, exp: exp }; }"
+         "define.amd = true;"
+         "const ctx = { console: { log: function () {} }, define: define };"
+         "ctx.globalThis = ctx; ctx.self = ctx;"
+         "vm.runInNewContext(fs.readFileSync('out.js', 'utf8'), ctx);"
+         "process.stdout.write(got.deps.join('|') + ':' + String(got.exp.add(2, 2)));"},
+        ws.path());
+    ASSERT_TRUE(as_amd.started);
+    EXPECT_EQ(as_amd.exit_code, 0) << as_amd.stderr_data;
+    EXPECT_TRUE(OutputContains(as_amd.stdout_data, "exports:4"))
+        << "the AMD arm did not deliver through define(): [" << as_amd.stdout_data << "]";
 }
 
 // The metafile is the description of what the build read and produced, and it

@@ -152,7 +152,7 @@ TEST(CliMultiConfig, EachConfigurationGetsItsOwnFormat) {
              "[{\"build\":{\"entry\":\"src/index.js\",\"outfile\":\"dist/index.cjs.js\","
              "\"format\":\"cjs\",\"target\":\"esnext\",\"minify\":true}},"
              " {\"build\":{\"entry\":\"src/index.js\",\"outfile\":\"dist/index.umd.js\","
-             "\"format\":\"umd\",\"target\":\"esnext\",\"minify\":true}}]");
+             "\"format\":\"umd\",\"name\":\"Multi\",\"target\":\"esnext\",\"minify\":true}}]");
 
     const CliResult result = RunCli({"build"});
 

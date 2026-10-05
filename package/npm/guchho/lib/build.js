@@ -31,8 +31,8 @@ const { normalize } = require("./options");
  *   spellings guchho uses, flat or nested under "build". Anything not given is
  *   left to guchho.config.js next to the project, or to the built-in default, so
  *   this module holds no second copy of any option.
- * @param {string|string[]|Array<[string,string]>} [options.entryPoints] Entry
- *   points. Spelled "entry" when there is one.
+ * @param {string|string[]|Array<[string,string]>} [options.entrypoints] Entry
+ *   points. Also spelled "entryPoints" or "entry".
  * @param {string[]} [options.external] Packages to leave as imports.
  * @param {Record<string,string>} [options.define] Identifiers to replace.
  * @param {Record<string,string>} [options.loader] Extensions to a loader name.

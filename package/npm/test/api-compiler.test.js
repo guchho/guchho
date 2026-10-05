@@ -202,8 +202,8 @@ describe("transforming", () => {
 
 describe("printing", () => {
     it("prints a tree back to source", needsBinary, async () => {
-        const parsed = await guchho.parseCSS(".a{color:red}");
-        const result = await guchho.printCSS(parsed.ast);
+        const parsed = await guchho.parse(".a{color:red}", { language: "css" });
+        const result = await guchho.print(parsed.ast, { language: "css" });
 
         assert.deepEqual(result.errors, []);
         assert.ok(result.code.includes("color"), `got: ${JSON.stringify(result.code)}`);

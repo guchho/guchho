@@ -240,13 +240,12 @@ module.exports = {
 // test/flag-contract.test.js rather than by a caller discovering it in
 // production.
 const SERVICE_BOOLEANS = {
-    minify: "--minify",
+minify: "--minify",
     minifyHtml: "--minify-html",
     minifyIdentifiers: "--minify-identifiers",
     minifySyntax: "--minify-syntax",
     minifyWhitespace: "--minify-whitespace",
     pretty: "--pretty",
-    sourcemap: "--sourcemap",
     splitting: "--splitting",
     treeShaking: "--tree-shaking",
     bundle: "--bundle",
@@ -259,6 +258,23 @@ const SERVICE_BOOLEANS = {
     mangleQuoted: "--mangle-quoted",
     allowOverwrite: "--allow-overwrite",
 };
+
+// "sourcemap" is not in the table above, and that is the interesting part of it.
+//
+// It takes either a bare "--sourcemap" or "--sourcemap=<value>", and which one
+// is the whole meaning: bare means linked for a build and inline for a
+// transform, because a build writes a .map beside the output and a transform has
+// no output file to sit beside — its code travels back to the caller in a
+// string, so the only map that can travel with it is one embedded in it.
+//
+// It was in this table before, as a boolean. Which meant that the four documented
+// string values — inline, external, linked, both — matched no branch here and
+// produced no flag at all: a caller who asked for an inline source map got a
+// build with no source map and no complaint, because the option was accepted,
+// read, and dropped. It is neither table now: it is a flag that takes either a
+// bare form or a value, which is why toFlags() asks sourcemapArgs() about it
+// rather than reading a table.
+const SERVICE_SOURCEMAP_FLAG = "--sourcemap";
 
 // Options whose value goes after an "=".
 //
@@ -290,9 +306,19 @@ const SERVICE_VALUES = {
     resolveExtensions: "--resolve-extensions",
     mainFields: "--main-fields",
     conditions: "--conditions",
-    sourcefile: "--sourcefile",
+sourcefile: "--sourcefile",
     absPaths: "--abs-paths",
 };
+
+// The values "--sourcemap=" takes, checked against the grammar's own list so that
+// a typo is a TypeError naming the option rather than an "Invalid value" from
+// the binary several steps later.
+//
+// "none" is here rather than special-cased as "leave it out" because a caller
+// reading a config file should be able to write the name of the thing they mean.
+// It produces no flag, which is how this grammar asks for no source map: a flag
+// is a request, and the way to not make one is to not make it.
+const SOURCEMAP_VALUES = new Set(["none", "inline", "external", "linked", "both"]);
 
 // Options that may be given more than once, each producing its own flag.
 //
@@ -325,9 +351,11 @@ const SERVICE_LOG_LEVELS = new Set(["verbose", "debug", "info", "warning", "erro
 function toFlags(options) {
     const args = [];
 
-    for (const [name, flag] of Object.entries(SERVICE_BOOLEANS)) {
+for (const [name, flag] of Object.entries(SERVICE_BOOLEANS)) {
         if (options[name] === true) args.push(flag);
     }
+
+    args.push(...sourcemapArgs(options.sourcemap));
 
     for (const [name, flag] of Object.entries(SERVICE_VALUES)) {
         const value = options[name];
@@ -351,6 +379,37 @@ function toFlags(options) {
     }
 
     return args;
+}
+
+// The flags "sourcemap" turns into, which is zero or one.
+//
+// Written out rather than folded into either table above because it is the one
+// option with both a bare form and a valued one, and putting it in the boolean
+// table is what lost the valued form: a string is not `true`, so the four
+// documented values produced no flag and no error.
+function sourcemapArgs(value) {
+    if (value === undefined || value === null || value === false) return [];
+    if (value === true) return [SERVICE_SOURCEMAP_FLAG];
+
+    if (typeof value !== "string") {
+        throw new TypeError(
+            `sourcemap takes true, false, or one of ${[...SOURCEMAP_VALUES].join(", ")}; ` +
+            `got ${typeof value}`
+        );
+    }
+
+    // "none" is the absence of a request, and it arrives as the word rather than
+    // as an absent option so that a config file can name it.
+    if (value === "none") return [];
+
+    if (!SOURCEMAP_VALUES.has(value)) {
+        throw new TypeError(
+            `sourcemap must be one of ${[...SOURCEMAP_VALUES].join(", ")}, or true; ` +
+            `got "${value}"`
+        );
+    }
+
+    return [`${SERVICE_SOURCEMAP_FLAG}=${value}`];
 }
 
 /**
@@ -438,4 +497,5 @@ module.exports.SERVICE_FIELDS = SERVICE_FIELDS;
 module.exports.SERVICE_BOOLEANS = SERVICE_BOOLEANS;
 module.exports.SERVICE_VALUES = SERVICE_VALUES;
 module.exports.SERVICE_REPEATED = SERVICE_REPEATED;
+module.exports.SOURCEMAP_VALUES = SOURCEMAP_VALUES;
 module.exports.SERVICE_LOG_LEVELS = SERVICE_LOG_LEVELS;

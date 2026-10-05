@@ -10,8 +10,8 @@
 // sets of bugs, and a caller who could not tell which one they were talking to.
 //
 // The shape is the one a caller actually wants to hold on to. serve() resolves
-// once the server is listening, so the address is a value rather than something
-// to be discovered later by watching a log:
+// once the server is listening over a finished build, so the address is a value
+// rather than something to be discovered later by watching a log:
 //
 //   const server = await serve({ build: {...}, server: { port: 3000 } });
 //   console.log(server.url);
@@ -185,6 +185,22 @@ async function serve(config = {}) {
 
     const ctx = await context({ build });
     try {
+        // Build before listening, not after.
+        //
+        // The service starts a context's server and then builds into the directory
+        // it is serving, but the two are not ordered against each other: a request
+        // that arrives in between is answered from a directory that is not there
+        // yet, with a 404, by a server the caller has already been handed. That is
+        // not a race in the tests so much as a race in the contract — it is rare on
+        // an idle machine and common on a loaded one, which is the worst way for a
+        // bug to be shaped.
+        //
+        // Building first means that when this resolves the outputs are on disk and
+        // the server is listening over them, so the first request is served like
+        // every one after it. It also means a build that fails fails here, where
+        // the caller still has a stack trace pointing at their configuration.
+        await ctx.rebuild();
+
         const info = await ctx.serve({
             servedir: servedirFor(build, server),
             port: server.port,

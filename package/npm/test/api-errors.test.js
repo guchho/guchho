@@ -40,7 +40,7 @@ describe("BuildFailure", () => {
 
         let thrown = null;
         try {
-            await guchho.build({ absWorkingDir: root, entryPoints: ["src/nothing-here.js"] });
+            await guchho.build({ absWorkingDir: root, entrypoints: ["src/nothing-here.js"] });
         } catch (error) {
             thrown = error;
         }
@@ -83,7 +83,7 @@ describe("BuildFailure", () => {
     it("is an Error, so `instanceof Error` catches it", needsBinary, async () => {
         let thrown = null;
         try {
-            await guchho.build({ entryPoints: [] });
+            await guchho.build({ entrypoints: [] });
         } catch (error) {
             thrown = error;
         }

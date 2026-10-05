@@ -324,6 +324,101 @@ TEST(CliBuild, MinifyFalseOverridesAConfigThatMinifies) {
         << "\"--minify=false\" left the config in charge: [" << off << "]";
 }
 
+// A CommonJS bundle is a script, so it is not strict unless it says so, and
+// what the format owes its reader is a directive at the top of the file. The
+// bundler snapshots cover the same ground, but only as something to be looked
+// at: a snapshot says what the output looks like, not what a caller can rely
+// on. Three things are claimed here that only the bytes can answer, so they
+// are asked of the bytes:
+//
+//   1. the directive is at the very start of the file, not merely somewhere
+//      in it - a directive that is not the first thing in the file is not a
+//      prologue and does nothing;
+//   2. there is exactly one of them, including when the input asked for strict
+//      mode itself, because a duplicate would be the two-claims-of-the-same
+//      kind of thing the ESM path avoids by dropping the input's;
+//   3. minification leaves it alone, including the whitespace pass, which is
+//      the pass that would take the newline after it.
+//
+// The entry point imports nothing on purpose. A bundle of several files can
+// legitimately carry more than one "use strict", because an inlined CommonJS
+// file keeps the one it was written with, and counting the whole file would
+// then be counting something this test is not about.
+TEST(CliBuild, CJSOutputStartsWithUseStrictExactlyOnce) {
+    CliWorkspace ws("cjs-use-strict");
+    ws.Write("entry.js", "export let a = compute(1);\nconsole.log(a);\n");
+
+    struct Case {
+        std::string flag;
+        std::string outfile;
+    };
+    const Case cases[] = {
+        {"",                 "plain.js"},
+        {"--minify",         "all.js"},
+        {"--minify-syntax",  "syntax.js"},
+        {"--minify-whitespace", "ws.js"},
+    };
+
+    for (const Case& one : cases) {
+        std::vector<std::string> args{"build", "entry.js",
+                                      "--format=cjs", "--outfile=" + one.outfile};
+        if (!one.flag.empty()) {
+            args.push_back(one.flag);
+        }
+        ASSERT_EQ(RunCli(args).exit_code, kSuccess) << one.outfile;
+    }
+
+    auto occurrences_of = [](const std::string& haystack, const std::string& needle) {
+        long count = 0;
+        for (std::string::size_type at = haystack.find(needle);
+             at != std::string::npos;
+             at = haystack.find(needle, at + needle.size())) {
+            count++;
+        }
+        return count;
+    };
+
+    for (const Case& one : cases) {
+        const std::string out = ws.Read(one.outfile);
+
+        // The program is in every one of them, so what the checks below say
+        // about the directive is about the directive rather than about a
+        // build that failed and wrote an error into the file.
+        EXPECT_TRUE(OutputContains(out, "compute(1)"))
+            << "[" << one.outfile << "] did not build the program: [" << out << "]";
+
+        EXPECT_EQ(out.rfind("\"use strict\";", 0), 0U)
+            << "the cjs build does not start with the directive, so it is not a prologue: ["
+            << out << "]";
+        EXPECT_EQ(occurrences_of(out, "\"use strict\""), 1L)
+            << one.outfile << " carries the directive "
+            << occurrences_of(out, "\"use strict\"") << " times: [" << out << "]";
+    }
+
+    // The same build from an entry that already asks for strict mode. This is
+    // the case where the linker would have added a second one, so the count is
+    // the whole point: still one.
+    ws.Write("strict-entry.js", "'use strict'\nexport let a = compute(1);\nconsole.log(a);\n");
+    EXPECT_EQ(RunCli({"build", "strict-entry.js", "--format=cjs", "--outfile=strict.js"}).exit_code,
+              kSuccess);
+
+    const std::string strict = ws.Read("strict.js");
+    EXPECT_EQ(occurrences_of(strict, "\"use strict\""), 1L)
+        << "an entry that already asked for strict mode produced a second directive: ["
+        << strict << "]";
+
+    // ESM is the other half of the claim: an ES module is strict already, so
+    // adding a directive to it would be saying something twice, and the
+    // existing behaviour is that the input's own is dropped rather than
+    // carried over. Either way the answer here has to be none.
+    EXPECT_EQ(RunCli({"build", "strict-entry.js", "--format=esm", "--outfile=esm.js"}).exit_code,
+              kSuccess);
+
+    const std::string esm = ws.Read("esm.js");
+    EXPECT_EQ(occurrences_of(esm, "\"use strict\""), 0L)
+        << "an esm bundle grew a strict-mode directive it does not need: [" << esm << "]";
+}
+
 // The metafile is the description of what the build read and produced, and it
 // is only written when a flag asks for it and a path to write it to was named.
 TEST(CliBuild, TheMetafileIsWrittenWhenItIsAskedForByName) {

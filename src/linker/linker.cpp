@@ -1244,6 +1244,29 @@ namespace guchho::linker {
                      (options->OutputFormat == config::Format::kIIFE && !options->GlobalName.empty()))) {
                     repr.ast.uses_exports_ref = true;
                     repr.meta.force_include_exports_for_entry_point = true;
+
+                    // UMD is the one format here with nowhere to put its exports
+                    // unless somebody says where. Its wrapper has three
+                    // branches and the first two — CommonJS and AMD — already
+                    // have a destination the caller did not have to name:
+                    // "module.exports" and the value AMD keeps for the module's
+                    // own return. Only the browser branch has to invent a global
+                    // to write to, and it invents nothing. Without a name the
+                    // factory runs and its exports are dropped, so a <script>
+                    // tag loading the bundle gets no global and no explanation.
+                    //
+                    // Reported here rather than in option validation because
+                    // this is the first point that knows both halves at once:
+                    // that the format is UMD and that the entry exports
+                    // something. A UMD bundle with nothing to export is a
+                    // legitimate build — a side-effect script that any module
+                    // system can load — and asking it for a global name would be
+                    // inventing a requirement instead of reporting a missing one.
+                    if (options->OutputFormat == config::Format::kUMD &&
+                        options->GlobalName.empty()) {
+                        c.log.AddError(nullptr, logger::Range{},
+                                       logger::FormatMsg(logger::MsgCat::kAPI_UMDRequiresName));
+                    }
                 }
             } else if (std::get_if<std::shared_ptr<graph::CopyRepr>>(&file.repr)) {
                 additional_files.insert(additional_files.end(),
@@ -1251,14 +1274,20 @@ namespace guchho::linker {
             }
         }
 
-        if (options->OutputFormat == config::Format::kCommonJS ||
-            options->OutputFormat == config::Format::kUMD) {
+        if (options->OutputFormat == config::Format::kCommonJS) {
             c.unbound_module_ref = c.graph.GenerateNewSymbol(javascript::kSourceIndex, compiler::SymbolKind::kUnbound, "module");
         } else {
             c.unbound_module_ref = compiler::kInvalidRef;
         }
 
-        if (options->OutputFormat == config::Format::kSystem) {
+        // UMD's wrapper declares an "exports" parameter on its factory and
+        // passes the object it should be written into at each of its three call
+        // sites, so the entry point's export names are assigned through this
+        // symbol rather than returned. Unbound, because the wrapper supplies
+        // the binding from outside the bundle -- the same arrangement SystemJS
+        // uses, and the reason a UMD body needs no "__toCommonJS".
+        if (options->OutputFormat == config::Format::kUMD ||
+            options->OutputFormat == config::Format::kSystem) {
             c.unbound_exports_ref = c.graph.GenerateNewSymbol(javascript::kSourceIndex, compiler::SymbolKind::kUnbound, "exports");
         } else {
             c.unbound_exports_ref = compiler::kInvalidRef;

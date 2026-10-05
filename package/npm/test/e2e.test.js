@@ -215,7 +215,7 @@ describe("the snippet from the documentation", { skip: needsTar() }, () => {
 
              // The two calls the API exists for.
              const result1 = await guchho.transform(code, { minify: false });
-             const result2 = await guchho.build({ entryPoints: ["entry.js"] });
+             const result2 = await guchho.build({ entrypoints: ["entry.js"] });
 
              console.log(JSON.stringify({
                  transformIsFunction: typeof guchho.transform === "function",

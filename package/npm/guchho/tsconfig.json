@@ -1,0 +1,40 @@
+{
+  // ─────────────────────────────────────────────
+  // Editor and typecheck settings for the published types.
+  //
+  // This file exists because index.d.ts declares [Symbol.asyncDispose]() on
+  // DevServer and Watcher, and TypeScript only knows that well-known symbol
+  // from TS 5.2's "esnext.disposable" lib. With no tsconfig.json anywhere, the
+  // editor inferred a project with default settings, whose lib predates the
+  // symbol, and reported it as missing on two lines that are in fact correct.
+  //
+  // It is not in "files", so it is not published. A project consuming these
+  // types needs the same lib in its own tsconfig to use `await using`:
+  //
+  //     "lib": ["es2022", "esnext.disposable"]
+  //
+  // At runtime the symbol is absent on older Node, which is why lib/serve.js
+  // and lib/watch.js install the method behind a typeof guard rather than
+  // assuming it. The published types describe the API as it exists where it
+  // exists; the guard is what keeps a Node without it working.
+  // ─────────────────────────────────────────────
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["es2022", "esnext"],
+
+    // The package is CommonJS with an ESM wrapper, so node16 is the resolution
+    // mode that matches how index.d.ts is actually consumed.
+    "module": "node16",
+    "moduleResolution": "node16",
+
+    "noEmit": true,
+
+    // Deliberately false, which is also the default: index.d.ts is the artefact
+    // this project ships, so type checking it is the entire point. Setting this
+    // true would silence the two reports that prompted this file without
+    // checking anything, which is not a fix.
+    "skipLibCheck": false
+  },
+
+  "include": ["index.d.ts"]
+}

@@ -30,12 +30,13 @@ after(cleanup);
 const needsBinary = { skip: skipWithoutBinary() };
 
 describe("the compiler API's shape", () => {
-    it("exports the unified compiler functions and the language list", () => {
+    it("exports the unified compiler functions, and only those", () => {
         assert.equal(typeof guchho.lexer, "function");
         assert.equal(typeof guchho.parse, "function");
         assert.equal(typeof guchho.print, "function");
-        assert.ok(Array.isArray(guchho.LANGUAGES));
-        assert.deepEqual([...guchho.LANGUAGES], ["html", "css", "js"]);
+        // The language list is a detail of validation, not a promise: a caller
+        // branching on it would be branching on an internal table.
+        assert.equal(guchho.LANGUAGES, undefined);
     });
 });
 
@@ -74,19 +75,20 @@ describe("lexing", () => {
 
         assert.deepEqual(result.errors, []);
         assert.ok(result.count > 0);
-        assert.equal(result.tokens[result.tokens.length - 1].kind, "eof");
+        assert.equal(result.tokens[0].value, "let");
+        assert.equal(result.tokens[1].value, "a");
     });
 
     it("accepts bytes as well as a string", needsBinary, async () => {
-        const result = await guchho.lexHTML(Buffer.from("<p>x</p>", "utf8"));
+        const result = await guchho.lexer(Buffer.from("<p>x</p>", "utf8"), { language: "html" });
         assert.equal(result.tokens[0].kind, "start-tag");
         assert.equal(result.tokens[0].value, "p");
     });
 
     it("refuses input that is not source, before sending anything", async () => {
-        await assert.rejects(() => guchho.lexHTML(undefined), TypeError);
-        await assert.rejects(() => guchho.lexCSS(null), TypeError);
-        await assert.rejects(() => guchho.lexJS(42), TypeError);
+        await assert.rejects(() => guchho.lexer(undefined, { language: "html" }), TypeError);
+        await assert.rejects(() => guchho.lexer(null, { language: "css" }), TypeError);
+        await assert.rejects(() => guchho.parse(42, { language: "js" }), TypeError);
     });
 });
 
@@ -146,7 +148,7 @@ describe("parsing", () => {
 
 describe("the handle model", () => {
     it("a handle from one language is not accepted by another", needsBinary, async () => {
-        const html = await guchho.parseHTML("<p>x</p>");
+        const html = await guchho.parse("<p>x</p>", { language: "html" });
 
         await assert.rejects(() => guchho.print(html.ast, { language: "css" }), (error) => {
             assert.ok(error instanceof guchho.BuildFailure || error instanceof TypeError);
@@ -159,44 +161,6 @@ describe("the handle model", () => {
             assert.ok(error instanceof guchho.BuildFailure || error instanceof Error, "should refuse");
             return true;
         });
-    });
-});
-
-describe("transforming", () => {
-    it("consumes its handle and answers with a new one", needsBinary, async () => {
-        const parsed = await guchho.parseHTML("<p>x</p>");
-        const result = await guchho.transformHTML(parsed.ast);
-
-        assert.deepEqual(result.errors, []);
-        assert.equal(typeof result.ast, "number");
-        assert.notEqual(result.ast, parsed.ast, "a transform must not reuse the handle");
-        assert.equal(result.passes.length, 0);
-
-        const reused = guchho.transformHTML(parsed.ast);
-        await assert.rejects(reused, (error) => error.errors.length > 0);
-    });
-
-    it("says in one place that it ran no passes, by language", needsBinary, async () => {
-        const html = await guchho.parseHTML("<p>x</p>");
-        const js = await guchho.parseJS("const x = 1;");
-
-        const htmlResult = await guchho.transformHTML(html.ast);
-        const jsResult = await guchho.transformJS(js.ast);
-
-        assert.equal(htmlResult.passes.length, 0);
-        assert.equal(jsResult.passes.length, 0);
-        assert.equal(typeof htmlResult.note, "string");
-        assert.ok(htmlResult.note.length > 0, "the identity transform should say why nothing ran");
-    });
-
-    it("reports which pass ran when a CSS transform does work", needsBinary, async () => {
-        const parsed = await guchho.parseCSS(".a{color:red}.b{color:blue}");
-        const result = await guchho.transformCSS(parsed.ast, { removeDeadRules: true });
-
-        assert.equal(result.passes[0], "removeDeadRules");
-        assert.equal(typeof result.removed, "number");
-        assert.equal(typeof result.ruleCount, "number");
-        assert.equal(result.removed + result.ruleCount, 2, "removed and remaining must account for every rule");
     });
 });
 
@@ -218,31 +182,28 @@ describe("printing", () => {
 });
 
 describe("the pipeline, per language", () => {
-    it("HTML: lex, parse, transform, print", needsBinary, async () => {
-        const lexed = await guchho.lexHTML("<div>t</div>");
+    it("HTML: lex, parse, print", needsBinary, async () => {
+        const lexed = await guchho.lexer("<div>t</div>", { language: "html" });
         assert.ok(lexed.tokens.length >= 3);
 
-        const parsed = await guchho.parseHTML("<div>t</div>");
-        const transformed = await guchho.transformHTML(parsed.ast);
-        const printed = await guchho.printHTML(transformed.ast);
+        const parsed = await guchho.parse("<div>t</div>", { language: "html" });
+        const printed = await guchho.print(parsed.ast, { language: "html" });
 
         assert.ok(printed.code.includes("<div>"));
         assert.ok(printed.code.includes("t"));
     });
 
-    it("CSS: lex, parse, transform, print", needsBinary, async () => {
-        const parsed = await guchho.parseCSS(".a{color:red}.b{color:blue}");
-        const transformed = await guchho.transformCSS(parsed.ast, { removeDeadRules: true });
-        const printed = await guchho.printCSS(transformed.ast);
+    it("CSS: lex, parse, print", needsBinary, async () => {
+        const parsed = await guchho.parse(".a{color:red}.b{color:blue}", { language: "css" });
+        const printed = await guchho.print(parsed.ast, { language: "css" });
 
         assert.equal(printed.errors.length, 0);
         assert.ok(printed.code.includes("color"));
     });
 
-    it("JS: lex, parse, transform, print", needsBinary, async () => {
-        const parsed = await guchho.parseJS("const answer = 42;");
-        const transformed = await guchho.transformJS(parsed.ast);
-        const printed = await guchho.printJS(transformed.ast);
+    it("JS: lex, parse, print", needsBinary, async () => {
+        const parsed = await guchho.parse("const answer = 42;", { language: "js" });
+        const printed = await guchho.print(parsed.ast, { language: "js" });
 
         assert.equal(printed.errors.length, 0);
         assert.ok(printed.code.includes("answer = 42"), `got: ${JSON.stringify(printed.code)}`);

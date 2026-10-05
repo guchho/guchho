@@ -1025,6 +1025,18 @@ namespace guchho::config {
         std::string AbsOutputBase{};
         std::string OutputExtensionJS{};
         std::string OutputExtensionCSS{};
+        // The browser global a wrapper format publishes the bundle's exports
+        // under, as the user wrote it: "MyLibrary" or "Foo.Bar". This is the
+        // raw text a config file carried, and it is kept as text rather than as
+        // parsed path parts because the API is what validates it — the same
+        // ParseGlobalName pass a command line value goes through, so a name from
+        // a config file and the same name from a flag are known to be the same
+        // request rather than merely spelled the same.
+        //
+        // "GlobalName" below is the parsed form the linker reads. It is filled
+        // in by the API from BuildOptions::global_name, which is either this
+        // string or the command line's.
+        std::string GlobalNameText{};
         std::vector<std::string> GlobalName{};
         AmdOptions Amd{};
         bool Extend{};

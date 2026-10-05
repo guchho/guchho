@@ -496,7 +496,13 @@ namespace guchho::linker {
         //           named "longIdentifier"
         //   output: a renamer that maps "longIdentifier" to a short name such
         //           as "a" for the duration of this chunk
-        std::unique_ptr<javascript::Renamer> RenameSymbolsInChunk(ChunkInfo& chunk, std::vector<uint32_t>& files_in_order);
+        //
+        // When identifier minification is on, the shuffled name minifier that
+        // named the chunk's symbols is also written to "out_minifier" if it is
+        // non-null, so a caller that generates synthetic code for the same
+        // chunk (such as the format wrapper) can draw names from the same
+        // pool. It is left untouched when minification is off.
+        std::unique_ptr<javascript::Renamer> RenameSymbolsInChunk(ChunkInfo& chunk, std::vector<uint32_t>& files_in_order, compiler::NameMinifier* out_minifier = nullptr);
         std::string GenerateGlobalNamePrefix();
         static std::string SanitizeGlobalName(const std::string& id);
         // Emits the statements for one file's part range. The file is adapted

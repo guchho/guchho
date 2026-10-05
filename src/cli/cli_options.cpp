@@ -549,10 +549,17 @@ std::optional<ErrorWithNote> parseOptionsImpl(
             mark(api::kOptPublicPath);
             continue;
         }
-        if (arg.starts_with("--global-name=")) {
-            auto value = arg.substr(std::string_view("--global-name=").size());
+        // Two spellings for one option. "--global-name" is the older and more
+        // precise of the two; "--name" is the shorter one a library author
+        // reaches for first, and it is unambiguous here because this command
+        // line has no other option that takes a bare name. Both write the same
+        // field, so precedence between them is decided by the order they
+        // appear in, exactly as it is between two spellings of the same flag.
+        if (arg.starts_with("--global-name=") || arg.starts_with("--name=")) {
+            auto value = arg.substr(arg.find('=') + 1);
             if (build_opts) build_opts->global_name = value;
             else transform_opts->global_name = value;
+            mark(api::kOptGlobalName);
             continue;
         }
         // -------------------------------------------------------------------------
@@ -1097,7 +1104,8 @@ std::optional<ErrorWithNote> parseOptionsImpl(
                 "loader", "log-level", "log-limit", "main-fields", "mangle-cache",
                 "mangle-props", "mangle-quoted", "metafile", "minify-html",
                 "minify-identifiers",
-                "minify-syntax", "minify-whitespace", "minify", "outbase", "outdir",
+                "minify-syntax", "minify-whitespace", "minify", "name", "outbase",
+                "outdir",
                 "outfile", "packages", "platform", "preserve-symlinks", "pretty",
                 "public-path",
                 "reserve-props", "resolve-extensions", "serve-fallback", "serve",

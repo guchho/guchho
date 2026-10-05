@@ -29,12 +29,13 @@ const { PLATFORM_PACKAGES } = require("../guchho/lib/platforms");
 // one to lib/index.js is a decision somebody has to notice here.
 //
 // The list is the naming breaking change CHANGELOG.md names: formatMessages,
-// analyzeMetafile, getBinaryPath, getPlatformKey and spawnBinary are gone, and
-// analyze is what analyzing a metafile is called now. Nothing here is a
-// leftover from the old surface, because a leftover is a promise nobody asked
-// for.
+// getBinaryPath, getPlatformKey and spawnBinary are gone. analyze changed
+// meaning rather than disappearing — it takes a configuration now, and the old
+// metafile report is analyzeMetafile. Nothing here is a leftover from the old
+// surface, because a leftover is a promise nobody asked for.
 const PUBLIC_API = [
     "analyze",
+    "analyzeMetafile",
     "build",
     "context",
     "lexCSS",
@@ -89,7 +90,7 @@ describe("the package's CommonJS entry", () => {
     it("exports no name. it swore to drop", () => {
         // The break is documented as a break. A name that still leaks out is a
         // caller quietly depending on something the CHANGELOG said is gone.
-        for (const name of ["formatMessages", "analyzeMetafile", "getBinaryPath", "getPlatformKey", "spawnBinary"]) {
+        for (const name of ["formatMessages", "getBinaryPath", "getPlatformKey", "spawnBinary"]) {
             assert.equal(guchho[name], undefined, `${name} should not be on the surface`);
         }
     });
@@ -105,7 +106,8 @@ describe("the package's CommonJS entry", () => {
         // A wrapper would be a second answer to the same question, and the two
         // would drift: a caller checking the arity of build() or relying on
         // its default argument would be reading a copy.
-        const { build, analyze } = require("../guchho/lib/build");
+        const { build, analyzeMetafile } = require("../guchho/lib/build");
+        const { analyze } = require("../guchho/lib/analyze");
         const { transform } = require("../guchho/lib/transform");
         const { context, BuildContext } = require("../guchho/lib/context");
         const { stopService } = require("../guchho/lib/service");
@@ -116,6 +118,7 @@ describe("the package's CommonJS entry", () => {
         assert.equal(guchho.transform, transform);
         assert.equal(guchho.context, context);
         assert.equal(guchho.analyze, analyze);
+        assert.equal(guchho.analyzeMetafile, analyzeMetafile);
         assert.equal(guchho.stop, stopService);
         assert.equal(guchho.version, version);
         assert.equal(guchho.BuildContext, BuildContext);

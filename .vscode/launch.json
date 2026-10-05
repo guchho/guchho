@@ -79,7 +79,24 @@
         // ─────────────────────────────────────────────
         // CLI
         // ─────────────────────────────────────────────
-
+        {
+            "name": "Guchho: Build Interactive",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho.exe",
+            "args": [
+                "build",
+                "${input:guchhoEntry}",
+                "--bundle=${input:guchhoBundle}",
+                "--format=${input:guchhoFormat}",
+                "--target=${input:guchhoTarget}",
+                "--platform=${input:guchhoPlatform}",
+                "--minify=${input:guchhoMinify}",
+                "--log-level=${input:guchhoLogLevel}"
+            ],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false
+        },
         {
             // Full pipeline: HTML -> CSS -> JS -> linker -> emit.
             "name": "Guchho: build HTML fixture",
@@ -309,12 +326,91 @@
     // Inputs
     // ─────────────────────────────────────────────
 
+
     "inputs": [
+        {
+            "id": "guchhoEntry",
+            "type": "promptString",
+            "description": "Entry file",
+            "default": "test/fixtures/basic/entry.js"
+        },
+        {
+            "id": "guchhoBundle",
+            "type": "pickString",
+            "description": "Bundle",
+            "options": [
+                "true",
+                "false"
+            ],
+            "default": "true"
+        },
+        {
+            "id": "guchhoFormat",
+            "type": "pickString",
+            "description": "Output format",
+            "options": [
+            "esm",
+            "cjs",
+            "iife",
+            "umd",
+            "amd",
+            "system"
+            ],
+            "default": "esm"
+        },
+        {
+            "id": "guchhoTarget",
+            "type": "pickString",
+            "description": "Target",
+            "options": [
+            "es2020",
+            "es2022",
+            "esnext",
+            "chrome80",
+            "node16"
+            ],
+            "default": "es2020"
+        },
+        {
+            "id": "guchhoPlatform",
+            "type": "pickString",
+            "description": "Platform",
+            "options": [
+            "browser",
+            "node",
+            "neutral"
+            ],
+            "default": "browser"
+        },
+        {
+            "id": "guchhoMinify",
+            "type": "pickString",
+            "description": "Minify",
+            "options": [
+            "true",
+            "false"
+            ],
+            "default": "false"
+        },
+        {
+            "id": "guchhoLogLevel",
+            "type": "pickString",
+            "description": "Log level",
+            "options": [
+            "verbose",
+            "debug",
+            "info",
+            "warning",
+            "error",
+            "silent"
+            ],
+            "default": "info"
+        },
         {
             "id": "testFilter",
             "type": "promptString",
             "description": "Test filter (substring of Suite.Name -- blank runs the whole suite)",
             "default": ""
         }
-    ]
+    ],
 }

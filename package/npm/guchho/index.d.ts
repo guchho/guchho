@@ -207,7 +207,7 @@ export interface CommonOptions {
    * at both levels is refused rather than resolved, because picking one is a
    * guess about where the output goes.
    *
-   * "entry" is the one spelling that moves — to entryPoints — so the nested form
+   * "entry" is the one spelling that moves — to entrypoints — so the nested form
    * accepts it.
    */
     build?: BuildOptionsNested
@@ -222,7 +222,7 @@ export interface CommonOptions {
 /**
  * Build options in the nested spelling.
  *
- * Identical to BuildOptions except that "entry" is accepted for "entryPoints".
+ * Identical to BuildOptions except that "entry" is accepted for "entrypoints".
  * It is a separate interface only because that one alias differs; everything
  * else is inherited, so the two cannot drift into describing different options.
  */
@@ -280,6 +280,14 @@ export interface BuildOptions extends CommonOptions {
    * What to build. Optional because `stdin` is an alternative, not because a
    * build without one is fine — a configuration with neither throws rather than
    * falling back to a glob, finding nothing and reporting success.
+   */
+  entrypoints?: EntryPoint[] | EntryPoint
+  /**
+   * The spelling this option had before "entrypoints" was renamed to lowercase.
+   *
+   * An alias, not a second option: it reaches the same place and setting both
+   * is a TypeError rather than a silent preference for one. Kept so a script
+   * written against the old name keeps running.
    */
   entryPoints?: EntryPoint[] | EntryPoint
   /** Which loader to use, by file extension. A build's loader is a map, where a
@@ -497,6 +505,8 @@ export interface DevServer {
   rebuild(): Promise<BuildResult>
   /** Stops the server and releases the context. Safe to call more than once. */
   close(): Promise<void>
+  /** Releases it at the end of an `await using` scope. Needs "esnext.disposable"
+   * (or "esnext") in lib, which is TS 5.2 and later. */
   [Symbol.asyncDispose](): Promise<void>
 }
 
@@ -525,6 +535,8 @@ export interface Watcher {
   rebuild(): Promise<BuildResult>
   /** Stops watching and releases the context. Safe to call more than once. */
   close(): Promise<void>
+  /** Releases it at the end of an `await using` scope. Needs "esnext.disposable"
+   * (or "esnext") in lib, which is TS 5.2 and later. */
   [Symbol.asyncDispose](): Promise<void>
 }
 

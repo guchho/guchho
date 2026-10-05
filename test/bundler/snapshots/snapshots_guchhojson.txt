@@ -10,6 +10,8 @@ export {
 ================================================================================
 BundlerGuchhoJSON.BuildFormatCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // helper.js
 function helper() {
   return "ok";

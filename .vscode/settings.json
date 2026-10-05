@@ -16,9 +16,12 @@
 
   // ─────────────────────────────────────────────
   // Microsoft C/C++ extension
-  // Use clangd as the primary C++ language server
+  // clangd stays on as the primary language server; "default" turns
+  // cpptools IntelliSense back on as well, so both engines report
+  // diagnostics. See .vscode/c_cpp_properties.json -- cpptools reads
+  // its configuration from there.
   // ─────────────────────────────────────────────
-  "C_Cpp.intelliSenseEngine": "disabled",
+  "C_Cpp.intelliSenseEngine": "default",
   "C_Cpp.errorSquiggles": "enabled",
 
   // ─────────────────────────────────────────────

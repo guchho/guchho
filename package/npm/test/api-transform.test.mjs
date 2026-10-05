@@ -93,11 +93,22 @@ describe("the module's shape", () => {
     it("dropped the names the CHANGELOG says are gone", () => {
         // The break is intentional and documented. A binding that is still
         // there is a caller depending on something that was promised gone.
+        // analyzeMetafile is not in this list because it is not gone: analyze
+        // changed meaning, and the metafile report it used to do is still
+        // reachable under the name that says so.
         assert.equal(guchho.formatMessages, undefined);
-        assert.equal(guchho.analyzeMetafile, undefined);
         assert.equal(guchho.getBinaryPath, undefined);
         assert.equal(guchho.getPlatformKey, undefined);
         assert.equal(guchho.spawnBinary, undefined);
+    });
+
+    it("binds analyze and analyzeMetafile as two different functions", () => {
+        // Named re-export rather than a wrapper, so an ESM caller and a CommonJS
+        // caller get the same function object. A wrapper here would be a second
+        // answer to the same question, and the two would drift.
+        assert.equal(typeof guchho.analyze, "function");
+        assert.equal(typeof guchho.analyzeMetafile, "function");
+        assert.notEqual(guchho.analyze, guchho.analyzeMetafile);
     });
 
     it("does not leak the platform table, which is how the binary is found", () => {

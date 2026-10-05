@@ -1153,6 +1153,8 @@ export {
 ================================================================================
 BundlerDCE.TestDropLabels
 ---------- /out.js ----------
+"use strict";
+
 // entry.js
 keep_1: require("foo1");
 exports.bar = function() {
@@ -3196,6 +3198,7 @@ new KeepMe2();
 ================================================================================
 BundlerDCE.TestTreeShakingNoBundleCJS
 ---------- /out.js ----------
+"use strict";
 function keep() {
 }
 function unused() {

@@ -74,7 +74,7 @@ const ALIASES = {
 // list expects somewhere to put it, and because the watcher takes a delay that
 // belongs to no build option.
 const SERVER_KEYS = new Set(["host", "port", "open", "servedir", "fallback"]);
-const WATCH_KEYS = new Set(["delay"]);
+const WATCH_KEYS = new Set(["delay", "interval"]);
 
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);

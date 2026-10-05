@@ -570,6 +570,16 @@ namespace guchho::linker {
         auto& file = graph.files[source_index];
         auto& repr = *std::get<std::shared_ptr<graph::JSRepr>>(file.input_file.repr);
 
+        // A UMD entry point does not use this part, and building it would cost
+        // the bundle an exports object and a "__export" call whose result
+        // nothing reads: the UMD wrapper hands the factory the object to write
+        // into and GenerateEntryPointTailJS assigns each name onto it directly.
+        // Only the entry is exempt -- a non-entry file still needs its namespace
+        // object when something imports it as one.
+        if (options->OutputFormat == config::Format::kUMD && file.IsEntryPoint()) {
+            return;
+        }
+
         std::vector<javascript::Property> properties;
         std::vector<javascript::Dependency> ns_export_dependencies;
         std::unordered_map<compiler::Ref, javascript::SymbolUse, javascript::RefHash> ns_export_symbol_uses;
@@ -1733,8 +1743,14 @@ std::string hint;
             if (auto* js_ptr = std::get_if<std::shared_ptr<graph::JSRepr>>(&file.input_file.repr)) {
                 auto& repr = **js_ptr;
 
+                // UMD needs them for the same reason SystemJS does: it writes an
+                // entry's export names straight onto an object handed in by
+                // the wrapper, so a re-export that is a namespace alias has to
+                // be copied into a local first. ESModule allocates them whether
+                // or not it ends up using one.
                 if (file.IsEntryPoint() && (options->OutputFormat == config::Format::kESModule ||
-                    options->OutputFormat == config::Format::kSystem)) {
+                    options->OutputFormat == config::Format::kSystem ||
+                    options->OutputFormat == config::Format::kUMD)) {
                     std::vector<compiler::Ref> copies(repr.meta.sorted_and_filtered_export_aliases.size());
                     for (size_t i = 0; i < repr.meta.sorted_and_filtered_export_aliases.size(); i++) {
                         copies[i] = graph.GenerateNewSymbol(source_index, compiler::SymbolKind::kOther,

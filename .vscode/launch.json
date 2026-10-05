@@ -80,6 +80,11 @@
         // CLI
         // ─────────────────────────────────────────────
         {
+            // Every build flag as a prompt, for stepping through a build with
+            // different options. "--name" sits after "--format" because it is
+            // the global namespace and only umd and iife read it; passing it
+            // for any other format is accepted and ignored. Leave it blank for
+            // no namespace, which is not the same as naming one.
             "name": "Guchho: Build Interactive",
             "type": "cppdbg",
             "request": "launch",
@@ -89,6 +94,7 @@
                 "${input:guchhoEntry}",
                 "--bundle=${input:guchhoBundle}",
                 "--format=${input:guchhoFormat}",
+                "--name=${input:guchhoName}",
                 "--target=${input:guchhoTarget}",
                 "--platform=${input:guchhoPlatform}",
                 "--minify=${input:guchhoMinify}",
@@ -357,6 +363,17 @@
             "system"
             ],
             "default": "esm"
+        },
+        {
+            // Free text rather than a pick list, because a namespace is any
+            // dotted chain of identifiers the JavaScript parser accepts
+            // (api.cpp validate_global_name) -- "MyLib.Widget", not a fixed
+            // set. Blank means unset, which is why the flag can be passed
+            // unconditionally. Only umd and iife use it.
+            "id": "guchhoName",
+            "type": "promptString",
+            "description": "Global namespace for umd and iife output (blank for none)",
+            "default": ""
         },
         {
             "id": "guchhoTarget",

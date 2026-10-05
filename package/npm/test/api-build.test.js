@@ -247,9 +247,9 @@ describe("build()", () => {
     });
 
     it("keeps the shape of a successful answer predictable", needsBinary, async () => {
-        // A caller writes result.errors before it knows whether there are any.
-        // The optional halves are the ones a caller has to ask about first, and
-        // they are asked about by being absent.
+        // A caller writes result.success before it knows whether there are any
+        // errors. The optional halves are the ones a caller has to ask about
+        // first, and they are asked about by being absent.
         const root = makeProject();
 
         const result = await guchho.build({
@@ -258,7 +258,38 @@ describe("build()", () => {
             write: false,
         });
 
-        assert.deepEqual(Object.keys(result).sort(), ["errors", "outputFiles", "warnings"]);
+        assert.deepEqual(Object.keys(result).sort(), [
+            "duration",
+            "errors",
+            "outputFiles",
+            "outputs",
+            "success",
+            "warnings",
+        ]);
+        assert.equal(result.success, true);
+        assert.equal(typeof result.duration, "number");
+        assert.ok(result.duration >= 0, "duration should not be negative");
+
+        // The summaries are the cheap view; outputFiles is the whole thing. Both
+        // are present here because write:false is the one case where the bytes
+        // are actually available to answer with.
+        assert.ok(result.outputs.length > 0, "a successful build should report outputs");
+        for (const output of result.outputs) {
+            assert.equal(typeof output.path, "string");
+            assert.equal(typeof output.size, "number");
+        }
+        for (const file of result.outputFiles) {
+            assert.ok(
+                result.outputs.some((output) => output.path === file.path),
+                `${file.path} should appear in outputs`
+            );
+        }
+
+        // inputs needs a metafile, which was not asked for here. Absent rather
+        // than empty: "nothing went in" is not what an unasked question means.
+        assert.equal(result.inputs, undefined);
+        assert.equal(result.metafile, undefined);
+
         for (const message of [...result.errors, ...result.warnings]) {
             assert.equal(typeof message.id, "string");
             assert.equal(typeof message.pluginName, "string");
@@ -266,6 +297,49 @@ describe("build()", () => {
             assert.ok(Array.isArray(message.notes), "notes should always be an array");
             assert.ok("location" in message, "location should always be present, even as null");
         }
+    });
+
+    it("reports inputs when a metafile was asked for", needsBinary, async () => {
+        // The same result, from a build that let the engine write its metafile.
+        // This is the only way inputs can be filled, and filling them from
+        // anywhere else would mean a second opinion about what was read.
+        const root = makeProject();
+
+        const result = await guchho.build({
+            absWorkingDir: root,
+            entryPoints: ["src/main.js"],
+            write: false,
+            metafile: true,
+        });
+
+        assert.ok(result.inputs.length > 0, "a metafile should name the files that were read");
+        for (const input of result.inputs) {
+            assert.equal(typeof input.path, "string");
+            assert.equal(typeof input.bytes, "number");
+        }
+        assert.ok(
+            result.inputs.some((input) => input.path.endsWith("main.js")),
+            "the entry point should be one of the inputs"
+        );
+    });
+
+    it("builds every configuration in an array, in order", needsBinary, async () => {
+        // Two configurations, two outdirs, two answers. Ordered, because a caller
+        // passing an array has positions it means.
+        const root = makeProject();
+
+        const results = await guchho.build([
+            { absWorkingDir: root, entryPoints: ["src/main.js"], outdir: "one" },
+            { absWorkingDir: root, entryPoints: ["src/main.js"], outdir: "two" },
+        ]);
+
+        assert.ok(Array.isArray(results), "an array of configurations should answer with an array");
+        assert.equal(results.length, 2);
+        for (const result of results) {
+            assert.equal(result.success, true);
+        }
+        assert.ok(fs.existsSync(path.join(root, "one")), "the first outdir should exist");
+        assert.ok(fs.existsSync(path.join(root, "two")), "the second outdir should exist");
     });
 
     it("does not put the engine's own banner in the results", needsBinary, async () => {

@@ -210,10 +210,10 @@ describe("printing", () => {
     });
 
     it("a fragment parse prints the fragment", needsBinary, async () => {
-        const parsed = await guchho.parseHTML("<div id=\"x\">t</div>", { fragment: true });
-        const result = await guchho.printHTML(parsed.ast);
+        const parsed = await guchho.parse('<div id="x">t</div>', { language: "html", fragment: true });
+        const result = await guchho.print(parsed.ast, { language: "html" });
 
-        assert.equal(result.code, "<div id=\"x\">t</div>");
+        assert.equal(result.code, '<div id="x">t</div>');
     });
 });
 

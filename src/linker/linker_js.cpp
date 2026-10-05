@@ -1063,7 +1063,54 @@ config::Format format = options->OutputFormat;
         if (chunk.is_entry_point) {
             if (auto* repr_ptr = std::get_if<std::shared_ptr<graph::JSRepr>>(&graph.files[chunk.source_index].input_file.repr)) {
                 auto& repr = **repr_ptr;
+
+                // A CommonJS bundle is a script rather than a module, so
+                // nothing about it is strict by itself. Every ESM input is
+                // flattened into the one script a cjs bundle is, which means
+                // the bundle as a whole ends up with the same implicit
+                // strictness the inputs had - but only by accident, and only
+                // as long as no output format or interop wrapper ever
+                // separates them again. Putting the directive in the generated
+                // prologue states that instead of leaving it to inference.
+                //
+                // This is emitted here rather than being left to the parser
+                // for two reasons. It is the module prologue for the chunk,
+                // which is the only place a directive is a directive: the
+                // parser's list belongs to the entry file, and a cjs bundle
+                // can be several files. And it is written as a raw string
+                // rather than through the printer, so minify_whitespace can
+                // only drop the newline - the directive and its semicolon
+                // survive minify and minify_syntax because no pass is
+                // position to see them as removable.
+                //
+                // A source file that already asks for strict mode, or a
+                // tsconfig with "alwaysStrict", puts "use strict" in this
+                // same list, so the search below is what keeps the bundle
+                // from carrying it twice. The synthesized one goes first so
+                // the result is the same bytes either way.
+                //
+                // The consequence to be aware of when reading a cjs bundle
+                // back: strictness is inherited by nested functions, so this
+                // reaches the whole flattened body, including an inlined
+                // CommonJS input that was parsed as a sloppy script (".cjs",
+                // or a "type": "commonjs" package - see the exports-kind
+                // decision in js_parser.cpp). An octal literal, a "with",
+                // "arguments.callee" or an assignment to an undeclared name
+                // in such an input becomes a syntax error at load time
+                // rather than at build time.
+                if (options->OutputFormat == config::Format::kCommonJS &&
+                    std::none_of(repr.ast.directives.begin(), repr.ast.directives.end(),
+                                 [](const std::string& directive) { return directive == "use strict"; })) {
+                    auto quoted = helpers::QuoteForJSON("use strict", options->ASCIIOnly) + ";" + newline;
+                    prev_offset.AdvanceString(quoted);
+                    j.AddString(quoted);
+                    newline_before_comment = true;
+                }
+
                 for (auto& directive : repr.ast.directives) {
+                    // An ESM output is already strict, so its input's
+                    // "use strict" is redundant and is dropped to keep the
+                    // bundle from saying it twice for one mode.
                     if (directive != "use strict" || options->OutputFormat != config::Format::kESModule) {
                         auto quoted = helpers::QuoteForJSON(directive, options->ASCIIOnly) + ";" + newline;
                         prev_offset.AdvanceString(quoted);

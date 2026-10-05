@@ -1666,24 +1666,11 @@ System.register([], function(exports) {
 TestExportFormsUMD
 ---------- /out.js ----------
 (function(global, factory) {
-  typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory(require) :
-  typeof define === "function" && define.amd ? define(["require"], factory) :
-  (global = typeof globalThis !== "undefined" ? globalThis : global || self, (global.globalName = global.globalName || {}, global.globalName = factory(void 0)));
-})(this, function(require) {
-  // entry.js
-  var entry_exports = {};
-  __export(entry_exports, {
-    C: () => Class,
-    Class: () => Class,
-    Fn: () => Fn,
-    abc: () => abc,
-    b: () => b_exports,
-    c: () => c,
-    default: () => entry_default,
-    l: () => l,
-    v: () => v
-  });
-
+  typeof exports === "object" && typeof module !== "undefined" ? factory(exports, require) :
+  typeof define === "function" && define.amd ? define(["exports"], factory) :
+  (global = typeof globalThis !== "undefined" ? globalThis : global || self, (global.globalName = global.globalName || {}, factory(global.globalName, void 0), global.globalName));
+})(this, function(exports, require) {
+  "use strict";
   // a.js
   var abc = void 0;
 
@@ -1703,7 +1690,15 @@ TestExportFormsUMD
   }
   var Class = class {
   };
-  return __toCommonJS(entry_exports);
+  exports.C = Class;
+  exports.Class = Class;
+  exports.Fn = Fn;
+  exports.abc = abc;
+  exports.b = b_exports;
+  exports.c = c;
+  exports.default = entry_default;
+  exports.l = l;
+  exports.v = v;
 });
 
 ================================================================================

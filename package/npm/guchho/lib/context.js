@@ -33,6 +33,7 @@
 const { getService } = require("./service");
 const { toFlags, toEntryPoints } = require("./flags");
 const { toBuildResult } = require("./convert");
+const { normalize } = require("./options");
 
 /** A build that is set up once and built as many times as asked. */
 class BuildContext {
@@ -65,7 +66,9 @@ class BuildContext {
    */
   async rebuild() {
     this._assertLive();
+    const started = Date.now();
     const response = await this._service.request({ command: "rebuild", ...this._identity });
+    response.duration = Date.now() - started;
     return this._deliver(response);
   }
 
@@ -179,12 +182,14 @@ class BuildContext {
  * @returns {Promise<BuildContext>}
  */
 async function context(options = {}) {
+  const { build: normalized } = normalize(options);
+
   const service = await getService();
   const request = {
     command: "context",
-    flags: toFlags(options),
-    entries: toEntryPoints(options),
-    ...answerFields(options),
+    flags: toFlags(normalized),
+    entries: toEntryPoints(normalized),
+    ...answerFields(normalized),
   };
 
   const response = await service.call(request);

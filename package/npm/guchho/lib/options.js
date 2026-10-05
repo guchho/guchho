@@ -4,7 +4,7 @@
 //
 // A caller writes either the flat form the API has always published:
 //
-//     await build({ entryPoints: ["src/index.js"], outdir: "dist", minify: true });
+//     await build({ entrypoints: ["src/index.js"], outdir: "dist", minify: true });
 //
 // or the nested form a config file uses:
 //
@@ -61,12 +61,22 @@ const SECTIONS = ["build", "server", "watch", "plugins"];
  * the engine only ever sees one spelling of a thing. Two aliases that named
  * different options would be a bug here rather than a feature there.
  *
+ * "entrypoints" is the canonical spelling because it is the one that survives
+ * the trip: it matches the plural noun the usage line already used, the JSON
+ * field the protocol puts on the wire, and the lowercasing every other
+ * multiword option in this table follows.
+ *
+ * "entryPoints" is here because the API published that camel-cased spelling for
+ * years, and a caller who has it in a working script should not be broken by a
+ * rename. It is accepted and reaches the same place; it is not a second option.
+ *
  * "entry" is here because one entry reads as "entry" and several read as
  * "entries", and a caller writing the nested form writes the singular. Both
  * spellings have always been accepted; they now reach the same place.
  */
 const ALIASES = {
-  entry: "entryPoints",
+  entry: "entrypoints",
+  entryPoints: "entrypoints",
 };
 
 // The section names a nested configuration may carry, and what each one is for.

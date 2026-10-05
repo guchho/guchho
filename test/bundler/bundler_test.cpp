@@ -465,7 +465,8 @@ void Suite::CompareSnapshot(const std::string& test_name,
     if (!update_snapshots_.load(std::memory_order_relaxed)) {
         auto it = expected_snapshots_.find(test_name);
         if (it == expected_snapshots_.end()) {
-            for (const auto& [key, _] : expected_snapshots_) {
+            for (const auto& [key, unused_body] : expected_snapshots_) {
+                (void)unused_body;
                 if (SnapshotKeyMatchesTest(key, test_name)) {
                     it = expected_snapshots_.find(key);
                     break;
@@ -507,7 +508,8 @@ void Suite::UpdateSnapshots() {
     // file has never seen has no key to reuse, so it takes the spelling the
     // rest of the file uses.
     std::size_t bare_keys = 0;
-    for (const auto& [expected_key, _] : expected_snapshots_) {
+    for (const auto& [expected_key, unused_body] : expected_snapshots_) {
+        (void)unused_body;
         if (expected_key.find('.') == std::string::npos) {
             bare_keys++;
         }
@@ -517,7 +519,8 @@ void Suite::UpdateSnapshots() {
     std::map<std::string, std::string> records;
     for (const auto& [test_name, body] : generated_snapshots_) {
         std::string key = test_name;
-        for (const auto& [expected_key, _] : expected_snapshots_) {
+        for (const auto& [expected_key, unused_body] : expected_snapshots_) {
+            (void)unused_body;
             if (SnapshotKeyMatchesTest(expected_key, test_name)) {
                 key = expected_key;
                 break;
@@ -546,9 +549,11 @@ void Suite::UpdateSnapshots() {
 }
 
 bool Suite::SnapshotsComplete() const {
-    for (const auto& [key, _] : expected_snapshots_) {
+    for (const auto& [key, unused_body] : expected_snapshots_) {
+        (void)unused_body;
         bool found = false;
-        for (const auto& [test_name, _] : generated_snapshots_) {
+        for (const auto& [test_name, unused_generated] : generated_snapshots_) {
+            (void)unused_generated;
             if (SnapshotKeyMatchesTest(key, test_name)) {
                 found = true;
                 break;
@@ -563,7 +568,8 @@ bool Suite::SnapshotsComplete() const {
 
 bool Suite::ValidateSnapshots() {
     bool valid = true;
-    for (const auto& [key, _] : expected_snapshots_) {
+    for (const auto& [key, unused_body] : expected_snapshots_) {
+        (void)unused_body;
         if (generated_snapshots_.find(key) ==
             generated_snapshots_.end()) {
             std::printf("    %s: No test found for snapshot %s\n",

@@ -1,5 +1,7 @@
 TestExportOtherAsNamespaceCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // foo.js
 var require_foo = __commonJS({
   "foo.js"(exports) {
@@ -18,6 +20,8 @@ var ns = __toESM(require_foo());
 ================================================================================
 TestExportOtherCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // foo.js
 var require_foo = __commonJS({
   "foo.js"(exports) {
@@ -36,6 +40,8 @@ var import_foo = __toESM(require_foo());
 ================================================================================
 TestExportOtherNestedCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // foo.js
 var require_foo = __commonJS({
   "foo.js"(exports) {
@@ -56,6 +62,8 @@ var import_foo = __toESM(require_foo());
 ================================================================================
 TestExportSelfAndImportSelfCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // entry.js
 var entry_exports = {};
 __export(entry_exports, {
@@ -68,6 +76,8 @@ console.log(entry_exports);
 ================================================================================
 TestExportSelfAndRequireSelfCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // entry.js
 var entry_exports = {};
 __export(entry_exports, {
@@ -86,6 +96,8 @@ init_entry();
 ================================================================================
 TestExportSelfAsNamespaceCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // entry.js
 var entry_exports = {};
 __export(entry_exports, {
@@ -113,6 +125,8 @@ export {
 ================================================================================
 TestExportSelfCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // entry.js
 var entry_exports = {};
 __export(entry_exports, {
@@ -124,6 +138,8 @@ var foo = 123;
 ================================================================================
 TestExportSelfCommonJSMinified
 ---------- /out.js ----------
+"use strict";
+
 // entry.js
 var t = o((i, r) => {
   r.exports = { foo: 123 };
@@ -164,6 +180,8 @@ var someName = (() => {
 ================================================================================
 TestExportStarDefaultExportCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // entry.js
 var entry_exports = {};
 __export(entry_exports, {
@@ -263,6 +281,8 @@ console.log(internal_default, void 0);
 ================================================================================
 TestImportExportOtherAsNamespaceCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // foo.js
 var require_foo = __commonJS({
   "foo.js"(exports) {
@@ -432,6 +452,8 @@ console.log(value);
 ================================================================================
 TestImportSelfCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // entry.js
 var require_entry = __commonJS({
   "entry.js"(exports) {
@@ -881,6 +903,7 @@ export {
 ================================================================================
 TestReExportStarAsCommonJSNoBundle
 ---------- /out.js ----------
+"use strict";
 var entry_exports = {};
 __export(entry_exports, {
   out: () => out
@@ -899,6 +922,8 @@ export {
 ================================================================================
 TestReExportStarAsExternalCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // entry.js
 var entry_exports = {};
 __export(entry_exports, {
@@ -944,6 +969,7 @@ var mod = (() => {
 ================================================================================
 TestReExportStarCommonJSNoBundle
 ---------- /out.js ----------
+"use strict";
 var entry_exports = {};
 module.exports = __toCommonJS(entry_exports);
 __reExport(entry_exports, require("foo"), module.exports);
@@ -956,6 +982,8 @@ export * from "foo";
 ================================================================================
 TestReExportStarEntryPointAndInnerFile
 ---------- /out/entry.js ----------
+"use strict";
+
 // entry.js
 var entry_exports = {};
 __export(entry_exports, {
@@ -971,6 +999,8 @@ __reExport(inner_exports, require("b"));
 ================================================================================
 TestReExportStarExternalCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // entry.js
 var entry_exports = {};
 module.exports = __toCommonJS(entry_exports);

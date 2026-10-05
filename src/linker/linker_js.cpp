@@ -633,10 +633,11 @@ namespace guchho::linker {
     //
     // Every site that emits a __toCommonJS call in a tail, and the one site that
     // pulls the helper into the bundle, routes through here so the two can never
-    // disagree. The cases mirror the tail below: CommonJS, UMD and AMD call it,
-    // and IIFE returns it instead of assigning the global name -- but only for an
-    // entry that was not already wrapped in CommonJS, because then the wrapper
-    // call is what gets emitted. SystemJS and ESM never call it.
+    // disagree. The cases mirror the tail below: CommonJS and AMD call it, IIFE
+    // returns it instead of assigning the global name, and SystemJS and ESM never
+    // call it. UMD is absent because its wrapper passes the factory the exports
+    // object to write into and reads nothing back, so a converted ESM entry has
+    // no converted namespace to hand anyone.
     //
     // Input : source_index of an entry point.
     // Output: true when a __toCommonJS call will be printed.
@@ -651,7 +652,6 @@ namespace guchho::linker {
 
         switch (options->OutputFormat) {
         case config::Format::kCommonJS:
-        case config::Format::kUMD:
         case config::Format::kAMD:
             return true;
         case config::Format::kIIFE:
@@ -840,7 +840,66 @@ namespace guchho::linker {
             break;
 
         case config::Format::kUMD:
+            // The UMD wrapper hands the factory the exports object to write
+            // into, so a converted ESM entry publishes its names by assigning
+            // them one at a time. No return value is consumed, which is what
+            // removes the need for "__toCommonJS" here: that helper existed to
+            // copy a namespace object onto a "__esModule" marker object and hand
+            // the copy back, and there is no longer anywhere for a return value
+            // to land.
+            if (repr.meta.wrap == graph::WrapKind::kCJS) {
+                stmts.push_back(javascript::Stmt{.data = std::make_shared<javascript::SReturn>(javascript::SReturn{.value_or_nil = make_wrapper_call()})});
+            } else {
+                if (repr.meta.wrap == graph::WrapKind::kESM) {
+                    stmts.push_back(javascript::Stmt{.data = std::make_shared<javascript::SExpr>(javascript::SExpr{.value = make_wrapper_call()})});
+                }
+                size_t copy_index = 0;
+                for (auto& alias : repr.meta.sorted_and_filtered_export_aliases) {
+                    auto export_it = repr.meta.resolved_exports.find(alias);
+                    if (export_it == repr.meta.resolved_exports.end()) continue;
+                    auto export_ref = export_it->second.ref;
+
+                    auto& export_file = graph.files[export_it->second.source_index];
+                    auto& export_file_repr = *std::get<std::shared_ptr<graph::JSRepr>>(export_file.input_file.repr);
+                    auto import_it = export_file_repr.meta.imports_to_bind.find(export_ref);
+                    if (import_it != export_file_repr.meta.imports_to_bind.end()) {
+                        export_ref = import_it->second.ref;
+                    }
+
+                    // "export * as ns" resolves to the namespace object of
+                    // another module, which nothing here has a declaration for.
+                    // Copying it to a local gives the assignment something to
+                    // read, the same reason the SystemJS tail does it.
+                    if (auto* symbol = graph.symbols.Get(export_ref); symbol->namespace_alias) {
+                        auto temp_ref = repr.meta.cjs_export_copies[copy_index++];
+                        auto slocal = std::make_shared<javascript::SLocal>();
+                        slocal->decls.push_back(javascript::Decl{
+                            .binding = javascript::Binding{.data = std::make_shared<javascript::BIdentifier>(javascript::BIdentifier{.ref = temp_ref})},
+                            .value_or_nil = javascript::Expr(std::make_shared<javascript::EImportIdentifier>(javascript::EImportIdentifier{.ref = export_ref}), {}),
+                        });
+                        stmts.push_back(javascript::Stmt{.data = std::move(slocal)});
+                        export_ref = temp_ref;
+                    }
+
+                    stmts.push_back(javascript::Stmt{.data = std::make_shared<javascript::SExpr>(javascript::SExpr{
+                        .value = javascript::Assign(
+                            javascript::Expr(std::make_shared<javascript::EDot>(javascript::EDot{
+                                .target = javascript::Expr(std::make_shared<javascript::EIdentifier>(
+                                    javascript::EIdentifier{.ref = unbound_exports_ref}), {}),
+                                .name = alias,
+                            }), {}),
+                            javascript::Expr(std::make_shared<javascript::EImportIdentifier>(
+                                javascript::EImportIdentifier{.ref = export_ref}), {}))
+                    })});
+                }
+            }
+            break;
+
         case config::Format::kAMD:
+            // AMD keeps the return-value form. Its loader treats whatever the
+            // factory returns as the module's value, so the exports object has
+            // to be built and converted on the way out rather than written in
+            // place, and "__toCommonJS" is genuinely required.
             if (repr.meta.wrap == graph::WrapKind::kCJS) {
                 stmts.push_back(javascript::Stmt{.data = std::make_shared<javascript::SReturn>(javascript::SReturn{.value_or_nil = make_wrapper_call()})});
             } else {
@@ -1064,8 +1123,18 @@ config::Format format = options->OutputFormat;
             if (auto* repr_ptr = std::get_if<std::shared_ptr<graph::JSRepr>>(&graph.files[chunk.source_index].input_file.repr)) {
                 auto& repr = **repr_ptr;
 
-                // A CommonJS bundle is a script rather than a module, so
-                // nothing about it is strict by itself. Every ESM input is
+                // A wrapper that has its own function body is a different case from
+                // a bare script. The formats that wrap the bundle in a factory
+                // put a directive at the top of the whole chunk, which for them
+                // is outside the function the bundle lives in -- a no-op, and
+                // worse than a no-op because it says "strict" while promising
+                // the factory nothing. The directive belongs inside the factory,
+                // where strictness is actually inherited, and it is written into
+                // the wrapper's own text below for exactly that reason.
+                //
+                // CommonJS is the exception that motivates all of this: it is a
+                // script rather than a module, so nothing about it is strict by
+                // itself. Every ESM input is
                 // flattened into the one script a cjs bundle is, which means
                 // the bundle as a whole ends up with the same implicit
                 // strictness the inputs had - but only by accident, and only
@@ -1107,11 +1176,16 @@ config::Format format = options->OutputFormat;
                     newline_before_comment = true;
                 }
 
+                // UMD is excluded because its wrapper already writes this list
+                // into the factory body, where a directive actually applies.
+                // Emitting it here as well would put a second, unreachable
+                // prologue in front of the wrapper.
                 for (auto& directive : repr.ast.directives) {
                     // An ESM output is already strict, so its input's
                     // "use strict" is redundant and is dropped to keep the
                     // bundle from saying it twice for one mode.
                     if (directive != "use strict" || options->OutputFormat != config::Format::kESModule) {
+                        if (options->OutputFormat == config::Format::kUMD) continue;
                         auto quoted = helpers::QuoteForJSON(directive, options->ASCIIOnly) + ";" + newline;
                         prev_offset.AdvanceString(quoted);
                         j.AddString(quoted);
@@ -1201,15 +1275,33 @@ config::Format format = options->OutputFormat;
             // ("typeofexports"). Every other space here is cosmetic and goes
             // through "space", so minify_whitespace reaches all of them.
             text += "(function(global," + space + "factory)" + space + "{" + newline;
+            // The factory receives the exports object rather than returning
+            // one. That is what lets the body assign "exports.add = add"
+            // directly instead of building an object, handing it to
+            // "__toCommonJS" and returning the copy that comes back — six
+            // helpers of machinery whose only purpose was to move a value the
+            // caller had already been given a place to put.
+            //
+            // "require" still comes first among the factory's parameters,
+            // because a factory parameter list and its call site have to agree
+            // and every one of the three branches below spells them in the same
+            // order. "exports" is threaded in ahead of it at each call site.
             text += indent + "typeof exports ===" + space + quote_json("object") +
                     space + "&&" + space + "typeof module !==" + space + quote_json("undefined") +
-                    space + "?" + space + "module.exports" + space + "=" + space + "factory(require";
+                    space + "?" + space + "factory(exports," + space + "require";
             for (auto& dep : wrapper_external_deps) {
                 text += "," + space + "require(" + quote_json(dep) + ")";
             }
             text += ")" + space + ":" + newline;
             text += indent + "typeof define ===" + space + quote_json("function") +
-                    space + "&&" + space + "define.amd ?" + space + "define([" + quote_json("require");
+                    space + "&&" + space + "define.amd ?" + space + "define([";
+            // AMD's convention is that a dependency named "exports" is handed to
+            // the factory as its first argument and written to in place, which
+            // is the same contract as the other two branches.
+            text += quote_json("exports");
+            if (!wrapper_external_deps.empty()) {
+                text += "," + space + quote_json("require");
+            }
             for (auto& dep : wrapper_external_deps) {
                 text += "," + space + quote_json(dep);
             }
@@ -1218,6 +1310,13 @@ config::Format format = options->OutputFormat;
             text += indent + "(global" + space + "=" + space + "typeof globalThis !==" + space + quote_json("undefined") +
                     space + "?" + space + "globalThis" + space + ":" + space + "global" + space + "||" + space + "self," + space;
             if (!global_parts.empty()) {
+                // The namespace is created here, before the factory runs, and
+                // the same object is both what the exports land in and what
+                // gets published on the global. The factory returns nothing -
+                // it writes onto the object it is handed - so the value of
+                // this branch's expression is the namespace itself, not the
+                // factory's return. "void 0" keeps the parameter in place for
+                // the "require" that follows it.
                 text += "(";
                 std::string ns = "global";
                 for (size_t i = 0; i < global_parts.size(); i++) {
@@ -1225,13 +1324,18 @@ config::Format format = options->OutputFormat;
                             space + "||" + space + "{}," + space;
                     ns += "." + global_parts[i];
                 }
-                // "void 0" is a keyword plus a literal, so it keeps its space.
-                text += ns + space + "=" + space + "factory(void 0";
-                global_close = "))";
+                text += "factory(" + ns;
+                global_close = ")," + space + ns + ")";
             } else {
-                text += "factory(void 0";
+                // No name to publish to, so the exports object is a plain
+                // object the factory writes into and nobody reads back. The
+                // linker rejects this combination when the entry exports
+                // something, so reaching here means a build that only runs
+                // side effects.
+                text += "factory({}";
                 global_close = ")";
             }
+            text += "," + space + "void 0";
             for (auto& dep : wrapper_external_deps) {
                 std::string global_dep = dep;
                 {
@@ -1246,11 +1350,43 @@ config::Format format = options->OutputFormat;
                 text += "," + space + "global." + global_dep;
             }
             text += global_close + ");" + newline;
-            text += "})(this," + space + "function(require";
+            text += "})(this," + space + "function(exports," + space + "require";
             for (size_t i = 0; i < wrapper_external_deps.size(); i++) {
                 text += "," + space + "dep" + std::to_string(i);
             }
             text += ")" + space + "{" + newline;
+
+            // The entry's directives go here rather than at the top of the
+            // chunk, because a function body is the only place they mean
+            // anything. Ahead of the wrapper they would be parsed as directives
+            // of the enclosing script, which is not the scope they were written
+            // for and does not inherit into the factory. "use strict" is
+            // synthesized for an entry that has none, since converting ESM to
+            // UMD loses the implicit strictness the module had and the factory
+            // is now a plain script function.
+            //
+            // An entry that already asks for strict mode has its own
+            // "use strict" written out here, once, and does not get a second
+            // synthesized one. Skipping it in favour of the synthesized copy
+            // would be a silent difference in behaviour for exactly the inputs
+            // that already declared strictness.
+            {
+                bool has_use_strict = false;
+                if (auto* repr_ptr = std::get_if<std::shared_ptr<graph::JSRepr>>(
+                        &graph.files[chunk.source_index].input_file.repr)) {
+                    for (auto& directive : (*repr_ptr)->ast.directives) {
+                        if (directive == "use strict") {
+                            if (has_use_strict) continue;
+                            has_use_strict = true;
+                        }
+                        text += indent_unit + helpers::QuoteForJSON(directive, options->ASCIIOnly) + ";" + newline;
+                    }
+                }
+                if (!has_use_strict) {
+                    text += indent_unit + helpers::QuoteForJSON("use strict", options->ASCIIOnly) + ";" + newline;
+                }
+            }
+
             prev_offset.AdvanceString(text);
             j.AddString(text);
             newline_before_comment = false;

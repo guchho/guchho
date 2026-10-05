@@ -71,7 +71,7 @@ describe("BuildFailure", () => {
         // is no tree to print, and no result to hand back. It is the same
         // BuildFailure a failed build throws, with the engine's own wording.
         await assert.rejects(
-            () => guchho.printHTML(999_999),
+            () => guchho.print(999_999, { language: "html" }),
             (error) => {
                 assert.ok(error instanceof guchho.BuildFailure);
                 assert.equal(typeof error.errors[0].text, "string");

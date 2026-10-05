@@ -1,0 +1,18 @@
+{
+  // ─────────────────────────────────────────────
+  // Language server / IntelliSense
+  // clangd is the primary C++ language server (C_Cpp.intelliSenseEngine is
+  // disabled in settings.json); C/C++ is kept for its error squiggles only.
+  // ─────────────────────────────────────────────
+  "recommendations": [
+    "llvm-vs-code-extensions.vscode-clangd",
+    "ms-vscode.cpptools",
+    "ms-vscode.cmake-tools",
+    "twxs.cmake"
+  ],
+
+  // ─────────────────────────────────────────────
+  // Optional but useful
+  // ─────────────────────────────────────────────
+  "unwantedRecommendations": []
+}

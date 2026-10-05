@@ -29,7 +29,6 @@ export const {
     lexer,
     parse,
     print,
-    LANGUAGES,
     BuildFailure,
     ServiceError,
     BuildContext,

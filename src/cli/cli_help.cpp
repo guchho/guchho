@@ -244,6 +244,7 @@ void printBuildHelp(std::ostream& os) {
        << "  --sourcemap            Enable source maps\n"
        << "  --target=<target>      Target (es2020, chrome80, node16)\n"
        << "  --format=<format>      Format: iife, cjs, esm, umd, amd, system\n"
+       << "  --name=<name>          Global namespace for umd and iife output\n"
        << "  --platform=<p>         Platform: browser, node, neutral\n"
        << "  --splitting            Enable code splitting\n"
        << "  --tree-shaking         Enable tree shaking\n"

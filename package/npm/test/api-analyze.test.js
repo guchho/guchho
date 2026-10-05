@@ -1,7 +1,7 @@
 // guchho.analyze(), reached the way a caller reaches it.
 //
 //     import { analyze } from "guchho";
-//     const report = await analyze({ entryPoints: ["src/main.js"] });
+//     const report = await analyze({ entrypoints: ["src/main.js"] });
 //
 // analyze takes a configuration and answers a question about it: what went in,
 // what came out, and what was left as an import. It used to take a metafile and
@@ -70,7 +70,7 @@ describe("analyze()", () => {
 
         const report = await guchho.analyze({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
         });
 
         assert.deepEqual(Object.keys(report).sort(), [
@@ -92,7 +92,7 @@ describe("analyze()", () => {
 
         const report = await guchho.analyze({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
             bundle: true,
         });
 
@@ -120,7 +120,7 @@ describe("analyze()", () => {
 
         const report = await guchho.analyze({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
             bundle: true,
         });
 
@@ -138,7 +138,7 @@ describe("analyze()", () => {
 
         const report = await guchho.analyze({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
         });
 
         assert.deepEqual(report.dependencies, ["./helper.js"]);
@@ -156,7 +156,7 @@ describe("analyze()", () => {
 
         const report = await guchho.analyze({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
             bundle: true,
         });
 
@@ -170,7 +170,7 @@ describe("analyze()", () => {
 
         const report = await guchho.analyze({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
             external: ["node:fs"],
             bundle: true,
         });
@@ -195,7 +195,7 @@ describe("analyze()", () => {
         // the right answer and worth writing down here rather than rediscovering.
         const options = {
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
             external: ["zzz", "aaa"],
             bundle: true,
         };
@@ -214,7 +214,7 @@ describe("analyze()", () => {
 
         await guchho.analyze({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
         });
 
         assert.deepEqual(
@@ -232,7 +232,7 @@ describe("analyze()", () => {
 
         await guchho.analyze({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
             write: true,
         });
 
@@ -244,7 +244,7 @@ describe("analyze()", () => {
 
         const flat = await guchho.analyze({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
         });
         const nested = await guchho.analyze({
             build: { absWorkingDir: root, entry: "src/main.js" },
@@ -261,11 +261,11 @@ describe("analyze()", () => {
         // Object.assign(normalized, ...) would quietly rewrite a caller's object
         // and leave write:true in it for the build they run next.
         const root = makeProject();
-        const config = { absWorkingDir: root, entryPoints: ["src/main.js"] };
+        const config = { absWorkingDir: root, entrypoints: ["src/main.js"] };
 
         await guchho.analyze(config);
 
-        assert.deepEqual(config, { absWorkingDir: root, entryPoints: ["src/main.js"] });
+        assert.deepEqual(config, { absWorkingDir: root, entrypoints: ["src/main.js"] });
     });
 
     it("reports a build that failed as the failure it is", needsBinary, async () => {
@@ -275,7 +275,7 @@ describe("analyze()", () => {
         const root = makeProject({ "src/main.js": "const = ;\n" });
 
         await assert.rejects(
-            () => guchho.analyze({ absWorkingDir: root, entryPoints: ["src/main.js"] }),
+            () => guchho.analyze({ absWorkingDir: root, entrypoints: ["src/main.js"] }),
             (error) => {
                 assert.ok(error instanceof Error);
                 assert.ok(error.errors.length > 0, "the failure should carry its diagnostics");
@@ -476,7 +476,7 @@ describe("analyzeMetafile()", () => {
 
         const { metafile } = await guchho.build({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
             write: false,
             metafile: true,
         });

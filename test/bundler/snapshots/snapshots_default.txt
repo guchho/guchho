@@ -202,6 +202,8 @@ main("fs");
 ================================================================================
 TestBuiltInNodeModulePrecedence
 ---------- /out/entry.js ----------
+"use strict";
+
 // node_modules/fs/abc.js
 var require_abc = __commonJS({
   "node_modules/fs/abc.js"() {
@@ -764,6 +766,33 @@ console.log(
 );
 
 ================================================================================
+TestCommonJSAddsUseStrictDirective
+---------- /out.js ----------
+"use strict";
+
+// entry.js
+var entry_exports = {};
+__export(entry_exports, {
+  a: () => a
+});
+module.exports = __toCommonJS(entry_exports);
+var a = 1;
+
+================================================================================
+TestCommonJSDoesNotDuplicateUseStrictDirective
+---------- /out.js ----------
+"use strict";
+"use loose";
+
+// entry.js
+var entry_exports = {};
+__export(entry_exports, {
+  a: () => a
+});
+module.exports = __toCommonJS(entry_exports);
+var a = 1;
+
+================================================================================
 TestCommonJSFromES6
 ---------- /out.js ----------
 // foo.js
@@ -796,6 +825,11 @@ var init_bar = __esm({
 var { foo: foo2 } = (init_foo(), __toCommonJS(foo_exports));
 console.log(foo2(), bar2());
 var { bar: bar2 } = (init_bar(), __toCommonJS(bar_exports));
+
+================================================================================
+TestCommonJSKeepsUseStrictDirectiveWithMinifyWhitespace
+---------- /out.js ----------
+"use strict";var entry_exports={};__export(entry_exports,{a:()=>a});module.exports=__toCommonJS(entry_exports);var a=1;
 
 ================================================================================
 TestConditionalImport
@@ -838,6 +872,8 @@ x ? y ? __require("a") : require_b() : __require(c);
 ================================================================================
 TestConditionalRequireResolve
 ---------- /out.js ----------
+"use strict";
+
 // a.js
 x ? require.resolve("a") : y ? require.resolve("b") : require.resolve("c");
 x ? y ? require.resolve("a") : require.resolve("b") : require.resolve(c);
@@ -879,6 +915,8 @@ for (const e of x) console.log(e);
 ================================================================================
 TestDecoratorPrintingCJS
 ---------- /out.js ----------
+"use strict";
+
 // entry.js
 var import_somewhere = require("somewhere");
 _ = class {
@@ -1174,6 +1212,7 @@ console.log({ c: 1, c: 2 }, /* @__PURE__ */ React.createElement("div", { c2: tru
 ================================================================================
 TestDynamicImportWithExpressionCJS
 ---------- /out.js ----------
+"use strict";
 import("foo");
 import(foo());
 
@@ -1222,6 +1261,8 @@ console.log((0, import_foo.foo)(), (0, import_bar.bar)());
 ================================================================================
 TestEmptyExportClauseBundleAsCommonJSIssue910
 ---------- /out.js ----------
+"use strict";
+
 // types.mjs
 var types_exports = {};
 var init_types = __esm({
@@ -1703,6 +1744,7 @@ export default class o {
 ================================================================================
 TestExportSpecialName
 ---------- /out.js ----------
+"use strict";
 var entry_exports = {};
 __export(entry_exports, {
   ["__proto__"]: () => __proto__
@@ -1717,6 +1759,8 @@ const __proto__ = 123;
 ================================================================================
 TestExportSpecialNameBundle
 ---------- /out.js ----------
+"use strict";
+
 // lib.mjs
 var lib_exports = {};
 __export(lib_exports, {
@@ -1736,6 +1780,8 @@ console.log(lib.__proto__);
 ================================================================================
 TestExportWildcardFSNodeCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // entry.js
 var entry_exports = {};
 __export(entry_exports, {
@@ -1774,6 +1820,8 @@ export {
 ================================================================================
 TestExportsAndModuleFormatCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // foo/test.js
 var test_exports = {};
 __export(test_exports, {
@@ -1973,6 +2021,8 @@ console.log(file_default, file_default2);
 ================================================================================
 TestImportFSNodeCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // entry.js
 var fs = __toESM(require("fs"));
 var import_fs = __toESM(require("fs"));
@@ -2027,6 +2077,8 @@ console.log(ns, a, c, def, def2, ns2, def3, a2, c3, imp);
 ================================================================================
 TestImportMetaCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // entry.js
 var import_meta = {};
 console.log(import_meta.url, import_meta.path);
@@ -2123,16 +2175,22 @@ console.log(Promise.resolve().then(() => __toESM(require_foo())));
 ================================================================================
 TestImportNamespaceThisValue
 ---------- /out/a.js ----------
+"use strict";
+
 // a.js
 var ns = __toESM(require("external"));
 console.log(ns[foo](), new ns[foo]());
 
 ---------- /out/b.js ----------
+"use strict";
+
 // b.js
 var ns = __toESM(require("external"));
 console.log(ns.foo(), new ns.foo());
 
 ---------- /out/c.js ----------
+"use strict";
+
 // c.js
 var import_external = __toESM(require("external"));
 console.log((0, import_external.default)(), (0, import_external.foo)());
@@ -2217,6 +2275,8 @@ var x = __require[cache];
 ================================================================================
 TestInject
 ---------- /out.js ----------
+"use strict";
+
 // inject.js
 var obj = {};
 var sideEffects = console.log("side effects");
@@ -3943,69 +4003,6 @@ exports.a = 123;
 let bar_ = require("xyz").b;
 
 ================================================================================
-TestManglePropsImportExportBundled
----------- /out/entry-esm.js ----------
-// cjs.js
-var require_cjs = __commonJS({
-  "cjs.js"(exports) {
-    exports.a = "foo";
-  }
-});
-
-// esm.js
-var esm_exports = {};
-__export(esm_exports, {
-  esm_foo_: () => esm_foo_
-});
-var esm_foo_ = "foo";
-
-// entry-esm.js
-var import_cjs = __toESM(require_cjs());
-var cjs = __toESM(require_cjs());
-var bar_ = [
-  esm_foo_,
-  import_cjs.cjs_foo_,
-  esm_exports.b,
-  cjs.a
-];
-export {
-  bar_
-};
-
----------- /out/entry-cjs.js ----------
-// esm.js
-var esm_exports = {};
-__export(esm_exports, {
-  esm_foo_: () => esm_foo_
-});
-var esm_foo_;
-var init_esm = __esm({
-  "esm.js"() {
-    esm_foo_ = "foo";
-  }
-});
-
-// cjs.js
-var require_cjs = __commonJS({
-  "cjs.js"(exports) {
-    exports.a = "foo";
-  }
-});
-
-// entry-cjs.js
-var require_entry_cjs = __commonJS({
-  "entry-cjs.js"(exports) {
-    var { b: esm_foo_2 } = (init_esm(), __toCommonJS(esm_exports));
-    var { a: cjs_foo_ } = require_cjs();
-    exports.c = [
-      esm_foo_2,
-      cjs_foo_
-    ];
-  }
-});
-export default require_entry_cjs();
-
-================================================================================
 TestManglePropsJSXPreserve
 ---------- /out.jsx ----------
 let Foo = {
@@ -5351,13 +5348,20 @@ TestMinifiedBundleEndingWithImportantSemicolon
 (()=>{while(foo());})();
 
 ================================================================================
+TestMinifiedCommonJSKeepsUseStrictDirective
+---------- /out.js ----------
+"use strict";var d={};v(d,{a:()=>x});module.exports=f(d);var x=1;
+
+================================================================================
 TestMinifiedDynamicImportWithExpressionCJS
 ---------- /out.js ----------
-import("foo");import(foo());
+"use strict";import("foo");import(foo());
 
 ================================================================================
 TestMinifiedExportsAndModuleFormatCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // foo/test.js
 var e = {};
 a(e, {
@@ -5619,6 +5623,8 @@ console.log(module, exports);
 ================================================================================
 TestNodeAnnotationFalsePositiveIssue3544
 ---------- /out.js ----------
+"use strict";
+
 // entry.mjs
 var entry_exports = {};
 __export(entry_exports, {
@@ -5637,6 +5643,8 @@ function confuseNode(exports2) {
 ================================================================================
 TestNodeAnnotationInvalidIdentifierIssue4100
 ---------- /out.js ----------
+"use strict";
+
 // entry.mjs
 var entry_exports = {};
 __export(entry_exports, {
@@ -5904,6 +5912,8 @@ x(/* @__KEY__ */ "alsoKey", /* @__KEY__ */ `alsoKey`);
 ================================================================================
 TestQuotedProperty
 ---------- /out/entry.js ----------
+"use strict";
+
 // entry.js
 var ns = __toESM(require("ext"));
 console.log(ns.mustBeUnquoted, ns["mustBeQuoted"]);
@@ -5911,6 +5921,8 @@ console.log(ns.mustBeUnquoted, ns["mustBeQuoted"]);
 ================================================================================
 TestQuotedPropertyMangle
 ---------- /out/entry.js ----------
+"use strict";
+
 // entry.js
 var ns = __toESM(require("ext"));
 console.log(ns.mustBeUnquoted, ns.mustBeUnquoted2);
@@ -5935,6 +5947,8 @@ export {
 ================================================================================
 TestReExportDefaultExternalCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // entry.js
 var entry_exports = {};
 __export(entry_exports, {
@@ -5982,6 +5996,7 @@ export { default as bar } from "./bar";
 ================================================================================
 TestReExportDefaultNoBundleCommonJS
 ---------- /out.js ----------
+"use strict";
 var entry_exports = {};
 __export(entry_exports, {
   bar: () => import_bar.default,
@@ -6178,13 +6193,15 @@ console.log(dir_default);
 ================================================================================
 TestRequireFSNode
 ---------- /out.js ----------
+"use strict";
+
 // entry.js
 return require("fs");
 
 ================================================================================
 TestRequireFSNodeMinify
 ---------- /out.js ----------
-return require("fs");
+"use strict";return require("fs");
 
 ================================================================================
 TestRequireJson
@@ -6206,6 +6223,8 @@ console.log(require_test());
 ================================================================================
 TestRequireMainCacheCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // is-main.js
 var require_is_main = __commonJS({
   "is-main.js"(exports2, module2) {
@@ -6243,6 +6262,8 @@ console.log(index_default);
 ================================================================================
 TestRequirePropertyAccessCommonJS
 ---------- /out.js ----------
+"use strict";
+
 // entry.js
 console.log(Object.keys(require.cache));
 console.log(Object.keys(require.extensions));
@@ -6252,6 +6273,8 @@ delete require.extensions[".json"];
 ================================================================================
 TestRequireResolve
 ---------- /out.js ----------
+"use strict";
+
 // entry.js
 console.log(require.resolve);
 console.log(require.resolve());
@@ -6548,6 +6571,7 @@ __name(outer, "outer"), outer();
 ================================================================================
 TestStringExportNamesCommonJS
 ---------- /out.js ----------
+"use strict";
 var entry_exports = {};
 __export(entry_exports, {
   "all the stuff": () => all_the_stuff,
@@ -6958,6 +6982,7 @@ var import_es6_ns_export_abstract_class = __toESM(require_es6_ns_export_abstract
 ================================================================================
 TestToESMWrapperOmission
 ---------- /out/entry.js ----------
+"use strict";
 var entry_exports = {};
 module.exports = __toCommonJS(entry_exports);
 var import_a_nowrap = require("a_nowrap");
@@ -7050,6 +7075,8 @@ await init_entry();
 ================================================================================
 TestTopLevelAwaitCJSDeadBranch
 ---------- /out.js ----------
+"use strict";
+
 // entry.js
 if (false) foo;
 if (false) for (foo of bar) ;
@@ -7128,6 +7155,7 @@ for await (foo of bar) ;
 ================================================================================
 TestTopLevelAwaitNoBundleCommonJSDeadBranch
 ---------- /out.js ----------
+"use strict";
 if (false) foo;
 if (false) for (foo of bar) ;
 
@@ -7399,6 +7427,8 @@ x();
 ================================================================================
 TestWarnCommonJSExportsInESMBundle
 ---------- /out/cjs-in-esm.js ----------
+"use strict";
+
 // cjs-in-esm.js
 var cjs_in_esm_exports = {};
 __export(cjs_in_esm_exports, {
@@ -7410,18 +7440,23 @@ exports.foo = 2;
 module.exports = 3;
 
 ---------- /out/import-in-cjs.js ----------
+"use strict";
+
 // import-in-cjs.js
 var import_bar = require("bar");
 exports.foo = import_bar.foo;
 module.exports = import_bar.foo;
 
 ---------- /out/no-warnings-here.js ----------
+"use strict";
+
 // no-warnings-here.js
 console.log(module, exports);
 
 ================================================================================
 TestWarnCommonJSExportsInESMConvert
 ---------- /out/cjs-in-esm.js ----------
+"use strict";
 var cjs_in_esm_exports = {};
 __export(cjs_in_esm_exports, {
   foo: () => foo
@@ -7432,6 +7467,7 @@ exports.foo = 2;
 module.exports = 3;
 
 ---------- /out/cjs-in-esm2.js ----------
+"use strict";
 var cjs_in_esm2_exports = {};
 __export(cjs_in_esm2_exports, {
   foo: () => foo
@@ -7441,12 +7477,14 @@ let foo = 1;
 module.exports.bar = 3;
 
 ---------- /out/import-in-cjs.js ----------
+"use strict";
 var import_bar = require("bar");
 exports.foo = import_bar.foo;
 module.exports = import_bar.foo;
 module.exports.bar = import_bar.foo;
 
 ---------- /out/no-warnings-here.js ----------
+"use strict";
 console.log(module, exports);
 
 ================================================================================

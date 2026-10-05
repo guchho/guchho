@@ -210,17 +210,11 @@ export interface CommonOptions {
    * "entry" is the one spelling that moves — to entryPoints — so the nested form
    * accepts it.
    */
-  build?: BuildOptionsNested
+    build?: BuildOptionsNested
   /** Server options, when the configuration is one for serving. */
-  server?: {
-    servedir?: string
-    port?: number
-    host?: string
-    fallback?: string
-    [option: string]: unknown
-  }
+  server?: ServeOptions
   /** Watch options. `true` means "build and keep watching". */
-  watch?: boolean | { delay?: number }
+  watch?: boolean | WatchOptions
   /** Plugins to run the build with. See the plugin API. */
   plugins?: Plugin[] | Plugin
 }
@@ -438,11 +432,100 @@ export interface BuildContext {
   dispose(): Promise<void>
 }
 
+/**
+ * The options the dev server reads from a configuration's "server" section.
+ *
+ * Declared once and referenced by CommonOptions, so the section a caller may write
+ * and the section this package validates are the same list. `open` is
+ * deliberately absent: it is accepted at runtime and refused with an explanation,
+ * because a config written for `guchho serve` may carry it and a server that
+ * silently did not open a browser is worse than one that says it cannot.
+ */
 export interface ServeOptions {
+  /**
+   * The port to bind. Zero — or leaving it out — asks the engine to try 8000
+   * upwards and take the first that is free, which is why the port that was
+   * actually bound is on the handle rather than assumed to be this one.
+   */
   port?: number
+  /** The interface to bind. Left out, every interface is bound. */
   host?: string
+  /** The directory to serve. Defaults to the build's output directory. */
   servedir?: string
+  /** Served when nothing else matches, which is how SPA routes are handled. */
   fallback?: string
+}
+
+/** The options the watcher reads from a configuration's "watch" section. */
+export interface WatchOptions {
+  /** Milliseconds of quiet before a change is taken as final. */
+  delay?: number
+  /**
+   * How often the handle rebuilds on its own, in milliseconds. Zero means never:
+   * the handle then rebuilds only when `rebuild()` is called. Left out, the handle
+   * drives itself.
+   */
+  interval?: number
+}
+
+/**
+ * A running dev server, from serve().
+ *
+ * The engine's own HTTP server — the one `guchho serve` gets — not a second
+ * implementation. Close it when finished; it holds a listening socket and the
+ * project's output files open.
+ */
+export interface DevServer {
+  /** The first address the engine bound. */
+  readonly host: string
+  /** The port the engine bound, which is not always the one that was asked for. */
+  readonly port: number
+  /** Every address the engine bound, for a caller that wants the LAN one. */
+  readonly hosts: string[]
+  /**
+   * A URL that can be opened.
+   *
+   * Built from an address that is connectable even when the engine bound a
+   * wildcard, because "0.0.0.0" is not a destination a browser can route to.
+   */
+  readonly url: string
+  /** The warm context behind the server. */
+  readonly context: BuildContext
+  /** Whether close() has been called. */
+  readonly closed: boolean
+  /** Rebuilds without restarting the server. */
+  rebuild(): Promise<BuildResult>
+  /** Stops the server and releases the context. Safe to call more than once. */
+  close(): Promise<void>
+  [Symbol.asyncDispose](): Promise<void>
+}
+
+/**
+ * A running watcher, from watch().
+ *
+ * Every `buildEnd` is a rebuild *this handle performed* — the engine's service
+ * answers requests and never sends one of its own, so a changed file is not
+ * reported until something asks for a rebuild. See the note on watch().
+ */
+export interface Watcher {
+  /** The result of the most recent build, or null before the first. */
+  readonly result: BuildResult | null
+  /** The interval this watcher drives itself at. Zero if it does not. */
+  readonly interval: number
+  /** The warm context behind the watcher. */
+  readonly context: BuildContext
+  /** Whether close() has been called. */
+  readonly closed: boolean
+  /** Subscribes to an event. Returns this, so calls can be chained. */
+  on(event: 'buildStart', listener: () => void): this
+  on(event: 'buildEnd', listener: (result: BuildResult) => void): this
+  on(event: 'error', listener: (error: Error) => void): this
+  off(event: string, listener: (...args: never[]) => void): this
+  /** Rebuilds, emitting buildStart before and buildEnd after. */
+  rebuild(): Promise<BuildResult>
+  /** Stops watching and releases the context. Safe to call more than once. */
+  close(): Promise<void>
+  [Symbol.asyncDispose](): Promise<void>
 }
 
 /** A build that failed. Carries the diagnostics it failed with. */
@@ -495,6 +578,48 @@ export declare function transform(
 
 /** Sets up a build that can be repeated. */
 export declare function context(options: BuildOptions): Promise<BuildContext>
+
+/**
+ * Starts a dev server on a build.
+ *
+ * Resolves once the server is listening, so the address is a value rather than
+ * something to be scraped out of a log. The engine's own HTTP server is used —
+ * the one `guchho serve` gets — rather than a second implementation.
+ *
+ * The served directory defaults to the build's output directory, which is what
+ * makes the server serve the build at all: a context served with no directory
+ * answers every request with a 404.
+ *
+ * The build is kept warm rather than discarded, so `server.rebuild()` costs what a
+ * rebuild costs and not what a first build costs. Close the server when finished.
+ *
+ * @throws {TypeError} When the configuration is not an object, names a server
+ *   option the server does not have, or asks for `open`.
+ * @throws {BuildFailure} When the engine refused the request.
+ */
+export declare function serve(options?: BuildOptions): Promise<DevServer>
+
+/**
+ * Starts watching a build.
+ *
+ * The opening build has already run by the time this resolves, so the outputs
+ * exist and `watcher.result` is that build's result.
+ *
+ * **The events are not a push.** Guchho's service answers requests and never sends
+ * one of its own, so a changed file is not reported until something asks for a
+ * rebuild. Every `buildEnd` is a rebuild this handle performed, either because
+ * `rebuild()` was called or because `watch.interval` asked for one. Asking for a
+ * rebuild runs a build pass whether or not anything changed, which is why
+ * `interval` is opt-in and has a real price — set it to 0 and drive it yourself.
+ * A true push needs a notification packet on the protocol, which does not exist
+ * yet.
+ *
+ * @throws {TypeError} When the configuration is not an object, names a watch
+ *   option the watcher does not have, or gives an interval that is not a
+ *   non-negative number.
+ * @throws {BuildFailure} When the engine refused the request.
+ */
+export declare function watch(options?: BuildOptions): Promise<Watcher>
 
 /**
  * Analyses a build configuration without producing anything.

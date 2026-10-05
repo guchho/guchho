@@ -38,20 +38,11 @@ const PUBLIC_API = [
     "analyzeMetafile",
     "build",
     "context",
-    "lexCSS",
-    "lexHTML",
-    "lexJS",
-    "parseCSS",
-    "parseHTML",
-    "parseJS",
-    "printCSS",
-    "printHTML",
-    "printJS",
+    "lexer",
+    "parse",
+    "print",
     "stop",
     "transform",
-    "transformCSS",
-    "transformHTML",
-    "transformJS",
 ];
 
 // The classes. Checked as constructors rather than as functions, because what a
@@ -122,18 +113,23 @@ describe("the package's CommonJS entry", () => {
         assert.equal(guchho.stop, stopService);
         assert.equal(guchho.version, version);
         assert.equal(guchho.BuildContext, BuildContext);
-        assert.equal(guchho.lexHTML, compile.lexHTML);
-        assert.equal(guchho.parseHTML, compile.parseHTML);
-        assert.equal(guchho.transformHTML, compile.transformHTML);
-        assert.equal(guchho.printHTML, compile.printHTML);
-        assert.equal(guchho.lexCSS, compile.lexCSS);
-        assert.equal(guchho.parseCSS, compile.parseCSS);
-        assert.equal(guchho.transformCSS, compile.transformCSS);
-        assert.equal(guchho.printCSS, compile.printCSS);
-        assert.equal(guchho.lexJS, compile.lexJS);
-        assert.equal(guchho.parseJS, compile.parseJS);
-        assert.equal(guchho.transformJS, compile.transformJS);
-        assert.equal(guchho.printJS, compile.printJS);
+        assert.equal(guchho.lexer, compile.lexer);
+        assert.equal(guchho.parse, compile.parse);
+        assert.equal(guchho.print, compile.print);
+    });
+
+    it("exports no compiler function that spells one stage per language", () => {
+        // The break is documented as a break. A name that still leaks out is a
+        // caller quietly depending on something the CHANGELOG said is gone, and
+        // the twelve per-language names are the clearest case: they were the
+        // reason for the change.
+        for (const language of ["HTML", "CSS", "JS"]) {
+            for (const stage of ["lex", "parse", "transform", "print"]) {
+                const name = `${stage}${language}`;
+                assert.equal(guchho[name], undefined, `${name} should not be on the surface`);
+            }
+        }
+        assert.equal(guchho.transformAst, undefined, "there is no fourth compiler function");
     });
 
     it("keeps the platform table to itself, because a package name is not an API", () => {

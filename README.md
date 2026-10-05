@@ -23,4 +23,4 @@
 | <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/scoop_logo.png" height="42" alt="Scoop"> | **Scoop**<br>`scoop install guchho` | 🚧 Coming Soon |
 | <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/winget_logo.png" height="42" alt="WinGet"> | **WinGet**<br>`winget install Guchho.Guchho` | 🚧 Coming Soon |
 | <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/homebrew_logo.svg" height="42" alt="Homebrew"> | **Homebrew**<br>`brew install guchho` | 📅 Planned |
-| <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/cmake_logo.svg" height="42" alt="cmake"> | **CMake**<br>`bash scripts/build.sh` | ✅ Development versions. Download the ZIP, extract it, and install manually. |
+| <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/cmake_logo.svg" height="42" alt="cmake"> | **CMake**<br>`bash scripts/build.sh` | 🛠️ Build from source. Clone the repository and build Guchho locally. |

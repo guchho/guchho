@@ -68,12 +68,106 @@ TEST(BundlerGuchhoJSON, BuildFormatCommonJS) {
 }
 
 TEST(BundlerGuchhoJSON, BuildFormatUMD) {
-    // "build.format" also accepts "umd". The config schema has no global-name
-    // field, so with no name coming from the caller the global branch of the
-    // wrapper runs the factory without publishing it on a namespace.
+    // "build.format" also accepts "umd". The name comes from the caller here,
+    // because an entry that exports something has to be told where its exports
+    // go -- the browser branch of a UMD wrapper invents no global of its own.
     guchhojson_suite.ExpectBundled(Bundled{
         .files = {
             {"/app.js", "export const answer = 42;\nconsole.log(answer);\n"},
+        },
+        .entry_paths = {"/app.js"},
+        .options = guchho::config::Options{
+            .BuildMode = guchho::config::Mode::kBundle,
+            .AbsOutputFile = "/out.js",
+            .GlobalName = {"MyLib"},
+        },
+        .guchho_config = R"({"build":{"format":"umd"}})",
+    });
+}
+
+TEST(BundlerGuchhoJSON, BuildFormatUMDWithConfigName) {
+    // "build.name" is the config spelling of the same value the caller passes
+    // as a build-command option. It is parsed as a name and validated by the
+    // same code path, so the wrapper publishes on the namespace the file asked
+    // for rather than on one the config had to be told about twice.
+    guchhojson_suite.ExpectBundled(Bundled{
+        .files = {
+            {"/app.js", "export const answer = 42;\nconsole.log(answer);\n"},
+        },
+        .entry_paths = {"/app.js"},
+        .options = guchho::config::Options{
+            .BuildMode = guchho::config::Mode::kBundle,
+            .AbsOutputFile = "/out.js",
+        },
+        .guchho_config = R"({"build":{"format":"umd","name":"ConfigLib"}})",
+    });
+}
+
+TEST(BundlerGuchhoJSON, BuildFormatUMDWithGlobalNameAlias) {
+    // "build.globalName" is accepted as an alias for "build.name". The name is
+    // the same either way, so the wrapper is byte-identical to the test above
+    // and no diagnostic is expected for using the alias.
+    guchhojson_suite.ExpectBundled(Bundled{
+        .files = {
+            {"/app.js", "export const answer = 42;\nconsole.log(answer);\n"},
+        },
+        .entry_paths = {"/app.js"},
+        .options = guchho::config::Options{
+            .BuildMode = guchho::config::Mode::kBundle,
+            .AbsOutputFile = "/out.js",
+        },
+        .guchho_config = R"({"build":{"format":"umd","globalName":"ConfigLib"}})",
+    });
+}
+
+TEST(BundlerGuchhoJSON, BuildFormatUMDNameWinsOverGlobalNameAlias) {
+    // Both spellings at once. "name" is canonical and wins; the alias is
+    // reported as ignored rather than silently dropped, and the wrapper
+    // publishes on the name the canonical field carried.
+    guchhojson_suite.ExpectBundled(Bundled{
+        .files = {
+            {"/app.js", "export const answer = 42;\nconsole.log(answer);\n"},
+        },
+        .entry_paths = {"/app.js"},
+        .options = guchho::config::Options{
+            .BuildMode = guchho::config::Mode::kBundle,
+            .AbsOutputFile = "/out.js",
+        },
+        .guchho_config = R"({"build":{"format":"umd","name":"Canonical","globalName":"Ignored"}})",
+        .expected_scan_log =
+            "guchho.json: WARNING: Both \"build.globalName\" and \"build.name\" are set; "
+            "\"build.name\" is the canonical field and the other will be ignored\n",
+    });
+}
+
+TEST(BundlerGuchhoJSON, BuildFormatUMDWithoutNameReportsError) {
+    // Neither spelling present and the entry exports something: the browser
+    // branch has nowhere to put the exports, so the build stops with a
+    // diagnostic naming the option rather than emitting a bundle whose global
+    // silently never appears.
+    guchhojson_suite.ExpectBundled(Bundled{
+        .files = {
+            {"/app.js", "export const answer = 42;\nconsole.log(answer);\n"},
+        },
+        .entry_paths = {"/app.js"},
+        .options = guchho::config::Options{
+            .BuildMode = guchho::config::Mode::kBundle,
+            .AbsOutputFile = "/out.js",
+        },
+        .guchho_config = R"({"build":{"format":"umd"}})",
+        .expected_compile_log =
+            "ERROR: UMD output with exports requires a global name (--name=<name>)\n",
+    });
+}
+
+TEST(BundlerGuchhoJSON, BuildFormatUMDWithoutExportsNeedsNoName) {
+    // The same format with an entry that publishes nothing. A side-effect
+    // script has nothing to put on a global, so asking for a name here would
+    // invent a requirement instead of reporting a missing one, and the wrapper
+    // still runs under all three module systems.
+    guchhojson_suite.ExpectBundled(Bundled{
+        .files = {
+            {"/app.js", "console.log(42);\n"},
         },
         .entry_paths = {"/app.js"},
         .options = guchho::config::Options{
@@ -116,6 +210,7 @@ TEST(BundlerGuchhoJSON, BuildFormatUMDWithExternal) {
         .options = guchho::config::Options{
             .BuildMode = guchho::config::Mode::kBundle,
             .AbsOutputFile = "/out.js",
+            .GlobalName = {"MyLib"},
         },
         .guchho_config = R"({"build":{"format":"umd"},"external":["vue"]})",
     });
@@ -130,9 +225,31 @@ TEST(BundlerGuchhoJSON, BuildFormatUMDWithExternal) {
 // the config above says nothing about it.
 
 TEST(BundlerGuchhoJSON, BuildFormatUMDMinified) {
-    // The bare wrapper: three branch arms, no global namespace. Every space
-    // that is only there for legibility is gone; the ones after "typeof" and
-    // inside "void 0" stay, because dropping them would fuse two tokens.
+    // The bare wrapper: three branch arms, no global namespace. The entry
+    // exports nothing, which is the one case where a name is not required.
+    // Every space that is only there for legibility is gone; the ones after
+    // "typeof" and inside "void 0" stay, because dropping them would fuse two
+    // tokens.
+    guchhojson_suite.ExpectBundled(Bundled{
+        .files = {
+            {"/app.js", "console.log(42);\n"},
+        },
+        .entry_paths = {"/app.js"},
+        .options = guchho::config::Options{
+            .BuildMode = guchho::config::Mode::kBundle,
+            .AbsOutputFile = "/out.js",
+            .MinifyWhitespace = true,
+        },
+        .guchho_config = R"({"build":{"format":"umd"}})",
+    });
+}
+
+TEST(BundlerGuchhoJSON, BuildFormatUMDMinifiedDirectExports) {
+    // A minified entry that does export: the same wrapper as the test above
+    // plus a namespace, and the "use strict" directive still sitting inside the
+    // factory where it is inherited by the body. Whitespace minification must
+    // not remove it, since no later pass can see it as removable -- it is
+    // written as raw wrapper text rather than printed from the AST.
     guchhojson_suite.ExpectBundled(Bundled{
         .files = {
             {"/app.js", "export const answer = 42;\nconsole.log(answer);\n"},
@@ -141,6 +258,28 @@ TEST(BundlerGuchhoJSON, BuildFormatUMDMinified) {
         .options = guchho::config::Options{
             .BuildMode = guchho::config::Mode::kBundle,
             .AbsOutputFile = "/out.js",
+            .GlobalName = {"MyLib"},
+            .MinifyWhitespace = true,
+        },
+        .guchho_config = R"({"build":{"format":"umd"}})",
+    });
+}
+
+TEST(BundlerGuchhoJSON, BuildFormatUMDKeepsExplicitUseStrict) {
+    // An entry that already asks for strict mode keeps its own "use strict",
+    // once, inside the factory. Treating it as "already handled" and emitting
+    // nothing would leave a UMD bundle without strictness while the same input
+    // still has it in every other format. Minified here so the directive also
+    // has to survive whitespace removal.
+    guchhojson_suite.ExpectBundled(Bundled{
+        .files = {
+            {"/app.js", "\"use strict\";\nexport const answer = 42;\n"},
+        },
+        .entry_paths = {"/app.js"},
+        .options = guchho::config::Options{
+            .BuildMode = guchho::config::Mode::kBundle,
+            .AbsOutputFile = "/out.js",
+            .GlobalName = {"MyLib"},
             .MinifyWhitespace = true,
         },
         .guchho_config = R"({"build":{"format":"umd"}})",
@@ -181,6 +320,7 @@ TEST(BundlerGuchhoJSON, BuildFormatUMDMinifiedWithExternal) {
         .options = guchho::config::Options{
             .BuildMode = guchho::config::Mode::kBundle,
             .AbsOutputFile = "/out.js",
+            .GlobalName = {"MyLib"},
             .MinifyWhitespace = true,
         },
         .guchho_config = R"({"build":{"format":"umd"},"external":["vue"]})",

@@ -250,11 +250,40 @@ guchho watch --outdir=dist
 
 ### `guchho init`
 
-Writes `src/index.html`, `src/main.js`, `src/style.css` and `guchho.config.js`. Existing files are skipped unless `--force` is given.
+```
+Usage: guchho init [options]
+```
+
+Create a new Guchho project in the current directory. The directory is the target — create it first, then run `init` inside it. Existing files are left alone unless `--force` is given, and nothing is written at all when the directory holds work that is not a Guchho starter.
+
+| Option | Description |
+| ------ | ----------- |
+| `-t`, `--template=<name>` | Starter template (default: `basic`) |
+| `--type=<type>` | Project type (default: `app`) |
+| `-y`, `--yes` | Use default options without prompting |
+| `-f`, `--force` | Overwrite existing scaffold files |
+| `-h`, `--help` | Show help |
+
+| Type | What you get |
+| ---- | ------------ |
+| `app` | Web application |
+| `lib` | Reusable JavaScript/TypeScript library |
+| `plugin` | Guchho build-system plugin |
+
+| Template | Language |
+| -------- | -------- |
+| `basic` | JavaScript + CSS |
+| `ts` | TypeScript + CSS |
+| `jsx` | JavaScript + JSX + CSS |
+| `tsx` | TypeScript + JSX + CSS |
+
+Without `--type` and `--template` on the command line, and without `--yes`, the command asks for both in the terminal. `--yes` takes the defaults instead of asking; it changes nothing about what is written.
 
 ```bash
 guchho init
-guchho init --force
+guchho init --template=ts
+guchho init --type=lib --template=ts
+guchho init --type=plugin --template=ts
 ```
 
 ### `guchho clean`

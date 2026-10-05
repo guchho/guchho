@@ -24,6 +24,8 @@ const { build, analyzeMetafile } = require("./build");
 const { analyze } = require("./analyze");
 const { transform } = require("./transform");
 const { context, BuildContext } = require("./context");
+const { watch, Watcher } = require("./watch");
+const { serve, DevServer } = require("./serve");
 const { stopService, ServiceError, BuildFailure } = require("./service");
 const { version } = require("./info");
 const { lexer, parse, print } = require("./compile");
@@ -39,6 +41,8 @@ module.exports = {
     context,
     analyze,
     analyzeMetafile,
+    watch,
+    serve,
     stop: stopService,
     version,
 
@@ -53,5 +57,10 @@ module.exports = {
     // installation that is broken without matching on a message.
     BuildFailure,
     ServiceError,
+
+    // The handle classes, so `instanceof` is possible without importing an
+    // internal module to get at them.
     BuildContext,
+    Watcher,
+    DevServer,
 };

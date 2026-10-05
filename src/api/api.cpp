@@ -2861,7 +2861,11 @@ context_impl(api::BuildOptions build_options) {
 
     auto msgs = log.done();
     if (log.has_errors()) {
-        if (log_options.log_level > logger::LogLevel::kSilent) {
+        // "kSilent" is the highest level in the enum, so comparing with ">"
+        // here is never true and a validation failure reached the command
+        // line as an exit code and nothing else. Everything except silence
+        // prints.
+        if (log_options.log_level != logger::LogLevel::kSilent) {
             auto stderr_log = logger::NewStderrLog(log_options);
             for (const auto& msg : msgs) stderr_log.add_msg(msg);
             stderr_log.done();

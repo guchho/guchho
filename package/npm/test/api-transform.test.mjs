@@ -76,18 +76,9 @@ describe("the module's shape", () => {
         assert.equal(typeof guchho.analyze, "function");
         assert.equal(typeof guchho.stop, "function");
         assert.equal(typeof guchho.version, "string");
-        assert.equal(typeof guchho.lexHTML, "function");
-        assert.equal(typeof guchho.parseHTML, "function");
-        assert.equal(typeof guchho.transformHTML, "function");
-        assert.equal(typeof guchho.printHTML, "function");
-        assert.equal(typeof guchho.lexCSS, "function");
-        assert.equal(typeof guchho.parseCSS, "function");
-        assert.equal(typeof guchho.transformCSS, "function");
-        assert.equal(typeof guchho.printCSS, "function");
-        assert.equal(typeof guchho.lexJS, "function");
-        assert.equal(typeof guchho.parseJS, "function");
-        assert.equal(typeof guchho.transformJS, "function");
-        assert.equal(typeof guchho.printJS, "function");
+        assert.equal(typeof guchho.lexer, "function");
+        assert.equal(typeof guchho.parse, "function");
+        assert.equal(typeof guchho.print, "function");
     });
 
     it("dropped the names the CHANGELOG says are gone", () => {
@@ -100,6 +91,14 @@ describe("the module's shape", () => {
         assert.equal(guchho.getBinaryPath, undefined);
         assert.equal(guchho.getPlatformKey, undefined);
         assert.equal(guchho.spawnBinary, undefined);
+        // The twelve per-language compiler names are the reason this is a
+        // breaking release, so a leftover one would be the worst kind of leak.
+        for (const language of ["HTML", "CSS", "JS"]) {
+            for (const stage of ["lex", "parse", "transform", "print"]) {
+                assert.equal(guchho[`${stage}${language}`], undefined);
+            }
+        }
+        assert.equal(guchho.transformAst, undefined);
     });
 
     it("binds analyze and analyzeMetafile as two different functions", () => {

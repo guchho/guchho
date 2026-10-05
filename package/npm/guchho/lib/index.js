@@ -4,10 +4,14 @@
 //
 // This is the API the package publishes, and removing names from it is the
 // breaking change CHANGELOG.md names. A caller that used formatMessages,
-// analyzeMetafile, getBinaryPath, getPlatformKey or spawnBinary has no
-// replacement on this list, deliberately: each was the inside of how the
-// package works, and a name that is not on the list is not a name this package
-// promises.
+// getBinaryPath, getPlatformKey or spawnBinary has no replacement on this list,
+// deliberately: each was the inside of how the package works, and a name that is
+// not on the list is not a name this package promises.
+//
+// analyze changed meaning rather than disappearing. It used to take a metafile
+// and return a text report; it now takes a build configuration and returns the
+// analysis as data. The old behaviour is still reachable, under the name that
+// says what it does: analyzeMetafile.
 //
 // The three error types stay on the list because "throws structured
 // BuildFailure" only helps a caller if BuildFailure is importable — matching
@@ -16,25 +20,13 @@
 // by requiring the module that has it, which a caller depending on a promise
 // should not be doing.
 
-const { build, analyze } = require("./build");
+const { build, analyzeMetafile } = require("./build");
+const { analyze } = require("./analyze");
 const { transform } = require("./transform");
 const { context, BuildContext } = require("./context");
 const { stopService, ServiceError, BuildFailure } = require("./service");
 const { version } = require("./info");
-const {
-    lexHTML,
-    lexCSS,
-    lexJS,
-    parseHTML,
-    parseCSS,
-    parseJS,
-    transformHTML,
-    transformCSS,
-    transformJS,
-    printHTML,
-    printCSS,
-    printJS,
-} = require("./compile");
+const { lexer, parse, print, LANGUAGES } = require("./compile");
 
 // Kept so a caller can be sure the process is gone before it cleans up after a
 // build — removing an output directory while the service still has it open is an
@@ -46,22 +38,21 @@ module.exports = {
     transform,
     context,
     analyze,
+    analyzeMetafile,
     stop: stopService,
     version,
 
-    // The compiler API: lex, parse, transform and print, per language.
-    lexHTML,
-    parseHTML,
-    transformHTML,
-    printHTML,
-    lexCSS,
-    parseCSS,
-    transformCSS,
-    printCSS,
-    lexJS,
-    parseJS,
-    transformJS,
-    printJS,
+    // The compiler API: one function per stage, told which language it is for.
+    // lexer, parse and print — not twelve functions spelling the same three
+    // operations once per language.
+    lexer,
+    parse,
+    print,
+
+    // The languages the engine has a lexer, parser and printer for. Published
+    // because a caller who wants to branch on it would otherwise have to keep
+    // this list, and keeping it is how it goes stale.
+    LANGUAGES,
 
     // The failure shapes, so a caller can tell a build that failed from an
     // installation that is broken without matching on a message.

@@ -41,13 +41,15 @@ const PUBLIC_API = [
     "lexer",
     "parse",
     "print",
+    "serve",
     "stop",
     "transform",
+    "watch",
 ];
 
 // The classes. Checked as constructors rather than as functions, because what a
 // caller needs from these is `instanceof`.
-const PUBLIC_CLASSES = ["BuildContext", "BuildFailure", "ServiceError"];
+const PUBLIC_CLASSES = ["BuildContext", "BuildFailure", "DevServer", "ServiceError", "Watcher"];
 
 // The version, which is a value rather than a function, and is still part of
 // the exported surface a caller can count on.
@@ -101,6 +103,8 @@ describe("the package's CommonJS entry", () => {
         const { analyze } = require("../guchho/lib/analyze");
         const { transform } = require("../guchho/lib/transform");
         const { context, BuildContext } = require("../guchho/lib/context");
+        const { watch, Watcher } = require("../guchho/lib/watch");
+        const { serve, DevServer } = require("../guchho/lib/serve");
         const { stopService } = require("../guchho/lib/service");
         const { version } = require("../guchho/lib/info");
         const compile = require("../guchho/lib/compile");
@@ -113,6 +117,10 @@ describe("the package's CommonJS entry", () => {
         assert.equal(guchho.stop, stopService);
         assert.equal(guchho.version, version);
         assert.equal(guchho.BuildContext, BuildContext);
+        assert.equal(guchho.watch, watch);
+        assert.equal(guchho.Watcher, Watcher);
+        assert.equal(guchho.serve, serve);
+        assert.equal(guchho.DevServer, DevServer);
         assert.equal(guchho.lexer, compile.lexer);
         assert.equal(guchho.parse, compile.parse);
         assert.equal(guchho.print, compile.print);

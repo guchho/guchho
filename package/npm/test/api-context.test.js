@@ -42,7 +42,7 @@ describe("context()", () => {
 
         const ctx = await guchho.context({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
             write: false,
         });
 
@@ -56,7 +56,7 @@ describe("context()", () => {
         const root = makeProject('console.log("first-value");\n');
         const ctx = await guchho.context({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
             write: false,
         });
 
@@ -77,7 +77,7 @@ describe("dispose", () => {
     it("is safe to call twice", needsBinary, async () => {
         const ctx = await guchho.context({
             absWorkingDir: makeProject(),
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
             write: false,
         });
 
@@ -88,7 +88,7 @@ describe("dispose", () => {
     it("stops a context from being used again, and says so", needsBinary, async () => {
         const ctx = await guchho.context({
             absWorkingDir: makeProject(),
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
             write: false,
         });
 

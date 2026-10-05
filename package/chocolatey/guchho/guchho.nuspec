@@ -7,9 +7,9 @@
     <packageSourceUrl>https://github.com/guchho/guchho/tree/main/package/chocolatey</packageSourceUrl>
     <owners>guchho</owners>
     <title>Guchho</title>
-    <authors>hemanta-gayen</authors>
+    <authors>Codehemu</authors>
     <projectUrl>https://github.com/guchho/guchho</projectUrl>
-    <copyright>Copyright (c) 2026 hemanta-gayen</copyright>
+    <copyright>Copyright (c) 2026  Codehemu</copyright>
     <licenseUrl>https://github.com/guchho/guchho/blob/main/LICENSE</licenseUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <projectSourceUrl>https://github.com/guchho/guchho</projectSourceUrl>

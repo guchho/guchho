@@ -1,5 +1,6 @@
 TestGlobBasicNoBundle
 ---------- /out.js ----------
+"use strict";
 const ab = Math.random() < 0.5 ? "a.js" : "b.js";
 console.log({
   concat: {

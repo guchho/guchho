@@ -127,11 +127,18 @@ class BuildContext {
     // bound to both a loopback and a LAN address has more than one, and dropping
     // the rest would leave a caller that wanted the LAN address with a URL it
     // cannot connect to from outside.
+    //
+    // The list is sometimes empty — a server bound to every interface reports the
+    // local addresses it could enumerate, and a machine with none it can find
+    // reports none — so "host" falls back to the interface that was asked for, and
+    // then to localhost. Falling back to localhost rather than to nothing matters
+    // because this value becomes a URL a caller connects to, and an empty host is
+    // a URL that cannot be used.
     const hosts = Array.isArray(response.hosts) ? response.hosts.map(String) : [];
     return {
-      host: hosts.length > 0 ? hosts[0] : "localhost",
-      port: typeof response.port === "number" ? response.port : 0,
-      hosts,
+        host: hosts.length > 0 ? hosts[0] : typeof options.host === "string" && options.host !== "" ? options.host : "localhost",
+        port: typeof response.port === "number" ? response.port : 0,
+        hosts,
     };
   }
 

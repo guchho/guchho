@@ -199,6 +199,7 @@ foo();
 ================================================================================
 TestJSXAutomaticNoNameCollision
 ---------- /out.js ----------
+"use strict";
 var import_react2 = require("react");
 var import_react = require("@remix-run/react");
 const x = /* @__PURE__ */ (0, import_react2.createElement)(import_react.Link, { ...y, key: z });
@@ -1010,6 +1011,7 @@ module.exports = { test: 123, "invalid-identifier": true };
 ================================================================================
 TestLoaderJSONNoBundleCommonJS
 ---------- /out.js ----------
+"use strict";
 module.exports = { test: 123, "invalid-identifier": true };
 
 ================================================================================

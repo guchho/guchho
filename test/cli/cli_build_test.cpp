@@ -27,6 +27,7 @@
 
 namespace cli::test {
 
+using guchho::test::CliResult;
 using guchho::test::CliWorkspace;
 using guchho::test::kBuildFailure;
 using guchho::test::kSuccess;
@@ -417,6 +418,90 @@ TEST(CliBuild, CJSOutputStartsWithUseStrictExactlyOnce) {
     const std::string esm = ws.Read("esm.js");
     EXPECT_EQ(occurrences_of(esm, "\"use strict\""), 0L)
         << "an esm bundle grew a strict-mode directive it does not need: [" << esm << "]";
+}
+
+// ---------------------------------------------------------------------------
+// UMD: the global name flag and what it is required for
+// ---------------------------------------------------------------------------
+
+// "--name" is the documented spelling and "--global-name" is the older one, and
+// both have to reach the same thing: a namespace on the browser branch of the
+// wrapper. The output is checked as well as the exit code, because a flag that
+// is accepted and dropped still succeeds.
+TEST(CliBuild, TheNameFlagPublishesTheNamespace) {
+    struct Case {
+        std::string flag;
+        std::string outfile;
+    };
+    const Case cases[] = {
+        {"--name=Lib",        "short.js"},
+        {"--global-name=Lib", "long.js"},
+    };
+
+    for (const Case& one : cases) {
+        CliWorkspace ws("umd-name");
+        ws.Write("entry.js", "export const add = (a, b) => a + b;\n");
+
+        const CliResult result = RunCli({"build", "entry.js", "--format=umd",
+                                         one.flag, "--outfile=" + one.outfile});
+        ASSERT_EQ(result.exit_code, kSuccess) << result.err;
+
+        const std::string out = ws.Read(one.outfile);
+        EXPECT_TRUE(OutputContains(out, "global.Lib")) << one.flag << ": [" << out << "]";
+        EXPECT_TRUE(OutputContains(out, "exports.add = add"))
+            << one.flag << " did not assign the export directly: [" << out << "]";
+        EXPECT_FALSE(OutputContains(out, "__toCommonJS"))
+            << one.flag << " still converts a namespace on the way out: [" << out << "]";
+    }
+}
+
+// A name that is not a global path has to be reported at the point it is
+// rejected. This one is here because the check that rejects it runs before the
+// build starts, and that stage used to return its errors without printing them:
+// the exit code said "failed" and the terminal said nothing about why.
+TEST(CliBuild, AnUnparseableNameIsReported) {
+    CliWorkspace ws("umd-bad-name");
+    ws.Write("entry.js", "export const add = (a, b) => a + b;\n");
+
+    const CliResult result = RunCli({"build", "entry.js", "--format=umd",
+                                     "--name=1bad", "--outfile=out.js"});
+
+    EXPECT_EQ(result.exit_code, kBuildFailure) << result.err;
+    EXPECT_TRUE(OutputContains(result.err, "1bad"))
+        << "the failure does not show what was rejected: [" << result.err << "]";
+}
+
+// The other half of the name requirement: a UMD entry that exports something
+// and names no namespace cannot be published anywhere, so the build has to stop
+// and say which flag is missing rather than writing a bundle whose browser
+// branch is unreachable.
+TEST(CliBuild, UMDWithExportsAndNoNameIsABuildFailure) {
+    CliWorkspace ws("umd-no-name");
+    ws.Write("entry.js", "export const add = (a, b) => a + b;\n");
+
+    const CliResult result = RunCli({"build", "entry.js", "--format=umd",
+                                     "--outfile=out.js"});
+
+    EXPECT_EQ(result.exit_code, kBuildFailure) << result.err;
+    EXPECT_TRUE(OutputContains(result.err, "--name"))
+        << "the failure does not name the flag that would fix it: [" << result.err << "]";
+    EXPECT_FALSE(ws.Exists("out.js"))
+        << "a failed UMD build wrote its output anyway";
+}
+
+// The other half again, inverted: an entry that only runs side effects has
+// nothing to publish, so a name is not asked for. This is the boundary between
+// the two tests above, and it is where the requirement would be wrong if it
+// were applied to the format rather than to the entry's exports.
+TEST(CliBuild, UMDWithNoExportsAndNoNameIsAllowed) {
+    CliWorkspace ws("umd-side-effect");
+    ws.Write("entry.js", "console.log(\"ran\");\n");
+
+    const CliResult result = RunCli({"build", "entry.js", "--format=umd",
+                                     "--outfile=out.js"});
+
+    EXPECT_EQ(result.exit_code, kSuccess) << result.err;
+    EXPECT_TRUE(OutputContains(ws.Read("out.js"), "console.log(\"ran\")"));
 }
 
 // The metafile is the description of what the build read and produced, and it

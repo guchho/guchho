@@ -111,7 +111,7 @@ Any option a flag accepts may be set here, using the flag's name in camelCase (`
 import { build } from 'guchho'
 
 const result = await build({
-  entryPoints: ['src/index.html'],
+  entrypoints: ['src/index.html'],
   outdir: 'dist',
   format: 'esm',
   platform: 'browser',

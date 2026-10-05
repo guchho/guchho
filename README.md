@@ -20,7 +20,7 @@
 | :-------------: | ------------ | ------ |
 | <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/npm_logo.svg" height="30" alt="npm"> | **npm**<br>`npm install -g guchho` | 🚧 Coming Soon |
 | <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/chocolatey_logo.svg" height="42" alt="Chocolatey"> | **Chocolatey**<br>`choco install guchho` | 🚧 Coming Soon |
-| <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/scoop_logo.svg" height="42" alt="Scoop"> | **Scoop**<br>`scoop install guchho` | 🚧 Coming Soon |
-| <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/winget_logo.svg" height="42" alt="WinGet"> | **WinGet**<br>`winget install Guchho.Guchho` | 🚧 Coming Soon |
+| <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/scoop_logo.png" height="42" alt="Scoop"> | **Scoop**<br>`scoop install guchho` | 🚧 Coming Soon |
+| <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/winget_logo.png" height="42" alt="WinGet"> | **WinGet**<br>`winget install Guchho.Guchho` | 🚧 Coming Soon |
 | <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/homebrew_logo.svg" height="42" alt="Homebrew"> | **Homebrew**<br>`brew install guchho` | 📅 Planned |
 | <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/cmake_logo.svg" height="42" alt="cmake"> | **CMake**<br>`bash scripts/build.sh` | ✅ Development versions. Download the ZIP, extract it, and install manually. |

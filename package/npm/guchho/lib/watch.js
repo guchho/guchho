@@ -22,7 +22,7 @@
 // packet with a reserved id and a dispatch that answers it, which is written down
 // beside the protocol rather than approximated here with a timer.
 //
-//   const watcher = await watch({ entryPoints: ["src/index.js"] });
+//   const watcher = await watch({ entrypoints: ["src/index.js"] });
 //   watcher.on("buildEnd", (result) => console.log(result.duration, "ms"));
 //   await watcher.close();
 //

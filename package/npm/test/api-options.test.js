@@ -38,18 +38,28 @@ describe("configuration spelling", () => {
   const EQUIVALENT = [
     {
       what: "one entry point",
-      flat: { entryPoints: "src/index.js" },
+      flat: { entrypoints: "src/index.js" },
       nested: { build: { entry: "src/index.js" } },
     },
     {
       what: "an array of entry points",
-      flat: { entryPoints: ["src/a.js", "src/b.js"] },
+      flat: { entrypoints: ["src/a.js", "src/b.js"] },
       nested: { build: { entry: ["src/a.js", "src/b.js"] } },
     },
     {
       what: "entry points as { out, in } records",
-      flat: { entryPoints: [{ out: "a.js", in: "src/a.js" }] },
+      flat: { entrypoints: [{ out: "a.js", in: "src/a.js" }] },
       nested: { build: { entry: [{ out: "a.js", in: "src/a.js" }] } },
+    },
+    {
+      what: "one entry point under the old camel-cased name",
+      flat: { entryPoints: "src/index.js" },
+      nested: { build: { entry: "src/index.js" } },
+    },
+    {
+      what: "an array of entry points under the old camel-cased name",
+      flat: { entryPoints: ["src/a.js", "src/b.js"] },
+      nested: { build: { entry: ["src/a.js", "src/b.js"] } },
     },
     {
       what: "output options",
@@ -94,23 +104,50 @@ describe("configuration spelling", () => {
   }
 
   it("leaves a flat configuration's spelling alone", () => {
-    // "entry" is the one alias, so it is the one thing that must move. Every
-    // other key reaches the engine under the name it was written with.
-    const { build } = normalize({ entryPoints: "src/i.js", outdir: "out" });
-    assert.deepEqual(Object.keys(build).sort(), ["entryPoints", "outdir"]);
+    // "entrypoints" is canonical, so it is the one thing that must NOT move.
+    // Every other key reaches the engine under the name it was written with.
+    const { build } = normalize({ entrypoints: "src/i.js", outdir: "out" });
+    assert.deepEqual(Object.keys(build).sort(), ["entrypoints", "outdir"]);
   });
 
-  it("renames entry to entryPoints", () => {
+  it("renames entry to entrypoints", () => {
     const { build } = normalize({ build: { entry: "src/i.js" } });
-    assert.equal(build.entryPoints, "src/i.js");
+    assert.equal(build.entrypoints, "src/i.js");
     assert.equal("entry" in build, false);
   });
 
+  it("renames entryPoints to entrypoints, one and several", () => {
+    // The spelling the API published for years. A caller who has it in a working
+    // script should not be broken by the rename, so it reaches the same place
+    // the canonical name does rather than being quietly dropped.
+    for (const given of ["src/i.js", ["src/a.js", "src/b.js"]]) {
+      const { build } = normalize({ entryPoints: given });
+      assert.deepEqual(build.entrypoints, given);
+      assert.equal("entryPoints" in build, false);
+    }
+  });
+
+  it("refuses entrypoints and entryPoints together", () => {
+    // Canonical alongside its own alias is the most likely way to collide by
+    // accident: a half-finished rename. Two names for one option is a caller
+    // who does not know which they meant, and picking one for them is a guess
+    // about where their output goes.
+    assert.throws(
+      () => normalize({ entrypoints: "a.js", entryPoints: "b.js" }),
+      /same option/
+    );
+  });
+
   it("refuses entry and entryPoints together", () => {
-    // Two names for one option is a caller who does not know which they meant,
-    // and picking one for them is a guess about where their output goes.
     assert.throws(
       () => normalize({ build: { entry: "a.js", entryPoints: "b.js" } }),
+      /same option/
+    );
+  });
+
+  it("refuses all three spellings together", () => {
+    assert.throws(
+      () => normalize({ entrypoints: "a.js", entryPoints: "b.js", entry: "c.js" }),
       /same option/
     );
   });
@@ -138,7 +175,7 @@ describe("configuration conflicts", () => {
     // double-statement of one option is refused.
     const { build } = normalize({ minify: true, build: { entry: "src/i.js" } });
     assert.equal(build.minify, true);
-    assert.equal(build.entryPoints, "src/i.js");
+    assert.equal(build.entrypoints, "src/i.js");
   });
 
   it("does not mutate the caller's object", () => {

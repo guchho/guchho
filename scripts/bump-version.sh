@@ -9,6 +9,7 @@ set -euo pipefail
 #   - CMakeLists.txt
 #   - package/npm/guchho/package.json
 #   - package/npm/@guchho/*/package.json
+#   - package/chocolatey/guchho/guchho.nuspec
 #
 # Usage:
 #   ./scripts/bump-version.sh <version>
@@ -118,6 +119,27 @@ if [[ -d "$PLATFORM_DIR" ]]; then
             info "  @guchho/${pkg_name}: ${OLD_PKG_VERSION} -> ${VERSION}"
         fi
     done
+fi
+
+
+# ========================================
+# Update the chocolatey nuspec
+# ========================================
+#
+# It carries its own version element, and it was the one place the bump did not
+# reach: a release that moved every package.json and left this at the previous
+# version published a chocolatey package whose own metadata disagreed with the
+# binary inside it.
+
+NUSPEC="$ROOT_DIR/package/chocolatey/guchho/guchho.nuspec"
+
+if [[ -f "$NUSPEC" ]]; then
+    OLD_NUSPEC_VERSION=$(grep -oP '<version>\K[^<]+' "$NUSPEC" | head -1 || true)
+
+    if [[ -n "$OLD_NUSPEC_VERSION" && "$OLD_NUSPEC_VERSION" != "$VERSION" ]]; then
+        sed -i "0,/<version>${OLD_NUSPEC_VERSION}/s//<version>${VERSION}/" "$NUSPEC"
+        info "  guchho.nuspec: ${OLD_NUSPEC_VERSION} -> ${VERSION}"
+    fi
 fi
 
 

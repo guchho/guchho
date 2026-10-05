@@ -56,7 +56,7 @@ npm install guchho
 
 **One tool, not five.** Lexer, parser, transformer, printer, minifier, linker, resolver, watcher and dev server are all in the same binary. There is no plugin process, no worker pool, and no separate CSS toolchain to configure.
 
-**A real API.** The CLI is a thin shim over a long-lived service protocol. Everything `guchho build` does is also callable from JavaScript — including the compiler stages (`lexJS`, `parseCSS`, `printHTML`, …), so the engine can be embedded in your own tools.
+**A real API.** The CLI is a thin shim over a long-lived service protocol. Everything `guchho build` does is also callable from JavaScript — including the compiler stages (`lexer`, `parse`, `print`), so the engine can be embedded in your own tools.
 
 **A programmatic surface that stays out of the way.** `build()` is one call and one result. `context()` holds the expensive half of a build so the second one is cheap. Both ship with full TypeScript declarations.
 
@@ -365,13 +365,16 @@ const { build, transform, context } = require('guchho')
 | `build(options)` | `Promise<BuildResult>` |
 | `transform(code, options?)` | `Promise<TransformResult>` |
 | `context(options)` | `Promise<BuildContext>` |
-| `analyze(metafile)` | `Promise<string>` |
+| `analyze(config)` | `Promise<AnalysisResult>` |
+| `analyzeMetafile(metafile)` | `Promise<string>` |
 | `stop()` | `Promise<void>` |
 | `version` | `string` |
-| `lexHTML` `parseHTML` `transformHTML` `printHTML` | compiler stages for HTML |
-| `lexCSS` `parseCSS` `transformCSS` `printCSS` | compiler stages for CSS |
-| `lexJS` `parseJS` `transformJS` `printJS` | compiler stages for JavaScript |
+| `lexer(source, options)` | `Promise<LexResult>` |
+| `parse(source, options)` | `Promise<ParseResult>` |
+| `print(ast, options)` | `Promise<PrintResult>` |
 | `BuildFailure` `ServiceError` `BuildContext` | error and class types |
+
+Each compiler stage is one function told which language it is working on, rather than one function per stage per language. `language` is `"html"`, `"css"` or `"js"`, and it is required — inferring it from the source text is guessing.
 
 Every call starts a long-lived native service the first time it is used and reuses it afterwards, so a process that builds a hundred times starts the engine once.
 
@@ -490,19 +493,30 @@ await stop()
 
 ### Analyze
 
-`metafile: true` returns a build's inputs, outputs, byte counts and import graph. `analyze()` turns it into a human-readable size report — the same question `analyzeMetafile` used to answer.
+`analyze()` takes a configuration, builds without writing, and answers with a structured account of what the bundle is made of: which inputs fed which outputs, how many bytes each contributed, and what was left external. It is data, not prose, so it can be checked in a test or fed to a size budget.
+
+`analyzeMetafile()` answers the older question — it renders a metafile as a human-readable report.
 
 ```js
-import { build, analyze } from 'guchho'
+import { build, analyze, analyzeMetafile } from 'guchho'
 
+// Structured: the same build, in a form code can assert on.
+const analysis = await analyze({
+  entryPoints: ['src/index.html'],
+  bundle: true,
+})
+console.log(analysis.outputs, analysis.inputs, analysis.dependencies)
+
+// Prose: a metafile rendered as a report.
 const { metafile } = await build({
   entryPoints: ['src/index.html'],
   metafile: true,
   write: false,
 })
-
-console.log(await analyze(metafile))
+console.log(await analyzeMetafile(metafile))
 ```
+
+Note that `analyze` is the structured one and `analyzeMetafile` is the report. In 1.x `analyze()` *was* the report, so code passing a metafile to `analyze()` now gets a configuration error rather than a string.
 
 ```bash
 guchho build src/index.html --metafile --analyze
@@ -522,39 +536,43 @@ Await this before deleting a build's output directory. While the process is aliv
 
 ### Compiler API
 
-The engine's own lexer, parser, transformer and printer, one function per language. Each stage sends one request to the same service a build uses, so the code you get is the engine's code.
+The engine's own lexer, parser and printer. One function per stage, told which language it is for — not one function per stage per language, which is the same three operations spelled twelve times.
 
-The AST never crosses the wire: a parse answers with a numeric **handle** and a structural summary, a transform turns one handle into another, and a print turns a handle into text.
+Each stage sends one request to the same service a build uses, so the code you get is the engine's code.
+
+The AST never crosses the wire: a parse answers with a numeric **handle** and a structural summary, and a print turns that handle back into text.
 
 ```js
-import { lexJS, parseJS, printJS, parseCSS, transformCSS, printCSS } from 'guchho'
+import { lexer, parse, print } from 'guchho'
 
 // Lex: every token, with byte offsets and line/column.
-const { tokens, count } = await lexJS('const a = 1')
-// tokens[0] → { kind: 'const', value: 'const', start: 0, end: 5, line: 1, column: 0, length: 5 }
+const { tokens, count } = await lexer('const a = 1', { language: 'js' })
+// tokens[0] → { kind: '"const"', value: 'const', start: 0, end: 5, line: 1, column: 0, length: 5 }
+// "kind" is the engine's own name for the token type, so a token kind this
+// package has never heard of arrives as itself rather than as a number.
 
 // Parse: a handle, plus a summary. A syntax error resolves with ok: false.
-const parsed = await parseJS('const a = 1; a + 1', { sourcefile: 'demo.js' })
+const parsed = await parse('const a = 1; a + 1', { language: 'js', sourcefile: 'demo.js' })
 // parsed.ok, parsed.symbols → [{ name: 'a', useCount: 2 }], parsed.partCount
 
-const printed = await printJS(parsed.ast, { minify: true })
+const printed = await print(parsed.ast, { language: 'js', minifySyntax: true })
 
-// CSS: parse → drop unreachable rules → print.
-const css = await parseCSS('.used { color: red } .dead { color: blue } .used { margin: 0 }')
-const pruned = await transformCSS(css.ast, { removeDeadRules: true })
-// pruned.passes → ['removeDeadRules'], pruned.removed → 1
-
-const out = await printCSS(pruned.ast, { minifyWhitespace: true, minifySyntax: true })
+// CSS: parse, then print back to source.
+const css = await parse('.used { color: red } .dead { color: blue }', { language: 'css' })
+const out = await print(css.ast, { language: 'css', minifyWhitespace: true })
 ```
 
-| Stage | HTML | CSS | JavaScript |
-| ----- | ---- | --- | ---------- |
-| Lex | `lexHTML(input)` | `lexCSS(input, { includeComments })` | `lexJS(input)` |
-| Parse | `parseHTML(input, { fragment, collectImportRecords, collectInlineCode })` | `parseCSS(input)` | `parseJS(input)` |
-| Transform | `transformHTML(ast)` | `transformCSS(ast, { removeDeadRules })` | `transformJS(ast)` |
-| Print | `printHTML(ast, { pretty, minify, scriptingEnabled })` | `printCSS(ast, { minifyWhitespace, minifySyntax, minifyIdentifiers, asciiOnly })` | `printJS(ast, { …same, asciiOnly })` |
+| Stage | Call | Language-specific options |
+| ----- | ---- | ------------------------- |
+| Lex | `lexer(source, { language })` | `includeComments` (CSS) |
+| Parse | `parse(source, { language, sourcefile })` | `fragment`, `collectImportRecords`, `collectInlineCode` (HTML); `minifyWhitespace`, `minifySyntax`, `minifyIdentifiers` (CSS, JS) |
+| Print | `print(ast, { language })` | `pretty`, `minify`, `scriptingEnabled` (HTML); `minifyWhitespace`, `asciiOnly` (CSS); `minifyWhitespace`, `minifySyntax`, `minifyIdentifiers`, `asciiOnly` (JS) |
 
-A handle is only valid for the language it came from, and only until the next transform of it. HTML and JS transforms currently answer with an empty `passes` list and a `note` saying nothing is rewritable yet — "nothing ran" *is* the pass list, not a missing feature report.
+A summary is the language's own: `nodes` for HTML, `rules` for CSS, `parts` and `symbols` for JS. `sourcefile` is worth setting on a parse — without it a syntax error reports a position and no file.
+
+A handle is only valid for the language it came from, and passing one to the wrong printer throws rather than being sent somewhere it does not belong.
+
+There is no handle-level transform. Dead-rule removal and the rest of the engine's rewrites are reached through [`transform(code, { loader })`](#transform), which takes source and answers with source; adding a fourth function taking a handle would be a second way to do the same work.
 
 ### Error handling
 

@@ -1,12 +1,12 @@
 // guchho.build(), reached the way a caller reaches it.
 //
 //     import { build } from "guchho";
-//     const result = await build({ entryPoints: ["src/main.js"] });
+//     const result = await build({ entrypoints: ["src/main.js"] });
 //
 // This file was rewritten when the API moved to the service and to esbuild's
 // shape. What changed and why it was worth changing:
 //
-//   - "entries" is now "entryPoints", and "root" is now "absWorkingDir". Both
+//   - "entries" is now "entrypoints", and "root" is now "absWorkingDir". Both
 //     are esbuild's names, and a project moving between bundlers should be a
 //     change of import rather than a rewrite of every call.
 //
@@ -71,7 +71,7 @@ describe("build()", () => {
 
         const result = await guchho.build({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
         });
 
         assert.deepEqual(result.errors, [], `build failed: ${result.errors.join("\n")}`);
@@ -92,7 +92,7 @@ describe("build()", () => {
 
         await guchho.build({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
             outdir: "public",
         });
 
@@ -106,7 +106,7 @@ describe("build()", () => {
 
         const result = await guchho.build({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
             write: false,
             bundle: true,
             format: "esm",
@@ -138,7 +138,7 @@ describe("build()", () => {
 
         await guchho.build({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
             metafile: true,
         });
 
@@ -151,7 +151,7 @@ describe("build()", () => {
 
         const withMetafile = await guchho.build({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
             write: false,
             metafile: true,
         });
@@ -160,7 +160,7 @@ describe("build()", () => {
 
         const without = await guchho.build({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
             write: false,
         });
         // Absent rather than an empty object: "you did not ask" and "you asked
@@ -175,7 +175,7 @@ describe("build()", () => {
 
         let thrown = null;
         try {
-            await guchho.build({ absWorkingDir: root, entryPoints: ["src/nothing-here.js"] });
+            await guchho.build({ absWorkingDir: root, entrypoints: ["src/nothing-here.js"] });
         } catch (error) {
             thrown = error;
         }
@@ -190,7 +190,7 @@ describe("build()", () => {
         const root = makeProject({ "src/broken.js": "const a = (;\n" });
 
         await assert.rejects(
-            () => guchho.build({ absWorkingDir: root, entryPoints: ["src/broken.js"] }),
+            () => guchho.build({ absWorkingDir: root, entrypoints: ["src/broken.js"] }),
             (error) => {
                 assert.ok(error.errors.length > 0, "there should be something to say about it");
                 return true;
@@ -209,7 +209,7 @@ describe("build()", () => {
             process.chdir(os.tmpdir());
             const result = await guchho.build({
                 absWorkingDir: root,
-                entryPoints: ["src/main.js"],
+                entrypoints: ["src/main.js"],
                 write: false,
             });
 
@@ -228,7 +228,7 @@ describe("build()", () => {
         // nothing, and succeed having built nothing. A caller reading that as a
         // successful build is exactly the bug worth stopping for.
         await assert.rejects(() => guchho.build({}), TypeError);
-        await assert.rejects(() => guchho.build({ entryPoints: [] }), TypeError);
+        await assert.rejects(() => guchho.build({ entrypoints: [] }), TypeError);
     });
 
     it("rejects options that are not an object", async () => {
@@ -241,7 +241,7 @@ describe("build()", () => {
         // rather than reaching the engine and coming back as a build failure
         // that looks like a problem with the code.
         await assert.rejects(
-            () => guchho.build({ entryPoints: ["src/main.js"], logLevel: "chatty" }),
+            () => guchho.build({ entrypoints: ["src/main.js"], logLevel: "chatty" }),
             TypeError
         );
     });
@@ -254,7 +254,7 @@ describe("build()", () => {
 
         const result = await guchho.build({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
             write: false,
         });
 
@@ -307,7 +307,7 @@ describe("build()", () => {
 
         const result = await guchho.build({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
             write: false,
             metafile: true,
         });
@@ -329,8 +329,8 @@ describe("build()", () => {
         const root = makeProject();
 
         const results = await guchho.build([
-            { absWorkingDir: root, entryPoints: ["src/main.js"], outdir: "one" },
-            { absWorkingDir: root, entryPoints: ["src/main.js"], outdir: "two" },
+            { absWorkingDir: root, entrypoints: ["src/main.js"], outdir: "one" },
+            { absWorkingDir: root, entrypoints: ["src/main.js"], outdir: "two" },
         ]);
 
         assert.ok(Array.isArray(results), "an array of configurations should answer with an array");
@@ -349,7 +349,7 @@ describe("build()", () => {
 
         const result = await guchho.build({
             absWorkingDir: root,
-            entryPoints: ["src/main.js"],
+            entrypoints: ["src/main.js"],
             write: false,
         });
 

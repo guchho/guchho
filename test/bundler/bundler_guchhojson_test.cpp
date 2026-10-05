@@ -217,12 +217,13 @@ TEST(BundlerGuchhoJSON, BuildFormatUMDWithExternal) {
 }
 
 // The three tests above leave "MinifyWhitespace" at its false default, so
-// their snapshots show the wrapper pretty-printed. The wrapper is built by
-// string concatenation in the linker rather than printed from the AST, which
-// means it has to derive its own whitespace from the same switch; these three
-// set the switch and pin the result. "minify": true is the value a real
-// build takes here, because "CreateDefaultGuchhoBuildConfig" turns it on and
-// the config above says nothing about it.
+// their snapshots show the wrapper pretty-printed. With the switch on, the
+// wrapper's template text goes back through the parser and printer before
+// the body is spliced in, so these tests set the switch and pin what comes
+// back: every cosmetic space gone, the token-fusing spaces kept. They set
+// only "MinifyWhitespace"; the expression and identifier passes that a full
+// "--minify" turns on get their own coverage in BuildFormatUMDFullMinify
+// below.
 
 TEST(BundlerGuchhoJSON, BuildFormatUMDMinified) {
     // The bare wrapper: three branch arms, no global namespace. The entry
@@ -247,9 +248,10 @@ TEST(BundlerGuchhoJSON, BuildFormatUMDMinified) {
 TEST(BundlerGuchhoJSON, BuildFormatUMDMinifiedDirectExports) {
     // A minified entry that does export: the same wrapper as the test above
     // plus a namespace, and the "use strict" directive still sitting inside the
-    // factory where it is inherited by the body. Whitespace minification must
-    // not remove it, since no later pass can see it as removable -- it is
-    // written as raw wrapper text rather than printed from the AST.
+    // factory where it is inherited by the body. The wrapper now passes through
+    // the printer like any other code, and a printer never drops a directive,
+    // but this snapshot is what pins that: a UMD bundle without it would
+    // silently lose strictness the same input still has in every other format.
     guchhojson_suite.ExpectBundled(Bundled{
         .files = {
             {"/app.js", "export const answer = 42;\nconsole.log(answer);\n"},
@@ -324,6 +326,34 @@ TEST(BundlerGuchhoJSON, BuildFormatUMDMinifiedWithExternal) {
             .MinifyWhitespace = true,
         },
         .guchho_config = R"({"build":{"format":"umd"},"external":["vue"]})",
+    });
+}
+
+TEST(BundlerGuchhoJSON, BuildFormatUMDFullMinify) {
+    // The full "--minify" case: all three passes on at once, which is what
+    // a real minified UMD build takes. Two things happen that the
+    // whitespace-only tests above cannot show. The dispatcher's parameters
+    // are identifiers like any other, so they are drawn from the pool that
+    // named this chunk's symbols and come out short ("global,factory" ->
+    // names like "e,f"). And the comparisons go through the binder's normal
+    // expression minification, so the spacing around them and the strict
+    // equality itself are rewritten the same way the body's are. The
+    // factory's own parameters keep their names: the body spliced between
+    // the wrapper's halves refers to them by exactly those names.
+    guchhojson_suite.ExpectBundled(Bundled{
+        .files = {
+            {"/app.js", "export const answer = 42;\nconsole.log(answer);\n"},
+        },
+        .entry_paths = {"/app.js"},
+        .options = guchho::config::Options{
+            .BuildMode = guchho::config::Mode::kBundle,
+            .AbsOutputFile = "/out.js",
+            .GlobalName = {"MyLib"},
+            .MinifyWhitespace = true,
+            .MinifyIdentifiers = true,
+            .MinifySyntax = true,
+        },
+        .guchho_config = R"({"build":{"format":"umd"}})",
     });
 }
 

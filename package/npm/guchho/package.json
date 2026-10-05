@@ -48,7 +48,7 @@
   "bugs": {
     "url": "https://github.com/guchho/guchho/issues"
   },
-  "homepage": "https://github.com/guchho/guchho#readme",
+  "homepage": "https://guchho.js.org/",
   "optionalDependencies": {
     "@guchho/aix-ppc64": "1.0.1",
     "@guchho/android-arm": "1.0.1",

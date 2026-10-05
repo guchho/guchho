@@ -89,8 +89,23 @@ require_node() {
 # says is worth the two lines. Everything non-alphanumeric is escaped rather
 # than a hand-picked class, so a pre-release tag or a stray backslash in a
 # captured value cannot quietly turn into a sed metacharacter.
+#
+# Pattern field only. The two sides of an s/// are not the same language: a
+# backslash means "escape the next character" in the pattern and "the next
+# character is a literal" in the replacement, and & is the whole match only in
+# the latter. Using this for a replacement mangles it -- escape_repl is for
+# that side.
 escape_re() {
     printf '%s' "$1" | sed 's/[^A-Za-z0-9]/\\&/g'
+}
+
+# Replacement field of an s///. Only the three characters sed gives a meaning
+# to there: \ and & are special, and | is included because the substitution
+# command is delimited with it. A dot is NOT special in a replacement, so
+# escaping one would insert a stray backslash -- which is how a version of
+# 1.10.0 can turn into the literal 1\.10\.0.
+escape_repl() {
+    printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'
 }
 
 # project(VERSION x.y.z) in the top-level CMakeLists.txt -- the one place the
@@ -106,6 +121,16 @@ cmake_version() {
 
 json_version() {
     grep -oP '"version"\s*:\s*"\K[^"]+' "$1" | head -1 || true
+}
+
+# The version inside a JSON string, where the value is written escaped:
+#     "GUCHHO_VERSION_STRING=\"1.0.1\"
+# The class must exclude the backslash as well as the quote. [^"]+ alone ends
+# up capturing "1.0.1\" -- backslash included -- and that capture then feeds
+# the sed below a pattern which matches the trailing \" and deletes it, turning
+# the define into "1.0.1" and leaving the file unparseable.
+jsonc_escaped_string() {
+    grep -oP "$2=[\\\\\"]*\K[^\"\\\\]*" "$1" | head -1 || true
 }
 
 
@@ -187,6 +212,83 @@ check_not_eq() {
     fi
 }
 
+# Parses a JSONC file and reports whether it is syntactically valid.
+#
+# Written by hand because the repository has no jsonc-parser dependency, and
+# added because a JSONC file that does not parse fails silently in the worst
+# way: VS Code shows the errors and then falls back to defaults, so the
+# IntelliSense configuration this script keeps in sync is quietly not the one
+# being used. Comments are stripped here because that is the only thing
+# separating this from JSON.parse -- strings are walked rather than regexed so
+# a "//" inside a value is not mistaken for a comment.
+check_jsonc_parses() {
+    local file="$1" result
+
+    if [[ ! -f "$file" ]]; then
+        printf "  ${YELLOW}skip${NC}  %-40s not found\n" "${file#$ROOT_DIR/}"
+        return 0
+    fi
+
+    result=$( cd "$ROOT_DIR" && node -e '
+        const fs = require("fs");
+        const src = fs.readFileSync(process.argv[1], "utf8");
+
+        // Strip // and /* */ comments while tracking string state, so a
+        // delimiter inside a quoted value is left alone. Only double quotes
+        // open strings in JSON, so that is the only case handled.
+        let out = "";
+        let i = 0;
+        while (i < src.length) {
+            const c = src[i];
+            if (c === "\"") {
+                out += c;
+                i++;
+                while (i < src.length && src[i] !== "\"") {
+                    if (src[i] === "\\") {
+                        out += src[i];
+                        i++;
+                    }
+                    if (i < src.length) {
+                        out += src[i];
+                        i++;
+                    }
+                }
+                if (i < src.length) {
+                    out += src[i];
+                    i++;
+                }
+                continue;
+            }
+            if (c === "/" && src[i + 1] === "/") {
+                while (i < src.length && src[i] !== "\n") i++;
+                continue;
+            }
+            if (c === "/" && src[i + 1] === "*") {
+                i += 2;
+                while (i < src.length && !(src[i] === "*" && src[i + 1] === "/")) i++;
+                i += 2;
+                continue;
+            }
+            out += c;
+            i++;
+        }
+
+        try {
+            JSON.parse(out);
+            console.log("ok");
+        } catch (e) {
+            console.log("FAIL " + e.message);
+        }
+    ' "${file#$ROOT_DIR/}" 2>/dev/null || echo "FAIL node could not read the file")
+
+    if [[ "$result" == "ok" ]]; then
+        printf "  ${GREEN}ok${NC}    %-40s parses as JSONC\n" "${file#$ROOT_DIR/}"
+    else
+        printf "  ${RED}FAIL${NC}  %-40s does not parse: %s\n" "${file#$ROOT_DIR/}" "${result#FAIL }"
+        CHECK_FAILURES=$((CHECK_FAILURES + 1))
+    fi
+}
+
 verify_versions() {
     local key pins_total pins_stale platforms
 
@@ -229,7 +331,15 @@ verify_versions() {
         "$VERSION" "$(grep -oP 'guchho v\K[0-9]+\.[0-9]+\.[0-9]+[^"]*' "$ROOT_DIR/src/cli/cli_run.cpp" | head -1 || true)"
 
     check_eq ".vscode/c_cpp_properties.json define" \
-        "$VERSION" "$(grep -oP 'GUCHHO_VERSION_STRING=\\?"?\K[^"]+' "$ROOT_DIR/.vscode/c_cpp_properties.json" | head -1 || true)"
+        "$VERSION" "$(jsonc_escaped_string "$ROOT_DIR/.vscode/c_cpp_properties.json" "GUCHHO_VERSION_STRING")"
+
+    # The define lives inside a JSON string, so a substitution that fumbles the
+    # escaping leaves a file that no longer parses -- while a regex read-back
+    # still finds the right number in it, because the number survives even when
+    # the syntax around it does not. That is exactly how a broken
+    # c_cpp_properties.json got committed with a green check above it, so the
+    # file is parsed here rather than pattern-matched.
+    check_jsonc_parses "$ROOT_DIR/.vscode/c_cpp_properties.json"
 
     # Build-templated, so it must hold the placeholder and NOT a literal --
     # a literal here is the staleness build-chocolatey.sh used to leave behind.
@@ -437,7 +547,7 @@ if [[ -f "$CLI_RUN" ]]; then
     OLD_CLI_RUN=$(grep -oP 'guchho v\K[0-9]+\.[0-9]+\.[0-9]+[^"]*' "$CLI_RUN" | head -1 || true)
 
     if [[ -n "$OLD_CLI_RUN" ]]; then
-        sed -i "s/guchho v$(escape_re "$OLD_CLI_RUN")\"/guchho v${VERSION}\"/g" "$CLI_RUN"
+        sed -i "s/guchho v$(escape_re "$OLD_CLI_RUN")\"/guchho v$(escape_repl "$VERSION")\"/g" "$CLI_RUN"
         info "  src/cli/cli_run.cpp: ${OLD_CLI_RUN} -> ${VERSION}"
     else
         warn "  src/cli/cli_run.cpp: no \"guchho v<version>\" comment found, skipped"
@@ -457,10 +567,10 @@ fi
 CPP_PROPS="$ROOT_DIR/.vscode/c_cpp_properties.json"
 
 if [[ -f "$CPP_PROPS" ]]; then
-    OLD_CPP_DEFINE=$(grep -oP 'GUCHHO_VERSION_STRING=\\?"?\K[^"]+' "$CPP_PROPS" | head -1 || true)
+    OLD_CPP_DEFINE=$(jsonc_escaped_string "$CPP_PROPS" "GUCHHO_VERSION_STRING")
 
     if [[ -n "$OLD_CPP_DEFINE" ]]; then
-        sed -i "/GUCHHO_VERSION_STRING=/ s/$(escape_re "$OLD_CPP_DEFINE")/$(escape_re "$VERSION")/g" "$CPP_PROPS"
+        sed -i "/GUCHHO_VERSION_STRING=/ s/$(escape_re "$OLD_CPP_DEFINE")/$(escape_repl "$VERSION")/g" "$CPP_PROPS"
         info "  .vscode/c_cpp_properties.json: ${OLD_CPP_DEFINE} -> ${VERSION}"
     else
         warn "  .vscode/c_cpp_properties.json: no GUCHHO_VERSION_STRING define found, skipped"

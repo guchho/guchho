@@ -113,9 +113,20 @@ function toText(value) {
  * different answers and a caller that checks `.length` on the first when it
  * meant the second gets a build that looks empty rather than one that was never
  * asked.
+ *
+ * "outputs" and "inputs" are summaries rather than the full output files: a path
+ * and a size is what a caller reporting on a build wants, and every byte of
+ * every output is already in "outputFiles" for a build that was told not to
+ * write them. "inputs" needs a metafile, so it is absent without one rather than
+ * empty — the two mean different things to a caller counting files.
  */
-function toBuildResult(response) {
+function toBuildResult(response, duration) {
   const result = {
+    // A build with warnings is a build that worked, so this is the errors list
+    // and not the warnings list. It is derived rather than sent by the engine
+    // because the engine reports failures by throwing and a build that reached
+    // this line at all succeeded.
+    success: (Array.isArray(response.errors) ? response.errors.length : 0) === 0,
     errors: toMessages(response.errors),
     warnings: toMessages(response.warnings),
   };
@@ -123,6 +134,26 @@ function toBuildResult(response) {
   if (Array.isArray(response.outputFiles)) {
     result.outputFiles = response.outputFiles.map(toOutputFile);
   }
+  if (typeof response.duration === "number") {
+    result.duration = response.duration;
+  } else if (typeof duration === "number") {
+    // Measured here rather than in the engine because a build that was asked to
+    // write nothing still costs the same parse, and because the number a caller
+    // wants is the one it waited for, which includes the service round trip.
+    result.duration = duration;
+  }
+
+  // The paths and the sizes, from whichever source this build produced. The
+  // output files are the direct answer when the build kept them; a metafile
+  // describes them whether or not the bytes travelled.
+  if (Array.isArray(response.outputFiles)) {
+    result.outputs = response.outputFiles.map((file) => ({
+      path: typeof file.path === "string" ? file.path : "",
+      size: file.contents instanceof Uint8Array ? file.contents.byteLength : 0,
+      hash: typeof file.hash === "string" ? file.hash : "",
+    }));
+  }
+
   if (typeof response.metafile === "string") {
     try {
       result.metafile = JSON.parse(response.metafile);
@@ -134,11 +165,126 @@ function toBuildResult(response) {
       result.metafile = undefined;
     }
   }
+
+  if (result.metafile !== undefined && isRecord(result.metafile)) {
+    result.inputs = toInputSummaries(result.metafile);
+    if (result.outputs === undefined) {
+      result.outputs = toOutputSummaries(result.metafile);
+    }
+  }
+
   if (response.mangleCache !== undefined) {
     result.mangleCache = toMangleCache(response.mangleCache);
   }
 
   return result;
+}
+
+/** Whether a parsed metafile is worth reading a field out of. */
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * The inputs a metafile names, as a flat list of paths and sizes.
+ *
+ * The source of truth is the contribution map on each output — "inputs" beside an
+ * output, mapping every file that ended up inside it to the bytes it contributed.
+ * That is the bundler's own transitive graph, and it is the only place the full
+ * set appears: the metafile's top-level "inputs" names the entry points and
+ * nothing else, so a caller who wanted to know what a build read and read that
+ * instead would be told about one file and would believe it.
+ *
+ * A metafile whose outputs carry no contribution map falls back to the top-level
+ * inputs, which is a smaller answer but an honest one.
+ *
+ * Sizes are summed across outputs, so a file split across two chunks is reported
+ * once at the total it contributed rather than twice at a partial amount.
+ */
+function toInputSummaries(metafile) {
+  if (!isRecord(metafile)) return [];
+
+  const contributed = new Map();
+  const formats = new Map();
+
+  for (const output of Object.values(metafile.outputs || {})) {
+    if (!isRecord(output)) continue;
+
+    for (const [path, contribution] of Object.entries(output.inputs || {})) {
+      const bytes = isRecord(contribution)
+        ? numberOr(contribution.bytesInOutput, 0)
+        : numberOr(contribution, 0);
+      contributed.set(path, (contributed.get(path) || 0) + bytes);
+    }
+    // The format is recorded once per input in the top-level map, and reading it
+    // from there keeps a single answer to "how was this parsed".
+    for (const [path, input] of Object.entries(metafile.inputs || {})) {
+      if (isRecord(input) && typeof input.format === "string") formats.set(path, input.format);
+    }
+  }
+
+  if (contributed.size === 0) {
+    for (const [path, input] of Object.entries(metafile.inputs || {})) {
+      if (isRecord(input)) contributed.set(path, numberOr(input.bytes, 0));
+    }
+  }
+
+  return [...contributed].map(([path, bytes]) => ({
+    path,
+    bytes,
+    format: formats.get(path),
+  }));
+}
+
+/**
+ * The outputs a metafile names, as a flat list of paths and sizes.
+ *
+ * This is what "outputs" means for a build that wrote its files: the build put
+ * the bytes on disk and did not send them over a pipe nobody was going to read,
+ * but the metafile still knows what it produced and how big each piece is.
+ */
+function toOutputSummaries(metafile) {
+  if (!isRecord(metafile) || !isRecord(metafile.outputs)) return [];
+
+  const summaries = [];
+  for (const [path, output] of Object.entries(metafile.outputs)) {
+    if (!isRecord(output)) continue;
+    summaries.push({
+      path,
+      size: numberOr(output.bytes, 0),
+    });
+  }
+  return summaries;
+}
+
+/**
+ * The imports a metafile's outputs still carry.
+ *
+ * These are what the built code requires at runtime and did not get inlined. A
+ * relative one is here too: bundle:false is the default, and under it a build
+ * leaves sibling imports alone on purpose. Calling those "not dependencies"
+ * because they are not bare specifiers would report an empty dependency list for
+ * a bundle that plainly has some.
+ *
+ * Sorted and deduplicated across every output, because an analysis whose list
+ * reorders between runs is one nobody can diff.
+ */
+function toDependencySummaries(metafile) {
+  if (!isRecord(metafile) || !isRecord(metafile.outputs)) return [];
+
+  const external = new Set();
+  for (const output of Object.values(metafile.outputs)) {
+    if (!isRecord(output) || !Array.isArray(output.imports)) continue;
+    for (const edge of output.imports) {
+      if (isRecord(edge) && typeof edge.path === "string") external.add(edge.path);
+    }
+  }
+  return [...external].sort();
+}
+
+/** A finite number, or the fallback. A caller summing these gets a number. */
+function numberOr(value, fallback) {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
 /** A transform response, in the shape guchho publishes. */
@@ -153,6 +299,7 @@ function toTransformResult(response) {
 
 module.exports = {
   NO_DETAIL,
+  isRecord,
   toMessage,
   toMessages,
   toNote,
@@ -161,4 +308,7 @@ module.exports = {
   toText,
   toBuildResult,
   toTransformResult,
+  toInputSummaries,
+  toOutputSummaries,
+  toDependencySummaries,
 };

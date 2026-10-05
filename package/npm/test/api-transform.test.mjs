@@ -74,11 +74,16 @@ describe("the module's shape", () => {
         // the first call — which is to say, at the first build.
         assert.equal(typeof guchho.context, "function");
         assert.equal(typeof guchho.analyze, "function");
+        assert.equal(typeof guchho.analyzeMetafile, "function");
+        assert.equal(typeof guchho.watch, "function");
+        assert.equal(typeof guchho.serve, "function");
         assert.equal(typeof guchho.stop, "function");
         assert.equal(typeof guchho.version, "string");
         assert.equal(typeof guchho.lexer, "function");
         assert.equal(typeof guchho.parse, "function");
         assert.equal(typeof guchho.print, "function");
+        assert.equal(typeof guchho.Watcher, "function");
+        assert.equal(typeof guchho.DevServer, "function");
     });
 
     it("dropped the names the CHANGELOG says are gone", () => {

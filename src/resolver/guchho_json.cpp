@@ -560,7 +560,7 @@ namespace guchho::resolver {
         static const char* kKnownBuildFields[] = {
             "entry", "outdir", "outfile", "format", "platform", "target",
             "minify", "sourcemap", "splitting", "clean", "treeShaking",
-            "pretty", "minifyHtml", "bundle",
+            "pretty", "minifyHtml", "bundle", "name", "globalName",
         };
         if (auto build_prop = internal::GetProperty(json, "build")) {
             const javascript::Expr& build = build_prop->first;
@@ -596,6 +596,43 @@ namespace guchho::resolver {
             if (auto format = internal::GetProperty(build, "format")) {
                 opts.FormatFromConfig = true;
                 ApplyFormatValue(opts, format->first, log, tracker, source);
+            }
+            // The browser global the wrapper formats publish the bundle's
+            // exports under. Two spellings because there are two conventions
+            // that both arrive here with a "build" block: "name" is the
+            // short one PLAN.md and Rollup users write, "globalName" is the
+            // camelCase the rest of this schema uses. They name the same
+            // field, so a config that carries both is told which one won
+            // rather than being left to guess why one had no effect.
+            {
+                auto name = internal::GetProperty(build, "name");
+                auto global_name = internal::GetProperty(build, "globalName");
+                if (name && global_name) {
+                    WarnConflictingAlias(log, source, tracker, *global_name,
+                                         "build.globalName", "build.name");
+                }
+                if (auto chosen = name ? name : global_name) {
+                    if (auto str = internal::GetString(chosen->first)) {
+                        // "Foo.Bar" is a legal global name and only the
+                        // name parser knows that, so the text goes through it
+                        // here as well as being kept below. Parsing it now is
+                        // what makes the name reach the linker when a caller
+                        // loads a config and builds directly rather than going
+                        // through the API: the API copies the text into its
+                        // own option field and parses it again, and both paths
+                        // end up with the same validation and the same
+                        // diagnostic for a name like "1bad".
+                        logger::Source name_source;
+                        name_source.pretty_paths = logger::PrettyPaths{*str, *str};
+                        name_source.key_path = logger::Path{*str};
+                        name_source.contents = *str;
+                        auto [parts, ok] = javascript::ParseGlobalName(log, name_source);
+                        if (ok) {
+                            opts.GlobalName = std::move(parts);
+                        }
+                        opts.GlobalNameText = *str;
+                    }
+                }
             }
             if (auto platform = internal::GetProperty(build, "platform")) {
                 if (auto str = internal::GetString(platform->first)) {
@@ -819,7 +856,7 @@ namespace guchho::resolver {
         // otherwise the canonical value would be silently overwritten.
         static const char* kKnownOutputFields[] = {
             "entryFileNames", "chunkFileNames", "assetFileNames",
-            "dir", "format", "sourcemap",
+            "dir", "format", "sourcemap", "name", "globalName",
         };
         if (auto output_prop = internal::GetProperty(json, "output")) {
             const javascript::Expr& output = output_prop->first;
@@ -869,6 +906,40 @@ namespace guchho::resolver {
                                          "build.sourcemap");
                 } else {
                     ApplySourceMapValue(opts, sourcemap->first, log, tracker, source);
+                }
+            }
+            // The global name under "output" is the same alias shape as
+            // "output.dir" and "output.format": a Vite-shaped config that puts
+            // the naming of the artifact under "output" should not have to put
+            // the name of the global it creates there too. Applied only when
+            // neither "build.name" nor "build.globalName" is present, since
+            // the canonical spelling is the one inside "build".
+            {
+                auto build_has_name = build_has("name") || build_has("globalName");
+                auto name = internal::GetProperty(output, "name");
+                auto global_name = internal::GetProperty(output, "globalName");
+                if (name && global_name) {
+                    WarnConflictingAlias(log, source, tracker, *global_name,
+                                         "output.globalName", "output.name");
+                }
+                bool chose_name = name.has_value();
+                if (auto chosen = chose_name ? name : global_name) {
+                    if (build_has_name) {
+                        WarnConflictingAlias(log, source, tracker, *chosen,
+                                             chose_name ? "output.name"
+                                                        : "output.globalName",
+                                             "build.name");
+                    } else if (auto str = internal::GetString(chosen->first)) {
+                        logger::Source name_source;
+                        name_source.pretty_paths = logger::PrettyPaths{*str, *str};
+                        name_source.key_path = logger::Path{*str};
+                        name_source.contents = *str;
+                        auto [parts, ok] = javascript::ParseGlobalName(log, name_source);
+                        if (ok) {
+                            opts.GlobalName = std::move(parts);
+                        }
+                        opts.GlobalNameText = *str;
+                    }
                 }
             }
 

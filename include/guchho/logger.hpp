@@ -1681,6 +1681,7 @@ namespace guchho::logger {
         kAPI_CannotCallResolveBeforeSetup,
         kAPI_MustSpecifyKindWhenResolving,
         kAPI_FormatIgnoredForHTMLEntry,
+        kAPI_UMDRequiresName,
 
         // -------------------------------------------------------------------
         // CLI mangle cache (mangle_cache.cpp)

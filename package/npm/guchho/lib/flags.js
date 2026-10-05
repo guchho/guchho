@@ -423,7 +423,15 @@ function sourcemapArgs(value) {
  * @returns {Array<[string|null, string]>}
  */
 function toEntryPoints(options) {
-    const given = options.entryPoints !== undefined ? options.entryPoints : options.entries;
+    // "entrypoints" is what normalize() leaves behind; "entryPoints" is the
+    // spelling the API published before the rename and is still read here so a
+    // request assembled by hand, or a caller reaching past normalize(), keeps
+    // working. "entries" is the field the protocol actually puts on the wire.
+    const given = options.entrypoints !== undefined
+        ? options.entrypoints
+        : options.entryPoints !== undefined
+        ? options.entryPoints
+        : options.entries;
     if (given === undefined || given === null) return [];
 
     const list = Array.isArray(given) ? given : [given];
@@ -431,7 +439,7 @@ function toEntryPoints(options) {
 
     for (const entry of list) {
         if (typeof entry === "string") {
-            if (entry.length === 0) throw new TypeError("entryPoints must be non-empty strings or [out, in] pairs");
+            if (entry.length === 0) throw new TypeError("entrypoints must be non-empty strings or [out, in] pairs");
             pairs.push([null, entry]);
             continue;
         }
@@ -463,7 +471,7 @@ function toEntryPoints(options) {
             continue;
         }
 
-        throw new TypeError('entryPoints takes a path, an { out, in } record, or a [out, in] pair');
+        throw new TypeError('entrypoints takes a path, an { out, in } record, or a [out, in] pair');
     }
 
     return pairs;

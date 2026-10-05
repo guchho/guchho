@@ -359,6 +359,31 @@ static const std::string kSnapshotsDir = "snapshots";
 static const std::string kSnapshotSplitter =
     "\n================================================================================\n";
 
+// A snapshot file may spell a test's key three ways, and only one of them is
+// what a run records. CompareSnapshot accepts all three, because the files
+// were not all written by the same harness: most carry the bare test name,
+// the oldest records in "snapshots_default.txt" carry that name with a "Test"
+// prefix, and four of them carry the full "Suite.Name".
+//
+// Anything else that looks a key up has to accept the same three, or it reads a
+// file whose keys it cannot match as a file whose tests never ran - which is
+// what "SnapshotsComplete" used to do, silently refusing to rewrite every bare
+// keyed file.
+//
+// Returns true when "expected_key" is one of the spellings of "test_name".
+static bool SnapshotKeyMatchesTest(const std::string& expected_key,
+                                   const std::string& test_name) {
+    if (expected_key == test_name) {
+        return true;
+    }
+    auto dot = test_name.find('.');
+    if (dot == std::string::npos) {
+        return false;
+    }
+    const std::string bare = test_name.substr(dot + 1);
+    return expected_key == bare || expected_key == "Test" + bare;
+}
+
 void Suite::CompareSnapshot(const std::string& test_name,
                             const std::string& generated) {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -440,12 +465,10 @@ void Suite::CompareSnapshot(const std::string& test_name,
     if (!update_snapshots_.load(std::memory_order_relaxed)) {
         auto it = expected_snapshots_.find(test_name);
         if (it == expected_snapshots_.end()) {
-            // Some snapshot files (e.g. snapshots_default.txt, ported from
-            if (auto dot = test_name.find('.'); dot != std::string::npos) {
-                std::string bare = test_name.substr(dot + 1);
-                it = expected_snapshots_.find(bare);
-                if (it == expected_snapshots_.end()) {
-                    it = expected_snapshots_.find("Test" + bare);
+            for (const auto& [key, _] : expected_snapshots_) {
+                if (SnapshotKeyMatchesTest(key, test_name)) {
+                    it = expected_snapshots_.find(key);
+                    break;
                 }
             }
         }
@@ -477,20 +500,45 @@ void Suite::UpdateSnapshots() {
     std::error_code ec;
     std::filesystem::create_directories(kSnapshotsDir, ec);
 
-    std::vector<std::string> keys;
-    keys.reserve(generated_snapshots_.size());
-    for (const auto& [k, _] : generated_snapshots_) {
-        keys.push_back(k);
+    // Key every record the way this file already spells it, rather than the way
+    // a run records it. A run only ever holds "Suite.Name", so writing those
+    // straight back would rename every test in a bare keyed file and bury the
+    // outputs that actually changed under a diff of the whole file. A test the
+    // file has never seen has no key to reuse, so it takes the spelling the
+    // rest of the file uses.
+    std::size_t bare_keys = 0;
+    for (const auto& [expected_key, _] : expected_snapshots_) {
+        if (expected_key.find('.') == std::string::npos) {
+            bare_keys++;
+        }
     }
-    std::sort(keys.begin(), keys.end());
+    const bool file_uses_bare_keys = bare_keys > expected_snapshots_.size() / 2;
+
+    std::map<std::string, std::string> records;
+    for (const auto& [test_name, body] : generated_snapshots_) {
+        std::string key = test_name;
+        for (const auto& [expected_key, _] : expected_snapshots_) {
+            if (SnapshotKeyMatchesTest(expected_key, test_name)) {
+                key = expected_key;
+                break;
+            }
+        }
+        if (key == test_name && file_uses_bare_keys) {
+            if (auto dot = test_name.find('.'); dot != std::string::npos) {
+                key = test_name.substr(dot + 1);
+            }
+        }
+        records[key] = body;
+    }
 
     std::ostringstream contents;
-    for (size_t i = 0; i < keys.size(); ++i) {
-        if (i > 0) {
+    bool first = true;
+    for (const auto& [key, body] : records) {
+        if (!first) {
             contents << kSnapshotSplitter;
         }
-        contents << keys[i] << '\n'
-                 << generated_snapshots_[keys[i]];
+        first = false;
+        contents << key << '\n' << body;
     }
 
     std::ofstream out(path_);
@@ -499,7 +547,14 @@ void Suite::UpdateSnapshots() {
 
 bool Suite::SnapshotsComplete() const {
     for (const auto& [key, _] : expected_snapshots_) {
-        if (generated_snapshots_.find(key) == generated_snapshots_.end()) {
+        bool found = false;
+        for (const auto& [test_name, _] : generated_snapshots_) {
+            if (SnapshotKeyMatchesTest(key, test_name)) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
             return false;
         }
     }

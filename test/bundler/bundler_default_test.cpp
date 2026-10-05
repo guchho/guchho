@@ -3844,6 +3844,121 @@ TEST(BundlerDefault, TestUseStrictDirectiveBundleESMIssue2264) {
 	});
 }
 
+// The three tests below and the one after them are the cjs half of a cjs
+// bundle being strict by itself. An ESM input is strict because modules are,
+// but a cjs bundle is a script, so the strictness the inputs had is a property
+// of how they were parsed rather than of the file that got written out. The
+// directive is therefore put in the generated prologue, which is the only
+// place it can go: a bundle is one script built out of several files, and a
+// directive on one input is not a prologue for the rest.
+//
+// None of these inputs contain a directive, so every "use strict" in the
+// snapshots below was added by the linker.
+
+// The plain case, and the shape every cjs bundle now has. It is the same
+// layout as the issue 2264 snapshot above, which reaches it the other way
+// round, by having the directive in the source: a bundle with a synthesized
+// prologue and a bundle whose entry asked for strict mode come out as the
+// same bytes.
+TEST(BundlerDefault, TestCommonJSAddsUseStrictDirective) {
+	default_suite.ExpectBundled(Bundled{
+		.files = {
+			{"/entry.js", R"test(
+
+				export let a = 1
+			)test"},
+		},
+		.entry_paths = {"/entry.js"},
+		.options = guchho::config::Options{
+			.BuildMode = guchho::config::Mode::kBundle,
+			.OutputFormat = guchho::config::Format::kCommonJS,
+			.AbsOutputFile = "/out.js",
+			
+		},
+		
+	});
+}
+
+// "--minify" is the flag most people type, so it is the one that matters for
+// the claim that the directive cannot be minified away. All three passes are
+// on: the syntax pass rewrites the body, the identifier pass renames it, and
+// the whitespace pass takes the newline the directive is normally followed
+// by. The directive is written as a raw string rather than printed from the
+// AST, so none of the three is in a position to see it as removable - which
+// is exactly what the snapshot shows, with the body starting on the same
+// line as the directive.
+TEST(BundlerDefault, TestMinifiedCommonJSKeepsUseStrictDirective) {
+	default_suite.ExpectBundled(Bundled{
+		.files = {
+			{"/entry.js", R"test(
+
+				export let a = 1
+			)test"},
+		},
+		.entry_paths = {"/entry.js"},
+		.options = guchho::config::Options{
+			.BuildMode = guchho::config::Mode::kBundle,
+			.OutputFormat = guchho::config::Format::kCommonJS,
+			.AbsOutputFile = "/out.js",
+			.MinifyWhitespace = true,
+			.MinifyIdentifiers = true,
+			.MinifySyntax = true,
+			
+		},
+		
+	});
+}
+
+// The whitespace pass on its own, because it is the pass that would drop the
+// newline if the directive were reached through the printer's layout logic
+// instead of being concatenated in. Nothing else is on, so the identifiers
+// are still the reader's own and the only thing missing here is spacing.
+TEST(BundlerDefault, TestCommonJSKeepsUseStrictDirectiveWithMinifyWhitespace) {
+	default_suite.ExpectBundled(Bundled{
+		.files = {
+			{"/entry.js", R"test(
+
+				export let a = 1
+			)test"},
+		},
+		.entry_paths = {"/entry.js"},
+		.options = guchho::config::Options{
+			.BuildMode = guchho::config::Mode::kBundle,
+			.OutputFormat = guchho::config::Format::kCommonJS,
+			.AbsOutputFile = "/out.js",
+			.MinifyWhitespace = true,
+			
+		},
+		
+	});
+}
+
+// The half of the claim that is about not adding it twice. Both routes into
+// the entry point's directive list are taken at once here: a source that asks
+// for strict mode itself, and a directive that asks for nothing, which is
+// there to show where the synthesized one would have landed in the order.
+// Only one "use strict" comes out, and it comes first.
+TEST(BundlerDefault, TestCommonJSDoesNotDuplicateUseStrictDirective) {
+	default_suite.ExpectBundled(Bundled{
+		.files = {
+			{"/entry.js", R"test(
+
+				'use strict'
+				'use loose'
+				export let a = 1
+			)test"},
+		},
+		.entry_paths = {"/entry.js"},
+		.options = guchho::config::Options{
+			.BuildMode = guchho::config::Mode::kBundle,
+			.OutputFormat = guchho::config::Format::kCommonJS,
+			.AbsOutputFile = "/out.js",
+			
+		},
+		
+	});
+}
+
 TEST(BundlerDefault, TestNoOverwriteInputFileError) {
 	default_suite.ExpectBundled(Bundled{
 		.files = {

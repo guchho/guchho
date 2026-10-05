@@ -733,6 +733,97 @@ TEST(GuchhoConfig, CanonicalWinsOverAlias)
     EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_AliasIgnored), size_t(4));
 }
 
+// The global name a wrapper format publishes under has two spellings, and both
+// have to end up as the same field: "name" is the short form this project's
+// brief asks for, "globalName" is the camelCase the rest of the schema uses.
+// A config that carries only one of them must not warn about the other - the
+// two are the same field, not an alias of a field that is also set.
+TEST(GuchhoConfig, GlobalNameAliasIsAcceptedUnderEitherSpelling)
+{
+    struct Case {
+        std::string json;
+        std::vector<std::string> expected_parts;
+    };
+    const Case cases[] = {
+        {"{\"build\":{\"name\":\"Lib\"}}",                    {"Lib"}},
+        {"{\"build\":{\"globalName\":\"Lib\"}}",              {"Lib"}},
+        {"{\"build\":{\"name\":\"Foo.Bar\"}}",                {"Foo", "Bar"}},
+        {"{\"output\":{\"name\":\"Lib\"}}",                   {"Lib"}},
+        {"{\"output\":{\"globalName\":\"Foo.Bar\"}}",         {"Foo", "Bar"}},
+    };
+
+    for (const Case& one : cases) {
+        TestFs fs;
+        fs.SetFile("/project/guchho.config.json", one.json);
+
+        config::Options  opts;
+        cache::JSONCache json_cache;
+        logger::Log      log = NewLog();
+
+        resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+        EXPECT_TRUE(result.found) << one.json;
+        ASSERT_EQ(result.builds.size(), size_t(1)) << one.json;
+        EXPECT_EQ(result.builds[0].opts.GlobalName, one.expected_parts) << one.json;
+
+        // The parsed parts are the linker's input; the text is what the API
+        // copies into its own option and what a later precedence check
+        // compares, so both have to be there.
+        EXPECT_FALSE(result.builds[0].opts.GlobalNameText.empty()) << one.json;
+
+        // Neither spelling is an unknown field.
+        EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoJSON_UnknownField), size_t(0))
+            << one.json;
+        EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_AliasIgnored), size_t(0))
+            << one.json;
+    }
+}
+
+// A config that carries both spellings says which one won, and the losing one
+// has no effect. This is the same rule the rest of the schema's aliases follow,
+// and it is the difference between a config that works and one that silently
+// publishes under the wrong global.
+TEST(GuchhoConfig, GlobalNameCanonicalWinsOverItsAlias)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "{\"build\":{\"name\":\"Canonical\",\"globalName\":\"Ignored\"}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].opts.GlobalName, std::vector<std::string>({"Canonical"}));
+    EXPECT_EQ(result.builds[0].opts.GlobalNameText, std::string("Canonical"));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_AliasIgnored), size_t(1));
+}
+
+// A name in the "output" block is an alias for the same field, so a config that
+// sets it in both places is telling the linker two different things. The build
+// block is the canonical home for it, so it wins and the other is reported.
+TEST(GuchhoConfig, GlobalNameInOutputDoesNotOverrideTheBuildBlock)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "{\"build\":{\"name\":\"FromBuild\"},"
+               "\"output\":{\"name\":\"FromOutput\"}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].opts.GlobalName, std::vector<std::string>({"FromBuild"}));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_AliasIgnored), size_t(1));
+}
+
 // A config written in the flat schema must not start warning now that aliases
 // exist. This is the regression guard for the whole additive change.
 TEST(GuchhoConfig, CanonicalSchemaStaysSilent)

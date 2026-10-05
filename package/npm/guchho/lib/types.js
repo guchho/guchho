@@ -76,7 +76,7 @@
  * One lexical token, as the engine saw it.
  *
  * The four stages are deliberately the same across the three languages, so that
- * a caller holding tokens from lexCSS and tokens from lexJS can treat them the
+ * a caller holding CSS tokens and JS tokens can treat them the
  * same way without branching on which language produced them. "kind" is the
  * engine's own name for the token type, so a name this package has never heard
  * of arrives as itself rather than as a number.

@@ -33,69 +33,128 @@ BundlerGuchhoJSON.BuildFormatIIFE
 BundlerGuchhoJSON.BuildFormatUMD
 ---------- /out.js ----------
 (function(global, factory) {
-  typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory(require) :
-  typeof define === "function" && define.amd ? define(["require"], factory) :
-  (global = typeof globalThis !== "undefined" ? globalThis : global || self, factory(void 0));
-})(this, function(require) {
+  typeof exports === "object" && typeof module !== "undefined" ? factory(exports, require) :
+  typeof define === "function" && define.amd ? define(["exports"], factory) :
+  (global = typeof globalThis !== "undefined" ? globalThis : global || self, (global.MyLib = global.MyLib || {}, factory(global.MyLib, void 0), global.MyLib));
+})(this, function(exports, require) {
+  "use strict";
   // app.js
-  var app_exports = {};
-  __export(app_exports, {
-    answer: () => answer
-  });
   var answer = 42;
   console.log(answer);
-  return __toCommonJS(app_exports);
+  exports.answer = answer;
 });
+
+================================================================================
+BundlerGuchhoJSON.BuildFormatUMDKeepsExplicitUseStrict
+---------- /out.js ----------
+(function(global,factory){typeof exports ==="object"&&typeof module !=="undefined"?factory(exports,require):typeof define ==="function"&&define.amd ?define(["exports"],factory):(global=typeof globalThis !=="undefined"?globalThis:global||self,(global.MyLib=global.MyLib||{},factory(global.MyLib,void 0),global.MyLib));})(this,function(exports,require){"use strict";var answer=42;exports.answer=answer;});
 
 ================================================================================
 BundlerGuchhoJSON.BuildFormatUMDMinified
 ---------- /out.js ----------
-(function(global,factory){typeof exports ==="object"&&typeof module !=="undefined"?module.exports=factory(require):typeof define ==="function"&&define.amd ?define(["require"],factory):(global=typeof globalThis !=="undefined"?globalThis:global||self,factory(void 0));})(this,function(require){var app_exports={};__export(app_exports,{answer:()=>answer});var answer=42;console.log(answer);return __toCommonJS(app_exports);});
+(function(global,factory){typeof exports ==="object"&&typeof module !=="undefined"?factory(exports,require):typeof define ==="function"&&define.amd ?define(["exports"],factory):(global=typeof globalThis !=="undefined"?globalThis:global||self,factory({},void 0));})(this,function(exports,require){"use strict";console.log(42);});
+
+================================================================================
+BundlerGuchhoJSON.BuildFormatUMDMinifiedDirectExports
+---------- /out.js ----------
+(function(global,factory){typeof exports ==="object"&&typeof module !=="undefined"?factory(exports,require):typeof define ==="function"&&define.amd ?define(["exports"],factory):(global=typeof globalThis !=="undefined"?globalThis:global||self,(global.MyLib=global.MyLib||{},factory(global.MyLib,void 0),global.MyLib));})(this,function(exports,require){"use strict";var answer=42;console.log(answer);exports.answer=answer;});
 
 ================================================================================
 BundlerGuchhoJSON.BuildFormatUMDMinifiedWithExternal
 ---------- /out.js ----------
-(function(global,factory){typeof exports ==="object"&&typeof module !=="undefined"?module.exports=factory(require,require("vue")):typeof define ==="function"&&define.amd ?define(["require","vue"],factory):(global=typeof globalThis !=="undefined"?globalThis:global||self,factory(void 0,global.vue));})(this,function(require,dep0){var app_exports={};__export(app_exports,{app:()=>app});var import_vue=__require("vue");var app=(0,import_vue.create)();return __toCommonJS(app_exports);});
+(function(global,factory){typeof exports ==="object"&&typeof module !=="undefined"?factory(exports,require,require("vue")):typeof define ==="function"&&define.amd ?define(["exports","require","vue"],factory):(global=typeof globalThis !=="undefined"?globalThis:global||self,(global.MyLib=global.MyLib||{},factory(global.MyLib,void 0,global.vue),global.MyLib));})(this,function(exports,require,dep0){"use strict";var import_vue=__require("vue");var app=(0,import_vue.create)();exports.app=app;});
 
 ================================================================================
 BundlerGuchhoJSON.BuildFormatUMDMinifiedWithGlobalName
 ---------- /out.js ----------
-(function(global,factory){typeof exports ==="object"&&typeof module !=="undefined"?module.exports=factory(require):typeof define ==="function"&&define.amd ?define(["require"],factory):(global=typeof globalThis !=="undefined"?globalThis:global||self,(global.MyLib=global.MyLib||{},global.MyLib=factory(void 0)));})(this,function(require){var app_exports={};__export(app_exports,{answer:()=>answer});var answer=42;console.log(answer);return __toCommonJS(app_exports);});
+(function(global,factory){typeof exports ==="object"&&typeof module !=="undefined"?factory(exports,require):typeof define ==="function"&&define.amd ?define(["exports"],factory):(global=typeof globalThis !=="undefined"?globalThis:global||self,(global.MyLib=global.MyLib||{},factory(global.MyLib,void 0),global.MyLib));})(this,function(exports,require){"use strict";var answer=42;console.log(answer);exports.answer=answer;});
+
+================================================================================
+BundlerGuchhoJSON.BuildFormatUMDNameWinsOverGlobalNameAlias
+---------- /out.js ----------
+(function(global, factory) {
+  typeof exports === "object" && typeof module !== "undefined" ? factory(exports, require) :
+  typeof define === "function" && define.amd ? define(["exports"], factory) :
+  (global = typeof globalThis !== "undefined" ? globalThis : global || self, (global.Canonical = global.Canonical || {}, factory(global.Canonical, void 0), global.Canonical));
+})(this, function(exports, require) {
+  "use strict";
+  // app.js
+  var answer = 42;
+  console.log(answer);
+  exports.answer = answer;
+});
+
+================================================================================
+BundlerGuchhoJSON.BuildFormatUMDWithConfigName
+---------- /out.js ----------
+(function(global, factory) {
+  typeof exports === "object" && typeof module !== "undefined" ? factory(exports, require) :
+  typeof define === "function" && define.amd ? define(["exports"], factory) :
+  (global = typeof globalThis !== "undefined" ? globalThis : global || self, (global.ConfigLib = global.ConfigLib || {}, factory(global.ConfigLib, void 0), global.ConfigLib));
+})(this, function(exports, require) {
+  "use strict";
+  // app.js
+  var answer = 42;
+  console.log(answer);
+  exports.answer = answer;
+});
 
 ================================================================================
 BundlerGuchhoJSON.BuildFormatUMDWithExternal
 ---------- /out.js ----------
 (function(global, factory) {
-  typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory(require, require("vue")) :
-  typeof define === "function" && define.amd ? define(["require", "vue"], factory) :
-  (global = typeof globalThis !== "undefined" ? globalThis : global || self, factory(void 0, global.vue));
-})(this, function(require, dep0) {
+  typeof exports === "object" && typeof module !== "undefined" ? factory(exports, require, require("vue")) :
+  typeof define === "function" && define.amd ? define(["exports", "require", "vue"], factory) :
+  (global = typeof globalThis !== "undefined" ? globalThis : global || self, (global.MyLib = global.MyLib || {}, factory(global.MyLib, void 0, global.vue), global.MyLib));
+})(this, function(exports, require, dep0) {
+  "use strict";
   // app.js
-  var app_exports = {};
-  __export(app_exports, {
-    app: () => app
-  });
   var import_vue = __require("vue");
   var app = (0, import_vue.create)();
-  return __toCommonJS(app_exports);
+  exports.app = app;
 });
 
 ================================================================================
 BundlerGuchhoJSON.BuildFormatUMDWithGlobalName
 ---------- /out.js ----------
 (function(global, factory) {
-  typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory(require) :
-  typeof define === "function" && define.amd ? define(["require"], factory) :
-  (global = typeof globalThis !== "undefined" ? globalThis : global || self, (global.MyLib = global.MyLib || {}, global.MyLib = factory(void 0)));
-})(this, function(require) {
+  typeof exports === "object" && typeof module !== "undefined" ? factory(exports, require) :
+  typeof define === "function" && define.amd ? define(["exports"], factory) :
+  (global = typeof globalThis !== "undefined" ? globalThis : global || self, (global.MyLib = global.MyLib || {}, factory(global.MyLib, void 0), global.MyLib));
+})(this, function(exports, require) {
+  "use strict";
   // app.js
-  var app_exports = {};
-  __export(app_exports, {
-    answer: () => answer
-  });
   var answer = 42;
   console.log(answer);
-  return __toCommonJS(app_exports);
+  exports.answer = answer;
+});
+
+================================================================================
+BundlerGuchhoJSON.BuildFormatUMDWithGlobalNameAlias
+---------- /out.js ----------
+(function(global, factory) {
+  typeof exports === "object" && typeof module !== "undefined" ? factory(exports, require) :
+  typeof define === "function" && define.amd ? define(["exports"], factory) :
+  (global = typeof globalThis !== "undefined" ? globalThis : global || self, (global.ConfigLib = global.ConfigLib || {}, factory(global.ConfigLib, void 0), global.ConfigLib));
+})(this, function(exports, require) {
+  "use strict";
+  // app.js
+  var answer = 42;
+  console.log(answer);
+  exports.answer = answer;
+});
+
+================================================================================
+BundlerGuchhoJSON.BuildFormatUMDWithoutExportsNeedsNoName
+---------- /out.js ----------
+(function(global, factory) {
+  typeof exports === "object" && typeof module !== "undefined" ? factory(exports, require) :
+  typeof define === "function" && define.amd ? define(["exports"], factory) :
+  (global = typeof globalThis !== "undefined" ? globalThis : global || self, factory({}, void 0));
+})(this, function(exports, require) {
+  "use strict";
+  // app.js
+  console.log(42);
 });
 
 ================================================================================

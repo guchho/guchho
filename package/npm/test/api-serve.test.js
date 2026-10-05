@@ -42,7 +42,7 @@ function makeProject(initial = 'console.log("first");\n') {
 function serveConfig(root, extra = {}) {
     return {
         absWorkingDir: root,
-        entryPoints: ["src/main.js"],
+        entrypoints: ["src/main.js"],
         logLevel: "silent",
         server: { port: 0 },
         ...extra,

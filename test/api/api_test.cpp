@@ -747,6 +747,28 @@ TEST(Api, BuildOutfileAndOutdirTogetherIsRejected) {
     EXPECT_TRUE(r.output_files.empty());
 }
 
+// A name that is not a legal identifier path is rejected by the same parse a
+// command line value goes through. The diagnostic has to survive that parse: a
+// build that fails without saying why is indistinguishable from one that failed
+// for a reason the user cannot see, so the message is checked as well as the
+// failure.
+TEST(Api, BuildInvalidGlobalNameIsReported) {
+    TempDir dir("bad-global-name");
+    dir.Write("entry.js", "export const answer = 42;\n");
+
+    api::BuildOptions opts;
+    opts.entry_points = {dir.At("entry.js")};
+    opts.bundle = true;
+    opts.format = api::Format::kUMD;
+    opts.global_name = "1bad";
+    opts.abs_working_dir = dir.path();
+    opts.log_level = quiet();
+    api::BuildResult r = api::Build(opts);
+    ASSERT_FALSE(r.errors.empty());
+    EXPECT_FALSE(first_text(r.errors).empty());
+    EXPECT_TRUE(r.output_files.empty());
+}
+
 TEST(Api, BuildMultipleInputsWithoutOutdirIsRejected) {
     api::BuildOptions opts;
     opts.entry_points = {"a.js", "b.js"};

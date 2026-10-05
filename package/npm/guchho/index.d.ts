@@ -582,8 +582,9 @@ export declare function context(options: BuildOptions): Promise<BuildContext>
 /**
  * Starts a dev server on a build.
  *
- * Resolves once the server is listening, so the address is a value rather than
- * something to be scraped out of a log. The engine's own HTTP server is used —
+ * Resolves once the server is listening over a finished build, so the address is
+ * a value rather than something to be scraped out of a log and the first request
+ * is served like every one after it. The engine's own HTTP server is used —
  * the one `guchho serve` gets — rather than a second implementation.
  *
  * The served directory defaults to the build's output directory, which is what

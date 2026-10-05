@@ -66,8 +66,10 @@ TEST(BundlerRuntime, AMDRetainsToCommonJSAndItsDependencies) {
 	});
 }
 
-// UMD shares the tail branch with AMD, so it must agree helper-for-helper.
-TEST(BundlerRuntime, UMDRetainsToCommonJSAndItsDependencies) {
+// A UMD entry that exports only names of its own. The wrapper hands the factory
+// the object to publish into and the tail assigns each name onto it, so nothing
+// has to convert a namespace on the way out.
+TEST(BundlerRuntime, UMDDirectExportsNeedNoToCommonJS) {
 	runtime_suite.ExpectBundled(Bundled{
 		.files = {
 			{"/entry.js", R"test(
@@ -81,6 +83,34 @@ TEST(BundlerRuntime, UMDRetainsToCommonJSAndItsDependencies) {
 			.BuildMode = guchho::config::Mode::kConvertFormat,
 			.OutputFormat = guchho::config::Format::kUMD,
 			.AbsOutputFile = "/out.js",
+			.GlobalName = {"MyLib"},
+		},
+	});
+}
+
+// A UMD bundle whose entry pulls in a CommonJS dependency does need the
+// conversion helpers, and the reason is the dependency rather than the format:
+// the default import of a CJS module has to be unwrapped from its
+// "__toCommonJS" namespace before the entry can read a property off it. The
+// helper is therefore still requested and still emitted, which is what makes
+// this the mirror image of the test above rather than a duplicate of it.
+TEST(BundlerRuntime, UMDRetainsToCommonJSForCommonJSInterop) {
+	runtime_suite.ExpectBundled(Bundled{
+		.files = {
+			{"/entry.js", R"test(
+
+				import dep from './dep.cjs'
+				export const b = dep.a
+			)test"},
+			{"/dep.cjs", "module.exports = {a: 1}"},
+		},
+		.entry_paths = {"/entry.js"},
+		.include_runtime = true,
+		.options = guchho::config::Options{
+			.BuildMode = guchho::config::Mode::kConvertFormat,
+			.OutputFormat = guchho::config::Format::kUMD,
+			.AbsOutputFile = "/out.js",
+			.GlobalName = {"MyLib"},
 		},
 	});
 }

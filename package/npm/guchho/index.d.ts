@@ -67,6 +67,13 @@ export interface OutputFile {
 
 /** What the build read and wrote, and what it cost. */
 export interface Metafile {
+  /**
+   * The entry points, and only the entry points.
+   *
+   * The transitive set is the contribution map on each output — the `inputs` under
+   * `outputs`, below. This top-level map is not a record of everything the build
+   * read; reading it as one reports a single file for a build that read fifty.
+   */
   inputs: {
     [path: string]: {
       bytes: number
@@ -77,7 +84,15 @@ export interface Metafile {
   outputs: {
     [path: string]: {
       bytes: number
+      /** Every file inside this output, and what it contributed. This is where the
+       * transitive set lives. */
       inputs: { path: string; bytesInOutput: number }
+      /**
+       * What this output still imports at runtime — anything not inlined.
+       *
+       * `bundle` defaults to false, so under it a relative sibling import is
+       * listed here and left alone on purpose.
+       */
       imports: { path: string; kind: string; external?: boolean }
       exports: string[]
       entryPoint?: string
@@ -163,8 +178,14 @@ export interface CommonOptions {
   pretty?: boolean
   /** A property name pattern, applied to an object at runtime. */
   supported?: Record<string, boolean>
-  /** Write a sourcemap beside each output. */
-  sourcemap?: boolean | 'inline' | 'external' | 'linked' | 'both'
+  /**
+   * Write sourcemaps. `true` for the engine's default mode, or name one.
+   *
+   * The named values used to be dropped on the floor: the flag table read
+   * `sourcemap` as a boolean, and a string is not `true`, so "inline" produced no
+   * flag and no complaint.
+   */
+  sourcemap?: boolean | 'none' | 'inline' | 'external' | 'linked' | 'both'
   /** Overwrite files that already exist. Off by default. */
   allowOverwrite?: boolean
   /** Follow symlinks rather than bundling what they point at. */
@@ -178,10 +199,95 @@ export interface CommonOptions {
     resolveDir?: string
     sourcefile?: string
   }
+  /**
+   * The same options under "build", as a config file nests them.
+   *
+   * An alias for writing them flat, not a second API: build({ outdir }) and
+   * build({ build: { outdir } }) produce identical flags. Giving the same option
+   * at both levels is refused rather than resolved, because picking one is a
+   * guess about where the output goes.
+   *
+   * "entry" is the one spelling that moves — to entryPoints — so the nested form
+   * accepts it.
+   */
+  build?: BuildOptionsNested
+  /** Server options, when the configuration is one for serving. */
+  server?: {
+    servedir?: string
+    port?: number
+    host?: string
+    fallback?: string
+    [option: string]: unknown
+  }
+  /** Watch options. `true` means "build and keep watching". */
+  watch?: boolean | { delay?: number }
+  /** Plugins to run the build with. See the plugin API. */
+  plugins?: Plugin[] | Plugin
+}
+
+/**
+ * Build options in the nested spelling.
+ *
+ * Identical to BuildOptions except that "entry" is accepted for "entryPoints".
+ * It is a separate interface only because that one alias differs; everything
+ * else is inherited, so the two cannot drift into describing different options.
+ */
+export interface BuildOptionsNested
+  extends Omit<BuildOptions, keyof BuildConfigSections> {
+  entry?: EntryPoint[] | EntryPoint
+}
+
+/** The keys that only exist on a whole configuration, not on a build's options.
+ * Omitted from the nested form because "build: { server: … }" nests a server
+ * inside a build, which is not a thing: server, watch and plugins are siblings of
+ * build, not children. */
+interface BuildConfigSections {
+  build: BuildOptionsNested
+  server: object
+  watch: object
+  plugins: object
+}
+
+/** A hook the engine calls while a build runs. */
+export interface Plugin {
+  name: string
+  /** Called once, before anything is built. */
+  onStart?: (build: PluginBuild) => void | Promise<void>
+  /** Asked where a specifier resolves to. */
+  onResolve?: (
+    specifier: string,
+    context: { importer?: string; kind?: string }
+  ) => { path: string; external?: boolean } | null | undefined | Promise<
+    { path: string; external?: boolean } | null | undefined
+  >
+  /** Asked for a file's contents, instead of the loader reading it. */
+  onLoad?: (
+    path: string,
+    context: { importer?: string; kind?: string }
+  ) => { contents: string | Uint8Array; loader?: Loader } | null | undefined | Promise<
+    { contents: string | Uint8Array; loader?: Loader } | null | undefined
+  >
+  /** Called after each build, with its result. */
+  onEnd?: (build: PluginBuild) => void | Promise<void>
+  /** Called when the build is torn down. */
+  onDispose?: (build: PluginBuild) => void | Promise<void>
+}
+
+/** What a plugin is handed when a hook fires. */
+export interface PluginBuild {
+  /** The options this build was made with. */
+  options: BuildOptions
+  /** The build's result, once there is one. */
+  readonly result?: BuildResult
 }
 
 export interface BuildOptions extends CommonOptions {
-  entryPoints: EntryPoint[] | EntryPoint
+  /**
+   * What to build. Optional because `stdin` is an alternative, not because a
+   * build without one is fine — a configuration with neither throws rather than
+   * falling back to a glob, finding nothing and reporting success.
+   */
+  entryPoints?: EntryPoint[] | EntryPoint
   /** Which loader to use, by file extension. A build's loader is a map, where a
    * transform's is a single name for its one input. */
   loader?: Record<string, Loader>
@@ -203,14 +309,71 @@ export interface BuildOptions extends CommonOptions {
 }
 
 export interface BuildResult<Provided extends BuildOptions = BuildOptions> {
+  /**
+   * Whether the build worked. A build with warnings is a build that worked, so
+   * this is the errors list and not the warnings list.
+   *
+   * A build that failed throws instead, so a caller reaching the result at all
+   * has a successful one. This is here for the code that reads the result before
+   * it knows how it got there.
+   */
+  success: boolean
   errors: Message[]
   warnings: Message[]
+  /** Milliseconds, measured across the service round trip. */
+  duration: number
+  /**
+   * Every file produced, with its size.
+   *
+   * Present whether or not write is false: a build that wrote its files still
+   * knows what it produced, and a caller asking "what did this build make" should
+   * not have to ask whether the bytes are still in memory to find out.
+   */
+  outputs: OutputSummary[]
+  /**
+   * Every file the build read.
+   *
+   * Only when metafile is true. This is the bundler's own transitive graph, read
+   * from each output's contribution map — the metafile's top-level `inputs` names
+   * the entry points and nothing else, so reading that instead would report one
+   * file and be confident about it.
+   */
+  inputs?: InputSummary[]
   /** Only when write is false. */
   outputFiles?: Provided['write'] extends false ? OutputFile[] : undefined
   /** Only when metafile is true. */
   metafile?: Provided['metafile'] extends true ? Metafile : undefined
   /** Only when mangleCache is passed in. */
   mangleCache?: Record<string, string | false>
+}
+
+/** A produced file, without its contents. */
+export interface OutputSummary {
+  path: string
+  size: number
+}
+
+/** A file that went into a build. */
+export interface InputSummary {
+  path: string
+  /** Bytes this file contributed, summed across every output it appears in. */
+  bytes: number
+  format?: string
+}
+
+/** What a build was made of, and what came out. */
+export interface AnalysisReport {
+  inputs: InputSummary[]
+  outputs: OutputSummary[]
+  /**
+   * What the built output still imports, sorted and deduplicated.
+   *
+   * Relative paths are here too: `bundle` defaults to false, and under it a
+   * build leaves sibling imports alone on purpose.
+   */
+  dependencies: string[]
+  /** The size of the whole output tree. The sum of `outputs`. */
+  totalBytes: number
 }
 
 export interface TransformOptions extends CommonOptions {
@@ -304,9 +467,21 @@ export declare class ServiceError extends Error {
 /**
  * Builds a project.
  *
- * @throws {BuildFailure} When the build failed.
+ * An array builds each configuration and answers with one result per
+ * configuration, in the order given. It does not go looking for more: a caller
+ * who wrote three configurations wants three builds.
+ *
+ * @throws {BuildFailure} When a build failed.
  */
+/** An overload rather than a union, because the answer's shape follows the
+ * argument's. A caller passing one configuration gets one result back and can
+ * read result.success without narrowing first; a caller passing an array gets an
+ * array. A union would make every caller check, which is the cost of supporting
+ * both spellings leaking onto the common one. */
 export declare function build(options: BuildOptions): Promise<BuildResult>
+export declare function build(
+  options: BuildOptions[]
+): Promise<BuildResult[]>
 
 /**
  * Transforms one piece of source.
@@ -322,12 +497,33 @@ export declare function transform(
 export declare function context(options: BuildOptions): Promise<BuildContext>
 
 /**
- * Pretty-prints a metafile.
+ * Analyses a build configuration without producing anything.
  *
- * The same question "analyzeMetafile" used to answer, under the name the
- * surface now publishes.
+ * The numbers come from the metafile the engine already writes, so this is the
+ * bundler's own dependency graph rather than a second opinion from a scanner that
+ * walks the tree and guesses — a scanner disagrees with the bundler about resolve
+ * extensions, tsconfig paths and package exports, and it disagrees by reporting
+ * files the build never read.
+ *
+ * Nothing is written: the build runs with `write: false` and leaves the project
+ * exactly as it found it. For a build that has to happen anyway, ask for
+ * `metafile: true` and read `inputs` off the result.
+ *
+ * @throws {BuildFailure} When the configuration does not build. An analysis of a
+ * build that failed is an analysis of nothing.
  */
-export declare function analyze(metafile: Metafile | string): Promise<string>
+export declare function analyze(
+  options?: BuildOptions | BuildOptionsNested
+): Promise<AnalysisReport>
+
+/**
+ * Pretty-prints a metafile as a text report.
+ *
+ * What `analyze` used to do, under the name that says what it does. Accepts the
+ * parsed metafile or its JSON text, because a caller holding one usually has the
+ * object from a build and a caller holding the other read it off disk.
+ */
+export declare function analyzeMetafile(metafile: Metafile | string): Promise<string>
 
 /**
  * Ends the service process, once it has actually ended.
@@ -396,11 +592,6 @@ export interface HtmlToken extends SourcePosition {
   value: string
 }
 
-export interface LexHTMLResult extends CompileResult {
-  tokens: HtmlToken[]
-  count: number
-}
-
 export type CssTokenKind =
   | 'endOfFile' | 'atKeyword' | 'unterminatedString' | 'badUrl' | 'cdc' | 'cdo'
   | 'closeBrace' | 'closeBracket' | 'closeParen' | 'colon' | 'comma' | 'delim'
@@ -421,32 +612,10 @@ export interface CssComment extends SourcePosition {
   text: string
 }
 
-export interface LexCSSOptions {
-  /** Comment tokens, which the lexer keeps out of "tokens". Off by default. */
-  includeComments?: boolean
-}
-
-export interface LexCSSResult extends CompileResult {
-  tokens: CssToken[]
-  /** Only when includeComments was set. */
-  comments?: CssComment[]
-  count: number
-}
-
 /** One JS token. Its kind is the grammar's own name. */
 export interface JsToken extends SourcePosition {
   kind: string
   value: string
-}
-
-export interface LexJSResult extends CompileResult {
-  tokens: JsToken[]
-  count: number
-}
-
-/** The source name a compile-stage diagnostic blames. Defaults to "<stdin>". */
-export interface CompileSourceFileOptions {
-  sourcefile?: string
 }
 
 /**
@@ -461,28 +630,6 @@ export interface HtmlNode {
   attributes?: string[]
 }
 
-export interface ParseHTMLOptions extends CompileSourceFileOptions {
-  /** Parse as a fragment: no html/head/body wrappers and no doctype complaint. */
-  fragment?: boolean
-  /** Count the imports the parser resolved. */
-  collectImportRecords?: boolean
-  /** Count inline script and style elements. */
-  collectInlineCode?: boolean
-}
-
-export interface ParseHTMLResult extends CompileResult {
-  /** The handle to hand to transformHTML or printHTML. */
-  ast: AstHandle
-  nodes: HtmlNode[]
-  nodeCount: number
-  /** Only when collectImportRecords was set. */
-  importRecords?: number
-  /** Only when collectInlineCode was set. */
-  inlineScripts?: number
-  /** Only when collectInlineCode was set. */
-  inlineStyles?: number
-}
-
 export interface CssMinifyOptions {
   minifyWhitespace?: boolean
   minifySyntax?: boolean
@@ -495,85 +642,10 @@ export interface CssRule {
   start: number
 }
 
-export interface ParseCSSOptions extends CompileSourceFileOptions, CssMinifyOptions {}
-
-export interface ParseCSSResult extends CompileResult {
-  /** The handle to hand to transformCSS or printCSS. */
-  ast: AstHandle
-  rules: CssRule[]
-  ruleCount: number
-  symbolCount: number
-  importRecords: number
-}
-
 /** A named thing in scope, as parseJS saw it. */
 export interface JsSymbol {
   name: string
   useCount: number
-}
-
-export interface ParseJSResult extends CompileResult {
-  /** The handle to hand to transformJS or printJS. */
-  ast: AstHandle
-  /** Whether the parser could finish the file without a syntax error. */
-  ok: boolean
-  partCount: number
-  symbols: JsSymbol[]
-}
-
-/** What a transform did, named. A CSS transform names the passes it ran. */
-export type TransformPass = 'removeDeadRules'
-
-/**
- * The name of a pass that actually ran. The html and js transforms answer with
- * an empty list and a note: nothing is rewritable in them yet, so "nothing
- * ran" is the pass list.
- */
-export interface TransformAudit {
-  passes: TransformPass[]
-}
-
-/** The answer of transformCSS. "removed" counts rules dropped, and the
- * resulting "ruleCount" is what is left. */
-export interface TransformCSSResult extends CompileResult, TransformAudit {
-  /** The handle to hand to printCSS. Not the handle that was passed in. */
-  ast: AstHandle
-  removed: number
-  ruleCount: number
-}
-
-/** The answer of transformHTML and transformJS. "note" says in prose why no
- * pass ran. */
-export interface TransformIdentityResult extends CompileResult, TransformAudit {
-  /** The handle to hand to the matching print*. Not the handle passed in. */
-  ast: AstHandle
-  note: string
-  /** Where the tree came from, for diagnostics. */
-  sourcefile: string
-}
-
-export interface TransformCSSOptions {
-  /** Drop rules that use no selector reachable from the stylesheet. */
-  removeDeadRules?: boolean
-}
-
-export interface PrintHTMLOptions {
-  /** Reindent rather than stream. Off by default. */
-  pretty?: boolean
-  /** Minify the printed document. */
-  minify?: boolean
-  /** Whether script elements run, which print can ask about. */
-  scriptingEnabled?: boolean
-}
-
-export interface PrintCSSOptions extends CssMinifyOptions {
-  /** Escape non-ASCII. */
-  asciiOnly?: boolean
-}
-
-export interface PrintJSOptions extends CssMinifyOptions {
-  /** Escape non-ASCII. */
-  asciiOnly?: boolean
 }
 
 export interface PrintResult extends CompileResult {
@@ -581,133 +653,147 @@ export interface PrintResult extends CompileResult {
   code: string
 }
 
-/**
- * Lexes HTML into a token list.
- *
- * @throws {TypeError} When the input is not a string or bytes.
- * @throws {BuildFailure} When the engine refused the request.
- */
-export declare function lexHTML(input: CompileSource): Promise<LexHTMLResult>
+/** The languages the engine has a lexer, a parser and a printer for. */
+export type Language = 'html' | 'css' | 'js'
+
+/** The list, published for a caller that would otherwise have to keep it. */
+export declare const LANGUAGES: readonly Language[]
+
+/** The source name a diagnostic blames. Defaults to "<stdin>". */
+export interface CompileSourceFileOptions {
+  sourcefile?: string
+}
 
 /**
- * Lexes CSS into a token list, with comments kept to their own list.
+ * The options every stage needs.
+ *
+ * "language" is required on all three. There is no default, because inferring one
+ * from the source text is guessing — and a guess that is right 95% of the time is
+ * a guess that silently mis-lexes the other 5%.
+ */
+export interface CompileOptions extends CompileSourceFileOptions {
+  language: Language
+  /** Accepted as a spelling of "language", because transform() takes a loader
+   * under that name. "language" is canonical. */
+  loader?: Language
+}
+
+export interface LexOptions extends CompileOptions {
+  /** CSS only. Whether the comment list is populated; off is also cheaper. */
+  includeComments?: boolean
+}
+
+export interface ParseOptions extends CompileOptions, CssMinifyOptions {
+  /** HTML only. Parse as a fragment: no wrappers and no doctype complaint. */
+  fragment?: boolean
+  /** HTML only. Count the imports the parser resolved. */
+  collectImportRecords?: boolean
+  /** HTML only. Count inline script and style elements. */
+  collectInlineCode?: boolean
+}
+
+export interface PrintOptions extends CompileOptions, CssMinifyOptions {
+  /** HTML only. Reindent rather than stream. Off by default. */
+  pretty?: boolean
+  /** HTML only. Minify the printed document. */
+  minify?: boolean
+  /** HTML only. Whether script elements run, which print can ask about. */
+  scriptingEnabled?: boolean
+  /** Escape non-ASCII. */
+  asciiOnly?: boolean
+}
+
+/**
+ * What lexer answers with.
+ *
+ * The token list is the language's own: HtmlToken, CssToken or JsToken. "kind" is
+ * a string rather than one of three unions because the three kinds are three
+ * unrelated vocabularies and a union of them would put a type error in every
+ * caller that narrowed.
+ */
+export interface LexResult extends CompileResult {
+  tokens: (HtmlToken | CssToken | JsToken)[]
+  /** CSS only, and only when includeComments was set. */
+  comments?: CssComment[]
+  count: number
+}
+
+/**
+ * What parse answers with.
+ *
+ * The summary fields are the language's — nodes for HTML, rules for CSS, parts
+ * and symbols for JS — and are all optional, because which ones are present
+ * depends on which language was parsed. A caller reading result.rules has already
+ * said which language it asked for, and narrowing on language narrows these.
+ */
+export interface ParseResult extends CompileResult {
+  /** The handle to hand to print(). */
+  ast: AstHandle
+  /** HTML: the flattened tree. */
+  nodes?: HtmlNode[]
+  /** HTML. */
+  nodeCount?: number
+  /** HTML, only when collectImportRecords was set. */
+  importRecords?: number
+  /** HTML, only when collectInlineCode was set. */
+  inlineScripts?: number
+  /** HTML, only when collectInlineCode was set. */
+  inlineStyles?: number
+  /** CSS: the top-level rules. */
+  rules?: CssRule[]
+  /** CSS. */
+  ruleCount?: number
+  /** CSS. */
+  symbolCount?: number
+  /** JS: whether the parser finished without a syntax error. */
+  ok?: boolean
+  /** JS. */
+  partCount?: number
+  /** JS: the named things in scope. */
+  symbols?: JsSymbol[]
+}
+
+/**
+ * Runs the engine's lexer over some source.
  *
  * @throws {TypeError} When the input is not a string or bytes, or options are
- *   not an object.
- * @throws {BuildFailure} When the engine refused the request.
+ *   not an object, or "language" is missing or is not one this engine has.
+ * @throws {BuildFailure} When the engine refused the request. A source the lexer
+ *   could not read resolves with a populated "errors" list instead — that is an
+ *   answer, not a refusal.
  */
-export declare function lexCSS(input: CompileSource, options?: LexCSSOptions): Promise<LexCSSResult>
-
-/**
- * Lexes JS into a token list.
- *
- * @throws {TypeError} When the input is not a string or bytes.
- * @throws {BuildFailure} When the engine refused the request.
- */
-export declare function lexJS(input: CompileSource): Promise<LexJSResult>
-
-/**
- * Parses HTML into a handle and a flattened tree. A document without a doctype
- * is reported, not refused: the answer still carries the tree.
- *
- * @throws {TypeError} When the input is not a string or bytes, or options are
- *   not an object.
- * @throws {BuildFailure} When the engine refused the request.
- */
-export declare function parseHTML(
+export declare function lexer(
   input: CompileSource,
-  options?: ParseHTMLOptions
-): Promise<ParseHTMLResult>
+  options: LexOptions
+): Promise<LexResult>
 
 /**
- * Parses CSS into a handle and a rule list.
+ * Runs the engine's parser over some source.
  *
  * @throws {TypeError} When the input is not a string or bytes, or options are
- *   not an object.
- * @throws {BuildFailure} When the engine refused the request.
+ *   not an object, or "language" is missing or is not one this engine has.
+ * @throws {BuildFailure} When the engine refused the request. A syntax error
+ *   resolves — for JS, with "ok" false — rather than rejecting.
  */
-export declare function parseCSS(
+export declare function parse(
   input: CompileSource,
-  options?: ParseCSSOptions
-): Promise<ParseCSSResult>
+  options: ParseOptions
+): Promise<ParseResult>
 
 /**
- * Parses JS into a handle, its parts and its symbols. A syntax error resolves
- * — with "ok" false and the errors filled in — rather than rejecting.
+ * Prints a parsed tree back to source.
  *
- * @throws {TypeError} When the input is not a string or bytes, or options are
- *   not an object.
+ * @throws {TypeError} When the handle is not a non-negative integer, when
+ *   "language" is missing, or when the handle belongs to another language.
+ *   Handles are numbered per language, so handle 0 names a valid tree in each of
+ *   the three; passing one to the wrong language is refused here rather than
+ *   reaching the engine, whose answer for it describes a tree the caller never
+ *   passed.
  * @throws {BuildFailure} When the engine refused the request.
  */
-export declare function parseJS(
-  input: CompileSource,
-  options?: ParseCSSOptions
-): Promise<ParseJSResult>
-
-/**
- * Transforms the tree a parseHTML returned. Consumes the handle and answers
- * with a new one to the same tree; the passes list says what ran.
- *
- * @throws {TypeError} When the handle is not a non-negative integer.
- * @throws {BuildFailure} When the engine refused the request.
- */
-export declare function transformHTML(ast: AstHandle): Promise<TransformIdentityResult>
-
-/**
- * Transforms the tree a parseCSS returned. Consumes the handle and answers
- * with a new one; "passes" names the pass that ran.
- *
- * @throws {TypeError} When the handle is not a non-negative integer.
- * @throws {BuildFailure} When the engine refused the request.
- */
-export declare function transformCSS(
+export declare function print(
   ast: AstHandle,
-  options?: TransformCSSOptions
-): Promise<TransformCSSResult>
-
-/**
- * Transforms the tree a parseJS returned. Consumes the handle and answers with
- * a new one to the same tree; the passes list says what ran.
- *
- * @throws {TypeError} When the handle is not a non-negative integer.
- * @throws {BuildFailure} When the engine refused the request.
- */
-export declare function transformJS(ast: AstHandle): Promise<TransformIdentityResult>
-
-/**
- * Prints the tree a parseHTML (or transformHTML) returned.
- *
- * @throws {TypeError} When the handle is not a non-negative integer.
- * @throws {BuildFailure} When the engine refused the request, including a
- *   handle from another language.
- */
-export declare function printHTML(
-  ast: AstHandle,
-  options?: PrintHTMLOptions
-): Promise<PrintResult>
-
-/**
- * Prints the tree a parseCSS (or transformCSS) returned.
- *
- * @throws {TypeError} When the handle is not a non-negative integer.
- * @throws {BuildFailure} When the engine refused the request, including a
- *   handle from another language.
- */
-export declare function printCSS(
-  ast: AstHandle,
-  options?: PrintCSSOptions
-): Promise<PrintResult>
-
-/**
- * Prints the tree a parseJS (or transformJS) returned.
- *
- * @throws {TypeError} When the handle is not a non-negative integer.
- * @throws {BuildFailure} When the engine refused the request, including a
- *   handle from another language.
- */
-export declare function printJS(
-  ast: AstHandle,
-  options?: PrintJSOptions
+  options: PrintOptions
 ): Promise<PrintResult>
 
 /** The class context() returns. Declared for instanceof. */

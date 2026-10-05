@@ -10,6 +10,7 @@
 const { getService } = require("./service");
 const { toFlags } = require("./flags");
 const { toTransformResult } = require("./convert");
+const { normalize } = require("./options");
 
 /**
  * Transforms a single piece of source.
@@ -35,6 +36,12 @@ async function transform(code, options = {}) {
     throw new TypeError("transform needs some code to transform");
   }
 
+  // A transform takes the same options a build does, so it reads them through the
+  // same layer. There is no "build" section here for a caller to nest into — a
+  // transform has no entry points and no outdir — but a caller who writes one
+  // anyway gets it rather than a silent no-op.
+  const { build: normalized } = normalize(options);
+
   const service = await getService();
 
   let input;
@@ -57,9 +64,9 @@ async function transform(code, options = {}) {
     // the service takes it as a field and turns it into the grammar's single-name
     // "--loader=ts". Letting it through toFlags as well would send both, and the
     // grammar would turn away the one that belongs to a build.
-    flags: toFlags(withoutLoader(options)),
-    sourcefile: options.sourcefile,
-    loader: options.loader,
+    flags: toFlags(withoutLoader(normalized)),
+    sourcefile: normalized.sourcefile,
+    loader: normalized.loader,
     input,
   };
 

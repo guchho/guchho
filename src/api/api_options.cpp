@@ -411,6 +411,12 @@ void ResolveOneBuild(BuildOptions& out,
     if (!WasSet(out, kOptPublicPath) && out.public_path.empty() && !cfg.PublicPath.empty()) {
         out.public_path = cfg.PublicPath;
     }
+    // The browser global a wrapper format publishes the bundle's exports under.
+    // Guarded the same way as every other field above: a command line that named
+    // one wins, and an unset string means the config file gets to answer.
+    if (!WasSet(out, kOptGlobalName) && out.global_name.empty() && !cfg.GlobalNameText.empty()) {
+        out.global_name = cfg.GlobalNameText;
+    }
 
     // ---- 3. The built-in defaults -----------------------------------------
     // Reached only by whatever neither the caller nor the config mentioned.

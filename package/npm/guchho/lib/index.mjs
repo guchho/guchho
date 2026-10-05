@@ -24,6 +24,8 @@ export const {
     context,
     analyze,
     analyzeMetafile,
+    watch,
+    serve,
     stop,
     version,
     lexer,
@@ -32,6 +34,8 @@ export const {
     BuildFailure,
     ServiceError,
     BuildContext,
+    Watcher,
+    DevServer,
 } = mod;
 
 export default mod;

@@ -26,7 +26,7 @@ const { transform } = require("./transform");
 const { context, BuildContext } = require("./context");
 const { stopService, ServiceError, BuildFailure } = require("./service");
 const { version } = require("./info");
-const { lexer, parse, print, LANGUAGES } = require("./compile");
+const { lexer, parse, print } = require("./compile");
 
 // Kept so a caller can be sure the process is gone before it cleans up after a
 // build — removing an output directory while the service still has it open is an
@@ -48,11 +48,6 @@ module.exports = {
     lexer,
     parse,
     print,
-
-    // The languages the engine has a lexer, parser and printer for. Published
-    // because a caller who wants to branch on it would otherwise have to keep
-    // this list, and keeping it is how it goes stale.
-    LANGUAGES,
 
     // The failure shapes, so a caller can tell a build that failed from an
     // installation that is broken without matching on a message.

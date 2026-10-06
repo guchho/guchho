@@ -77,6 +77,11 @@ const SECTIONS = ["build", "server", "watch", "plugins"];
 const ALIASES = {
   entry: "entrypoints",
   entryPoints: "entrypoints",
+  // "name" is the spelling a command line and a Rollup config use for the
+  // global a wrapper format publishes; "globalName" is the camelCase the
+  // rest of this schema spells it with. They are one option, reached
+  // through whichever name the caller wrote.
+  name: "globalName",
 };
 
 // The section names a nested configuration may carry, and what each one is for.

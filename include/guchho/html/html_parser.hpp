@@ -279,8 +279,8 @@ public:
         ++stack_top;
 
         if (stack_top < static_cast<int>(items.size())) {
-            items[stack_top] = &element;
-            tag_ids[stack_top] = tag_id;
+            items[Slot(stack_top)] = &element;
+            tag_ids[Slot(stack_top)] = tag_id;
         } else {
             items.push_back(&element);
             tag_ids.push_back(tag_id);
@@ -317,7 +317,7 @@ public:
     void Replace(Node& old_element, Node& new_element) {
         const int idx = IndexOf(&old_element);
 
-        items[idx] = &new_element;
+        items[Slot(idx)] = &new_element;
 
         if (idx == stack_top) {
             current = &new_element;
@@ -356,7 +356,7 @@ public:
 
         do {
             target_idx = LastIndexOf(tag_id, target_idx - 1);
-        } while (target_idx > 0 && Adapter::GetNamespaceURI(*items[target_idx]) != NS::kHtml);
+        } while (target_idx > 0 && Adapter::GetNamespaceURI(*items[Slot(target_idx)]) != NS::kHtml);
 
         ShortenToLength(std::max(target_idx, 0));
     }
@@ -463,7 +463,7 @@ public:
     // adoption-agency bookkeeping and foster-parenting scans.
     Node* GetCommonAncestor(const Node& element) const {
         const int element_idx = IndexOf(&element) - 1;
-        return element_idx >= 0 ? items[element_idx] : nullptr;
+        return element_idx >= 0 ? items[Slot(element_idx)] : nullptr;
     }
 
     // True when the stack holds only the root <html> element.
@@ -499,9 +499,9 @@ public:
     // boundary is crossed (the algorithm's default).
     bool HasNumberedHeaderInScope() const {
         for (int i = stack_top; i >= 0; i--) {
-            const TagId tn = tag_ids[i];
+            const TagId tn = tag_ids[Slot(i)];
 
-            switch (Adapter::GetNamespaceURI(*items[i])) {
+            switch (Adapter::GetNamespaceURI(*items[Slot(i)])) {
                 case NS::kHtml: {
                     if (IsNumberedHeader(tn)) return true;
                     if (IsScopingElementHtml(tn)) return false;
@@ -529,11 +529,11 @@ public:
     // true (the spec's default for tokens that would be in scope otherwise).
     bool HasInTableScope(TagId tag_name) const {
         for (int i = stack_top; i >= 0; i--) {
-            if (Adapter::GetNamespaceURI(*items[i]) != NS::kHtml) {
+            if (Adapter::GetNamespaceURI(*items[Slot(i)]) != NS::kHtml) {
                 continue;
             }
 
-            const TagId tn = tag_ids[i];
+            const TagId tn = tag_ids[Slot(i)];
             if (tn == tag_name) {
                 return true;
             }
@@ -551,11 +551,11 @@ public:
     // exhausted first.
     bool HasTableBodyContextInTableScope() const {
         for (int i = stack_top; i >= 0; i--) {
-            if (Adapter::GetNamespaceURI(*items[i]) != NS::kHtml) {
+            if (Adapter::GetNamespaceURI(*items[Slot(i)]) != NS::kHtml) {
                 continue;
             }
 
-            switch (tag_ids[i]) {
+            switch (tag_ids[Slot(i)]) {
                 case TagId::kTbody:
                 case TagId::kThead:
                 case TagId::kTfoot: {
@@ -578,11 +578,11 @@ public:
     // scan. Falls back to true when the stack is exhausted.
     bool HasInSelectScope(TagId tag_name) const {
         for (int i = stack_top; i >= 0; i--) {
-            if (Adapter::GetNamespaceURI(*items[i]) != NS::kHtml) {
+            if (Adapter::GetNamespaceURI(*items[Slot(i)]) != NS::kHtml) {
                 continue;
             }
 
-            const TagId tn = tag_ids[i];
+            const TagId tn = tag_ids[Slot(i)];
             if (tn == tag_name) {
                 return true;
             }
@@ -634,10 +634,20 @@ public:
 private:
     StackHandler<Adapter>* handler_;
 
+    // The stack position is tracked as an int because -1 is the natural
+    // "empty" sentinel, while vector::operator[] takes an unsigned
+    // size_type. Every index that reaches operator[] here has already been
+    // shown non-negative by the surrounding loop or guard, so the widening
+    // to size_t is safe; keeping the conversion in one helper documents
+    // that invariant instead of repeating a cast at each subscript.
+    static std::size_t Slot(int index) {
+        return static_cast<std::size_t>(index);
+    }
+
     // Index of the topmost entry equal to "element", or -1 when absent.
     int IndexOf(const Node* element) const {
         for (int i = stack_top; i >= 0; i--) {
-            if (items[i] == element) {
+            if (items[Slot(i)] == element) {
                 return i;
             }
         }
@@ -649,7 +659,7 @@ private:
     int LastIndexOf(TagId tag_id, int from) const {
         from = std::min(from, static_cast<int>(tag_ids.size()) - 1);
         for (int i = from; i >= 0; i--) {
-            if (tag_ids[i] == tag_id) {
+            if (tag_ids[Slot(i)] == tag_id) {
                 return i;
             }
         }
@@ -666,8 +676,8 @@ private:
     // Re-derives "current" and "current_tag_id" from the top of the stack,
     // clearing both when the stack is empty.
     void UpdateCurrentElement() {
-        current = stack_top >= 0 ? items[stack_top] : nullptr;
-        current_tag_id = stack_top >= 0 ? tag_ids[stack_top] : TagId::kUnknown;
+        current = stack_top >= 0 ? items[Slot(stack_top)] : nullptr;
+        current_tag_id = stack_top >= 0 ? tag_ids[Slot(stack_top)] : TagId::kUnknown;
     }
 
     // Pops elements until the topmost HTML element whose tag passes "match"
@@ -681,7 +691,7 @@ private:
     // -1 when no such element exists.
     int IndexOfTagNames(bool (*match)(TagId), NS ns) const {
         for (int i = stack_top; i >= 0; i--) {
-            if (match(tag_ids[i]) && Adapter::GetNamespaceURI(*items[i]) == ns) {
+            if (match(tag_ids[Slot(i)]) && Adapter::GetNamespaceURI(*items[Slot(i)]) == ns) {
                 return i;
             }
         }
@@ -701,9 +711,9 @@ private:
     // "html_scope", MathML and SVG use their own scoping sets.
     bool HasInDynamicScope(TagId tag_name, bool (*html_scope)(TagId)) const {
         for (int i = stack_top; i >= 0; i--) {
-            const TagId tn = tag_ids[i];
+            const TagId tn = tag_ids[Slot(i)];
 
-            switch (Adapter::GetNamespaceURI(*items[i])) {
+            switch (Adapter::GetNamespaceURI(*items[Slot(i)])) {
                 case NS::kHtml: {
                     if (tn == tag_name) return true;
                     if (html_scope(tn)) return false;
@@ -820,13 +830,12 @@ public:
     // Removes "entry" from the list. A missing entry is silently tolerated:
     // the adoption agency may already have dropped it in an earlier pass.
     void RemoveEntry(Entry& entry) {
-        auto it = FindEntry(&entry);
-
-        if (it == entries.end()) {
-            return;
+        for (auto it = entries.begin(); it != entries.end(); ++it) {
+            if (&*it == &entry) {
+                entries.erase(it);
+                return;
+            }
         }
-
-        entries.erase(it);
     }
 
     // Clears every entry above the last marker, leaving that marker itself

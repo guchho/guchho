@@ -539,6 +539,7 @@ namespace guchho::logger {
         // guchho.json (guchho_json.cpp)
         // -------------------------------------------------------------------
         case MsgCat::kGuchhoJSON_UnknownField: return "Unknown field {} in guchho config will be ignored";
+        case MsgCat::kGuchhoJSON_InvalidExports: return "Invalid exports {} (expected \"default\")";
         case MsgCat::kGuchhoJSON_InvalidFormat: return "Invalid format {} (expected \"esm\", \"cjs\", \"iife\", \"umd\", \"amd\", or \"system\")";
         case MsgCat::kGuchhoJSON_InvalidPlatform: return "Invalid platform {} (expected \"browser\", \"node\", or \"neutral\")";
         case MsgCat::kGuchhoJSON_InvalidSourcemap: return "Invalid sourcemap {} (expected \"linked\", \"external\", or \"inline\")";
@@ -757,6 +758,8 @@ namespace guchho::logger {
         case MsgCat::kAPI_InvalidLogOverride: return "Invalid \"log_override\" value for \"{}\": {}";
         case MsgCat::kAPI_FormatIgnoredForHTMLEntry: return "\"format\" is ignored when the entry point is HTML.";
         case MsgCat::kAPI_UMDRequiresName: return "UMD output with exports requires a global name (--name=<name>)";
+        case MsgCat::kAPI_ExportsDefaultOnlyUMD: return "--exports=default is only supported with --format=umd";
+        case MsgCat::kAPI_ExportsDefaultRequiresDefaultExport: return "--exports=default requires the entry point to have a default export";
 
             default:
                 return "";

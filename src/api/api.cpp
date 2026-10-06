@@ -3064,6 +3064,9 @@ validate_build_options(api::BuildOptions& build_opts, logger::Log& log, filesyst
     options.NoConflict = build_opts.no_conflict;
     options.Strict = build_opts.strict;
     options.Globals = build_opts.globals;
+    options.Exports = (build_opts.exports == api::Exports::kDefault)
+                          ? config::EntryExports::kDefault
+                          : config::EntryExports::kNamespace;
     options.SystemNullSetters = build_opts.system_null_setters;
     options.CodeSplitting = build_opts.splitting;
     options.OutputFormat = validate_format(build_opts.format);
@@ -3242,6 +3245,18 @@ validate_build_options(api::BuildOptions& build_opts, logger::Log& log, filesyst
 
     if (options.CodeSplitting && options.OutputFormat != config::Format::kESModule) {
         log.AddError(nullptr, logger::Range{}, logger::FormatMsg(logger::MsgCat::kAPI_SplittingOnlyESM));
+    }
+
+    // "exports=default" selects which entry export a UMD wrapper publishes,
+    // and only UMD has the three-branch shape the selection describes. Asked
+    // for anywhere else it would be read by nothing, so it is reported rather
+    // than quietly ignored. Checked here rather than where the flag is read
+    // because the format may have come from anywhere — a flag, the config
+    // file, or the platform default — and this is the first point where the
+    // resolved format and the selection are both known.
+    if (options.Exports == config::EntryExports::kDefault &&
+        options.OutputFormat != config::Format::kUMD) {
+        log.AddError(nullptr, logger::Range{}, logger::FormatMsg(logger::MsgCat::kAPI_ExportsDefaultOnlyUMD));
     }
 
     if (!options.TSConfigPath.empty() && !options.TSConfigRaw.empty()) {

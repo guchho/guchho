@@ -2032,7 +2032,9 @@ std::vector<Stmt> lowerUsingDeclarationContext::finalize(Parser *p, std::vector<
 void Parser::lowerUsingDeclarationInForOf(logger::Loc loc, SLocal *init, Stmt *body) {
     Binding binding = init->decls[0].binding;
     BIdentifier *id = Get<BIdentifier>(binding.data);
-    compiler::Ref tempRef = this->generateTempRef(tempRefNoDeclare, "_" + this->symbols[id->ref.inner_index].original_name);
+    const std::string original_name =
+        id != nullptr ? this->symbols[id->ref.inner_index].original_name : std::string{};
+    compiler::Ref tempRef = this->generateTempRef(tempRefNoDeclare, "_" + original_name);
 
     SBlock *block = Get<SBlock>(body->data);
     std::shared_ptr<SBlock> newBlock;

@@ -349,6 +349,56 @@ describe("sourcemap", () => {
   });
 });
 
+describe("banner and footer", () => {
+  // Text placed around the output, and the one option whose value is the bytes
+  // themselves rather than a name for something. The record spelling these
+  // types used to publish never worked: it was stringified into the flag and
+  // arrived as "[object Object]", so a caller who wrote { js: "..." } got a
+  // banner nobody wrote. The text is now the whole API, and it is sent through
+  // unchanged — punctuation, newlines and all — because that is what the
+  // engine prints above or below the code.
+
+  const TEXT = "/*! MyLib v1.0.0 | MIT License */";
+
+  for (const name of ["banner", "footer"]) {
+    const flag = `--${name}=`;
+
+    it(`sends ${name} as a valued flag`, () => {
+      assert.deepEqual(toFlags({ [name]: TEXT }), [flag + TEXT]);
+    });
+
+    it(`sends no flag when ${name} is unset`, () => {
+      assert.deepEqual(toFlags({}), []);
+    });
+
+    it(`keeps every character of ${name}, including "=" and a newline`, () => {
+      // The grammar reads the value as the rest of the argument, so an "="
+      // inside the text is part of it rather than a second separator. Losing
+      // that would silently truncate the banner at the first "=".
+      const text = "/*! v=1.0\nMIT License */";
+      assert.deepEqual(toFlags({ [name]: text }), [flag + text]);
+    });
+
+    it(`refuses a ${name} that is not a string`, () => {
+      for (const value of [{ js: TEXT }, true, 1, [TEXT]]) {
+        assert.throws(
+          () => toFlags({ [name]: value }),
+          new RegExp(`${name} takes a string`),
+          `${name} accepted ${JSON.stringify(value)}`
+        );
+      }
+    });
+
+    it(`sends ${name} from the nested spelling too`, () => {
+      // The flat and nested configurations are one configuration, so the text
+      // has to survive the walk through normalize() on its way to the flag.
+      assert.deepEqual(requestShape({ build: { entry: "src/i.js", [name]: TEXT } }).flags, [
+        flag + TEXT,
+      ]);
+    });
+  }
+});
+
 describe("option names reach the grammar", () => {
   // A name this layer invents would be a flag the binary turns away with "Invalid
   // build flag" — which is a build that fails outright, loudly, at the first

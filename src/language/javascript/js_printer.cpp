@@ -2176,9 +2176,13 @@ namespace guchho::javascript {
                             // Make sure we're not using a property access instead of an identifier
                             compiler::Ref ref = compiler::FollowSymbols(symbols_, import_id->ref);
                             const compiler::Symbol* symbol = symbols_.Get(ref);
-                            if (symbol->namespace_alias == nullptr && name == renamer_.NameForSymbol(ref) &&
-                                (options_.const_values.find(ref) == options_.const_values.end() ||
-                                 options_.const_values.find(ref)->second.kind == ConstValueKind::kNone)) {
+                            const auto const_value = options_.const_values.find(ref);
+                            const ConstValueKind const_kind = const_value != options_.const_values.end()
+                                                                  ? const_value->second.kind
+                                                                  : ConstValueKind::kNone;
+                            if (symbol != nullptr && symbol->namespace_alias == nullptr &&
+                                name == renamer_.NameForSymbol(ref) &&
+                                const_kind == ConstValueKind::kNone) {
                                 if (!IsNil(property.initializer_or_nil.data)) {
                                     print_space();
                                     print("=");
@@ -2228,11 +2232,14 @@ namespace guchho::javascript {
                             // Make sure we're not using a property access instead of an identifier
                             compiler::Ref ref = compiler::FollowSymbols(symbols_, import_id->ref);
                             const compiler::Symbol* symbol = symbols_.Get(ref);
-                            if (symbol->namespace_alias == nullptr &&
+                            const auto const_value = options_.const_values.find(ref);
+                            const ConstValueKind const_kind = const_value != options_.const_values.end()
+                                                                  ? const_value->second.kind
+                                                                  : ConstValueKind::kNone;
+                            if (symbol != nullptr && symbol->namespace_alias == nullptr &&
                                 can_use_shorthand_property(str->value, renamer_.NameForSymbol(ref),
                                                            property.flags) &&
-                                (options_.const_values.find(ref) == options_.const_values.end() ||
-                                 options_.const_values.find(ref)->second.kind == ConstValueKind::kNone)) {
+                                const_kind == ConstValueKind::kNone) {
                                 if (options_.add_source_mappings) {
                                     add_source_mapping_for_name(property.key.loc, helpers::UTF16ToString(str->value),
                                                                 ref);

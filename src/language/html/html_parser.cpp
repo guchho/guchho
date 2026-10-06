@@ -40,12 +40,12 @@ using Entry = FormattingElementList<DefaultTreeAdapter>::Entry;
 // created here, the insertion-mode context is seeded from the document or the
 // fragment context, and the fragment context's tag id is remembered because
 // with no open elements the context stands in as the "current" element.
-Parser::Parser(const ParserOptions& options, std::unique_ptr<Node> document_node,
-               Node* fragment_context)
-    : options(options),
+Parser::Parser(const ParserOptions& parser_options, std::unique_ptr<Node> document_node,
+               Node* context_node)
+    : options(parser_options),
       document(std::move(document_node)),
-      fragment_context(fragment_context) {
-    if (options.on_parse_error) {
+      fragment_context(context_node) {
+    if (parser_options.on_parse_error) {
         this->options.source_code_location_info = true;
     }
 
@@ -54,14 +54,14 @@ Parser::Parser(const ParserOptions& options, std::unique_ptr<Node> document_node
     }
 
     fragment_context_id =
-        fragment_context != nullptr ? GetTagId(fragment_context->tag_name) : TagId::kUnknown;
+        context_node != nullptr ? GetTagId(context_node->tag_name) : TagId::kUnknown;
 
     on_parse_error = this->options.on_parse_error;
 
     tokenizer = std::make_unique<Tokenizer>(*this, this->options.source_code_location_info);
     active_formatting_elements = std::make_unique<FormattingElementList<DefaultTreeAdapter>>();
 
-    SetContextModes(fragment_context != nullptr ? fragment_context : document.get(),
+    SetContextModes(context_node != nullptr ? context_node : document.get(),
                     fragment_context_id);
 
     open_elements = std::make_unique<OpenElementStack<DefaultTreeAdapter>>(*document, *this);

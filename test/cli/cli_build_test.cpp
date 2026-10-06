@@ -1077,6 +1077,22 @@ TEST(CliBuild, AMissingEntryPointIsABuildFailure) {
     EXPECT_TRUE(OutputContains(result.err, "missing.js"));
 }
 
+// The entry point is echoed back with the separator of the shell it was
+// spelled with, which on Windows is a backslash that reads as an escape in
+// the message. The diagnostic reports forward slashes on every platform so
+// the same mistake prints identically everywhere; the spelling handed to the
+// file system is untouched, which is why the build still fails the same way.
+TEST(CliBuild, AMissingEntryPointIsReportedWithForwardSlashes) {
+    CliWorkspace ws("missing-backslash");
+
+    const guchho::test::CliResult result =
+        RunCli({"build", "src\\index.js", "--outdir=dist"});
+
+    EXPECT_EQ(result.exit_code, kBuildFailure);
+    EXPECT_TRUE(OutputContains(result.err, "src/index.js"));
+    EXPECT_EQ(result.err.find("src\\index.js"), std::string::npos) << result.err;
+}
+
 // No entry point, no flags, nothing to build and nothing on the standard input
 // either. The message is the one that tells a person what to do next, and the
 // code is a usage error because nothing was ever attempted.

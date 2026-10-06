@@ -417,6 +417,13 @@ void ResolveOneBuild(BuildOptions& out,
     if (!WasSet(out, kOptGlobalName) && out.global_name.empty() && !cfg.GlobalNameText.empty()) {
         out.global_name = cfg.GlobalNameText;
     }
+    // Which entry export a wrapper format publishes, guarded the same way as
+    // the fields above: a command line that asked for one wins, and kUnset
+    // means the config file gets to answer.
+    if (!WasSet(out, kOptExports) && out.exports == api::Exports::kUnset &&
+        cfg.Exports == config::EntryExports::kDefault) {
+        out.exports = api::Exports::kDefault;
+    }
 
     // ---- 3. The built-in defaults -----------------------------------------
     // Reached only by whatever neither the caller nor the config mentioned.

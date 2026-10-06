@@ -1494,7 +1494,15 @@ std::string hint;
                 if (repr.ast.exports_kind == javascript::ExportsKind::kCommonJS &&
                     (!file.IsEntryPoint() ||
                      options->OutputFormat == config::Format::kIIFE ||
-                     options->OutputFormat == config::Format::kESModule)) {
+                     options->OutputFormat == config::Format::kESModule ||
+                     // A CommonJS entry point running inline would assign the
+                     // *host* environment's "module.exports" from inside the
+                     // factory, and in default mode the wrapper consumes a
+                     // return value the inline body never produces. Wrapping
+                     // it gives the body its own "module" to write to, and the
+                     // wrapper call hands that value back.
+                     (options->OutputFormat == config::Format::kUMD &&
+                      options->Exports == config::EntryExports::kDefault))) {
                     repr.meta.wrap = graph::WrapKind::kCJS;
                 }
             }

@@ -856,6 +856,23 @@ std::optional<ErrorWithNote> parseOptionsImpl(
             }
             continue;
         }
+        // Which entry export a wrapper format publishes as its public value.
+        // Build-only, because a transform has no entry point whose exports to
+        // choose between. The one value is "default"; whether it may be used
+        // with the format actually selected is checked once the options are
+        // resolved, where the format is known no matter which of the three
+        // places it was set in.
+        if (arg.starts_with("--exports=") && build_opts) {
+            auto value = arg.substr(std::string_view("--exports=").size());
+            if (value != "default") {
+                return MakeErrorWithNote(
+                    "Invalid value " + helpers::QuoteSingle(value, true) + " in " + helpers::QuoteSingle(arg, true),
+                    "Valid values are \"default\".");
+            }
+            build_opts->exports = api::Exports::kDefault;
+            mark(api::kOptExports);
+            continue;
+        }
         // -------------------------------------------------------------------------
         // What is in the graph
         // -------------------------------------------------------------------------
@@ -1106,7 +1123,7 @@ std::optional<ErrorWithNote> parseOptionsImpl(
             static const std::unordered_set<std::string> kEqualsFlags = {
                 "abs-paths", "allow-overwrite", "asset-names", "banner", "bundle",
                 "certfile", "charset", "chunk-names", "color", "conditions",
-                "cors-origin", "drop-labels", "entry-names", "footer", "format",
+                "cors-origin", "drop-labels", "entry-names", "exports", "footer", "format",
                 "global-name", "ignore-annotations", "jsx-factory", "jsx-fragment",
                 "jsx-import-source", "jsx", "keep-names", "keyfile", "legal-comments",
                 "loader", "log-level", "log-limit", "main-fields", "mangle-cache",

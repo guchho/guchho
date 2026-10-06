@@ -704,6 +704,350 @@ TEST(CliBuild, MinifiedUMDOutputExecutes) {
         << "the AMD arm did not deliver through define(): [" << as_amd.stdout_data << "]";
 }
 
+// ---------------------------------------------------------------------------
+// UMD: "--exports=default"
+// ---------------------------------------------------------------------------
+
+// The shape of the wrapper in default mode: the value every arm receives is
+// the factory's return, so the CommonJS arm assigns it to "module.exports",
+// the AMD arm has no "exports" dependency for the loader to hand the factory,
+// and the browser arm assigns the return straight to the named global instead
+// of building an object for the body to fill. The named exports the entry also
+// declares are exposed nowhere, which is the point of the mode.
+TEST(CliBuild, ExportsDefaultPublishesTheDefaultExportDirectly) {
+    CliWorkspace ws("umd-exports-default");
+    ws.Write("entry.js", "export default class Widget {\n"
+                         "  constructor() { this.answer = 42; }\n"
+                         "}\n"
+                         "export const ignored = 99;\n");
+
+    const CliResult result = RunCli({"build", "entry.js", "--format=umd",
+                                     "--exports=default", "--name=Widget",
+                                     "--outfile=out.js"});
+    ASSERT_EQ(result.exit_code, kSuccess) << result.err;
+    const std::string out = ws.Read("out.js");
+
+    EXPECT_TRUE(OutputContains(out, "module.exports = factory(require)"))
+        << "the CommonJS arm does not take the factory's return: [" << out << "]";
+    EXPECT_TRUE(OutputContains(out, "define([], factory)"))
+        << "the AMD arm still asks for an exports object: [" << out << "]";
+    EXPECT_TRUE(OutputContains(out, "global.Widget = factory(void 0)"))
+        << "the browser arm does not assign the return to the global: [" << out << "]";
+    EXPECT_TRUE(OutputContains(out, "return Widget;"))
+        << "the factory does not hand back the default export: [" << out << "]";
+    EXPECT_FALSE(OutputContains(out, "exports.default"))
+        << "the default was published through the exports object: [" << out << "]";
+    EXPECT_FALSE(OutputContains(out, "exports.ignored"))
+        << "a named export was published in default mode: [" << out << "]";
+}
+
+// Each of the three arms executed the way it is loaded for real. The CommonJS
+// arm through require(), the browser arm in a context with no module system at
+// all, and the AMD arm through a define() that keeps the factory's return --
+// which in default mode is the whole module value, where the namespace mode's
+// AMD arm instead kept what the factory wrote into an exports object.
+TEST(CliBuild, ExportsDefaultDeliversTheDefaultExportThroughEveryArm) {
+    CliWorkspace ws("umd-exports-default-exec");
+    ws.Write("entry.js", "export default class W {\n"
+                         "  constructor() { this.n = 42; }\n"
+                         "}\n");
+
+    const CliResult build = RunCli({"build", "entry.js", "--format=umd",
+                                    "--exports=default", "--name=W",
+                                    "--outfile=out.js"});
+    ASSERT_EQ(build.exit_code, kSuccess) << build.err;
+
+    const ProcessResult as_module = RunProcess(
+        {"node", "-e", "const W = require('./out.js'); process.stdout.write(String(new W().n));"},
+        ws.path());
+    if (!as_module.started) {
+        std::cout << "node is not on PATH; skipping the execution half of "
+                     "ExportsDefaultDeliversTheDefaultExportThroughEveryArm"
+                  << std::endl;
+        return;
+    }
+    EXPECT_EQ(as_module.exit_code, 0) << as_module.stderr_data;
+    EXPECT_TRUE(OutputContains(as_module.stdout_data, "42"))
+        << "require() did not hand back the default export: [" << as_module.stdout_data << "]";
+
+    const ProcessResult as_global = RunProcess(
+        {"node", "-e",
+         "const fs = require('fs'), vm = require('vm');"
+         "const ctx = {}; ctx.globalThis = ctx; ctx.self = ctx;"
+         "vm.runInNewContext(fs.readFileSync('out.js', 'utf8'), ctx);"
+         "process.stdout.write(String(new ctx.W().n));"},
+        ws.path());
+    ASSERT_TRUE(as_global.started);
+    EXPECT_EQ(as_global.exit_code, 0) << as_global.stderr_data;
+    EXPECT_TRUE(OutputContains(as_global.stdout_data, "42"))
+        << "the global arm did not publish the default export: [" << as_global.stdout_data << "]";
+
+    const ProcessResult as_amd = RunProcess(
+        {"node", "-e",
+         "const fs = require('fs'), vm = require('vm');"
+         "let got = null;"
+         "function define(deps, factory) { got = { len: deps.length, val: factory() }; }"
+         "define.amd = true;"
+         "const ctx = { define: define }; ctx.globalThis = ctx; ctx.self = ctx;"
+         "vm.runInNewContext(fs.readFileSync('out.js', 'utf8'), ctx);"
+         "process.stdout.write(String(got.len) + ':' + String(new got.val().n));"},
+        ws.path());
+    ASSERT_TRUE(as_amd.started);
+    EXPECT_EQ(as_amd.exit_code, 0) << as_amd.stderr_data;
+    EXPECT_TRUE(OutputContains(as_amd.stdout_data, "0:42"))
+        << "the AMD arm did not keep the factory's return: [" << as_amd.stdout_data << "]";
+}
+
+// The default may be a plain function, and in default mode the function
+// itself is what every arm delivers: the global is called directly, with no
+// ".default" to reach through.
+TEST(CliBuild, ExportsDefaultPublishesADefaultFunctionAsTheGlobal) {
+    CliWorkspace ws("umd-exports-default-fn");
+    ws.Write("entry.js", "export default function Exprify() {\n"
+                         "  return 42;\n"
+                         "}\n");
+
+    const CliResult build = RunCli({"build", "entry.js", "--format=umd",
+                                    "--exports=default", "--name=Exprify",
+                                    "--outfile=out.js"});
+    ASSERT_EQ(build.exit_code, kSuccess) << build.err;
+
+    if (!RunProcess({"node", "-v"}, ws.path()).started) {
+        std::cout << "node is not on PATH; skipping the execution half of "
+                     "ExportsDefaultPublishesADefaultFunctionAsTheGlobal"
+                  << std::endl;
+        return;
+    }
+
+    const ProcessResult as_module = RunProcess(
+        {"node", "-e", "process.stdout.write(String(require('./out.js')()));"},
+        ws.path());
+    EXPECT_EQ(as_module.exit_code, 0) << as_module.stderr_data;
+    EXPECT_TRUE(OutputContains(as_module.stdout_data, "42"))
+        << "require() did not hand back the default function: [" << as_module.stdout_data << "]";
+
+    const ProcessResult as_global = RunProcess(
+        {"node", "-e",
+         "const fs = require('fs'), vm = require('vm');"
+         "const ctx = {}; ctx.globalThis = ctx; ctx.self = ctx;"
+         "vm.runInNewContext(fs.readFileSync('out.js', 'utf8'), ctx);"
+         "process.stdout.write(String(ctx.Exprify()));"},
+        ws.path());
+    ASSERT_TRUE(as_global.started);
+    EXPECT_EQ(as_global.exit_code, 0) << as_global.stderr_data;
+    EXPECT_TRUE(OutputContains(as_global.stdout_data, "42"))
+        << "the global is not the default function itself: [" << as_global.stdout_data << "]";
+}
+
+// Default and named exports together: the default is the value and the named
+// ones are exposed nowhere, and the build says nothing about it -- the
+// combination is representable in this mode, so reporting it would be
+// inventing a problem.
+TEST(CliBuild, ExportsDefaultExposesOnlyTheDefaultAmongSeveralExports) {
+    CliWorkspace ws("umd-exports-default-mixed");
+    ws.Write("entry.js", "export default 7;\n"
+                         "export const named = 99;\n"
+                         "export function fn() { return named; }\n");
+
+    const CliResult result = RunCli({"build", "entry.js", "--format=umd",
+                                     "--exports=default", "--name=Mixed",
+                                     "--outfile=out.js"});
+    ASSERT_EQ(result.exit_code, kSuccess) << result.err;
+    const std::string out = ws.Read("out.js");
+
+    EXPECT_FALSE(OutputContains(out, "exports.default"))
+        << "the default went through the exports object: [" << out << "]";
+    EXPECT_FALSE(OutputContains(out, "exports.named"))
+        << "a named export was published alongside it: [" << out << "]";
+    EXPECT_FALSE(OutputContains(out, "exports.fn"))
+        << "a named export was published alongside it: [" << out << "]";
+
+    const ProcessResult as_module = RunProcess(
+        {"node", "-e", "process.stdout.write(String(require('./out.js')));"}, ws.path());
+    if (!as_module.started) {
+        std::cout << "node is not on PATH; skipping the execution half of "
+                     "ExportsDefaultExposesOnlyTheDefaultAmongSeveralExports"
+                  << std::endl;
+        return;
+    }
+    EXPECT_EQ(as_module.exit_code, 0) << as_module.stderr_data;
+    EXPECT_TRUE(OutputContains(as_module.stdout_data, "7"))
+        << "require() did not hand back the default export: [" << as_module.stdout_data << "]";
+}
+
+// A CommonJS entry in default mode: "module.exports" is its default export,
+// and the entry is wrapped so the assignment lands on the wrapper's own
+// module rather than the host's. require() therefore comes back with the
+// value the entry assigned, and the browser arm runs without reaching for a
+// "module" it does not have.
+TEST(CliBuild, ExportsDefaultRunsACjsEntryInItsOwnWrapper) {
+    CliWorkspace ws("umd-exports-default-cjs");
+    ws.Write("entry.js", "module.exports = function Ctor() { this.q = 9; };\n");
+
+    const CliResult build = RunCli({"build", "entry.js", "--format=umd",
+                                    "--exports=default", "--name=Ctor",
+                                    "--outfile=out.js"});
+    ASSERT_EQ(build.exit_code, kSuccess) << build.err;
+
+    if (!RunProcess({"node", "-v"}, ws.path()).started) {
+        std::cout << "node is not on PATH; skipping the execution half of "
+                     "ExportsDefaultRunsACjsEntryInItsOwnWrapper"
+                  << std::endl;
+        return;
+    }
+
+    const ProcessResult as_module = RunProcess(
+        {"node", "-e", "const C = require('./out.js'); process.stdout.write(String(new C().q));"},
+        ws.path());
+    EXPECT_EQ(as_module.exit_code, 0) << as_module.stderr_data;
+    EXPECT_TRUE(OutputContains(as_module.stdout_data, "9"))
+        << "require() did not hand back module.exports: [" << as_module.stdout_data << "]";
+
+    const ProcessResult as_global = RunProcess(
+        {"node", "-e",
+         "const fs = require('fs'), vm = require('vm');"
+         "const ctx = {}; ctx.globalThis = ctx; ctx.self = ctx;"
+         "vm.runInNewContext(fs.readFileSync('out.js', 'utf8'), ctx);"
+         "process.stdout.write(String(new ctx.Ctor().q));"},
+        ws.path());
+    ASSERT_TRUE(as_global.started);
+    EXPECT_EQ(as_global.exit_code, 0) << as_global.stderr_data;
+    EXPECT_TRUE(OutputContains(as_global.stdout_data, "9"))
+        << "the global arm did not run the CommonJS body: [" << as_global.stdout_data << "]";
+}
+
+// The mode asks for a default export, so an entry without one cannot be
+// published and has to stop with that said rather than handing every module
+// system "undefined".
+TEST(CliBuild, ExportsDefaultWithoutADefaultExportIsABuildFailure) {
+    CliWorkspace ws("umd-exports-default-none");
+    ws.Write("entry.js", "export const onlyNamed = 1;\n");
+
+    const CliResult result = RunCli({"build", "entry.js", "--format=umd",
+                                     "--exports=default", "--name=X",
+                                     "--outfile=out.js"});
+
+    EXPECT_EQ(result.exit_code, kBuildFailure) << result.err;
+    EXPECT_TRUE(OutputContains(result.err,
+                               "--exports=default requires the entry point to have a default export"))
+        << "the failure does not say what is missing: [" << result.err << "]";
+    EXPECT_FALSE(ws.Exists("out.js"))
+        << "a failed build wrote its output anyway";
+}
+
+// The option only means anything for UMD, where there is a wrapper with arms
+// to publish through; a format whose exports are already the module's value
+// is told so rather than silently ignoring the flag. Every other output
+// format Guchho has gets the same answer.
+TEST(CliBuild, ExportsDefaultOutsideUmdIsRejected) {
+    CliWorkspace ws("umd-exports-default-format");
+    ws.Write("entry.js", "export default 1;\n");
+
+    for (const char* format : {"esm", "cjs", "iife", "amd", "system"}) {
+        const CliResult result = RunCli({"build", "entry.js",
+                                         std::string("--format=") + format,
+                                         "--exports=default", "--outfile=out.js"});
+
+        EXPECT_EQ(result.exit_code, kBuildFailure) << format << ": " << result.err;
+        EXPECT_TRUE(OutputContains(result.err,
+                                   "--exports=default is only supported with --format=umd"))
+            << format << " does not say which format is required: [" << result.err << "]";
+        EXPECT_FALSE(ws.Exists("out.js")) << format << " wrote output anyway";
+    }
+}
+
+// An unknown value stops on the command line itself, with the note naming the
+// one value that does exist.
+TEST(CliBuild, AnUnknownExportsValueIsAUsageError) {
+    CliWorkspace ws("umd-exports-default-value");
+    ws.Write("entry.js", "export default 1;\n");
+
+    const CliResult result = RunCli({"build", "entry.js", "--format=umd",
+                                     "--exports=namespace", "--name=X",
+                                     "--outfile=out.js"});
+
+    EXPECT_EQ(result.exit_code, kUsageError) << result.err;
+    EXPECT_TRUE(OutputContains(result.err, "Invalid value"))
+        << "the failure does not quote what was rejected: [" << result.err << "]";
+    EXPECT_TRUE(OutputContains(result.err, "\"default\""))
+        << "the note does not name the valid value: [" << result.err << "]";
+}
+
+// Minified default mode: the wrapper still parses, Guchho still reads its own
+// output back as source, Node still executes it, and the class behind the
+// global is still the default. Semantics, not bytes -- the minifier is
+// allowed to spell the wrapper however it likes.
+TEST(CliBuild, ExportsDefaultSurvivesMinification) {
+    CliWorkspace ws("umd-exports-default-min");
+    ws.Write("entry.js", "export default class Exprify {\n"
+                         "  constructor() { this.value = 42; }\n"
+                         "}\n");
+
+    const CliResult build = RunCli({"build", "entry.js", "--format=umd",
+                                    "--exports=default", "--name=Exprify",
+                                    "--minify", "--outfile=out.js"});
+    ASSERT_EQ(build.exit_code, kSuccess) << build.err;
+    ASSERT_TRUE(ws.Exists("out.js"));
+
+    // Guchho reads its own output: building the bundle again as an entry is
+    // a full lex-parse round trip through the real pipeline.
+    const CliResult reparsed = RunCli({"build", "out.js", "--outfile=again.js"});
+    EXPECT_EQ(reparsed.exit_code, kSuccess) << reparsed.err;
+
+    if (!RunProcess({"node", "-v"}, ws.path()).started) {
+        std::cout << "node is not on PATH; skipping the execution half of "
+                     "ExportsDefaultSurvivesMinification"
+                  << std::endl;
+        return;
+    }
+
+    const ProcessResult as_module = RunProcess(
+        {"node", "-e",
+         "const E = require('./out.js'); process.stdout.write(String(new E().value));"},
+        ws.path());
+    EXPECT_EQ(as_module.exit_code, 0) << as_module.stderr_data;
+    EXPECT_TRUE(OutputContains(as_module.stdout_data, "42"))
+        << "require() did not hand back the default class: [" << as_module.stdout_data << "]";
+
+    const ProcessResult as_global = RunProcess(
+        {"node", "-e",
+         "const fs = require('fs'), vm = require('vm');"
+         "const ctx = {}; ctx.globalThis = ctx; ctx.self = ctx;"
+         "vm.runInNewContext(fs.readFileSync('out.js', 'utf8'), ctx);"
+         "process.stdout.write(String(new ctx.Exprify().value));"},
+        ws.path());
+    ASSERT_TRUE(as_global.started);
+    EXPECT_EQ(as_global.exit_code, 0) << as_global.stderr_data;
+    EXPECT_TRUE(OutputContains(as_global.stdout_data, "42"))
+        << "the global is not the default class after minification: ["
+        << as_global.stdout_data << "]";
+}
+
+// Asking for a map alongside the new mode still writes one, and it is a real
+// map: a file next to the bundle, referenced from the bundle, carrying the
+// fields a consumer reads.
+TEST(CliBuild, ExportsDefaultStillEmitsASourceMap) {
+    CliWorkspace ws("umd-exports-default-map");
+    ws.Write("entry.js", "export default 42;\n");
+
+    const CliResult build = RunCli({"build", "entry.js", "--format=umd",
+                                    "--exports=default", "--name=M",
+                                    "--sourcemap", "--outfile=out.js"});
+    ASSERT_EQ(build.exit_code, kSuccess) << build.err;
+
+    ASSERT_TRUE(ws.Exists("out.js"));
+    ASSERT_TRUE(ws.Exists("out.js.map"))
+        << "no map file was written next to the bundle";
+    EXPECT_TRUE(OutputContains(ws.Read("out.js"), "sourceMappingURL"))
+        << "the bundle does not reference its map";
+
+    const std::string map = ws.Read("out.js.map");
+    EXPECT_TRUE(OutputContains(map, "\"mappings\""))
+        << "the map carries no mappings: [" << map << "]";
+    EXPECT_TRUE(OutputContains(map, "\"sources\""))
+        << "the map names no sources: [" << map << "]";
+}
+
 // The metafile is the description of what the build read and produced, and it
 // is only written when a flag asks for it and a path to write it to was named.
 TEST(CliBuild, TheMetafileIsWrittenWhenItIsAskedForByName) {
@@ -853,6 +1197,7 @@ TEST(CliBuild, BuildOnlyFlagsAreNotMistakenForTransformFlags) {
         "--out-extension:.js=.mjs",
         "--packages=external",
         "--external:react",
+        "--exports=default",
         "--inject:env=process",
         "--alias:react=preact",
         "--banner:js=banner",

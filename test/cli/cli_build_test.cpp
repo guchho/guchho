@@ -213,6 +213,61 @@ TEST(CliBuild, ABuildWithNoMinifyFlagIsNotMinified) {
         << "a build with no minify flag came out minified: [" << silent << "]";
 }
 
+// The text around the output, asked for in the plain spelling — the one the
+// JavaScript API sends, a single string rather than a record keyed by file
+// kind. That spelling used to be read as a transform's only, so a build that
+// asked for a banner was turned away by its own command line with "Invalid
+// build flag", while the same option on a transform worked. The colon form
+// ("--banner:js=") is the one that names the kind, and it keeps working; this
+// is the one a caller who wrote one string was using.
+//
+// The value is taken whole rather than up to the first "=", and the text below
+// carries one on purpose: a banner versioned "v=1.0" that stopped at the "="
+// would print something nobody wrote.
+TEST(CliBuild, ThePlainBannerAndFooterFlagsReachTheOutput) {
+    CliWorkspace ws("banner-plain");
+    ws.Write("entry.js", "const value = compute(1);\nconsole.log(value);\n");
+
+    const std::string banner = "/*! MyLib v=1.0 | MIT License */";
+    const std::string footer = "/*! end of MyLib */";
+
+    EXPECT_EQ(RunCli({"build", "entry.js", "--outfile=plain.js", "--banner=" + banner,
+                      "--footer=" + footer}).exit_code,
+              kSuccess);
+    EXPECT_EQ(RunCli({"build", "entry.js", "--outfile=min.js", "--minify", "--banner=" + banner,
+                      "--footer=" + footer}).exit_code,
+              kSuccess);
+
+    const std::string plain = ws.Read("plain.js");
+    const std::string min   = ws.Read("min.js");
+
+    for (const std::string* text : {&plain, &min}) {
+        ASSERT_GE(text->size(), banner.size()) << "the output is shorter than its own banner: [" << *text << "]";
+
+        // Above the program, byte for byte — not a rewritten or reflowed
+        // version of it, and not below anything the printer added.
+        EXPECT_EQ(text->substr(0, banner.size()), banner)
+            << "the banner is not first in: [" << *text << "]";
+
+        // And at the far end, with nothing after it but the newline the footer
+        // is written with. Checked as "nothing but whitespace follows" rather
+        // than as a fixed byte count, so that a trailing newline is not a
+        // failure the test has to know the reason for.
+        const auto footer_at = text->rfind(footer);
+        ASSERT_NE(footer_at, std::string::npos) << "the footer is missing from: [" << *text << "]";
+        const std::string after = text->substr(footer_at + footer.size());
+        EXPECT_EQ(after.find_first_not_of(" \t\r\n"), std::string::npos)
+            << "the footer is not last in: [" << *text << "]";
+    }
+
+    EXPECT_TRUE(OutputContains(plain, "const value = compute(1);"))
+        << "the program is missing from the unminified build: [" << plain << "]";
+    EXPECT_TRUE(OutputContains(min, "const value=compute(1);"))
+        << "minify did not reach the build: [" << min << "]";
+    EXPECT_LT(min.size(), plain.size())
+        << "the minified build is not smaller, so the comparison above means nothing";
+}
+
 // Each of the three passes, asked for on its own, and what the other two are
 // still doing in the output. The source is chosen so each pass has one visible
 // effect and no other does: "localValue" survives whitespace minification and

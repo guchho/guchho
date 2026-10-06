@@ -140,6 +140,7 @@ namespace guchho::logger {
 
         // guchho.json
         kGuchhoJSON_FIRST,
+        kGuchhoJSON_InvalidExports,
         kGuchhoJSON_InvalidFormat,
         kGuchhoJSON_InvalidLogLevel,
         kGuchhoJSON_InvalidPlatform,
@@ -1364,6 +1365,7 @@ namespace guchho::logger {
         // guchho.json (guchho_json.cpp)
         // -------------------------------------------------------------------
         kGuchhoJSON_UnknownField,
+        kGuchhoJSON_InvalidExports,
         kGuchhoJSON_InvalidFormat,
         kGuchhoJSON_InvalidPlatform,
         kGuchhoJSON_InvalidSourcemap,
@@ -1682,6 +1684,8 @@ namespace guchho::logger {
         kAPI_MustSpecifyKindWhenResolving,
         kAPI_FormatIgnoredForHTMLEntry,
         kAPI_UMDRequiresName,
+        kAPI_ExportsDefaultOnlyUMD,
+        kAPI_ExportsDefaultRequiresDefaultExport,
 
         // -------------------------------------------------------------------
         // CLI mangle cache (mangle_cache.cpp)

@@ -357,6 +357,20 @@ for (const [name, flag] of Object.entries(SERVICE_BOOLEANS)) {
 
     args.push(...sourcemapArgs(options.sourcemap));
 
+    // "banner" and "footer" are text, and only text. The grammar takes
+    // everything after the "=" as the bytes to place around the output, so an
+    // object here would travel as "[object Object]" — a banner nobody wrote,
+    // printed above a bundle with nothing to say where it came from. Refused
+    // here, where the option is named, rather than several steps later where
+    // only the mangled value is.
+    for (const name of ["banner", "footer"]) {
+        const value = options[name];
+        if (value === undefined || value === null) continue;
+        if (typeof value !== "string") {
+            throw new TypeError(`${name} takes a string; got ${typeof value}`);
+        }
+    }
+
     for (const [name, flag] of Object.entries(SERVICE_VALUES)) {
         const value = options[name];
         if (value === undefined || value === null) continue;

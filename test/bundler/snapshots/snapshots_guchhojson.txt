@@ -8,6 +8,21 @@ export {
 };
 
 ================================================================================
+BundlerGuchhoJSON.BuildExportsDefault
+---------- /out.js ----------
+(function(global, factory) {
+  typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory(require) :
+  typeof define === "function" && define.amd ? define([], factory) :
+  (global = typeof globalThis !== "undefined" ? globalThis : global || self, global.ConfigLib = factory(void 0));
+})(this, function(require) {
+  "use strict";
+  // app.js
+  var app_default = 42;
+  var named = 1;
+  return app_default;
+});
+
+================================================================================
 BundlerGuchhoJSON.BuildFormatCommonJS
 ---------- /out.js ----------
 "use strict";
@@ -332,6 +347,20 @@ BundlerGuchhoJSON.ExternalPreservesImport
 // app.js
 import { create } from "vue";
 console.log(create);
+
+================================================================================
+BundlerGuchhoJSON.InvalidExportsValueWarns
+---------- /out.js ----------
+(function(global, factory) {
+  typeof exports === "object" && typeof module !== "undefined" ? factory(exports, require) :
+  typeof define === "function" && define.amd ? define(["exports"], factory) :
+  (global = typeof globalThis !== "undefined" ? globalThis : global || self, (global.MyLib = global.MyLib || {}, factory(global.MyLib, void 0), global.MyLib));
+})(this, function(exports, require) {
+  "use strict";
+  // app.js
+  var app_default = 42;
+  exports.default = app_default;
+});
 
 ================================================================================
 BundlerGuchhoJSON.InvalidValuesWarn

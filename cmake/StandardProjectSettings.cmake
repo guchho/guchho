@@ -151,6 +151,57 @@ endif()
 
 
 # ------------------------------------------------------------
+# Windows thread stack size
+#
+# The JavaScript parser is recursive descent, so parseStmt takes a
+# new frame for every level of nesting in the source. That makes the
+# depth a file may nest a property of the stack Windows hands out
+# rather than of the parser: each thread, including the ones
+# std::thread creates, is limited to the SizeOfStackReserve named in
+# the image header, which defaults to 1 MB. "TestMinifyNestedLabelsNoBundle"
+# nests around 350 labeled statements and overflowed that, dying on
+# the guard page with a SIGSEGV part way through the parse.
+#
+# Raise it to 16 MB. The reservation is virtual - SizeOfStackCommit
+# still asks for one page - so nothing is touched until a thread
+# actually walks deep enough to need it.
+# ------------------------------------------------------------
+
+if(WIN32)
+
+    set(
+        GUCHHO_WINDOWS_STACK_RESERVE
+        16777216
+    )
+
+    if(MINGW)
+
+        # GNU ld spells it --stack, with the size as a comma argument.
+        add_link_options(
+            "-Wl,--stack,${GUCHHO_WINDOWS_STACK_RESERVE}"
+        )
+
+    elseif(MSVC OR CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+
+        add_link_options(
+            "/STACK:${GUCHHO_WINDOWS_STACK_RESERVE}"
+        )
+
+    else()
+
+        # clang++ driving lld-link in GNU mode: forward the option past
+        # the driver, which does not accept MSVC-style link flags itself.
+        add_link_options(
+            "-Xlinker"
+            "/STACK:${GUCHHO_WINDOWS_STACK_RESERVE}"
+        )
+
+    endif()
+
+endif()
+
+
+# ------------------------------------------------------------
 # Organize targets in IDEs
 # ------------------------------------------------------------
 

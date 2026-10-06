@@ -851,50 +851,90 @@ namespace guchho::linker {
             // copy a namespace object onto a "__esModule" marker object and hand
             // the copy back, and there is no longer anywhere for a return value
             // to land.
+            //
+            // "exports=default" inverts that: the wrapper consumes a return
+            // value instead, so the factory returns the default export and the
+            // wrapper's three branches give it to their module systems.
             if (repr.meta.wrap == graph::WrapKind::kCJS) {
                 stmts.push_back(javascript::Stmt{.data = std::make_shared<javascript::SReturn>(javascript::SReturn{.value_or_nil = make_wrapper_call()})});
             } else {
                 if (repr.meta.wrap == graph::WrapKind::kESM) {
                     stmts.push_back(javascript::Stmt{.data = std::make_shared<javascript::SExpr>(javascript::SExpr{.value = make_wrapper_call()})});
                 }
-                size_t copy_index = 0;
-                for (auto& alias : repr.meta.sorted_and_filtered_export_aliases) {
-                    auto export_it = repr.meta.resolved_exports.find(alias);
-                    if (export_it == repr.meta.resolved_exports.end()) continue;
-                    auto export_ref = export_it->second.ref;
+                if (options->Exports == config::EntryExports::kDefault) {
+                    // The entry point has a "default" export -- the build
+                    // rejects one that does not -- so the factory's whole job
+                    // on the way out is to hand its value back.
+                    auto export_it = repr.meta.resolved_exports.find("default");
+                    if (export_it != repr.meta.resolved_exports.end()) {
+                        auto export_ref = export_it->second.ref;
 
-                    auto& export_file = graph.files[export_it->second.source_index];
-                    auto& export_file_repr = *std::get<std::shared_ptr<graph::JSRepr>>(export_file.input_file.repr);
-                    auto import_it = export_file_repr.meta.imports_to_bind.find(export_ref);
-                    if (import_it != export_file_repr.meta.imports_to_bind.end()) {
-                        export_ref = import_it->second.ref;
+                        auto& export_file = graph.files[export_it->second.source_index];
+                        auto& export_file_repr = *std::get<std::shared_ptr<graph::JSRepr>>(export_file.input_file.repr);
+                        auto import_it = export_file_repr.meta.imports_to_bind.find(export_ref);
+                        if (import_it != export_file_repr.meta.imports_to_bind.end()) {
+                            export_ref = import_it->second.ref;
+                        }
+
+                        // A re-export that resolves to another module's
+                        // namespace object has no declaration here to return
+                        // by name, so it is copied to a local first -- the same
+                        // reason the assignment loop below does it.
+                        if (auto* symbol = graph.symbols.Get(export_ref); symbol->namespace_alias) {
+                            auto temp_ref = repr.meta.cjs_export_copies[0];
+                            auto slocal = std::make_shared<javascript::SLocal>();
+                            slocal->decls.push_back(javascript::Decl{
+                                .binding = javascript::Binding{.data = std::make_shared<javascript::BIdentifier>(javascript::BIdentifier{.ref = temp_ref})},
+                                .value_or_nil = javascript::Expr(std::make_shared<javascript::EImportIdentifier>(javascript::EImportIdentifier{.ref = export_ref}), {}),
+                            });
+                            stmts.push_back(javascript::Stmt{.data = std::move(slocal)});
+                            export_ref = temp_ref;
+                        }
+
+                        stmts.push_back(javascript::Stmt{.data = std::make_shared<javascript::SReturn>(javascript::SReturn{
+                            .value_or_nil = javascript::Expr(std::make_shared<javascript::EImportIdentifier>(
+                                javascript::EImportIdentifier{.ref = export_ref}), {})})});
                     }
+                } else {
+                    size_t copy_index = 0;
+                    for (auto& alias : repr.meta.sorted_and_filtered_export_aliases) {
+                        auto export_it = repr.meta.resolved_exports.find(alias);
+                        if (export_it == repr.meta.resolved_exports.end()) continue;
+                        auto export_ref = export_it->second.ref;
 
-                    // "export * as ns" resolves to the namespace object of
-                    // another module, which nothing here has a declaration for.
-                    // Copying it to a local gives the assignment something to
-                    // read, the same reason the SystemJS tail does it.
-                    if (auto* symbol = graph.symbols.Get(export_ref); symbol->namespace_alias) {
-                        auto temp_ref = repr.meta.cjs_export_copies[copy_index++];
-                        auto slocal = std::make_shared<javascript::SLocal>();
-                        slocal->decls.push_back(javascript::Decl{
-                            .binding = javascript::Binding{.data = std::make_shared<javascript::BIdentifier>(javascript::BIdentifier{.ref = temp_ref})},
-                            .value_or_nil = javascript::Expr(std::make_shared<javascript::EImportIdentifier>(javascript::EImportIdentifier{.ref = export_ref}), {}),
-                        });
-                        stmts.push_back(javascript::Stmt{.data = std::move(slocal)});
-                        export_ref = temp_ref;
+                        auto& export_file = graph.files[export_it->second.source_index];
+                        auto& export_file_repr = *std::get<std::shared_ptr<graph::JSRepr>>(export_file.input_file.repr);
+                        auto import_it = export_file_repr.meta.imports_to_bind.find(export_ref);
+                        if (import_it != export_file_repr.meta.imports_to_bind.end()) {
+                            export_ref = import_it->second.ref;
+                        }
+
+                        // "export * as ns" resolves to the namespace object of
+                        // another module, which nothing here has a declaration for.
+                        // Copying it to a local gives the assignment something to
+                        // read, the same reason the SystemJS tail does it.
+                        if (auto* symbol = graph.symbols.Get(export_ref); symbol->namespace_alias) {
+                            auto temp_ref = repr.meta.cjs_export_copies[copy_index++];
+                            auto slocal = std::make_shared<javascript::SLocal>();
+                            slocal->decls.push_back(javascript::Decl{
+                                .binding = javascript::Binding{.data = std::make_shared<javascript::BIdentifier>(javascript::BIdentifier{.ref = temp_ref})},
+                                .value_or_nil = javascript::Expr(std::make_shared<javascript::EImportIdentifier>(javascript::EImportIdentifier{.ref = export_ref}), {}),
+                            });
+                            stmts.push_back(javascript::Stmt{.data = std::move(slocal)});
+                            export_ref = temp_ref;
+                        }
+
+                        stmts.push_back(javascript::Stmt{.data = std::make_shared<javascript::SExpr>(javascript::SExpr{
+                            .value = javascript::Assign(
+                                javascript::Expr(std::make_shared<javascript::EDot>(javascript::EDot{
+                                    .target = javascript::Expr(std::make_shared<javascript::EIdentifier>(
+                                        javascript::EIdentifier{.ref = unbound_exports_ref}), {}),
+                                    .name = alias,
+                                }), {}),
+                                javascript::Expr(std::make_shared<javascript::EImportIdentifier>(
+                                    javascript::EImportIdentifier{.ref = export_ref}), {}))
+                        })});
                     }
-
-                    stmts.push_back(javascript::Stmt{.data = std::make_shared<javascript::SExpr>(javascript::SExpr{
-                        .value = javascript::Assign(
-                            javascript::Expr(std::make_shared<javascript::EDot>(javascript::EDot{
-                                .target = javascript::Expr(std::make_shared<javascript::EIdentifier>(
-                                    javascript::EIdentifier{.ref = unbound_exports_ref}), {}),
-                                .name = alias,
-                            }), {}),
-                            javascript::Expr(std::make_shared<javascript::EImportIdentifier>(
-                                javascript::EImportIdentifier{.ref = export_ref}), {}))
-                    })});
                 }
             }
             break;
@@ -1404,6 +1444,12 @@ config::Format format = options->OutputFormat;
 
             auto global_parts = options->GlobalName;
 
+            // In "--exports=default" the factory returns a value instead of
+            // receiving the exports object, and every branch below consumes
+            // that return. In the default namespace mode the factory writes
+            // into the object it is handed and the return value is ignored.
+            bool exports_default = options->Exports == config::EntryExports::kDefault;
+
             std::string text;
             // "typeof " keeps a literal space even when minifying: without it
             // the keyword and the name in front of it lex as one identifier
@@ -1419,13 +1465,30 @@ config::Format format = options->OutputFormat;
             // helpers of machinery whose only purpose was to move a value the
             // caller had already been given a place to put.
             //
+            // "exports=default" is the mode where the factory does return: the
+            // body hands back the default export and each of the three
+            // branches below gives that value to its module system — assigned
+            // to "module.exports" in CommonJS, kept by AMD's loader because
+            // "exports" is no longer among its dependencies, assigned to the
+            // named global in the browser. The exports parameter is dropped
+            // from the factory and from every call site, since nothing writes
+            // to it any more.
+            //
             // "require" still comes first among the factory's parameters,
             // because a factory parameter list and its call site have to agree
             // and every one of the three branches below spells them in the same
-            // order. "exports" is threaded in ahead of it at each call site.
+            // order. "exports" is threaded in ahead of it at each call site —
+            // except in default mode, where it is not a parameter at all.
             text += indent + "typeof exports ===" + space + quote_json("object") +
                     space + "&&" + space + "typeof module !==" + space + quote_json("undefined") +
-                    space + "?" + space + factory_param + "(exports," + space + "require";
+                    space + "?" + space;
+            if (exports_default) {
+                // The conditional's middle accepts an assignment expression,
+                // so "module.exports = factory(...)" needs no parentheses.
+                text += "module.exports =" + space + factory_param + "(require";
+            } else {
+                text += factory_param + "(exports," + space + "require";
+            }
             for (auto& dep : wrapper_external_deps) {
                 text += "," + space + "require(" + quote_json(dep) + ")";
             }
@@ -1434,10 +1497,16 @@ config::Format format = options->OutputFormat;
                     space + "&&" + space + "define.amd ?" + space + "define([";
             // AMD's convention is that a dependency named "exports" is handed to
             // the factory as its first argument and written to in place, which
-            // is the same contract as the other two branches.
-            text += quote_json("exports");
-            if (!wrapper_external_deps.empty()) {
-                text += "," + space + quote_json("require");
+            // is the same contract as the other two branches. Default mode
+            // drops it, which is also what makes AMD's loader keep the factory's
+            // return value as the module's own rather than discarding it.
+            if (!exports_default) {
+                text += quote_json("exports");
+                if (!wrapper_external_deps.empty()) {
+                    text += "," + space + quote_json("require");
+                }
+            } else if (!wrapper_external_deps.empty()) {
+                text += quote_json("require");
             }
             for (auto& dep : wrapper_external_deps) {
                 text += "," + space + quote_json(dep);
@@ -1446,7 +1515,24 @@ config::Format format = options->OutputFormat;
             std::string global_close;
             text += indent + "(" + global_param + space + "=" + space + "typeof globalThis !==" + space + quote_json("undefined") +
                     space + "?" + space + "globalThis" + space + ":" + space + global_param + space + "||" + space + "self," + space;
-            if (!global_parts.empty()) {
+            if (!global_parts.empty() && exports_default) {
+                // Every intermediate member of a dotted name is still created
+                // first, so "Foo.Bar" lands where it says, but the final member
+                // is assigned what the factory returns instead of an empty
+                // object handed to the body to fill. The value of this branch's
+                // expression is that assignment, which is all a default export
+                // needs to be. "void 0" takes the factory's first parameter
+                // ("require") in place of the exports object the namespace mode
+                // passes there.
+                std::string ns = global_param;
+                for (size_t i = 0; i + 1 < global_parts.size(); i++) {
+                    text += ns + "." + global_parts[i] + space + "=" + space + ns + "." + global_parts[i] +
+                            space + "||" + space + "{}," + space;
+                    ns += "." + global_parts[i];
+                }
+                text += ns + "." + global_parts.back() + space + "=" + space + factory_param + "(void 0";
+                global_close = ")";
+            } else if (!global_parts.empty()) {
                 // The namespace is created here, before the factory runs, and
                 // the same object is both what the exports land in and what
                 // gets published on the global. The factory returns nothing -
@@ -1468,11 +1554,15 @@ config::Format format = options->OutputFormat;
                 // object the factory writes into and nobody reads back. The
                 // linker rejects this combination when the entry exports
                 // something, so reaching here means a build that only runs
-                // side effects.
-                text += factory_param + "({}";
+                // side effects. Default mode has no exports object to invent
+                // either; its first parameter is "require", which takes the
+                // same "void 0" the named path passes there.
+                text += factory_param + (exports_default ? "(void 0" : "({}");
                 global_close = ")";
             }
-            text += "," + space + "void 0";
+            if (!exports_default) {
+                text += "," + space + "void 0";
+            }
             for (auto& dep : wrapper_external_deps) {
                 std::string global_dep = dep;
                 {
@@ -1487,7 +1577,11 @@ config::Format format = options->OutputFormat;
                 text += "," + space + global_param + "." + global_dep;
             }
             text += global_close + ");" + newline;
-            text += "})(this," + space + "function(exports," + space + "require";
+            text += "})(this," + space + "function(";
+            if (!exports_default) {
+                text += "exports," + space;
+            }
+            text += "require";
             for (size_t i = 0; i < wrapper_external_deps.size(); i++) {
                 text += "," + space + "dep" + std::to_string(i);
             }

@@ -223,7 +223,12 @@ jobs:
       #   method: android
       #   android_abi: x86_64
       #   android_api: 21
-      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+      # The plan job emits the entries as a JSON array; strategy.matrix takes
+      # that array through `include`, which is the mapping form it evaluates
+      # to (a bare array at this level is rejected as "A sequence was not
+      # expected"). With include as the only key, each entry becomes one job.
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
 
     runs-on: ${{ matrix.runner }}
     name: build (${{ matrix.platform }})

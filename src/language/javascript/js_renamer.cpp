@@ -530,11 +530,11 @@ namespace guchho::javascript {
     // The root NumberScope is created with the reserved names pre-loaded
     // so that no generated name can collide with them.
     NumberRenamer::NumberRenamer(compiler::SymbolMap syms,
-                                 const std::unordered_map<std::string, uint32_t>& names)
+                                 const std::unordered_map<std::string, uint32_t>& reserved_names)
         : symbols(std::move(syms)),
           names(this->symbols.symbols_for_source.size()),
           root(nullptr) {
-        root.name_counts = names;
+        root.name_counts = reserved_names;
     }
 
     // Returns the renamed name for a symbol, or its original name if no

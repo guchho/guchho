@@ -404,7 +404,7 @@ namespace guchho::javascript {
             }
             if (value_ref != compiler::kInvalidRef) {
                 BIdentifier *b = Get<BIdentifier>(s->decls[0].binding.data);
-                if (this->symbols[b->ref.inner_index].use_count_estimate == 0) {
+                if (b != nullptr && this->symbols[b->ref.inner_index].use_count_estimate == 0) {
                     this->ignoreUsage(value_ref);
 
                     result->removedImportEquals = true;

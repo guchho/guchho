@@ -74,7 +74,9 @@ namespace guchho::linker {
             }
 
             did_merge_with_previous_local = false;
-            stmts[end] = std::move(stmt);
+            if (i != end) {
+                stmts[end] = std::move(stmt);
+            }
             end++;
         }
 

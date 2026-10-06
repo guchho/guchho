@@ -33,7 +33,6 @@
 #include "guchho/scaffold.hpp"
 #include "guchho/filesystem.hpp"
 
-#include <algorithm>
 #include <cctype>
 #include <format>
 #include <fstream>

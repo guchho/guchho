@@ -932,13 +932,16 @@ namespace guchho::css {
                     for (size_t i = 0; i < product->terms.size(); i++) {
                         CalcTermWithOp term = terms[first + i * 2 - 1];
                         if (i > 0) {
-                            const Token& op =
-                                std::dynamic_pointer_cast<CalcValue>(terms[first + i * 2 - 2].data)->token;
-                            term.op_loc = op.loc;
-                            if (op.kind == TokenType::kDelimSlash) {
-                                auto invert = std::make_shared<CalcInvert>();
-                                invert->term = term;
-                                term.data = invert;
+                            const auto op_value =
+                                std::dynamic_pointer_cast<CalcValue>(terms[first + i * 2 - 2].data);
+                            if (op_value) {
+                                const Token& op = op_value->token;
+                                term.op_loc = op.loc;
+                                if (op.kind == TokenType::kDelimSlash) {
+                                    auto invert = std::make_shared<CalcInvert>();
+                                    invert->term = term;
+                                    term.data = invert;
+                                }
                             }
                         }
                         product->terms[i] = term;
@@ -983,13 +986,16 @@ namespace guchho::css {
                     for (size_t i = 0; i < sum->terms.size(); i++) {
                         CalcTermWithOp term = terms[first + i * 2 - 1];
                         if (i > 0) {
-                            const Token& op =
-                                std::dynamic_pointer_cast<CalcValue>(terms[first + i * 2 - 2].data)->token;
-                            term.op_loc = op.loc;
-                            if (op.kind == TokenType::kDelimMinus) {
-                                auto negate = std::make_shared<CalcNegate>();
-                                negate->term = term;
-                                term.data = negate;
+                            const auto op_value =
+                                std::dynamic_pointer_cast<CalcValue>(terms[first + i * 2 - 2].data);
+                            if (op_value) {
+                                const Token& op = op_value->token;
+                                term.op_loc = op.loc;
+                                if (op.kind == TokenType::kDelimMinus) {
+                                    auto negate = std::make_shared<CalcNegate>();
+                                    negate->term = term;
+                                    term.data = negate;
+                                }
                             }
                         }
                         sum->terms[i] = term;

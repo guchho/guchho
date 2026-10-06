@@ -129,6 +129,22 @@ const result = await build({
 console.log(`${result.outputFiles?.length ?? 0} files written`)
 ```
 
+### UMD: exporting the default directly
+
+`exports: 'default'` exposes the entry point's default export as the UMD global itself, rather than as a namespace object whose properties are the export names. `new Exprify()` then works on the global because the global *is* the class. Currently supported for UMD output only; an entry point without a default export is an error, and named exports alongside the default are not exposed in this mode.
+
+```js
+await build({
+  entrypoints: ['src/exprify.js'],
+  outfile: 'dist/exprify.js',
+  format: 'umd',
+  name: 'Exprify',
+  exports: 'default',
+})
+```
+
+This is a Guchho option in the Rollup tradition of export selection — not an esbuild option. The same value may be written in a config file under `build.exports` or passed on the command line as `--exports=default`.
+
 ### Transform
 
 One piece of source in, one piece of code out. No project, no file system.

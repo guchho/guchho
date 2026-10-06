@@ -39,6 +39,10 @@ const { normalize } = require("./options");
  * @param {string} [options.outdir] Root of the output tree.
  * @param {string} [options.outfile] A single output file. Never derived from outdir.
  * @param {string} [options.format] "esm", "cjs", "iife", "umd", "amd", "system".
+ * @param {string} [options.exports] "default" to expose the entry point's
+ *   default export directly as a UMD wrapper's global. UMD output only.
+ * @param {string} [options.name] The global a UMD or IIFE wrapper publishes
+ *   under. Also spelled "globalName"; they are the same option.
  * @param {string} [options.platform] "browser", "node", "neutral".
  * @param {string|string[]} [options.target] A language level, or the engines.
  * @param {boolean|string} [options.sourcemap] true for the default mode, or

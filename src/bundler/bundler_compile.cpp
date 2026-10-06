@@ -904,11 +904,11 @@ namespace guchho::bundler {
                 }
             }
 
-            std::unordered_multimap<uint32_t, const linker::ChunkMetadata*>
+            std::unordered_map<uint32_t, std::vector<const linker::ChunkMetadata*>>
                 source_to_chunk;
             for (const linker::ChunkMetadata& meta : link_result.chunk_metadata) {
                 if (meta.source_index != UINT32_MAX) {
-                    source_to_chunk.emplace(meta.source_index, &meta);
+                    source_to_chunk[meta.source_index].push_back(&meta);
                 }
             }
 
@@ -961,15 +961,17 @@ namespace guchho::bundler {
                         continue;
                     }
                     uint32_t source = record.source_index.GetIndex();
-                    auto range = source_to_chunk.equal_range(source);
                     const linker::ChunkMetadata* chosen = nullptr;
-                    for (auto it = range.first; it != range.second; ++it) {
-                        if (it->second->is_entry_point) {
-                            chosen = it->second;
-                            break;
-                        }
-                        if (chosen == nullptr) {
-                            chosen = it->second;
+                    auto range = source_to_chunk.find(source);
+                    if (range != source_to_chunk.end()) {
+                        for (const linker::ChunkMetadata* meta : range->second) {
+                            if (meta->is_entry_point) {
+                                chosen = meta;
+                                break;
+                            }
+                            if (chosen == nullptr) {
+                                chosen = meta;
+                            }
                         }
                     }
                     if (chosen == nullptr) {
@@ -1089,22 +1091,24 @@ namespace guchho::bundler {
             {
                 std::unordered_map<std::string, size_t> output_file_map;
                 size_t end = 0;
-                for (auto& output_file : output_files) {
-                    std::string abs_path_key = CanonicalPathForComparison(output_file.abs_path);
+                for (size_t i = 0; i < output_files.size(); i++) {
+                    std::string abs_path_key = CanonicalPathForComparison(output_files[i].abs_path);
                     auto it = output_file_map.find(abs_path_key);
                     if (it == output_file_map.end()) {
                         output_file_map[abs_path_key] = end;
-                        output_files[end] = std::move(output_file);
+                        if (i != end) {
+                            output_files[end] = std::move(output_files[i]);
+                        }
                         end++;
                         continue;
                     }
 
                     const auto& existing = output_files[it->second];
-                    if (existing.contents == output_file.contents) {
+                    if (existing.contents == output_files[i].contents) {
                         continue;
                     }
 
-                    std::string output_path = output_file.abs_path;
+                    std::string output_path = output_files[i].abs_path;
                     auto rel = fs->Rel(fs->Cwd(), output_path);
                     if (rel.has_value()) {
                         output_path = *rel;

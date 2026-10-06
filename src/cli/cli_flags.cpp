@@ -424,6 +424,7 @@ static const char* const kBuildOnlyFlagPrefixes[] = {
     "--loader:",
     "--out-extension:",
     "--packages=",
+    "--exports=",
     "--external:",
     "--inject:",
     "--alias:",

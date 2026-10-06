@@ -298,6 +298,22 @@ export interface BuildOptions extends CommonOptions {
   outfile?: string
   outbase?: string
   format?: Format
+  /**
+   * Which entry export a UMD wrapper publishes as its global. `"default"`
+   * exposes the entry point's default export directly — `new Exprify()`
+   * rather than `Exprify.default`. UMD output only; any other format paired
+   * with it fails the build.
+   */
+  exports?: "default"
+  /**
+   * The global a UMD or IIFE wrapper publishes under, as a dotted path.
+   *
+   * `globalName` is the same option under its other spelling; setting both is
+   * a TypeError rather than a preference.
+   */
+  name?: string
+  /** The spelling `name` is an alias of. */
+  globalName?: string
   platform?: Platform
   bundle?: boolean
   splitting?: boolean

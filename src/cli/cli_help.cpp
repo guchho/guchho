@@ -432,7 +432,7 @@ void printInitHelp(std::ostream& os) {
        << "Create a new Guchho project in the current directory.\n"
        << "\n"
        << "Options:\n"
-       << "  -t, --template=<name>   Starter template (default: basic)\n"
+       << "  --template=<name>       Starter template (default: basic)\n"
        << "  --type=<type>           Project type (default: app)\n"
        << "  -y, --yes               Use default options without prompting\n"
        << "  -f, --force             Overwrite existing scaffold files\n"

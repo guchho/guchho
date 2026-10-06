@@ -526,7 +526,10 @@ namespace guchho::linker {
                         continue;
                     }
 
-                    stmts[end++] = std::move(stmt);
+                    if (i != end) {
+                        stmts[end] = std::move(stmt);
+                    }
+                    end++;
                 }
                 stmts.resize(end);
 

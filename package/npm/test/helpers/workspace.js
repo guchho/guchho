@@ -197,6 +197,42 @@ function runNode(scriptPath, args = [], options = {}) {
     });
 }
 
+// Parses the JSON that "npm pack --json" prints. npm 12 prints an object keyed
+// by package name; everything before that printed an array, so both shapes are
+// accepted and the first pack result in either is returned.
+//
+// npm prints the JSON on stdout, but a notice about the tree going stale can
+// precede it, so the document is found by trying each bracket as its start
+// until one turns out to be a complete JSON document — a notice that contains
+// a "{" or "[" never parses, and the real document always does.
+function parsePackJson(stdout, dir) {
+    const starts = [];
+    for (const marker of ["{", "["]) {
+        let from = 0;
+        while (true) {
+            const at = stdout.indexOf(marker, from);
+            if (at === -1) break;
+            starts.push(at);
+            from = at + 1;
+        }
+    }
+    starts.sort((a, b) => a - b);
+
+    for (const start of starts) {
+        try {
+            const doc = JSON.parse(stdout.slice(start));
+            const entry = Array.isArray(doc) ? doc[0] : Object.values(doc)[0];
+            if (entry && typeof entry === "object" && entry.filename !== undefined) {
+                return entry;
+            }
+        } catch {
+            // Not the start of the document; keep looking.
+        }
+    }
+
+    throw new Error(`npm pack printed no JSON in ${dir}:\n${stdout}`);
+}
+
 // Runs "npm pack" in a directory and returns the parsed result. --dry-run
 // writes nothing, so this is safe to run against the real packaging directory:
 // it reports what a publish would contain without producing a tarball.
@@ -224,14 +260,7 @@ function npmPackDryRun(dir) {
         );
     }
 
-    // npm prints the JSON on stdout, but a notice about the tree going stale
-    // can precede it, so the first "[" is where the document starts.
-    const start = result.stdout.indexOf("[");
-    if (start === -1) {
-        throw new Error(`npm pack --dry-run printed no JSON in ${dir}:\n${result.stdout}`);
-    }
-
-    return JSON.parse(result.stdout.slice(start))[0];
+    return parsePackJson(result.stdout, dir);
 }
 
 // Runs a real "npm pack", writing the tarball into destDir, and returns its
@@ -254,12 +283,7 @@ function npmPack(dir, destDir) {
         throw new Error(`npm pack failed in ${dir} (exit ${result.status}):\n${result.stderr}`);
     }
 
-    const start = result.stdout.indexOf("[");
-    if (start === -1) {
-        throw new Error(`npm pack printed no JSON in ${dir}:\n${result.stdout}`);
-    }
-
-    return path.join(destDir, JSON.parse(result.stdout.slice(start))[0].filename);
+    return path.join(destDir, parsePackJson(result.stdout, dir).filename);
 }
 
 // Whether a tar program is there to unpack with.

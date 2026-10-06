@@ -955,16 +955,24 @@ std::optional<ErrorWithNote> parseOptionsImpl(
         //
         // Two pairs of flags doing the same thing at two different scopes, and
         // the difference between them is which structure can hold the answer.
-        // A build produces both scripts and styles and keys its banner text by
-        // which is which, so its form is a colon flag with a key. A transform
-        // produces one kind of file and has a single field for the text, so its
-        // form is a plain one.
-        if (arg.starts_with("--banner=") && transform_opts) {
-            transform_opts->banner = arg.substr(std::string_view("--banner=").size());
+        // A transform produces one kind of file and has a single field for the
+        // text, so its spelling is a plain one. A build produces both scripts
+        // and styles and keys its text by which is which, so it also takes a
+        // colon flag with a key ("--banner:css=...") for the case where the
+        // caller wants to say which. The plain spelling is accepted by both,
+        // and a build reads it as the JavaScript half: JavaScript is what the
+        // option means when nothing on the line says otherwise, which is why a
+        // caller who wants a banner writes one string rather than a record.
+        if (arg.starts_with("--banner=")) {
+            auto value = arg.substr(std::string_view("--banner=").size());
+            if (build_opts) build_opts->banner["js"] = value;
+            else transform_opts->banner = value;
             continue;
         }
-        if (arg.starts_with("--footer=") && transform_opts) {
-            transform_opts->footer = arg.substr(std::string_view("--footer=").size());
+        if (arg.starts_with("--footer=")) {
+            auto value = arg.substr(std::string_view("--footer=").size());
+            if (build_opts) build_opts->footer["js"] = value;
+            else transform_opts->footer = value;
             continue;
         }
         if (arg.starts_with("--banner:") && build_opts) {

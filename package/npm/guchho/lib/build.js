@@ -43,6 +43,10 @@ const { normalize } = require("./options");
  * @param {string|string[]} [options.target] A language level, or the engines.
  * @param {boolean|string} [options.sourcemap] true for the default mode, or
  *   "none", "inline", "external", "linked", "both".
+ * @param {string} [options.banner] Text placed at the top of every generated
+ *   JavaScript file, kept exactly as written even when minifying.
+ * @param {string} [options.footer] Text placed at the bottom of every generated
+ *   JavaScript file, kept exactly as written even when minifying.
  * @param {boolean} [options.write=true] False to collect outputs in memory
  *   instead of writing them.
  * @param {boolean} [options.metafile] True to get a metafile back.

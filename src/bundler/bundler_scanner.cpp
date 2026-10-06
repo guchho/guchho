@@ -17,6 +17,22 @@
 namespace guchho::bundler {
 
 
+    // The entry point path the way it is shown in a diagnostic, never the way
+    // it is opened. A person spells an entry point with the separator of their
+    // shell — a backslash on Windows — and the message used to echo that
+    // spelling back, where the backslash reads as an escape. Folding '\' to
+    // '/' is display-only: the string handed to resolution and file access
+    // keeps the original spelling, and a path already spelled with '/' is
+    // returned unchanged, so Linux and macOS output is identical to before.
+    static std::string DisplayEntryPointPath(const std::string& path) {
+        std::string display = path;
+        for (char& c : display) {
+            if (c == '\\') c = '/';
+        }
+        return display;
+    }
+
+
     // A counter that tracks how many concurrent pieces of work are still
     // outstanding. The scan phase uses it to wait for a set of worker
     // threads before continuing: each worker calls Add(1) before starting
@@ -667,6 +683,10 @@ std::vector<graph::EntryPoint> Scanner::AddEntryPoints(
                 EntryPointInfo* info_slot = &entry_point_infos[i];
                 Spawn([this, info_slot, entry_point, entry_point_abs_resolve_dir,
                           &entry_point_wait_group]() {
+                    // For the messages below only; every use that reaches the
+                    // filesystem keeps entry_point.InputPath as spelled.
+                    const std::string display_entry_path =
+                        DisplayEntryPointPath(entry_point.InputPath);
                     Path importer;
                     if (entry_point.InputPathInFileNamespace) {
                         importer.namespace_ = "file";
@@ -676,8 +696,7 @@ std::vector<graph::EntryPoint> Scanner::AddEntryPoints(
                         std::vector<helpers::GlobPart> pattern =
                             helpers::ParseGlobPattern(entry_point.InputPath);
                         if (pattern.size() > 1) {
-                            std::string pretty_pattern =
-                                "\"" + entry_point.InputPath + "\"";
+                            std::string pretty_pattern = "\"" + display_entry_path + "\"";
                             logger::Msg msg;
                             std::optional<std::map<std::string, resolver::ResolveResult>>
                                 glob_results = res->ResolveGlob(entry_point_abs_resolve_dir,
@@ -701,7 +720,7 @@ std::vector<graph::EntryPoint> Scanner::AddEntryPoints(
                                 }
                             } else {
                                 log.AddError(nullptr, Range{},
-                                    guchho::logger::FormatMsg(guchho::logger::MsgCat::kBundler_CouldNotResolveEntryPoint, entry_point.InputPath));
+                                    guchho::logger::FormatMsg(guchho::logger::MsgCat::kBundler_CouldNotResolveEntryPoint, display_entry_path));
                             }
                             entry_point_wait_group.Done();
                             return;
@@ -726,7 +745,7 @@ std::vector<graph::EntryPoint> Scanner::AddEntryPoints(
                     if (outcome.resolve_result.has_value()) {
                         if (outcome.resolve_result->path_pair.is_external) {
                             log.AddError(nullptr, Range{},
-                                guchho::logger::FormatMsg(guchho::logger::MsgCat::kBundler_EntryPointCannotBeExternal, entry_point.InputPath));
+                                guchho::logger::FormatMsg(guchho::logger::MsgCat::kBundler_EntryPointCannotBeExternal, display_entry_path));
                         } else {
                             EntryPointInfo info;
                             info.results.push_back(std::move(*outcome.resolve_result));
@@ -744,17 +763,17 @@ std::vector<graph::EntryPoint> Scanner::AddEntryPoints(
                                 PrettyPaths pretty_paths = resolver::MakePrettyPaths(*fs,
                                     query->path_pair.primary);
                                 MsgData note;
-                                note.text = "Use the relative path \"./" + entry_point.InputPath +
+                                note.text = "Use the relative path \"./" + display_entry_path +
                                             "\" to reference the file \"" +
                                             pretty_paths.Select(options.LogPathStyle) +
                                             "\". Without the leading \"./\", the path \"" +
-                                            entry_point.InputPath +
+                                            display_entry_path +
                                             "\" is being interpreted as a package path instead.";
                                 notes.push_back(std::move(note));
                             }
                         }
                         outcome.debug_meta.LogErrorMsg(log, nullptr, Range{},
-                            "Could not resolve \"" + entry_point.InputPath + "\"", "",
+                            "Could not resolve \"" + display_entry_path + "\"", "",
                             std::move(notes));
                     }
                     entry_point_wait_group.Done();

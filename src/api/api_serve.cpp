@@ -79,8 +79,10 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
+#ifdef _MSC_VER
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "iphlpapi.lib")
+#endif
 #endif
 
 namespace guchho::api {
@@ -2267,10 +2269,7 @@ ServeResult Serve(
         }
     }
     if (!listener.Valid()) {
-        uint16_t port = chosen_port;
-        if (port > 0xFFFF) {
-            port = 0;
-        }
+        const uint16_t port = chosen_port;
         uint16_t actual = 0;
         Listener l = Listener::Listen(host, port, actual, bound_host, error);
         if (!l.Valid()) {

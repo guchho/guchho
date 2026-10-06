@@ -74,6 +74,23 @@ target_compile_features(guchho_common
 guchho_set_warnings(guchho_common)
 guchho_enable_sanitizers(guchho_common)
 
+# miniz is vendored third-party code that is compiled as part of this
+# project rather than consumed as a system header, so the strict project
+# warning flags apply to it. Its integer-heavy bit manipulation triggers a
+# long list of -Wconversion / -Wsign-conversion diagnostics, and Clang adds
+# one -Wold-style-cast per C-style cast (GCC stays quiet because the casts
+# sit inside the file's extern "C" blocks), all of which are inherent to the
+# upstream implementation. Per-source options are appended after the
+# target-level ones, so these override guchho_set_warnings for this file
+# alone. The MSVC front end understands none of these spellings.
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    set_source_files_properties(
+        core/filesystem/miniz/miniz.cpp
+        PROPERTIES
+            COMPILE_OPTIONS "-Wno-conversion;-Wno-sign-conversion;-Wno-old-style-cast"
+    )
+endif()
+
 if(WIN32)
     target_link_libraries(guchho_common PRIVATE dbghelp)
 endif()
@@ -386,6 +403,18 @@ target_link_libraries(guchho_api
         guchho_common
         guchho_bundler
 )
+
+# api_serve.cpp calls Winsock and the IP Helper API directly. The
+# #pragma comment(lib, ...) directives in that file only work with MSVC, so
+# MinGW needs the libraries named here; PUBLIC so every target that links
+# guchho_api inherits them on its final link line.
+if(WIN32)
+    target_link_libraries(guchho_api
+        PUBLIC
+            ws2_32
+            iphlpapi
+    )
+endif()
 
 guchho_set_warnings(guchho_api)
 guchho_enable_sanitizers(guchho_api)

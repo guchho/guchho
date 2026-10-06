@@ -56,18 +56,18 @@ namespace guchho::compat {
     int CompareVersions(Version a, Semver b) {
         int diff = static_cast<int>(a.major);
         if (!b.parts.empty()) {
-            diff -= b.parts[0];
+            diff -= static_cast<int>(b.parts[0]);
         }
         if (diff == 0) {
             diff = static_cast<int>(a.minor);
             if (b.parts.size() > 1) {
-                diff -= b.parts[1];
+                diff -= static_cast<int>(b.parts[1]);
             }
         }
         if (diff == 0) {
             diff = static_cast<int>(a.patch);
             if (b.parts.size() > 2) {
-                diff -= b.parts[2];
+                diff -= static_cast<int>(b.parts[2]);
             }
         }
         if (diff == 0 && !b.pre_release.empty()) {

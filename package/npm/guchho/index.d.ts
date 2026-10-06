@@ -146,9 +146,10 @@ export interface CommonOptions {
   sourceRoot?: string
   /** The prefix on every generated URL. */
   publicPath?: string
-  /** Text prepended to and appended to every output file. */
-  banner?: { js?: string; css?: string }
-  footer?: { js?: string; css?: string }
+  /** Text placed at the top of every generated JavaScript file. */
+  banner?: string
+  /** Text placed at the bottom of every generated JavaScript file. */
+  footer?: string
   /** Legal comments to keep: none, inline, eof, linked, external. */
   legalComments?: 'none' | 'inline' | 'eof' | 'linked' | 'external'
   /** Character set for non-ASCII output. */

@@ -210,6 +210,9 @@ namespace guchho::linker {
         std::unordered_map<std::string, uint32_t> js_chunk_indices_for_css;
         for (auto& key : sorted_keys) {
             auto chunk_it = js_chunks.find(key);
+            if (chunk_it == js_chunks.end()) {
+                continue;
+            }
             if (auto* js_repr = std::get_if<ChunkReprJS>(&chunk_it->second.chunk_repr)) {
                 if (js_repr->has_css_chunk) {
                     js_chunk_indices_for_css[key] = static_cast<uint32_t>(sorted_chunks.size());
@@ -225,6 +228,9 @@ namespace guchho::linker {
         std::sort(sorted_keys.begin(), sorted_keys.end());
         for (auto& key : sorted_keys) {
             auto chunk_it = css_chunks.find(key);
+            if (chunk_it == css_chunks.end()) {
+                continue;
+            }
             auto css_it = js_chunk_indices_for_css.find(key);
             if (css_it != js_chunk_indices_for_css.end()) {
                 auto& js_repr = std::get<ChunkReprJS>(sorted_chunks[css_it->second].chunk_repr);

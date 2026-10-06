@@ -197,6 +197,28 @@ namespace guchho::resolver {
             }
         }
 
+        // Which of the entry point's exports a UMD wrapper publishes as its
+        // public value. One value for now, and an invalid one is a warning
+        // rather than an error for the same reason an invalid "format" is:
+        // the build still has an honest answer (the namespace object) to fall
+        // back on, and a config file that is merely wrong should still build.
+        void ApplyExportsValue(config::Options& opts, const javascript::Expr& value,
+                               logger::Log& log, logger::LineColumnTracker& tracker,
+                               const logger::Source& source)
+        {
+            if (auto str = internal::GetString(value)) {
+                if (*str == "default") {
+                    opts.Exports = config::EntryExports::kDefault;
+                } else {
+                    log.AddID(logger::MsgID::kGuchhoJSON_InvalidExports,
+                              logger::MsgKind::kWarning, &tracker,
+                              source.RangeOfString(value.loc),
+                              logger::FormatMsg(logger::MsgCat::kGuchhoJSON_InvalidExports,
+                                                Q(*str)));
+                }
+            }
+        }
+
         void ApplySourceMapValue(config::Options& opts, const javascript::Expr& value,
                                  logger::Log& log, logger::LineColumnTracker& tracker,
                                  const logger::Source& source)
@@ -560,7 +582,7 @@ namespace guchho::resolver {
         static const char* kKnownBuildFields[] = {
             "entry", "outdir", "outfile", "format", "platform", "target",
             "minify", "sourcemap", "splitting", "clean", "treeShaking",
-            "pretty", "minifyHtml", "bundle", "name", "globalName",
+            "pretty", "minifyHtml", "bundle", "name", "globalName", "exports",
         };
         if (auto build_prop = internal::GetProperty(json, "build")) {
             const javascript::Expr& build = build_prop->first;
@@ -633,6 +655,11 @@ namespace guchho::resolver {
                         opts.GlobalNameText = *str;
                     }
                 }
+            }
+            // Which of the entry point's exports a UMD wrapper publishes as
+            // its public value ("default", for now).
+            if (auto exports = internal::GetProperty(build, "exports")) {
+                ApplyExportsValue(opts, exports->first, log, tracker, source);
             }
             if (auto platform = internal::GetProperty(build, "platform")) {
                 if (auto str = internal::GetString(platform->first)) {

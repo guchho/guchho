@@ -459,6 +459,32 @@ TEST(BundlerDefault, TestExportFormsUMD) {
 	});
 }
 
+// "--exports=default": the wrapper's three arms all consume the factory's
+// return instead of an exports object, so the tail returns the default export
+// and the named export the entry also declares is published nowhere. The
+// default here resolves to another module's namespace object, which is the
+// case that has to be copied into a local before it can be returned by name.
+TEST(BundlerDefault, TestExportsDefaultUMD) {
+	default_suite.ExpectBundled(Bundled{
+		.files = {
+			{"/entry.js", R"test(
+				import * as all from './b'
+				export default all
+				export const named = 1
+			)test"},
+			{"/b.js", "export const x = 1"},
+		},
+		.entry_paths = {"/entry.js"},
+		.options = guchho::config::Options{
+			.BuildMode = guchho::config::Mode::kBundle,
+			.OutputFormat = guchho::config::Format::kUMD,
+			.AbsOutputFile = "/out.js",
+			.GlobalName = {"globalName"},
+			.Exports = guchho::config::EntryExports::kDefault,
+		},
+	});
+}
+
 TEST(BundlerDefault, TestExportFormsSystem) {
 	default_suite.ExpectBundled(Bundled{
 		.files = {

@@ -369,7 +369,6 @@ std::vector<ConfigEntry> AppConfigFields()
     return {
         {"entry", "src/index.html", true},
         {"outdir", "dist", true},
-        {"format", "esm", true},
         {"target", "esnext", true},
         {"minify", "false", false},
         {"pretty", "true", false},

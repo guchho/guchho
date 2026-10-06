@@ -178,6 +178,44 @@ TEST(BundlerGuchhoJSON, BuildFormatUMDWithoutExportsNeedsNoName) {
     });
 }
 
+TEST(BundlerGuchhoJSON, BuildExportsDefault) {
+    // "build.exports" selects what the UMD wrapper publishes as its public
+    // value. "default" hands every module system the entry's default export
+    // directly: the factory returns it, the CommonJS arm assigns that to
+    // "module.exports", and the named export alongside it is exposed nowhere.
+    guchhojson_suite.ExpectBundled(Bundled{
+        .files = {
+            {"/app.js", "export default 42;\nexport const named = 1;\n"},
+        },
+        .entry_paths = {"/app.js"},
+        .options = guchho::config::Options{
+            .BuildMode = guchho::config::Mode::kBundle,
+            .AbsOutputFile = "/out.js",
+        },
+        .guchho_config = R"({"build":{"format":"umd","name":"ConfigLib","exports":"default"}})",
+    });
+}
+
+TEST(BundlerGuchhoJSON, InvalidExportsValueWarns) {
+    // A value that names no mode is reported and then ignored, so the build
+    // keeps the namespace-object behaviour it had before the config was read
+    // -- the same contract the invalid "format" value above honours.
+    guchhojson_suite.ExpectBundled(Bundled{
+        .files = {
+            {"/app.js", "export default 42;\n"},
+        },
+        .entry_paths = {"/app.js"},
+        .options = guchho::config::Options{
+            .BuildMode = guchho::config::Mode::kBundle,
+            .AbsOutputFile = "/out.js",
+            .GlobalName = {"MyLib"},
+        },
+        .guchho_config = R"({"build":{"format":"umd","exports":"banana"}})",
+        .expected_scan_log =
+            "guchho.json: WARNING: Invalid exports \"banana\" (expected \"default\")\n",
+    });
+}
+
 TEST(BundlerGuchhoJSON, BuildFormatUMDWithGlobalName) {
     // The same config with a global name supplied by the caller. It is a
     // build-command option like "BuildMode" rather than a config field, which

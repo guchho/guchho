@@ -384,6 +384,25 @@ namespace guchho::config {
         kSystem,
     };
 
+    // EntryExports
+    // ------------
+    // Which of an entry point's exports a wrapper format exposes as its
+    // public value:
+    //
+    //   kNamespace  The behaviour every format has always had: the value is
+    //               an object carrying every export name, including
+    //               "default" when there is one.
+    //   kDefault    "exports=default": the entry point's default export is
+    //               the value itself, so a UMD global, a CommonJS require()
+    //               result and an AMD module value are all that one default
+    //               export rather than a namespace object. Read only when
+    //               the output format is UMD; any other format paired with
+    //               it is rejected when the build's options are validated.
+    enum class EntryExports : uint8_t {
+        kNamespace,
+        kDefault,
+    };
+
     // FormatKeepESMImportExportSyntax
     // -------------------------------
     // Returns true when the format preserves ESM import/export syntax
@@ -1038,6 +1057,12 @@ namespace guchho::config {
         // string or the command line's.
         std::string GlobalNameText{};
         std::vector<std::string> GlobalName{};
+        // Which of the entry point's exports a wrapper format publishes as
+        // its public value; kNamespace is the namespace object every export
+        // name lands on, kDefault the entry's default export itself. Written
+        // by the API from BuildOptions::exports, or directly by a config file
+        // that carried "exports". Read only for UMD output.
+        EntryExports Exports{EntryExports::kNamespace};
         AmdOptions Amd{};
         bool Extend{};
         bool NoConflict{};

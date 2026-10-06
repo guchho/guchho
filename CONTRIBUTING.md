@@ -570,3 +570,63 @@ bash scripts/build.sh --preset <your-platform-preset> --all-errors --log build-e
 ```
 
 If the toolchain check fails, run `bash scripts/build.sh --help` and verify `cmake --version` is ≥ 3.25.
+
+
+## Manual npm Publish
+
+The `npm-publish.yml` workflow is **manual-only**.
+
+### Dry run
+
+Test each platform without publishing to npm:
+
+```bash
+gh workflow run npm-publish.yml -f type=linux-x64 -f dry_run=true
+```
+
+```bash
+gh workflow run npm-publish.yml -f type=win32-x64 -f dry_run=true
+```
+
+```bash
+gh workflow run npm-publish.yml -f type=darwin-arm64 -f dry_run=true
+```
+
+Test all packages:
+
+```bash
+gh workflow run npm-publish.yml -f type=all -f dry_run=true
+```
+
+### Publish
+
+Publish a single platform package:
+
+```bash
+gh workflow run npm-publish.yml -f type=linux-x64 -f dry_run=false
+```
+
+```bash
+gh workflow run npm-publish.yml -f type=win32-x64 -f dry_run=false
+```
+
+```bash
+gh workflow run npm-publish.yml -f type=darwin-arm64 -f dry_run=false
+```
+
+Publish all platform packages and the main `guchho` package:
+
+```bash
+gh workflow run npm-publish.yml -f type=all -f dry_run=false
+```
+
+### Package types
+
+| `type`         | Packages                         |
+| -------------- | -------------------------------- |
+| `linux-x64`    | `@guchho/linux-x64`              |
+| `win32-x64`    | `@guchho/win32-x64`              |
+| `darwin-arm64` | `@guchho/darwin-arm64`           |
+| `all`          | All platform packages + `guchho` |
+
+`dry_run=true` builds and validates packages without publishing. `dry_run=false` performs the actual npm publish.

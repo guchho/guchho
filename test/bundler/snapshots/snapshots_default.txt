@@ -1835,6 +1835,28 @@ var bar = 123;
 console.log(exports, module.exports, test_exports, test_exports2);
 
 ================================================================================
+TestExportsDefaultUMD
+---------- /out.js ----------
+(function(global, factory) {
+  typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory(require) :
+  typeof define === "function" && define.amd ? define([], factory) :
+  (global = typeof globalThis !== "undefined" ? globalThis : global || self, global.globalName = factory(void 0));
+})(this, function(require) {
+  "use strict";
+  // b.js
+  var b_exports = {};
+  __export(b_exports, {
+    x: () => x
+  });
+  var x = 1;
+
+  // entry.js
+  var entry_default = b_exports;
+  var named = 1;
+  return entry_default;
+});
+
+================================================================================
 TestExternalES6ConvertedToCommonJS
 ---------- /out.js ----------
 // a.js

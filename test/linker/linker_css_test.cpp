@@ -517,8 +517,9 @@ TEST(LinkerCSS, WrapRulesWithConditionsNoConditionsIsPassThrough)
 
     ASSERT_EQ(wrapped.size(), 1u);
     EXPECT_EQ(import_records.size(), 1u);
-    EXPECT_NE(AsKnownAt(wrapped[0]), nullptr);
-    EXPECT_EQ(AsKnownAt(wrapped[0])->at_token, "foo");
+    auto* at_rule = AsKnownAt(wrapped[0]);
+    ASSERT_TRUE(at_rule != nullptr);
+    EXPECT_EQ(at_rule->at_token, "foo");
 }
 
 TEST(LinkerCSS, WrapRulesWithConditionsWrapsInLayer)

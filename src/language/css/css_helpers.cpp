@@ -97,8 +97,11 @@ namespace guchho::css {
                 return {{}, false};
             }
 
+            // The complement is taken in uint8_t space so the result always
+            // lands inside the enum's fixed underlying range; letting ~ promote
+            // to int first would yield a negative value that is outside it.
             WhitespaceFlags mask = static_cast<WhitespaceFlags>(
-                ~static_cast<uint8_t>(WhitespaceFlags::kWhitespaceAfter));
+                static_cast<uint8_t>(~static_cast<uint8_t>(WhitespaceFlags::kWhitespaceAfter)));
             if (minify_whitespace) {
                 mask = WhitespaceFlags::kNone;
             }

@@ -1,6 +1,6 @@
 {
   "name": "@guchho/freebsd-arm64",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "The FreeBSD ARM64 binary for guchho, a fast build system for web applications.",
   "repository": {
     "type": "git",

@@ -15,7 +15,7 @@ This guide explains how to build **Guchho** from source, run the test suite, and
 | Generators          | Ninja, Visual Studio (presets are generator-aware)|
 | Testing             | CTest + header-only framework in `include/test`  |
 | Packaging           | CPack (ZIP + NSIS on Windows, TGZ on macOS/Linux)|
-| Current version     | 1.0.1                                            |
+| Current version     | 1.0.2                                            |
 | Distribution        | npm (`guchho` + `@guchho/<platform>` binaries)   |
 
 ### Supported platforms
@@ -537,7 +537,7 @@ CPack generators:
 - **Windows:** `ZIP;NSIS` → `guchho-<version>-win32-x64.zip` + `.exe` installer (NSIS must be installed).
 - **macOS / Linux / Unix:** `TGZ` → `guchho-<version>-<platform>.tar.gz`.
 
-Package file naming: `guchho-<version>-<platform>` (e.g. `guchho-1.0.1-linux-x64`).
+Package file naming: `guchho-<version>-<platform>` (e.g. `guchho-1.0.2-linux-x64`).
 
 Chocolatey distribution is handled separately by `scripts/build-chocolatey.sh` and `scripts/publish-chocolatey.sh` (see [Sections 6.6/6.7](#66-scriptsbuild-chocolateysh---build-the-chocolatey-package-nupkg)); it embeds the binary from the `win32-x64` release rather than downloading at install time.
 

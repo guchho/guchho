@@ -139,6 +139,18 @@ describe("toArgs: options that take a value", () => {
         assert.deepEqual(toArgs({ outdir: undefined, outfile: null }), []);
     });
 
+    it("sends --exports with an equals sign, like every other valued flag", () => {
+        // "default" is the only value the grammar has, and the binary refuses
+        // anything else with a note naming it — but the spelling of the flag
+        // itself is this layer's contract: "--exports=default", not
+        // "--exports:default" and not a bare "--exports".
+        assert.deepEqual(toArgs({ exports: "default" }), ["--exports=default"]);
+    });
+
+    it("rejects a boolean for exports, which is a caller expecting a bare flag", () => {
+        assert.throws(() => toArgs({ exports: true }), /exports/);
+    });
+
     it("sends a number, because a value is stringified rather than refused", () => {
         assert.deepEqual(toArgs({ outdir: 8080 }), ["--outdir=8080"]);
     });

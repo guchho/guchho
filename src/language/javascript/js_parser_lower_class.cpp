@@ -1614,7 +1614,9 @@ std::pair<std::vector<Stmt>, Expr> lowerClassContext::finishAndGenerateCode(Pars
             // For expressions, the inner and outer class names are the same
             Expr name = this->name_func();
             nameForClassDecorators.loc = name.loc;
-            nameForClassDecorators.ref = Get<EIdentifier>(name.data)->ref;
+            if (const auto* class_name_id = Get<EIdentifier>(name.data); class_name_id != nullptr) {
+                nameForClassDecorators.ref = class_name_id->ref;
+            }
         } else {
             // For statements we need to use the outer class name, not the inner one
             if (this->class_->name != nullptr) {
@@ -2659,7 +2661,13 @@ std::pair<std::vector<Stmt>, Expr> Parser::lowerClass(Stmt stmt, Expr expr, visi
         }
     } else {
         SExportDefault *exportDefault = Get<SExportDefault>(stmt.data);
-        SClass *s2 = Get<SClass>(exportDefault->value.data);
+        SClass *s2 = exportDefault != nullptr ? Get<SClass>(exportDefault->value.data) : nullptr;
+        // lowerClass() is only ever handed class statements, so this must be
+        // `export default class`. Bail out rather than read through a null
+        // pointer if that ever stops being true.
+        if (exportDefault == nullptr || s2 == nullptr) {
+            return {std::vector<Stmt>{}, Expr{}};
+        }
         ctx.class_ = &s2->class_;
         if (ctx.class_->name != nullptr) {
             ctx.name_to_keep = this->symbols[ctx.class_->name->ref.inner_index].original_name;

@@ -240,6 +240,12 @@ describe("the command line accepting what the wrapper sends", () => {
                     external: ["react"],
                     define: { DEBUG: "true" },
                     loader: { ".svg": "dataurl" },
+                    // The two whose plain spelling a build used to refuse, which
+                    // is the failure this run exists to catch: the wrapper sends
+                    // "--banner=text", and only the build grammar's half of the
+                    // parse decides whether that is a flag or a complaint.
+                    banner: "/*! banner */",
+                    footer: "/*! footer */",
                 },
                 { metafile: path.join(root, "meta.json") }
             ),

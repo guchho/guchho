@@ -151,6 +151,24 @@ describe("configuration spelling", () => {
       /same option/
     );
   });
+
+  it("renames name to globalName, the spelling the wrapper formats read", () => {
+    // "name" is what a command line and a Rollup config call the global a UMD
+    // or IIFE wrapper publishes; "globalName" is what the rest of this schema
+    // calls it. Reaching the grammar under either spelling is one option, and
+    // dropping "name" instead would be a caller's working Rollup options
+    // object silently building without its global.
+    const { build } = normalize({ build: { name: "Lib" } });
+    assert.equal(build.globalName, "Lib");
+    assert.equal("name" in build, false);
+  });
+
+  it("refuses name and globalName together", () => {
+    assert.throws(
+      () => normalize({ build: { name: "a", globalName: "b" } }),
+      /same option/
+    );
+  });
 });
 
 describe("configuration conflicts", () => {
@@ -415,5 +433,18 @@ describe("option names reach the grammar", () => {
   it("leaves outdir and outfile independent", () => {
     const { build } = normalize({ build: { outfile: "dist/bundle.js" } });
     assert.deepEqual(toFlags(build), ["--outfile=dist/bundle.js"]);
+  });
+
+  it("sends exports as a valued flag", () => {
+    const { build } = normalize({ build: { exports: "default" } });
+    assert.deepEqual(toFlags(build), ["--exports=default"]);
+  });
+
+  it("sends name as --global-name once the alias has been applied", () => {
+    // The flag is spelled "--global-name" on the command line; "name" only
+    // reaches it through the rename above, and this is where that stops being
+    // a property of the option table and becomes a flag the binary accepts.
+    const { build } = normalize({ build: { name: "Lib" } });
+    assert.deepEqual(toFlags(build), ["--global-name=Lib"]);
   });
 });

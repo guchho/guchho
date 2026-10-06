@@ -349,7 +349,10 @@ namespace guchho::css {
                         if (pseudo2->kind == PseudoClassKind::kPseudoClassGlobal ||
                             pseudo2->kind == PseudoClassKind::kPseudoClassLocal) {
                             is_local_or_global = true;
-                            std::vector<CompoundSelector> inner = pseudo2->selectors[0].selectors;
+                            const std::vector<CompoundSelector> no_inner;
+                            const std::vector<CompoundSelector>& source_inner =
+                                pseudo2->selectors.empty() ? no_inner : pseudo2->selectors[0].selectors;
+                            std::vector<CompoundSelector> inner = source_inner;
 
                             // Replace this pseudo-class with all inner compound selectors.
                             // The first inner compound selector is merged with the compound
@@ -362,7 +365,7 @@ namespace guchho::css {
                             // involving pseudo-classes in real CSS works at all. However, all
                             // other implementations (Lightning CSS, PostCSS, and Webpack) are
                             // consistent with this strange behavior, so we do it too.
-                            if (inner[0].combinator.byte_ == 0) {
+                            if (!inner.empty() && inner[0].combinator.byte_ == 0) {
                                 MergeCompoundSelectors(s, inner[0]);
                                 inner.erase(inner.begin());
                             } else {

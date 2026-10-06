@@ -700,7 +700,8 @@ namespace guchho::linker {
 
         std::unordered_map<std::string, size_t> identical;
         size_t end = 0;
-        for (auto& entry : third_party_comments) {
+        for (size_t i = 0; i < third_party_comments.size(); i++) {
+            auto& entry = third_party_comments[i];
             std::string key;
             for (auto& c : entry.comments) { key += c; key += '\0'; }
             auto it = identical.find(key);
@@ -710,7 +711,9 @@ namespace guchho::linker {
                 }
             } else {
                 identical[key] = end;
-                third_party_comments[end] = std::move(entry);
+                if (i != end) {
+                    third_party_comments[end] = std::move(entry);
+                }
                 end++;
             }
         }

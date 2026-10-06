@@ -262,6 +262,22 @@ enum class Format : uint8_t {
     kSystem,
 };
 
+// Which of the entry point's exports a wrapper format exposes as its public
+// value.
+//   kUnset   - nothing was asked for, so every format keeps the behaviour it
+//              has always had: the UMD wrapper publishes a namespace object
+//              carrying every export name.
+//   kDefault - "--exports=default": the entry point's default export is the
+//              value. The UMD global, the CommonJS export and the AMD module
+//              value are all that one default export, directly, rather than a
+//              namespace object with a "default" property on it. Supported
+//              for UMD output only; any other format drawing this value is
+//              rejected when the build's options are validated.
+enum class Exports : uint8_t {
+    kUnset,
+    kDefault,
+};
+
 // How imports that name a package are treated.
 //   kDefault  - resolved to kBundle.
 //   kBundle   - resolve the package and inline its code into the output.
@@ -647,6 +663,7 @@ inline constexpr std::string_view kOptAlias             = "alias";
 inline constexpr std::string_view kOptSourceRoot        = "sourceRoot";
 inline constexpr std::string_view kOptPublicPath        = "publicPath";
 inline constexpr std::string_view kOptGlobalName        = "globalName";
+inline constexpr std::string_view kOptExports           = "exports";
 
 // Everything a build can be told. The members are grouped by the phase they
 // affect, and the blank lines between groups mark those boundaries.
@@ -745,10 +762,17 @@ struct BuildOptions {
     // "no_conflict" wraps the assignment so two copies of the library can
     // coexist, and "globals" maps external module ids to the global names the
     // wrapper should read them from.
+    //
+    // "exports" chooses which entry export the wrapper publishes: kUnset
+    // keeps the namespace object, kDefault publishes the entry's default
+    // export directly. It is spelled "--exports=default" on the command line
+    // and "exports: 'default'" through the API, and it is read only for UMD
+    // output.
     bool        extend{};
     bool        no_conflict{};
     bool        strict{true};
     std::unordered_map<std::string, std::string> globals;
+    Exports     exports{Exports::kUnset};
 
     // -- AMD format --------------------------------------------------------
     // "amd_id" is the module id this file registers as; "amd_define" renames

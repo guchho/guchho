@@ -1,19 +1,28 @@
 name: npm-publish
 
+# Manual-only. No push, pull_request, release, workflow_run, schedule or
+# tag-based trigger: pushing a tag or cutting a GitHub Release must never
+# start this workflow. The only supported entry points are
+# `gh workflow run npm-publish.yml` and the Actions UI "Run workflow".
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
-      dry_run:
-        description: "Dry run (skip actual publish)"
-        required: false
-        default: "true"
+      type:
+        description: "What to publish"
+        required: true
+        default: "all"
         type: choice
         options:
-          - "true"
-          - "false"
+          - linux-x64
+          - win32-x64
+          - darwin-arm64
+          - all
+
+      dry_run:
+        description: "Build and package without publishing to npm"
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -24,119 +33,197 @@ env:
 
 jobs:
   # ============================================
-  # Job 1: Build binaries for core platforms
+  # Job 0: Resolve the requested platform set
+  # ============================================
+  #
+  # A job-level `if:` cannot see the matrix context, and gating steps inside
+  # a fully expanded matrix still starts (and pays for) a runner per skipped
+  # platform. So the selection is resolved here into a JSON matrix that the
+  # build job consumes, and only the requested platforms ever get a runner.
+  plan:
+    runs-on: ubuntu-latest
+    name: plan
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+      platforms: ${{ steps.select.outputs.platforms }}
+      type: ${{ steps.select.outputs.type }}
+      version: ${{ steps.select.outputs.version }}
+      dry_run: ${{ steps.select.outputs.dry_run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve platform set
+        id: select
+        shell: bash
+        env:
+          INPUT_TYPE: ${{ inputs.type }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          TYPE="${INPUT_TYPE:-}"
+          # Publish only when dry_run is explicitly false. A missing or
+          # unrecognized value resolves to true, so an absent input can
+          # never be read as permission to publish.
+          case "${INPUT_DRY_RUN:-}" in
+            false) DRY_RUN="false" ;;
+            *)     DRY_RUN="true" ;;
+          esac
+
+          case "$TYPE" in
+            linux-x64|win32-x64|darwin-arm64)
+              PLATFORMS="$TYPE"
+              ;;
+            all)
+              PLATFORMS="linux-x64 win32-x64 darwin-arm64"
+              ;;
+            *)
+              echo "::error::Unsupported type: '$TYPE'"
+              exit 1
+              ;;
+          esac
+
+          # The three supported publish targets, mirroring the build matrix
+          # below. Only entries in this list can ever be selected.
+          MATRIX='[
+            {"platform":"linux-x64","runner":"ubuntu-latest","method":"native","preset":"release-linux-x64"},
+            {"platform":"darwin-arm64","runner":"macos-latest","method":"native","preset":"release-darwin-arm64"},
+            {"platform":"win32-x64","runner":"windows-latest","method":"native","preset":"release-win32-x64-ninja"}
+          ]'
+
+          SELECTED="$(
+            echo "$MATRIX" | node -e '
+              const all = JSON.parse(require("fs").readFileSync(0, "utf8"));
+              const want = process.argv.slice(1);
+              const out = all.filter((e) => want.includes(e.platform));
+              if (out.length !== want.length) {
+                console.error("matrix is missing a requested platform");
+                process.exit(1);
+              }
+              process.stdout.write(JSON.stringify(out));
+            ' $PLATFORMS
+          )"
+
+          VERSION="$(node -p "require('./package/npm/guchho/package.json').version")"
+
+          echo "Type:    ${TYPE}"
+          echo "Mode:    $([ "$DRY_RUN" = "true" ] && echo 'DRY RUN' || echo 'PUBLISH')"
+          echo "Platform set: ${PLATFORMS}"
+          echo "Version: ${VERSION}"
+
+          echo "matrix=${SELECTED}" >> "$GITHUB_OUTPUT"
+          echo "platforms=${PLATFORMS}" >> "$GITHUB_OUTPUT"
+          echo "type=${TYPE}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "dry_run=${DRY_RUN}" >> "$GITHUB_OUTPUT"
+
+  # ============================================
+  # Job 1: Build binaries for selected platforms
   # ============================================
   build:
+    needs: plan
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          # ---- Native builds ----
-          - platform: linux-x64
-            runner: ubuntu-latest
-            method: native
-            preset: release-linux-x64
-
-          - platform: darwin-arm64
-            runner: macos-latest
-            method: native
-            preset: release-darwin-arm64
-
-          - platform: win32-x64
-            runner: windows-latest
-            method: native
-            preset: release-win32-x64-ninja
-
-          # ---- Native builds (optional) ----
-          # - platform: linux-arm64
-          #   runner: ubuntu-24.04-arm
-          #   method: native
-          #   preset: release-linux-arm64
-          #
-          # - platform: darwin-x64
-          #   runner: macos-15-intel
-          #   method: native
-          #   preset: release-darwin-x64
-
-          # ---- GCC cross-compilers ----
-          # - platform: linux-arm
-          #   runner: ubuntu-latest
-          #   method: cross
-          #   cc: arm-linux-gnueabihf-gcc
-          #   cxx: arm-linux-gnueabihf-g++
-          #   cross_packages: gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
-          #
-          # - platform: linux-ia32
-          #   runner: ubuntu-latest
-          #   method: cross
-          #   cc: gcc
-          #   cxx: g++
-          #   cross_packages: gcc-multilib g++-multilib
-          #   cmake_flags: -DCMAKE_C_FLAGS=-m32 -DCMAKE_CXX_FLAGS=-m32
-          #
-          # - platform: linux-s390x
-          #   runner: ubuntu-latest
-          #   method: cross
-          #   cc: s390x-linux-gnu-gcc
-          #   cxx: s390x-linux-gnu-g++
-          #   cross_packages: gcc-s390x-linux-gnu g++-s390x-linux-gnu
-          #
-          # - platform: linux-ppc64
-          #   runner: ubuntu-latest
-          #   method: cross
-          #   cc: powerpc64le-linux-gnu-gcc
-          #   cxx: powerpc64le-linux-gnu-g++
-          #   cross_packages: gcc-powerpc64le-linux-gnu g++-powerpc64le-linux-gnu
-          #
-          # - platform: linux-riscv64
-          #   runner: ubuntu-latest
-          #   method: cross
-          #   cc: riscv64-linux-gnu-gcc
-          #   cxx: riscv64-linux-gnu-g++
-          #   cross_packages: gcc-riscv64-linux-gnu g++-riscv64-linux-gnu
-          #
-          # - platform: linux-mips64el
-          #   runner: ubuntu-latest
-          #   method: cross
-          #   cc: mips64el-linux-gnuabi64-gcc
-          #   cxx: mips64el-linux-gnuabi64-g++
-          #   cross_packages: gcc-mips64el-linux-gnuabi64 g++-mips64el-linux-gnuabi64
-
-          # ---- Docker (only where no cross-compiler exists) ----
-          # - platform: linux-loong64
-          #   runner: ubuntu-latest
-          #   method: docker
-          #   docker_image: ghcr.io/loong64/loongnix:25
-
-          # ---- Windows MSVC cross-compilation ----
-          # - platform: win32-ia32
-          #   runner: windows-latest
-          #   method: msvc_cross
-          #   arch: Win32
-          #
-          # - platform: win32-arm64
-          #   runner: windows-latest
-          #   method: msvc_cross
-          #   arch: ARM64
-
-          # ---- Android NDK cross-compilation ----
-          # - platform: android-arm
-          #   runner: ubuntu-latest
-          #   method: android
-          #   android_abi: armeabi-v7a
-          #   android_api: 21
-          #
-          # - platform: android-arm64
-          #   runner: ubuntu-latest
-          #   method: android
-          #   android_abi: arm64-v8a
-          #   android_api: 21
-          #
-          # - platform: android-x64
-          #   runner: ubuntu-latest
-          #   method: android
-          #   android_abi: x86_64
-          #   android_api: 21
+      # Resolved by the plan job: only the platforms requested through the
+      # `type` input appear here, so unselected platforms never start a
+      # runner. The entries themselves (runner, method, preset) are defined
+      # in the plan job's MATRIX below.
+      #
+      # To add a platform: add it to MATRIX in the plan job, to the `type`
+      # input options, and (for a publish target) to package/npm/@guchho/.
+      #
+      # ---- Native builds (optional) ----
+      # - platform: linux-arm64
+      #   runner: ubuntu-24.04-arm
+      #   method: native
+      #   preset: release-linux-arm64
+      #
+      # - platform: darwin-x64
+      #   runner: macos-15-intel
+      #   method: native
+      #   preset: release-darwin-x64
+      #
+      # ---- GCC cross-compilers ----
+      # - platform: linux-arm
+      #   runner: ubuntu-latest
+      #   method: cross
+      #   cc: arm-linux-gnueabihf-gcc
+      #   cxx: arm-linux-gnueabihf-g++
+      #   cross_packages: gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
+      #
+      # - platform: linux-ia32
+      #   runner: ubuntu-latest
+      #   method: cross
+      #   cc: gcc
+      #   cxx: g++
+      #   cross_packages: gcc-multilib g++-multilib
+      #   cmake_flags: -DCMAKE_C_FLAGS=-m32 -DCMAKE_CXX_FLAGS=-m32
+      #
+      # - platform: linux-s390x
+      #   runner: ubuntu-latest
+      #   method: cross
+      #   cc: s390x-linux-gnu-gcc
+      #   cxx: s390x-linux-gnu-g++
+      #   cross_packages: gcc-s390x-linux-gnu g++-s390x-linux-gnu
+      #
+      # - platform: linux-ppc64
+      #   runner: ubuntu-latest
+      #   method: cross
+      #   cc: powerpc64le-linux-gnu-gcc
+      #   cxx: powerpc64le-linux-gnu-g++
+      #   cross_packages: gcc-powerpc64le-linux-gnu g++-powerpc64le-linux-gnu
+      #
+      # - platform: linux-riscv64
+      #   runner: ubuntu-latest
+      #   method: cross
+      #   cc: riscv64-linux-gnu-gcc
+      #   cxx: riscv64-linux-gnu-g++
+      #   cross_packages: gcc-riscv64-linux-gnu g++-riscv64-linux-gnu
+      #
+      # - platform: linux-mips64el
+      #   runner: ubuntu-latest
+      #   method: cross
+      #   cc: mips64el-linux-gnuabi64-gcc
+      #   cxx: mips64el-linux-gnuabi64-g++
+      #   cross_packages: gcc-mips64el-linux-gnuabi64 g++-mips64el-linux-gnuabi64
+      #
+      # ---- Docker (only where no cross-compiler exists) ----
+      # - platform: linux-loong64
+      #   runner: ubuntu-latest
+      #   method: docker
+      #   docker_image: ghcr.io/loong64/loongnix:25
+      #
+      # ---- Windows MSVC cross-compilation ----
+      # - platform: win32-ia32
+      #   runner: windows-latest
+      #   method: msvc_cross
+      #   arch: Win32
+      #
+      # - platform: win32-arm64
+      #   runner: windows-latest
+      #   method: msvc_cross
+      #   arch: ARM64
+      #
+      # ---- Android NDK cross-compilation ----
+      # - platform: android-arm
+      #   runner: ubuntu-latest
+      #   method: android
+      #   android_abi: armeabi-v7a
+      #   android_api: 21
+      #
+      # - platform: android-arm64
+      #   runner: ubuntu-latest
+      #   method: android
+      #   android_abi: arm64-v8a
+      #   android_api: 21
+      #
+      # - platform: android-x64
+      #   runner: ubuntu-latest
+      #   method: android
+      #   android_abi: x86_64
+      #   android_api: 21
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
 
     runs-on: ${{ matrix.runner }}
     name: build (${{ matrix.platform }})
@@ -434,7 +521,11 @@ jobs:
             echo "Copied binary to ${PKG_DIR}/bin/${BINARY_NAME}"
             ls -lh "${PKG_DIR}/bin/${BINARY_NAME}"
           else
-            echo "::warning::No binary found for ${PLATFORM} — publishing empty package"
+            # A platform package without a binary is not publishable, and an
+            # empty one would install and fail at runtime. Fail here, before
+            # anything is uploaded or published.
+            echo "::error::No binary found for ${PLATFORM} — refusing to package an empty package"
+            exit 1
           fi
 
       - name: Upload package artifact
@@ -445,10 +536,167 @@ jobs:
           retention-days: 1
 
   # ============================================
-  # Job 2: Publish all platform packages
+  # Job 2: Validate artifacts, versions and packages
+  # ============================================
+  #
+  # Everything that can be checked before publishing is checked here, so a
+  # bad artifact or a version mismatch fails the workflow while nothing has
+  # been published yet. This job never publishes anything.
+  validate:
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    name: validate
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: artifacts/
+          pattern: package-*
+
+      - name: Sync artifacts to package directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          for dir in artifacts/*/; do
+            NAME=$(basename "$dir")
+            PLATFORM="${NAME#package-}"
+            DEST="package/npm/@guchho/${PLATFORM}"
+            mkdir -p "${DEST}"
+            cp -r "${dir}"* "${DEST}/"
+            echo "Synced: ${PLATFORM}"
+          done
+
+      # Versions are compared, never rewritten. The expected version comes
+      # from the main package manifest; for a platform run only the selected
+      # package is checked, for `all` every package involved is checked along
+      # with the optionalDependencies pins that tie the main package to them.
+      - name: Validate package versions
+        shell: bash
+        env:
+          PUBLISH_TYPE: ${{ needs.plan.outputs.type }}
+          PUBLISH_PLATFORMS: ${{ needs.plan.outputs.platforms }}
+          PUBLISH_VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          node <<'EOF'
+          const fs = require("fs");
+
+          const type = process.env.PUBLISH_TYPE;
+          const platforms = (process.env.PUBLISH_PLATFORMS || "").split(/\s+/).filter(Boolean);
+          const expected = process.env.PUBLISH_VERSION;
+          const SEMVER = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/;
+
+          let failures = 0;
+          const fail = (msg) => {
+            console.log(`::error::${msg}`);
+            failures++;
+          };
+
+          const read = (p) => JSON.parse(fs.readFileSync(p, "utf8"));
+
+          if (!expected || !SEMVER.test(expected)) {
+            fail(`expected version '${expected}' is not valid semver`);
+          }
+
+          const main = read("package/npm/guchho/package.json");
+          if (main.name !== "guchho") {
+            fail(`main package is named '${main.name}', expected 'guchho'`);
+          }
+          if (main.version !== expected) {
+            fail(`package/npm/guchho/package.json says ${main.version}, expected ${expected}`);
+          }
+
+          for (const p of platforms) {
+            const manifest = `package/npm/@guchho/${p}/package.json`;
+            if (!fs.existsSync(manifest)) {
+              fail(`missing ${manifest}`);
+              continue;
+            }
+            const pkg = read(manifest);
+            if (pkg.name !== `@guchho/${p}`) {
+              fail(`${manifest} is named '${pkg.name}', expected '@guchho/${p}'`);
+            }
+            if (typeof pkg.version !== "string" || !SEMVER.test(pkg.version)) {
+              fail(`${manifest} version '${pkg.version}' is not valid semver`);
+            } else if (pkg.version !== expected) {
+              fail(`${manifest} is ${pkg.version}, expected ${expected} (main package version)`);
+            }
+          }
+
+          if (type === "all") {
+            const pins = main.optionalDependencies || {};
+            for (const p of platforms) {
+              const pin = pins[`@guchho/${p}`];
+              if (pin !== expected) {
+                fail(`optionalDependencies pin for @guchho/${p} is '${pin}', expected '${expected}'`);
+              }
+            }
+          }
+
+          if (failures > 0) {
+            console.log(`::error::Version validation failed (${failures} problem(s)) -- not publishing`);
+            process.exit(1);
+          }
+          console.log(`All selected packages agree on version ${expected}`);
+          EOF
+
+      # The last gate before anything can be published: the expected binary
+      # is present in the assembled package, and npm can pack it. A dry run
+      # stops at this point with a full listing of what a publish would
+      # upload.
+      - name: Validate package contents
+        shell: bash
+        env:
+          PUBLISH_TYPE: ${{ needs.plan.outputs.type }}
+          PUBLISH_PLATFORMS: ${{ needs.plan.outputs.platforms }}
+        run: |
+          set -euo pipefail
+
+          for PLATFORM in ${PUBLISH_PLATFORMS}; do
+            PKG="package/npm/@guchho/${PLATFORM}"
+
+            if [[ "$PLATFORM" == win32-* ]]; then
+              BINARY="${PKG}/bin/guchho.exe"
+            else
+              BINARY="${PKG}/bin/guchho"
+            fi
+
+            echo "========================================"
+            echo "Validating @guchho/${PLATFORM}"
+            echo "========================================"
+
+            if [[ ! -f "${PKG}/package.json" ]]; then
+              echo "::error::${PKG}/package.json is missing"
+              exit 1
+            fi
+
+            if [[ ! -f "${BINARY}" ]]; then
+              echo "::error::expected binary ${BINARY} is missing from the package"
+              exit 1
+            fi
+
+            if [[ ! -s "${BINARY}" ]]; then
+              echo "::error::binary ${BINARY} is empty"
+              exit 1
+            fi
+
+            echo "npm pack --dry-run for @guchho/${PLATFORM}:"
+            npm pack "${PKG}" --dry-run 2>&1
+            echo ""
+          done
+
+  # ============================================
+  # Job 3: Publish platform packages
   # ============================================
   publish-platforms:
-    needs: build
+    needs: [plan, validate]
     runs-on: ubuntu-latest
     name: publish-platforms
     steps:
@@ -461,78 +709,111 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           registry-url: "https://registry.npmjs.org"
 
-      - name: Download all artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v7
         with:
           path: artifacts/
           pattern: package-*
 
       - name: Sync artifacts to package directory
+        shell: bash
         run: |
+          set -euo pipefail
           for dir in artifacts/*/; do
             NAME=$(basename "$dir")
             PLATFORM="${NAME#package-}"
             DEST="package/npm/@guchho/${PLATFORM}"
             mkdir -p "${DEST}"
-            cp -r "${dir}"* "${DEST}/" 2>/dev/null || true
+            cp -r "${dir}"* "${DEST}/"
             echo "Synced: ${PLATFORM}"
           done
 
-      - name: List packages to publish
+      # Dry run: show exactly what a publish would upload, and never call
+      # npm publish. The publish step below is the only place in this
+      # workflow that can publish, and it is gated on an explicit
+      # dry_run=false.
+      - name: "Dry run: pack selected packages"
+        if: needs.plan.outputs.dry_run != 'false'
+        shell: bash
+        env:
+          PUBLISH_PLATFORMS: ${{ needs.plan.outputs.platforms }}
         run: |
-          echo "Packages:"
-          for pkg in package/npm/@guchho/*/; do
-            [[ -f "${pkg}package.json" ]] || { echo "  (skipped: ${pkg} has no package.json)"; continue; }
-            NAME=$(node -p "require('./${pkg}/package.json').name" 2>/dev/null || echo "unknown")
-            VERSION=$(node -p "require('./${pkg}/package.json').version" 2>/dev/null || echo "unknown")
-            HAS_BINARY="no"
-            if [[ -d "${pkg}/bin" ]] && ls "${pkg}/bin/"* >/dev/null 2>&1; then
-              HAS_BINARY="yes"
+          set -euo pipefail
+
+          for PLATFORM in ${PUBLISH_PLATFORMS}; do
+            PKG="package/npm/@guchho/${PLATFORM}"
+            NAME=$(node -p "require('./${PKG}/package.json').name")
+            VERSION=$(node -p "require('./${PKG}/package.json').version")
+
+            if [[ "$PLATFORM" == win32-* ]]; then
+              BINARY="${PKG}/bin/guchho.exe"
+            else
+              BINARY="${PKG}/bin/guchho"
             fi
-            echo "  ${NAME}@${VERSION} (binary: ${HAS_BINARY})"
+
+            if [[ ! -f "${BINARY}" ]]; then
+              echo "::error::expected binary ${BINARY} is missing"
+              exit 1
+            fi
+
+            echo "========================================"
+            echo "[DRY RUN] Would publish ${NAME}@${VERSION}"
+            echo "========================================"
+            npm pack "${PKG}" --dry-run 2>&1
+            echo ""
           done
 
+          echo "No packages were published."
+
       - name: Publish platform packages
+        if: needs.plan.outputs.dry_run == 'false'
+        shell: bash
+        env:
+          PUBLISH_PLATFORMS: ${{ needs.plan.outputs.platforms }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          for pkg in package/npm/@guchho/*/; do
-            [[ -f "${pkg}package.json" ]] || { echo "Skipping ${pkg} (no package.json)"; continue; }
-            PKG_NAME=$(node -p "require('./${pkg}/package.json').name" 2>/dev/null)
-            PKG_VERSION=$(node -p "require('./${pkg}/package.json').version" 2>/dev/null)
+          set -euo pipefail
 
-            echo "========================================"
-            echo "Publishing: ${PKG_NAME}@${PKG_VERSION}"
-            echo "========================================"
+          for PLATFORM in ${PUBLISH_PLATFORMS}; do
+            PKG="package/npm/@guchho/${PLATFORM}"
+            NAME=$(node -p "require('./${PKG}/package.json').name")
+            VERSION=$(node -p "require('./${PKG}/package.json').version")
 
-            HAS_BINARY="no"
-            if [[ -d "${pkg}/bin" ]] && ls "${pkg}/bin/"* >/dev/null 2>&1; then
-              HAS_BINARY="yes"
-            fi
-
-            if [[ "${HAS_BINARY}" != "yes" ]]; then
-              echo "::warning::Skipping ${PKG_NAME}@${PKG_VERSION} — package has no binary"
-              echo ""
-              continue
-            fi
-
-            if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
-              echo "[DRY RUN] Would publish ${PKG_NAME}@${PKG_VERSION}"
-              npm pack "${pkg}" --dry-run 2>&1 || true
+            if [[ "$PLATFORM" == win32-* ]]; then
+              BINARY="${PKG}/bin/guchho.exe"
             else
-              npm publish "${pkg}" --access public --provenance 2>&1 || {
-                echo "::warning::Failed to publish ${PKG_NAME} (may already exist)"
-              }
+              BINARY="${PKG}/bin/guchho"
+            fi
+
+            if [[ ! -f "${BINARY}" ]]; then
+              echo "::error::expected binary ${BINARY} is missing -- not publishing"
+              exit 1
+            fi
+
+            echo "========================================"
+            echo "Publishing: ${NAME}@${VERSION}"
+            echo "========================================"
+
+            # A failed publish fails the workflow: swallowing it would let
+            # the main package publish on top of an incomplete set.
+            if ! npm publish "${PKG}" --access public --provenance 2>&1; then
+              echo "::error::Failed to publish ${NAME}@${VERSION}"
+              exit 1
             fi
 
             echo ""
           done
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   # ============================================
-  # Job 3: Publish main package (last)
+  # Job 4: Publish main package (last, type=all only)
   # ============================================
+  #
+  # Gated on the platform packages having succeeded: a failure anywhere
+  # upstream leaves result != 'success' and this job is skipped, so a
+  # partial platform set can never be topped with a main package.
   publish-main:
-    needs: publish-platforms
+    needs: [plan, publish-platforms]
+    if: ${{ needs.plan.outputs.type == 'all' && needs.publish-platforms.result == 'success' }}
     runs-on: ubuntu-latest
     name: publish-main
     steps:
@@ -545,47 +826,153 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           registry-url: "https://registry.npmjs.org"
 
-      - name: Publish main package
+      - name: Validate main package
+        shell: bash
+        env:
+          PUBLISH_TYPE: ${{ needs.plan.outputs.type }}
+          PUBLISH_PLATFORMS: ${{ needs.plan.outputs.platforms }}
+          PUBLISH_VERSION: ${{ needs.plan.outputs.version }}
         run: |
-          PKG_NAME=$(node -p "require('./package/npm/guchho/package.json').name")
-          PKG_VERSION=$(node -p "require('./package/npm/guchho/package.json').version")
+          set -euo pipefail
 
-          echo "========================================"
-          echo "Publishing: ${PKG_NAME}@${PKG_VERSION}"
-          echo "========================================"
+          NAME=$(node -p "require('./package/npm/guchho/package.json').name")
+          VERSION=$(node -p "require('./package/npm/guchho/package.json').version")
 
-          if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
-            echo "[DRY RUN] Would publish ${PKG_NAME}@${PKG_VERSION}"
-            npm pack package/npm/guchho --dry-run 2>&1 || true
-          else
-            npm publish package/npm/guchho --access public --provenance 2>&1
+          if [[ "$NAME" != "guchho" ]]; then
+            echo "::error::main package is named '${NAME}', expected 'guchho'"
+            exit 1
           fi
+
+          if [[ "$VERSION" != "$PUBLISH_VERSION" ]]; then
+            echo "::error::main package is ${VERSION}, expected ${PUBLISH_VERSION}"
+            exit 1
+          fi
+
+          for PLATFORM in ${PUBLISH_PLATFORMS}; do
+            PIN=$(node -p "require('./package/npm/guchho/package.json').optionalDependencies['@guchho/${PLATFORM}']")
+            if [[ "$PIN" != "$PUBLISH_VERSION" ]]; then
+              echo "::error::optionalDependencies pin for @guchho/${PLATFORM} is '${PIN}', expected '${PUBLISH_VERSION}'"
+              exit 1
+            fi
+          done
+
+          echo "Validated guchho@${VERSION}"
+          echo "npm pack --dry-run for guchho:"
+          npm pack package/npm/guchho --dry-run 2>&1
+
+      - name: "Dry run: pack main package"
+        if: needs.plan.outputs.dry_run != 'false'
+        shell: bash
+        run: |
+          NAME=$(node -p "require('./package/npm/guchho/package.json').name")
+          VERSION=$(node -p "require('./package/npm/guchho/package.json').version")
+          echo "[DRY RUN] Would publish ${NAME}@${VERSION}"
+          echo "No packages were published."
+
+      - name: Publish main package
+        if: needs.plan.outputs.dry_run == 'false'
+        shell: bash
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          NAME=$(node -p "require('./package/npm/guchho/package.json').name")
+          VERSION=$(node -p "require('./package/npm/guchho/package.json').version")
+
+          echo "========================================"
+          echo "Publishing: ${NAME}@${VERSION}"
+          echo "========================================"
+
+          if ! npm publish package/npm/guchho --access public --provenance 2>&1; then
+            echo "::error::Failed to publish ${NAME}@${VERSION}"
+            exit 1
+          fi
 
   # ============================================
   # Summary
   # ============================================
   summary:
-    needs: publish-main
+    needs: [plan, build, validate, publish-platforms, publish-main]
     runs-on: ubuntu-latest
     if: always()
     name: summary
     steps:
-      - name: Summary
+      - name: Write job summary
+        shell: bash
+        env:
+          TYPE: ${{ needs.plan.outputs.type }}
+          DRY_RUN: ${{ needs.plan.outputs.dry_run }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          PLATFORMS: ${{ needs.plan.outputs.platforms }}
+          PLAN_RESULT: ${{ needs.plan.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          VALIDATE_RESULT: ${{ needs.validate.result }}
+          PUBLISH_PLATFORMS_RESULT: ${{ needs.publish-platforms.result }}
+          PUBLISH_MAIN_RESULT: ${{ needs.publish-main.result }}
         run: |
-          echo "========================================"
-          echo " npm-publish workflow complete"
-          echo "========================================"
-          echo ""
-          echo "Trigger: ${{ github.event_name }}"
-          if [[ -n "${{ github.ref_name }}" ]]; then
-            echo "Tag: ${{ github.ref_name }}"
-          fi
-          echo "Dry run: ${{ github.event.inputs.dry_run || 'false' }}"
-          echo ""
-          echo "Published packages:"
-          echo "  3x @guchho/<platform>"
-          echo "  1x  guchho (main)"
-          echo ""
-          echo "View on npm: https://www.npmjs.com/package/guchho"
+          SUMMARY_FILE="${GITHUB_STEP_SUMMARY:-/dev/stdout}"
+
+          {
+            echo "Guchho npm publish"
+            echo ""
+            echo "Type: ${TYPE:-unknown}"
+
+            if [[ "$PLAN_RESULT" != "success" ]]; then
+              echo "Mode: FAILED"
+              echo ""
+              echo "The workflow failed before the platform set could be resolved."
+              exit 0
+            fi
+
+            if [[ "$DRY_RUN" == "false" ]]; then
+              MODE="PUBLISHED"
+            else
+              MODE="DRY RUN"
+            fi
+            echo "Mode: ${MODE}"
+            echo ""
+
+            # A package gets a tick only when every job that had to succeed
+            # for it did: build + validate + its publish job.
+            build_ok()  { [[ "$BUILD_RESULT" == "success" ]]; }
+            val_ok()    { [[ "$VALIDATE_RESULT" == "success" ]]; }
+            plat_ok()   { [[ "$PUBLISH_PLATFORMS_RESULT" == "success" ]]; }
+            main_ok()   { [[ "$PUBLISH_MAIN_RESULT" == "success" ]]; }
+
+            echo "Packages:"
+
+            failed=0
+            for platform in ${PLATFORMS}; do
+              if build_ok && val_ok && plat_ok; then
+                echo "- ✓ @guchho/${platform}@${VERSION}"
+              else
+                echo "- ✗ @guchho/${platform}@${VERSION}"
+                failed=1
+              fi
+            done
+
+            if [[ "$TYPE" == "all" ]]; then
+              if build_ok && val_ok && plat_ok && main_ok; then
+                echo "- ✓ guchho@${VERSION}"
+              else
+                echo "- ✗ guchho@${VERSION}"
+                failed=1
+              fi
+            fi
+
+            echo ""
+
+            if [[ "$failed" -ne 0 ]]; then
+              if [[ "$DRY_RUN" == "false" ]]; then
+                echo "**The workflow failed. Publishing stopped -- check the failing job's logs before re-running.**"
+              else
+                echo "**The workflow failed. No packages were published.**"
+              fi
+            elif [[ "$DRY_RUN" == "false" ]]; then
+              echo "All selected packages were published to npm."
+              echo ""
+              echo "View on npm: https://www.npmjs.com/package/guchho"
+            else
+              echo "No packages were published."
+            fi
+          } | tee -a "$SUMMARY_FILE"

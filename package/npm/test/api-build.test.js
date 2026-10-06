@@ -359,3 +359,147 @@ describe("build()", () => {
         }
     });
 });
+
+describe("banner and footer in the generated output", () => {
+    // The text a caller writes is the text the file opens and closes with, and
+    // both are checked against the collected bytes rather than against a file on
+    // disk: write: false hands the output back in memory, so a failure reports
+    // the text itself instead of a path in a temporary tree.
+    const BANNER = "/*! MyLib v1.0.0 | MIT License */";
+    const FOOTER = "/*! end of MyLib */";
+
+    it("opens every output with the banner", needsBinary, async () => {
+        const root = makeProject();
+
+        const result = await guchho.build({
+            absWorkingDir: root,
+            entrypoints: ["src/main.js"],
+            banner: BANNER,
+            write: false,
+        });
+
+        assert.deepEqual(result.errors, [], `build failed: ${result.errors.join("\n")}`);
+        assert.ok(result.outputFiles.length > 0, "the build produced nothing");
+
+        for (const file of result.outputFiles) {
+            assert.equal(
+                file.text.slice(0, BANNER.length),
+                BANNER,
+                `${file.path} does not open with the banner: ${JSON.stringify(file.text.slice(0, 60))}`
+            );
+        }
+        // The banner is above the code rather than instead of it.
+        assert.ok(result.outputFiles[0].text.includes("42"), "the code is missing from the output");
+    });
+
+    it("keeps the banner byte for byte when minifying", needsBinary, async () => {
+        // The banner is not part of the program, so the minifier has nothing to
+        // minify in it: no whitespace is squeezed out of it, no comment marker is
+        // stripped, and the legal-comment text survives whole. The comparison
+        // against the unminified build is what says minification happened at all —
+        // a banner preserved in a build that never minified would prove nothing.
+        const root = makeProject();
+
+        const plain = await guchho.build({
+            absWorkingDir: root,
+            entrypoints: ["src/main.js"],
+            banner: BANNER,
+            write: false,
+        });
+        const min = await guchho.build({
+            absWorkingDir: root,
+            entrypoints: ["src/main.js"],
+            banner: BANNER,
+            minify: true,
+            write: false,
+        });
+
+        const plainText = plain.outputFiles[0].text;
+        const minText = min.outputFiles[0].text;
+
+        assert.equal(
+            minText.slice(0, BANNER.length),
+            BANNER,
+            `the minified build dropped or rewrote the banner: ${JSON.stringify(minText.slice(0, 60))}`
+        );
+        assert.ok(minText.length < plainText.length, "minify: true changed nothing, so it never reached the build");
+        assert.ok(minText.includes("42"), `the code is missing from the minified output: ${minText}`);
+    });
+
+    it("opens every chunk with the banner", needsBinary, async () => {
+        // A banner that reached one file and not the next would be a caller's
+        // licence notice missing from half of what they ship, and code splitting
+        // is where "the output" stops being one file. Every JavaScript file the
+        // build answers with is checked, shared chunk included.
+        const root = makeProject({
+            "src/a.js": 'import { shared } from "./shared.js";\nconsole.log("a", shared);\n',
+            "src/b.js": 'import { shared } from "./shared.js";\nconsole.log("b", shared);\n',
+            "src/shared.js": "export const shared = 1;\n",
+        });
+
+        const result = await guchho.build({
+            absWorkingDir: root,
+            entrypoints: ["src/a.js", "src/b.js"],
+            banner: BANNER,
+            bundle: true,
+            splitting: true,
+            format: "esm",
+            write: false,
+        });
+
+        assert.deepEqual(result.errors, [], `build failed: ${result.errors.join("\n")}`);
+        assert.ok(
+            result.outputFiles.length >= 2,
+            `expected one output per entry point, got ${result.outputFiles.length}`
+        );
+
+        for (const file of result.outputFiles) {
+            assert.equal(
+                file.text.slice(0, BANNER.length),
+                BANNER,
+                `${file.path} does not open with the banner: ${JSON.stringify(file.text.slice(0, 60))}`
+            );
+        }
+    });
+
+    it("closes every output with the footer", needsBinary, async () => {
+        const root = makeProject();
+
+        const result = await guchho.build({
+            absWorkingDir: root,
+            entrypoints: ["src/main.js"],
+            footer: FOOTER,
+            write: false,
+        });
+
+        assert.deepEqual(result.errors, [], `build failed: ${result.errors.join("\n")}`);
+
+        for (const file of result.outputFiles) {
+            const end = file.text.trimEnd();
+            assert.equal(
+                end.slice(-FOOTER.length),
+                FOOTER,
+                `${file.path} does not close with the footer: ${JSON.stringify(end.slice(-60))}`
+            );
+        }
+    });
+
+    it("keeps the footer byte for byte when minifying", needsBinary, async () => {
+        const root = makeProject();
+
+        const result = await guchho.build({
+            absWorkingDir: root,
+            entrypoints: ["src/main.js"],
+            footer: FOOTER,
+            minify: true,
+            write: false,
+        });
+
+        const text = result.outputFiles[0].text.trimEnd();
+        assert.equal(
+            text.slice(-FOOTER.length),
+            FOOTER,
+            `the minified build dropped or rewrote the footer: ${JSON.stringify(text.slice(-60))}`
+        );
+    });
+});

@@ -1295,6 +1295,30 @@ namespace guchho::linker {
 
         c.ScanImportsAndExports();
 
+        // "--exports=default" publishes the entry's default export as the value
+        // every module system receives, so an entry with none would hand them
+        // "undefined" with no explanation. A CommonJS entry always has one --
+        // its "module.exports" value is the default -- but an ESM entry has to
+        // actually declare it. Reported here because this is the first point
+        // where the entry's exports are fully resolved, including aliases
+        // filled in from lazy or re-exported sources during the scan above.
+        if (options->OutputFormat == config::Format::kUMD &&
+            options->Exports == config::EntryExports::kDefault) {
+            for (auto& ep : entry_points) {
+                auto& file = c.graph.files[ep.source_index].input_file;
+                auto* repr_ptr = std::get_if<std::shared_ptr<graph::JSRepr>>(&file.repr);
+                if (!repr_ptr || !*repr_ptr) continue;
+                auto& repr = **repr_ptr;
+                if (repr.ast.exports_kind == javascript::ExportsKind::kCommonJS) continue;
+                auto& aliases = repr.meta.sorted_and_filtered_export_aliases;
+                if (std::find(aliases.begin(), aliases.end(), "default") == aliases.end()) {
+                    c.log.AddError(nullptr, logger::Range{},
+                                   logger::FormatMsg(logger::MsgCat::kAPI_ExportsDefaultRequiresDefaultExport));
+                    break;
+                }
+            }
+        }
+
         if (c.log.has_errors()) {
             c.options->ExclusiveMangleCacheUpdate([](auto&, auto&) {
             });

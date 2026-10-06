@@ -285,7 +285,9 @@ TEST(HtmlParserHead, BaseAndMetaAreVoid)
     ASSERT_EQ(ChildCount(*head), size_t{2});
     EXPECT_EQ(Child(*head, 0)->tag_name, "base");
     EXPECT_EQ(Child(*head, 1)->tag_name, "meta");
-    EXPECT_EQ(ChildCount(*Child(*head, 0)), size_t{0});
+    const html::Node* base_node = Child(*head, 0);
+    ASSERT_TRUE(base_node != nullptr);
+    EXPECT_EQ(ChildCount(*base_node), size_t{0});
 }
 
 TEST(HtmlParserHead, TemplateStaysInHead)
@@ -502,10 +504,16 @@ TEST(HtmlParserBody, CommentsInsideBody)
     const html::Node* p = FindTag(*c.document, "p");
     ASSERT_TRUE(p != nullptr);
     ASSERT_EQ(ChildCount(*p), size_t{3});
-    EXPECT_EQ(Child(*p, 0)->value, "a");
-    EXPECT_EQ(Child(*p, 1)->type, html::NodeType::kComment);
-    EXPECT_EQ(Child(*p, 1)->data, " hidden ");
-    EXPECT_EQ(Child(*p, 2)->value, "b");
+    const html::Node* text_a = Child(*p, 0);
+    const html::Node* comment = Child(*p, 1);
+    const html::Node* text_b = Child(*p, 2);
+    ASSERT_TRUE(text_a != nullptr);
+    ASSERT_TRUE(comment != nullptr);
+    ASSERT_TRUE(text_b != nullptr);
+    EXPECT_EQ(text_a->value, "a");
+    EXPECT_EQ(comment->type, html::NodeType::kComment);
+    EXPECT_EQ(comment->data, " hidden ");
+    EXPECT_EQ(text_b->value, "b");
 }
 
 // ---------------------------------------------------------------------------

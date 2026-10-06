@@ -1328,7 +1328,9 @@ namespace guchho::javascript {
 
         // Make sure tree shaking removes this if the function is never used
         ECall* call = Get<ECall>(value.data);
-        call->can_be_unwrapped_if_unused = true;
+        if (call != nullptr) {
+            call->can_be_unwrapped_if_unused = true;
+        }
         return value;
     }
 

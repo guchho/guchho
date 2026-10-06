@@ -203,6 +203,12 @@ namespace guchho::cli {
         // guessing which of the two values was wrong.
         for (auto& property : root->properties) {
             auto* key_str = javascript::Get<javascript::EString>(property.key.data);
+            if (key_str == nullptr) {
+                // ParseJSON only ever produces string keys, so this cannot
+                // happen for a file that parsed cleanly. Bail out rather than
+                // read through a null pointer if that invariant is broken.
+                return MangleCacheResult{};
+            }
             std::string key = helpers::UTF16ToString(key_str->value);
             order.push_back(key);
 

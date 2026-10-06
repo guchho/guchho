@@ -302,7 +302,7 @@ namespace guchho::helpers {
                         char b  = sig.pat[j];
                         char db = d[j];
                         if (b >= 'A' && b <= 'Z') {
-                            db &= 0xDF;
+                            db = static_cast<char>(static_cast<unsigned char>(db) & 0xDFu);
                         }
                         if (b != db) {
                             ok = false;

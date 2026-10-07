@@ -3,6 +3,7 @@
 
 #include <cstdio>
 #include <fstream>
+#include <sstream>
 #include <string>
 
 #ifdef _WIN32
@@ -49,10 +50,10 @@ namespace {
 #endif
 
         std::ifstream ifs(tmpname);
-        std::string result((std::istreambuf_iterator<char>(ifs)),
-                           std::istreambuf_iterator<char>());
+        std::ostringstream buffer;
+        buffer << ifs.rdbuf();
         std::remove(tmpname);
-        return result;
+        return buffer.str();
     }
 }
 

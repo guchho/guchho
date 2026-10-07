@@ -165,11 +165,43 @@ echo "  Updated nuspec version -> ${VERSION}"
 # ========================================
 # Update VERIFICATION.txt version
 # ========================================
+#
+# VERIFICATION.txt is tracked in git as a template: the release URL names an
+# artifact that does not exist until this build has run, so the file carries
+# {VERSION} and the build owns the number. choco pack takes the tools/
+# directory exactly as it finds it, so the placeholder is replaced in place
+# for the duration of the pack and the original bytes are put back on the way
+# out. Leaving the literal behind is not cosmetic: it is committed, and the
+# next bump-version.sh verify fails on it -- which is how this file kept
+# oscillating between a template and a stale download link.
+#
+# Two guards, because both failure modes have happened:
+#   - a file already holding a literal makes the substitution below a silent
+#     no-op, and the package would ship a URL pointing at the previous
+#     release, so the placeholder is required before anything is written;
+#   - a choco pack that errors exits the script before any restore would run,
+#     so the restore is also a trap and not just a line after the pack.
 
 VERIFY="${TOOLS_DIR}/VERIFICATION.txt"
 VERIFY_WIN="$(to_winpath "${VERIFY}")"
+VERIFY_TMPL=""
+
+restore_verification() {
+    if [[ -n "${VERIFY_TMPL}" && -f "${VERIFY_TMPL}" ]]; then
+        cp "${VERIFY_TMPL}" "${VERIFY}"
+        rm -f "${VERIFY_TMPL}"
+    fi
+}
 
 if [[ -f "${VERIFY}" ]]; then
+    if ! grep -q '{VERSION}' "${VERIFY}"; then
+        error "VERIFICATION.txt holds a literal version instead of {VERSION} -- restore the placeholder (it is in git history) before building, or this package would ship a download URL for the wrong release."
+    fi
+
+    VERIFY_TMPL="$(mktemp)"
+    cp "${VERIFY}" "${VERIFY_TMPL}"
+    trap restore_verification EXIT
+
     node -e "
         const fs = require('fs');
         let content = fs.readFileSync(process.argv[1], 'utf8');
@@ -177,7 +209,7 @@ if [[ -f "${VERIFY}" ]]; then
         content = content.replace(/\{VERSION\}/g, '${VERSION}');
         fs.writeFileSync(process.argv[1], content);
     " "${VERIFY_WIN}"
-    echo "  Updated VERIFICATION.txt version -> ${VERSION}"
+    echo "  Updated VERIFICATION.txt version -> ${VERSION} (template restored after pack)"
 fi
 
 echo
@@ -202,6 +234,20 @@ if [[ ! -f "${NUPKG}" ]]; then
 fi
 
 FINAL_NUPKG="${NUPKG}"
+
+# The pack succeeded, so the temporary literal has served its purpose. Put the
+# template back now rather than at exit: a reader of the working tree should
+# find the placeholder, and reading it back off disk is the only way to know
+# the restore actually wrote what it meant to.
+if [[ -f "${VERIFY}" ]]; then
+    restore_verification
+
+    if ! grep -q '{VERSION}' "${VERIFY}"; then
+        error "${VERIFY} was not restored to its templated form -- check it back in as a template before committing."
+    fi
+
+    echo "  Restored VERIFICATION.txt template"
+fi
 
 echo
 echo "========================================"

@@ -269,7 +269,7 @@ namespace guchho::javascript {
 
             logger::Log& Log() { return log_; }
             logger::LineColumnTracker& Tracker() { return tracker_; }
-            Lexer& Lexer() { return lexer_; }
+            javascript::Lexer& Lexer() { return lexer_; }
 
         private:
             logger::Log log_;

@@ -598,6 +598,12 @@ Test all packages:
 gh workflow run npm-publish.yml -f type=all -f dry_run=true
 ```
 
+Test the main `guchho` package only:
+
+```bash
+gh workflow run npm-publish.yml -f type=guchho -f dry_run=true
+```
+
 ### Publish
 
 Publish a single platform package:
@@ -607,11 +613,17 @@ gh workflow run npm-publish.yml -f type=linux-x64 -f dry_run=false
 ```
 
 ```bash
-gh workflow run npm-publish.yml -f type=win32-x64 -f dry_run=true
+gh workflow run npm-publish.yml -f type=win32-x64 -f dry_run=false
 ```
 
 ```bash
 gh workflow run npm-publish.yml -f type=darwin-arm64 -f dry_run=false
+```
+
+Publish only the main `guchho` package:
+
+```bash
+gh workflow run npm-publish.yml -f type=guchho -f dry_run=false
 ```
 
 Publish all platform packages and the main `guchho` package:
@@ -627,6 +639,7 @@ gh workflow run npm-publish.yml -f type=all -f dry_run=false
 | `linux-x64`    | `@guchho/linux-x64`              |
 | `win32-x64`    | `@guchho/win32-x64`              |
 | `darwin-arm64` | `@guchho/darwin-arm64`           |
+| `guchho`       | `guchho`                         |
 | `all`          | All platform packages + `guchho` |
 
 `dry_run=true` builds and validates packages without publishing. `dry_run=false` performs the actual npm publish.

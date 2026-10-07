@@ -16,6 +16,7 @@ on:
           - linux-x64
           - win32-x64
           - darwin-arm64
+          - guchho
           - all
 
       dry_run:
@@ -49,6 +50,7 @@ jobs:
       type: ${{ steps.select.outputs.type }}
       version: ${{ steps.select.outputs.version }}
       dry_run: ${{ steps.select.outputs.dry_run }}
+      publish_main: ${{ steps.select.outputs.publish_main }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -74,9 +76,18 @@ jobs:
           case "$TYPE" in
             linux-x64|win32-x64|darwin-arm64)
               PLATFORMS="$TYPE"
+              PUBLISH_MAIN="false"
               ;;
             all)
               PLATFORMS="linux-x64 win32-x64 darwin-arm64"
+              PUBLISH_MAIN="true"
+              ;;
+            guchho)
+              # Main package only: no platform binaries, so the build
+              # matrix resolves to an empty set and the build job is
+              # skipped in the build job's `if`.
+              PLATFORMS=""
+              PUBLISH_MAIN="true"
               ;;
             *)
               echo "::error::Unsupported type: '$TYPE'"
@@ -84,8 +95,9 @@ jobs:
               ;;
           esac
 
-          # The three supported publish targets, mirroring the build matrix
-          # below. Only entries in this list can ever be selected.
+          # The supported publish targets, mirroring the build matrix
+          # below. Only entries in this list can ever be selected. The
+          # main `guchho` package is published when PUBLISH_MAIN is true.
           MATRIX='[
             {"platform":"linux-x64","runner":"ubuntu-latest","method":"native","preset":"release-linux-x64"},
             {"platform":"darwin-arm64","runner":"macos-latest","method":"native","preset":"release-darwin-arm64"},
@@ -109,20 +121,26 @@ jobs:
 
           echo "Type:    ${TYPE}"
           echo "Mode:    $([ "$DRY_RUN" = "true" ] && echo 'DRY RUN' || echo 'PUBLISH')"
-          echo "Platform set: ${PLATFORMS}"
+          echo "Platform set: ${PLATFORMS:-<none>}"
           echo "Version: ${VERSION}"
+          echo "Publish main: ${PUBLISH_MAIN}"
 
           echo "matrix=${SELECTED}" >> "$GITHUB_OUTPUT"
           echo "platforms=${PLATFORMS}" >> "$GITHUB_OUTPUT"
           echo "type=${TYPE}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "dry_run=${DRY_RUN}" >> "$GITHUB_OUTPUT"
+          echo "publish_main=${PUBLISH_MAIN}" >> "$GITHUB_OUTPUT"
 
   # ============================================
   # Job 1: Build binaries for selected platforms
   # ============================================
   build:
     needs: plan
+    # Main-package-only runs (type=guchho) resolve to an empty platform
+    # set / matrix, so the build job is skipped entirely here rather than
+    # evaluating an empty matrix or starting runners.
+    if: needs.plan.outputs.platforms != ''
     strategy:
       fail-fast: false
       # Resolved by the plan job: only the platforms requested through the
@@ -549,6 +567,12 @@ jobs:
   # been published yet. This job never publishes anything.
   validate:
     needs: [plan, build]
+    # For a main-package-only run (type=guchho) the build job is skipped by
+    # design, so validation must still proceed against the empty platform
+    # set. When platforms were requested, they must have built successfully.
+    if: >-
+      needs.plan.result == 'success' &&
+      (needs.build.result == 'success' || needs.plan.outputs.platforms == '')
     runs-on: ubuntu-latest
     name: validate
     steps:
@@ -561,12 +585,14 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Download artifacts
+        if: needs.plan.outputs.platforms != ''
         uses: actions/download-artifact@v7
         with:
           path: artifacts/
           pattern: package-*
 
       - name: Sync artifacts to package directory
+        if: needs.plan.outputs.platforms != ''
         shell: bash
         env:
           PUBLISH_PLATFORMS: ${{ needs.plan.outputs.platforms }}
@@ -665,6 +691,16 @@ jobs:
             }
           }
 
+          if (type === "guchho") {
+            const pins = main.optionalDependencies || {};
+            for (const dep of Object.keys(pins)) {
+              const pin = pins[dep];
+              if (pin !== expected) {
+                fail(`optionalDependencies pin for ${dep} is '${pin}', expected '${expected}'`);
+              }
+            }
+          }
+
           if (failures > 0) {
             console.log(`::error::Version validation failed (${failures} problem(s)) -- not publishing`);
             process.exit(1);
@@ -722,6 +758,12 @@ jobs:
   # ============================================
   publish-platforms:
     needs: [plan, validate]
+    # Main-package-only runs (type=guchho) select no platforms, so there is
+    # nothing for this job to build-sync, validate, or publish.
+    if: >-
+      needs.plan.result == 'success' &&
+      needs.plan.outputs.platforms != '' &&
+      needs.validate.result == 'success'
     runs-on: ubuntu-latest
     name: publish-platforms
     steps:
@@ -850,15 +892,25 @@ jobs:
           done
 
   # ============================================
-  # Job 4: Publish main package (last, type=all only)
+  # Job 4: Publish main package (last, type=guchho or type=all)
   # ============================================
   #
-  # Gated on the platform packages having succeeded: a failure anywhere
-  # upstream leaves result != 'success' and this job is skipped, so a
-  # partial platform set can never be topped with a main package.
+  # For `all` it is gated on the platform packages having succeeded: a
+  # failure anywhere upstream leaves publish-platforms != 'success' and
+  # this job is skipped, so a partial platform set can never be topped
+  # with a main package. For `guchho` (no platforms selected) the
+  # publish-platforms job is skipped by design and the main package is
+  # published on its own after validation succeeds.
   publish-main:
-    needs: [plan, publish-platforms]
-    if: ${{ needs.plan.outputs.type == 'all' && needs.publish-platforms.result == 'success' }}
+    needs: [plan, validate, publish-platforms]
+    if: >-
+      needs.plan.outputs.publish_main == 'true' &&
+      needs.plan.result == 'success' &&
+      needs.validate.result == 'success' &&
+      (needs.plan.outputs.platforms == '' &&
+        needs.publish-platforms.result == 'skipped' ||
+        needs.plan.outputs.platforms != '' &&
+        needs.publish-platforms.result == 'success')
     runs-on: ubuntu-latest
     name: publish-main
     steps:
@@ -996,8 +1048,19 @@ jobs:
               fi
             done
 
-            if [[ "$TYPE" == "all" ]]; then
-              if build_ok && val_ok && plat_ok && main_ok; then
+            if [[ "$TYPE" == "all" || "$TYPE" == "guchho" ]]; then
+              # `all` publishes the main package only after the platform
+              # set succeeds end-to-end; `guchho` publishes it standalone
+              # (build and publish-platforms are skipped by design there).
+              if [[ "$TYPE" == "all" ]]; then
+                MAIN_DONE=""
+                build_ok && val_ok && plat_ok && main_ok && MAIN_DONE="1"
+              else
+                MAIN_DONE=""
+                val_ok && main_ok && MAIN_DONE="1"
+              fi
+
+              if [[ -n "$MAIN_DONE" ]]; then
                 echo "- ✓ guchho@${VERSION}"
               else
                 echo "- ✗ guchho@${VERSION}"

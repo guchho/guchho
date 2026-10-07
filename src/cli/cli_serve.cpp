@@ -159,14 +159,16 @@ int runServe(const std::vector<std::string>& args) {
     if (open_browser) {
 #ifdef _WIN32
         std::string cmd = "start http://" + host + ":" + std::to_string(port);
-        std::system(cmd.c_str());
 #elif __APPLE__
         std::string cmd = "open http://" + host + ":" + std::to_string(port);
-        std::system(cmd.c_str());
 #else
         std::string cmd = "xdg-open http://" + host + ":" + std::to_string(port);
-        std::system(cmd.c_str());
 #endif
+        const int result = std::system(cmd.c_str());
+        if (result != 0) {
+            logger::PrintWarningToStderr(args_copy,
+                                         "Could not open the browser: " + cmd);
+        }
     }
 
     // Wait for Ctrl+C. The promise is local and nothing ever fulfils it, so this
@@ -399,14 +401,16 @@ int runDev(const std::vector<std::string>& args,
     if (open_browser) {
 #ifdef _WIN32
         std::string cmd = "start http://" + host + ":" + std::to_string(port);
-        std::system(cmd.c_str());
 #elif __APPLE__
         std::string cmd = "open http://" + host + ":" + std::to_string(port);
-        std::system(cmd.c_str());
 #else
         std::string cmd = "xdg-open http://" + host + ":" + std::to_string(port);
-        std::system(cmd.c_str());
 #endif
+        const int result = std::system(cmd.c_str());
+        if (result != 0) {
+            logger::PrintWarningToStderr(build_args,
+                                         "Could not open the browser: " + cmd);
+        }
     }
 
     // Start watching, covering every file the build read. The delay is the one

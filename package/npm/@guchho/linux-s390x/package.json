@@ -1,6 +1,6 @@
 {
   "name": "@guchho/linux-s390x",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "The Linux s390x binary for guchho, a fast build system for web applications.",
   "repository": {
     "type": "git",

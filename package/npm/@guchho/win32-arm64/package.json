@@ -1,6 +1,6 @@
 {
   "name": "@guchho/win32-arm64",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "The Windows ARM64 binary for guchho, a fast build system for web applications.",
   "repository": {
     "type": "git",

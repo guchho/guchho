@@ -113,28 +113,62 @@ endif()
 #   test_name_3
 #
 # One test name per line.
+#
+# The executable is launched immediately after it was linked, so on
+# Windows a transient sharing violation (antivirus scanning the new
+# binary) can make the spawn fail with a non-zero result and empty
+# stderr. Retry a few times before giving up.
 # ------------------------------------------------------------
 
-execute_process(
-    COMMAND "${TEST_EXECUTABLE}" --list-tests
+set(discovery_max_attempts 3)
 
-    WORKING_DIRECTORY "${TEST_WORKING_DIR}"
+set(discovery_attempt 0)
 
-    OUTPUT_VARIABLE discovery_output
-    ERROR_VARIABLE discovery_error
+set(discovery_result 1)
 
-    RESULT_VARIABLE discovery_result
+while(discovery_attempt LESS discovery_max_attempts)
 
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    ERROR_STRIP_TRAILING_WHITESPACE
-)
+    math(EXPR discovery_attempt "${discovery_attempt} + 1")
+
+    execute_process(
+        COMMAND "${TEST_EXECUTABLE}" --list-tests
+
+        WORKING_DIRECTORY "${TEST_WORKING_DIR}"
+
+        OUTPUT_VARIABLE discovery_output
+        ERROR_VARIABLE discovery_error
+
+        RESULT_VARIABLE discovery_result
+
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_STRIP_TRAILING_WHITESPACE
+    )
+
+    if(discovery_result STREQUAL "0")
+        break()
+    endif()
+
+    if(discovery_attempt LESS discovery_max_attempts)
+        message(
+            STATUS
+            "Discovery attempt ${discovery_attempt}/${discovery_max_attempts}"
+            " failed for ${TEST_EXECUTABLE}"
+            " (result: ${discovery_result}); retrying"
+        )
+
+        execute_process(
+            COMMAND "${CMAKE_COMMAND}" -E sleep 1
+        )
+    endif()
+
+endwhile()
 
 
 # ------------------------------------------------------------
 # Discovery failed
 # ------------------------------------------------------------
 
-if(NOT discovery_result EQUAL 0)
+if(NOT discovery_result STREQUAL "0")
 
     file(
         WRITE
@@ -158,10 +192,23 @@ if(NOT discovery_result EQUAL 0)
         "Test discovery failed for ${TEST_EXECUTABLE}"
     )
 
+    message(
+        WARNING
+        "Discovery result after ${discovery_attempt} attempt(s):"
+        " ${discovery_result}"
+    )
+
     if(NOT discovery_error STREQUAL "")
         message(
             WARNING
             "Discovery error:\n${discovery_error}"
+        )
+    endif()
+
+    if(NOT discovery_output STREQUAL "")
+        message(
+            WARNING
+            "Discovery output:\n${discovery_output}"
         )
     endif()
 

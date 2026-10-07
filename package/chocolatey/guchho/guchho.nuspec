@@ -7,6 +7,7 @@
     <packageSourceUrl>https://github.com/guchho/guchho/tree/main/package/chocolatey</packageSourceUrl>
     <owners>guchho</owners>
     <title>Guchho</title>
+    <iconUrl>https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/guchho_logo.png</iconUrl>
     <authors>Codehemu</authors>
     <projectUrl>https://github.com/guchho/guchho</projectUrl>
     <copyright>Copyright (c) 2026  Codehemu</copyright>
@@ -34,7 +35,7 @@
 ## Usage
 
 ```
-guchho init 
+guchho init -f -y
 guchho dev --open
 ```
 

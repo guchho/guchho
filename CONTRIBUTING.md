@@ -607,7 +607,7 @@ gh workflow run npm-publish.yml -f type=linux-x64 -f dry_run=false
 ```
 
 ```bash
-gh workflow run npm-publish.yml -f type=win32-x64 -f dry_run=false
+gh workflow run npm-publish.yml -f type=win32-x64 -f dry_run=true
 ```
 
 ```bash

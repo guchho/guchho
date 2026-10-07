@@ -101,12 +101,21 @@ namespace {
 // goes through the wrappers below rather than touching the platform headers
 // directly, which is what keeps the rest of the file free of conditionals.
 // ===========================================================================
+// The two names below are the other pair that differs by platform. Winsock
+// takes the byte count of a send or receive as an "int" and answers with an
+// "int", while POSIX spells the count "size_t" and the answer "ssize_t". The
+// aliases let the call sites state the platform's own types without a
+// conditional of their own, which is the same reason "SockHandle" exists.
 #ifdef _WIN32
 using SockHandle = SOCKET;
 constexpr SockHandle kInvalidSocket = INVALID_SOCKET;
+using SockSize = int;
+using SockRet  = int;
 #else
 using SockHandle = int;
 constexpr SockHandle kInvalidSocket = -1;
+using SockSize = size_t;
+using SockRet  = ssize_t;
 #endif
 
 // Closes a socket and reports whether the platform accepted the close.
@@ -452,7 +461,7 @@ public:
 
         bool bound = false;
         for (struct addrinfo* ai = result; ai != nullptr; ai = ai->ai_next) {
-            if (bind(sock, ai->ai_addr, static_cast<int>(ai->ai_addrlen)) == 0) {
+            if (bind(sock, ai->ai_addr, static_cast<socklen_t>(ai->ai_addrlen)) == 0) {
                 bound = true;
                 break;
             }
@@ -577,7 +586,7 @@ bool ReadRequestHead(SockHandle sock, std::string& out) {
     buffer.reserve(4096);
     char chunk[4096];
     for (;;) {
-        int n = recv(sock, chunk, sizeof(chunk), 0);
+        const SockRet n = recv(sock, chunk, sizeof(chunk), 0);
         if (n <= 0) {
             return false;
         }
@@ -756,7 +765,8 @@ private:
         if (data.empty()) return;
         size_t sent = 0;
         while (sent < data.size()) {
-            int n = send(sock_, data.data() + sent, int(data.size() - sent), 0);
+            const SockRet n =
+                send(sock_, data.data() + sent, static_cast<SockSize>(data.size() - sent), 0);
             if (n <= 0) {
                 return;
             }

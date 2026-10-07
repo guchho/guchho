@@ -18,7 +18,7 @@
 
 | Distribution | Install from | Status |
 | :-------------: | ------------ | ------ |
-| <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/npm_logo.svg" height="30" alt="npm"> | **npm**<br>`npm install -g guchho` | ✅ Available |
+| <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/npm_logo.svg" height="30" alt="npm"> | **[npm](https://www.npmjs.com/package/guchho)**<br>`npm install -g guchho` | ✅ Available |
 | <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/chocolatey_logo.svg" height="42" alt="Chocolatey"> | **Chocolatey**<br>`choco install guchho` | 🚧 Coming Soon |
 | <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/scoop_logo.png" height="42" alt="Scoop"> | **Scoop**<br>`scoop install guchho` | 🚧 Coming Soon |
 | <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/winget_logo.png" height="42" alt="WinGet"> | **WinGet**<br>`winget install Guchho.Guchho` | 🚧 Coming Soon |

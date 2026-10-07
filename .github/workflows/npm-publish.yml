@@ -568,16 +568,36 @@ jobs:
 
       - name: Sync artifacts to package directory
         shell: bash
+        env:
+          PUBLISH_PLATFORMS: ${{ needs.plan.outputs.platforms }}
         run: |
           set -euo pipefail
+          shopt -s nullglob
+          synced=0
           for dir in artifacts/*/; do
             NAME=$(basename "$dir")
-            PLATFORM="${NAME#package-}"
-            DEST="package/npm/@guchho/${PLATFORM}"
-            mkdir -p "${DEST}"
-            cp -r "${dir}"* "${DEST}/"
-            echo "Synced: ${PLATFORM}"
+            case "$NAME" in
+              package-*)
+                PLATFORM="${NAME#package-}"
+                DEST="package/npm/@guchho/${PLATFORM}"
+                mkdir -p "${DEST}"
+                cp -r "${dir}"* "${DEST}/"
+                echo "Synced: ${PLATFORM}"
+                synced=1
+                ;;
+            esac
           done
+          # download-artifact extracts a single pattern-matched artifact
+          # directly into the path instead of a package-<platform>/
+          # directory, so fall back to the resolved platform set.
+          if [[ "$synced" -eq 0 ]]; then
+            for PLATFORM in ${PUBLISH_PLATFORMS}; do
+              DEST="package/npm/@guchho/${PLATFORM}"
+              mkdir -p "${DEST}"
+              cp -r artifacts/* "${DEST}/"
+              echo "Synced: ${PLATFORM}"
+            done
+          fi
 
       # Versions are compared, never rewritten. The expected version comes
       # from the main package manifest; for a platform run only the selected
@@ -722,16 +742,36 @@ jobs:
 
       - name: Sync artifacts to package directory
         shell: bash
+        env:
+          PUBLISH_PLATFORMS: ${{ needs.plan.outputs.platforms }}
         run: |
           set -euo pipefail
+          shopt -s nullglob
+          synced=0
           for dir in artifacts/*/; do
             NAME=$(basename "$dir")
-            PLATFORM="${NAME#package-}"
-            DEST="package/npm/@guchho/${PLATFORM}"
-            mkdir -p "${DEST}"
-            cp -r "${dir}"* "${DEST}/"
-            echo "Synced: ${PLATFORM}"
+            case "$NAME" in
+              package-*)
+                PLATFORM="${NAME#package-}"
+                DEST="package/npm/@guchho/${PLATFORM}"
+                mkdir -p "${DEST}"
+                cp -r "${dir}"* "${DEST}/"
+                echo "Synced: ${PLATFORM}"
+                synced=1
+                ;;
+            esac
           done
+          # download-artifact extracts a single pattern-matched artifact
+          # directly into the path instead of a package-<platform>/
+          # directory, so fall back to the resolved platform set.
+          if [[ "$synced" -eq 0 ]]; then
+            for PLATFORM in ${PUBLISH_PLATFORMS}; do
+              DEST="package/npm/@guchho/${PLATFORM}"
+              mkdir -p "${DEST}"
+              cp -r artifacts/* "${DEST}/"
+              echo "Synced: ${PLATFORM}"
+            done
+          fi
 
       # Dry run: show exactly what a publish would upload, and never call
       # npm publish. The publish step below is the only place in this

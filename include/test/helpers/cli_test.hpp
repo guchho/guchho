@@ -180,8 +180,9 @@ public:
 
     std::string Read(const std::string& relative) const {
         std::ifstream in(Native(At(relative)), std::ios::binary);
-        return std::string((std::istreambuf_iterator<char>(in)),
-                           std::istreambuf_iterator<char>());
+        std::ostringstream buffer;
+        buffer << in.rdbuf();
+        return buffer.str();
     }
 
     // A directory inside the workspace, created empty. Used where a command is

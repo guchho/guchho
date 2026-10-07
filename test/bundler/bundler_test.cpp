@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <fstream>
 #include <optional>
+#include <sstream>
 
 namespace bundler::test {
 
@@ -395,8 +396,9 @@ void Suite::CompareSnapshot(const std::string& test_name,
 
         std::ifstream in(path_);
         if (in.is_open()) {
-            std::string contents((std::istreambuf_iterator<char>(in)),
-                                 std::istreambuf_iterator<char>());
+            std::ostringstream buffer;
+            buffer << in.rdbuf();
+            std::string contents = buffer.str();
             // Normalize CRLF -> LF
             {
                 std::string normalized;

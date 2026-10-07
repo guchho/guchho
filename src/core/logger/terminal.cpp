@@ -293,6 +293,7 @@ namespace guchho::logger {
     }
 
 }
+
 #else
 namespace guchho::logger {
 
@@ -304,8 +305,17 @@ namespace guchho::logger {
     //   WriteStringWithColor(1, "\033[32msuccess\033[0m")
     //   // writes green "success" followed by a reset, interpreted natively
     void WriteStringWithColor(int file_descriptor, const std::string& text) {
-        if (!text.empty()) {
-            write(file_descriptor, text.data(), text.size());
+        const char* data = text.data();
+        size_t remaining = text.size();
+
+        while (remaining > 0) {
+            const ssize_t written = write(file_descriptor, data, remaining);
+
+            if (written <= 0)
+                break;
+
+            data += written;
+            remaining -= static_cast<size_t>(written);
         }
     }
 

@@ -4,7 +4,7 @@
   // ─────────────────────────────────────────────
   "clangd.arguments": [
     "--background-index",
-    "--compile-commands-dir=${workspaceFolder}/build/debug-win32-x64-ninja",
+    "--compile-commands-dir=${workspaceFolder}/build/release-win32-x64-ninja",
     "--header-insertion=iwyu",
     "--completion-style=detailed",
     "--clang-tidy",
@@ -28,7 +28,7 @@
   // CMake
   // ─────────────────────────────────────────────
   "cmake.buildDirectory":
-    "${workspaceFolder}/build/debug-win32-x64-ninja",
+    "${workspaceFolder}/build/release-win32-x64-ninja",
 
   "cmake.configureOnOpen": false,
   "cmake.generator": "Ninja",

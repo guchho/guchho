@@ -436,11 +436,11 @@ namespace guchho::compiler {
     // the flags and kind that guide renaming and lowering.
     struct Symbol {
         NamespaceAlias* namespace_alias{};
-        std::string original_name;
-        Ref link;
+        std::string original_name{};
+        Ref link{};
         uint32_t use_count_estimate{};
-        Index32 chunk_index;
-        Index32 nested_scope_slot;
+        Index32 chunk_index{};
+        Index32 nested_scope_slot{};
         SymbolFlags flags{};
         SymbolKind kind{};
         ImportItemStatus import_item_status{};

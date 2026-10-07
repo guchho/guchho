@@ -16,6 +16,7 @@
 #include <fstream>
 #include <iterator>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -76,8 +77,9 @@ public:
 
     std::string Read(const std::string& relative) const {
         std::ifstream in(At(relative), std::ios::binary);
-        return std::string((std::istreambuf_iterator<char>(in)),
-                           std::istreambuf_iterator<char>());
+        std::ostringstream buffer;
+        buffer << in.rdbuf();
+        return buffer.str();
     }
 
 private:

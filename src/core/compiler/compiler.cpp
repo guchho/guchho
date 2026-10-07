@@ -88,6 +88,25 @@ namespace guchho::compiler {
 
 
 
+    // Copy-assigns `other` into this symbol member by member.  Defined out
+    // of line (not `= default`) so that the member writes are not inlined
+    // into std::vector::operator='s copy loop, where GCC 15.2's
+    // -Wnull-dereference pass misreports a provably-null but zero-size
+    // destination vector as a potential null pointer dereference.
+    Symbol& Symbol::operator=(const Symbol& other) {
+        namespace_alias = other.namespace_alias;
+        original_name = other.original_name;
+        link = other.link;
+        use_count_estimate = other.use_count_estimate;
+        chunk_index = other.chunk_index;
+        nested_scope_slot = other.nested_scope_slot;
+        flags = other.flags;
+        kind = other.kind;
+        import_item_status = other.import_item_status;
+        return *this;
+    }
+
+
     // Merges the metadata from an older symbol declaration into this symbol.
     // This is used when two declarations of the same symbol are found in
     // different scopes and need to be unified into a single canonical symbol.

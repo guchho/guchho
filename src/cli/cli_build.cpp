@@ -48,6 +48,7 @@
 #include <iostream>
 #include <iterator>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -360,8 +361,9 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
                 if (!config_opts.stdin_data.has_value()) {
                     config_opts.stdin_data = api::StdinOptions{};
                 }
-                std::string contents((std::istreambuf_iterator<char>(std::cin)),
-                                      std::istreambuf_iterator<char>());
+                std::ostringstream buffer;
+                buffer << std::cin.rdbuf();
+                std::string contents = buffer.str();
                 // A stream that neither read nor hit its end failed for some
                 // other reason, and an empty build would hide it. A stream that
                 // simply ended is an empty input, which is a legitimate thing to
@@ -629,8 +631,9 @@ int runTransform(const std::vector<std::string>& args) {
         // The input is read in full, because a transform is one piece of source
         // code rather than a graph of them, and there is no path to resolve it
         // against or loader to infer from one.
-        std::string input((std::istreambuf_iterator<char>(std::cin)),
-                           std::istreambuf_iterator<char>());
+        std::ostringstream buffer;
+        buffer << std::cin.rdbuf();
+        std::string input = buffer.str();
         if (std::cin.fail() && !std::cin.eof()) {
             logger::PrintErrorToStderr(args_copy, "Could not read from stdin");
             return static_cast<int>(ExitCode::kBuildFailure);

@@ -454,7 +454,7 @@ namespace guchho::compiler {
         // Returns the slot namespace this symbol belongs to, derived from
         // its kind.  Private symbols go to kPrivateName, labels to kLabel,
         // etc.
-        SlotNamespace SlotNamespace() const;
+        compiler::SlotNamespace SlotNamespace() const;
     };
 
     // A flat lookup table mapping (source_index, inner_index) to its Symbol.

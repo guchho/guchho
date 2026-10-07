@@ -445,6 +445,12 @@ namespace guchho::compiler {
         SymbolKind kind{};
         ImportItemStatus import_item_status{};
 
+        Symbol() = default;
+        Symbol(const Symbol&) = default;
+        Symbol(Symbol&&) = default;
+        Symbol& operator=(const Symbol& other);
+        Symbol& operator=(Symbol&&) = default;
+
         // Merges the properties of `old_symbol` into this symbol during
         // linking.  This is used when two references to the same
         // declaration are unified; flags are OR'd, use counts are summed,

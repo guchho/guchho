@@ -4981,7 +4981,7 @@ namespace guchho::javascript {
             }
 
             if (this->options.optionsThatSupportStructuralEquality.minifySyntax) {
-                return this->minifySwitchStmt(stmt.loc, *std::get_if<std::shared_ptr<SSwitch>>(&stmt.data), stmts);
+                return this->minifySwitchStmt(stmt.loc, std::get<std::shared_ptr<SSwitch>>(stmt.data), stmts);
             }
         } else if (auto *sFn = Get<SFunction>(stmt.data); sFn != nullptr) {
             this->visitFn(&sFn->fn, sFn->fn.open_paren_loc, visitFnOpts{});
@@ -5530,7 +5530,7 @@ namespace guchho::javascript {
                 }
             }
 
-            Expr handledIdentifier = this->handleIdentifier(expr.loc, *std::get_if<std::shared_ptr<EIdentifier>>(&expr.data), identifierOpts{/*assignTarget=*/in.assignTarget, /*isCallTarget=*/isCallTarget, /*isDeleteTarget=*/isDeleteTarget, /*preferQuotedKey=*/false, /*wasOriginallyIdentifier=*/true, /*matchAgainstDefines=*/false});
+            Expr handledIdentifier = this->handleIdentifier(expr.loc, std::get<std::shared_ptr<EIdentifier>>(expr.data), identifierOpts{/*assignTarget=*/in.assignTarget, /*isCallTarget=*/isCallTarget, /*isDeleteTarget=*/isDeleteTarget, /*preferQuotedKey=*/false, /*wasOriginallyIdentifier=*/true, /*matchAgainstDefines=*/false});
             exprOut identifierOut;
             identifierOut.methodCallMustBeReplacedWithUndefined = methodCallMustBeReplacedWithUndefined;
             return {handledIdentifier, identifierOut};
@@ -6125,7 +6125,7 @@ namespace guchho::javascript {
                     return {rewritten.first, out};
                 }
             }
-            return {Expr{*std::get_if<std::shared_ptr<EDot>>(&expr.data), expr.loc}, out};
+            return {Expr{std::get<std::shared_ptr<EDot>>(expr.data), expr.loc}, out};
         } else if (auto *eIdx = Get<EIndex>(expr.data); eIdx != nullptr) {
             bool isCallTarget = this->callTarget != E{} && IsSameNodeAs(this->callTarget, expr.data);
             bool isTemplateTag = this->templateTag != E{} && IsSameNodeAs(this->templateTag, expr.data);
@@ -6337,7 +6337,7 @@ namespace guchho::javascript {
                 }
             }
 
-            return {Expr{*std::get_if<std::shared_ptr<EIndex>>(&expr.data), expr.loc}, out};
+            return {Expr{std::get<std::shared_ptr<EIndex>>(expr.data), expr.loc}, out};
         } else if (auto *eUn = Get<EUnary>(expr.data); eUn != nullptr) {
             switch (eUn->op) {
             case OpCode::kUnOpTypeof:

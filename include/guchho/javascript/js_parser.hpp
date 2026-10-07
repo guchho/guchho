@@ -168,7 +168,7 @@ namespace guchho::javascript {
 
         config::ProcessedDefines *defines;
 
-        optionsThatSupportStructuralEquality optionsThatSupportStructuralEquality;
+        javascript::optionsThatSupportStructuralEquality optionsThatSupportStructuralEquality;
 
         bool equal(const Options &b) const;
     };
@@ -684,8 +684,8 @@ namespace guchho::javascript {
         bool isExportDefault = false;
         bool allowDirectivePrologue = false;
         bool hasNoSideEffectsComment = false;
-        lexicalDecl lexicalDecl = lexicalDeclForbid;
-        deferredDecorators *deferredDecorators = nullptr;
+        javascript::lexicalDecl lexicalDecl = lexicalDeclForbid;
+        javascript::deferredDecorators *deferredDecorators = nullptr;
     };
 
     // A vector of scope members used for ordered iteration. The order of
@@ -777,8 +777,8 @@ namespace guchho::javascript {
         logger::Log log;
         logger::Source source;
         logger::LineColumnTracker tracker;
-        fnOrArrowDataParse fnOrArrowDataParse;
-        fnOnlyDataVisit fnOnlyDataVisit;
+        javascript::fnOrArrowDataParse fnOrArrowDataParse;
+        javascript::fnOnlyDataVisit fnOnlyDataVisit;
         std::vector<std::string> allocatedNames;
         Scope *currentScope;
         std::vector<Scope *> scopesForCurrentPart;
@@ -798,7 +798,7 @@ namespace guchho::javascript {
         std::vector<DeclaredSymbol> declaredSymbols;
         std::vector<globPatternImport> globPatternImports;
         std::unordered_map<std::string, compiler::LocRef> runtimeImports;
-        duplicateCaseChecker duplicateCaseChecker;
+        javascript::duplicateCaseChecker duplicateCaseChecker;
         std::unordered_map<std::string, bool> unrepresentableIdentifiers;
         std::unordered_map<ENumber *, logger::Range> legacyOctalLiterals;
         std::unordered_map<logger::Loc, std::vector<scopeOrder>, LocHash> scopesInOrderForEnum;
@@ -853,7 +853,7 @@ namespace guchho::javascript {
 
         E awaitTarget;
 
-        thenCatchChain thenCatchChain;
+        javascript::thenCatchChain thenCatchChain;
 
         std::vector<compiler::LocRef> relocatedTopLevelVars;
 
@@ -900,7 +900,7 @@ namespace guchho::javascript {
         logger::Loc forbidSuffixAfterAsLoc;
         logger::Loc firstJSXElementLoc;
 
-        fnOrArrowDataVisit fnOrArrowDataVisit;
+        javascript::fnOrArrowDataVisit fnOrArrowDataVisit;
         int singleStmtDepth;
 
         logger::Loc afterArrowBodyLoc;
@@ -1404,7 +1404,7 @@ namespace guchho::javascript {
         bool isStrictModeOutputFormat();
 
         // Creates a new using declaration lowering context.
-        lowerUsingDeclarationContext lowerUsingDeclarationContext();
+        javascript::lowerUsingDeclarationContext lowerUsingDeclarationContext();
 
         // Lowers using declarations in a for-of loop.
         void lowerUsingDeclarationInForOf(logger::Loc loc, SLocal *init, Stmt *body);

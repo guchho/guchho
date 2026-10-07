@@ -568,9 +568,12 @@ jobs:
   validate:
     needs: [plan, build]
     # For a main-package-only run (type=guchho) the build job is skipped by
-    # design, so validation must still proceed against the empty platform
-    # set. When platforms were requested, they must have built successfully.
+    # design; `always()` is required because a job that `needs` a skipped
+    # job is itself skipped when its `if` is merely true. The conditions
+    # below keep the gate intact: when platforms were requested they must
+    # have built successfully.
     if: >-
+      always() &&
       needs.plan.result == 'success' &&
       (needs.build.result == 'success' || needs.plan.outputs.platforms == '')
     runs-on: ubuntu-latest
@@ -759,8 +762,11 @@ jobs:
   publish-platforms:
     needs: [plan, validate]
     # Main-package-only runs (type=guchho) select no platforms, so there is
-    # nothing for this job to build-sync, validate, or publish.
+    # nothing for this job to build-sync, validate, or publish. `always()`
+    # opts out of the skip cascade (validate is a `needs` dependency) while
+    # the conditions keep all gates: plan and validate must have succeeded.
     if: >-
+      always() &&
       needs.plan.result == 'success' &&
       needs.plan.outputs.platforms != '' &&
       needs.validate.result == 'success'
@@ -900,17 +906,24 @@ jobs:
   # this job is skipped, so a partial platform set can never be topped
   # with a main package. For `guchho` (no platforms selected) the
   # publish-platforms job is skipped by design and the main package is
-  # published on its own after validation succeeds.
+  # published on its own after validation succeeds. `always()` is used
+  # because a job with `needs` is skipped whenever any needed job is
+  # skipped, even when its `if` would be true; the conditions below keep
+  # every real gate intact.
   publish-main:
     needs: [plan, validate, publish-platforms]
+    # `always()` opts out of the skip cascade for type=guchho, where
+    # publish-platforms is intentionally skipped; the conditions below then
+    # enforce the real gates (see comment above the job).
     if: >-
+      always() &&
       needs.plan.outputs.publish_main == 'true' &&
       needs.plan.result == 'success' &&
       needs.validate.result == 'success' &&
       (needs.plan.outputs.platforms == '' &&
-        needs.publish-platforms.result == 'skipped' ||
-        needs.plan.outputs.platforms != '' &&
-        needs.publish-platforms.result == 'success')
+      needs.publish-platforms.result == 'skipped' ||
+      needs.plan.outputs.platforms != '' &&
+      needs.publish-platforms.result == 'success')
     runs-on: ubuntu-latest
     name: publish-main
     steps:

@@ -274,11 +274,15 @@ TEST(CliProject, InitThenBuildProducesThePage) {
 
     EXPECT_EQ(build.exit_code, kSuccess);
     EXPECT_TRUE(ws.Exists("dist/index.html"));
-    EXPECT_TRUE(ws.Exists("dist/main.js"));
+    // The script is emitted from the HTML entry, so it carries a content hash
+    // in its name; "one and under assets/" is what can be asserted about it.
+    EXPECT_EQ(ws.CountMatching("dist/assets", "main-", ".js"), 1u);
     // The script is bundled into an IIFE, so what is in it is the project's own
     // statement rather than its source text — the string it sets is the proof
     // that this is the file init wrote and not an empty shell.
-    EXPECT_TRUE(OutputContains(ws.Read("dist/main.js"), "Hello from Guchho!"));
+    const std::string main_js = ws.OneMatching("dist/assets", "main-", ".js");
+    EXPECT_FALSE(main_js.empty());
+    EXPECT_TRUE(OutputContains(ws.Read("dist/assets/" + main_js), "Hello from Guchho!"));
 }
 
 // And the output can be taken away again, which is the other half of a project

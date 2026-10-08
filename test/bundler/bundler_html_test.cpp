@@ -184,8 +184,10 @@ TEST(BundlerHTML, HtmlEmbeddedScopedAssets) {
 
 TEST(BundlerHTML, HtmlExternalAndDataUrlsArePreserved) {
 	// External URLs (https/http/protocol-relative) and data URLs must never be
-	// bundled, resolved, or rewritten. Non-stylesheet <link> elements are
-	// likewise preserved verbatim instead of becoming CSS entries.
+	// bundled, resolved, or rewritten. Local static assets behind a
+	// non-stylesheet <link> (rel=icon, rel=preload) are the opposite: they go
+	// through the copy pipeline and have their href rewritten to the emitted
+	// file — but they never become CSS entries.
 	html_suite.ExpectBundled(Bundled{
 		.files = {
 			{"/index.html",
@@ -204,8 +206,9 @@ TEST(BundlerHTML, HtmlExternalAndDataUrlsArePreserved) {
 
 TEST(BundlerHTML, HtmlLinkStylesheetFiltering) {
 	// Only <link rel="stylesheet"> becomes a CSS bundle entry. <link
-	// rel="icon">/rel="preload"> keep their original href and produce no CSS
-	// output file.
+	// rel="icon">/rel="preload"> never produce CSS output; as local static
+	// assets they are copied under assets/ and their href is rewritten to the
+	// emitted copy (plan/PLAN.md, Favicon Coverage).
 	html_suite.ExpectBundled(Bundled{
 		.files = {
 			{"/index.html",
@@ -1972,6 +1975,369 @@ TEST(BundlerHTML, HtmlWarningDiagnosticCodeFrame) {
 
 )compile",
 .source_logs = true,
+	});
+}
+
+// ---------------------------------------------------------------------------
+// Output structure and asset deduplication (plan/PLAN.md)
+// ---------------------------------------------------------------------------
+//
+// These tests pin the structural promises of an HTML build: HTML entries keep
+// their own names at the root of the output, generated and copied assets land
+// once under assets/ under content-hashed names, and every reference to an
+// asset is rewritten to the one emitted copy. The assertions are the
+// snapshots — the emitted file list is the "exactly one emitted file" the plan
+// asks for, and the rewritten documents in the same snapshot show where the
+// references went.
+
+// Test A — the same asset referenced twice inside one HTML file is emitted
+// exactly once and both references are rewritten to the emitted copy.
+TEST(BundlerHTML, HtmlSameAssetReferencedTwiceIsEmittedOnce) {
+	html_suite.ExpectBundled(Bundled{
+		.files = {
+			{"/index.html",
+			 R"(<!DOCTYPE html><html><body><img src="./logo.svg"><img src="./logo.svg"></body></html>)"},
+			{"/logo.svg", "<svg/>"},
+		},
+		.entry_paths = {"/index.html"},
+		.options = guchho::config::Options{
+			.BuildMode = guchho::config::Mode::kBundle,
+			.AbsOutputDir = "/out",
+		},
+	});
+}
+
+// Test B — the same asset referenced by two HTML entries is emitted once and
+// both documents reference the one copy.
+TEST(BundlerHTML, HtmlAssetSharedByTwoEntriesIsEmittedOnce) {
+	html_suite.ExpectBundled(Bundled{
+		.files = {
+			{"/index.html",
+			 R"(<!DOCTYPE html><html><body><img src="./logo.svg"></body></html>)"},
+			{"/about.html",
+			 R"(<!DOCTYPE html><html><body><img src="./logo.svg"></body></html>)"},
+			{"/logo.svg", "<svg/>"},
+		},
+		.entry_paths = {"/index.html", "/about.html"},
+		.options = guchho::config::Options{
+			.BuildMode = guchho::config::Mode::kBundle,
+			.AbsOutputDir = "/out",
+		},
+	});
+}
+
+// Tests C and 5 — the asset is referenced from HTML, from CSS and from JS in
+// one build and is still emitted once, with all three references resolving to
+// the same emitted path. One shared emission mechanism serves all three, so
+// there is no per-language copy of the deduplication. The script is a module
+// because the import in it is the JavaScript half of the assertion.
+TEST(BundlerHTML, HtmlCssAndJsShareOneAsset) {
+	html_suite.ExpectBundled(Bundled{
+		.files = {
+			{"/index.html",
+			 R"(<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css"></head><body><img src="./logo.svg"><script type="module" src="./app.js"></script></body></html>)"},
+			{"/style.css", R"(.logo { background: url("./logo.svg") })"},
+			{"/app.js", R"(import logoUrl from "./logo.svg"; console.log(logoUrl);)"},
+			{"/logo.svg", "<svg/>"},
+		},
+		.entry_paths = {"/index.html"},
+		.options = guchho::config::Options{
+			.BuildMode = guchho::config::Mode::kBundle,
+			.AbsOutputDir = "/out",
+		},
+	});
+}
+
+// Test D — two files that share a basename but not their bytes are separate
+// assets: both are emitted, under different content hashes, and each
+// reference points at its own copy. Neither source overwrites the other.
+TEST(BundlerHTML, HtmlSameBasenameDifferentContentStaysDistinct) {
+	html_suite.ExpectBundled(Bundled{
+		.files = {
+			{"/index.html",
+			 R"(<!DOCTYPE html><html><body><img src="./icons/logo.svg"><img src="./images/logo.svg"></body></html>)"},
+			{"/icons/logo.svg", "ICON-SVG-CONTENT"},
+			{"/images/logo.svg", "IMAGE-SVG-CONTENT"},
+		},
+		.entry_paths = {"/index.html"},
+		.options = guchho::config::Options{
+			.BuildMode = guchho::config::Mode::kBundle,
+			.AbsOutputDir = "/out",
+		},
+	});
+}
+
+// Test E — equivalent normalized paths are the same asset identity: after
+// ./assets/../assets/logo.svg resolves, it is the same file as
+// ./assets/logo.svg, so one output serves both references.
+TEST(BundlerHTML, HtmlEquivalentNormalizedPathsAreOneAsset) {
+	html_suite.ExpectBundled(Bundled{
+		.files = {
+			{"/index.html",
+			 R"(<!DOCTYPE html><html><body><img src="./assets/logo.svg"><img src="./assets/../assets/logo.svg"></body></html>)"},
+			{"/assets/logo.svg", "<svg/>"},
+		},
+		.entry_paths = {"/index.html"},
+		.options = guchho::config::Options{
+			.BuildMode = guchho::config::Mode::kBundle,
+			.AbsOutputDir = "/out",
+		},
+	});
+}
+
+// Test F — byte-identical files at two source paths emit one output. The
+// output name is built from the basename and the content hash, so two
+// identical copies of logo.svg resolve to the same output path and the second
+// emission reuses it rather than writing a "-1" copy beside it.
+TEST(BundlerHTML, HtmlDuplicateContentAtTwoPathsIsEmittedOnce) {
+	html_suite.ExpectBundled(Bundled{
+		.files = {
+			{"/index.html",
+			 R"(<!DOCTYPE html><html><body><img src="./src/a/logo.svg"><img src="./src/b/logo.svg"></body></html>)"},
+			{"/src/a/logo.svg", "IDENTICAL-BYTES"},
+			{"/src/b/logo.svg", "IDENTICAL-BYTES"},
+		},
+		.entry_paths = {"/index.html"},
+		.options = guchho::config::Options{
+			.BuildMode = guchho::config::Mode::kBundle,
+			.AbsOutputDir = "/out",
+		},
+	});
+}
+
+// Favicon handling is mandatory: both spellings of the relation resolve
+// through the normal asset pipeline, the .ico is emitted exactly once, and
+// both hrefs point at the one emitted copy.
+TEST(BundlerHTML, HtmlFaviconLinksAreEmittedOnce) {
+	html_suite.ExpectBundled(Bundled{
+		.files = {
+			{"/index.html",
+			 R"(<!DOCTYPE html><html><head><link rel="icon" href="./favicon.ico"><link rel="shortcut icon" href="./favicon.ico"></head><body></body></html>)"},
+			{"/favicon.ico", "FAVICON-BYTES"},
+		},
+		.entry_paths = {"/index.html"},
+		.options = guchho::config::Options{
+			.BuildMode = guchho::config::Mode::kBundle,
+			.AbsOutputDir = "/out",
+		},
+	});
+}
+
+// A preload of a local static asset behaves like any other asset reference:
+// the file is emitted even though nothing else in the build links it, and the
+// href is rewritten to the emitted path. A canonical link to another document
+// in the same build is not a static asset and stays exactly as written.
+TEST(BundlerHTML, HtmlPreloadOfLocalAssetIsEmittedAndRewritten) {
+	html_suite.ExpectBundled(Bundled{
+		.files = {
+			{"/index.html",
+			 R"(<!DOCTYPE html><html><head><link rel="preload" href="./font.woff2" as="font"><link rel="canonical" href="./about.html"></head><body></body></html>)"},
+			{"/about.html", R"(<!DOCTYPE html><html><body></body></html>)"},
+			{"/font.woff2", "WOFF2-BYTES"},
+		},
+		.entry_paths = {"/index.html", "/about.html"},
+		.options = guchho::config::Options{
+			.BuildMode = guchho::config::Mode::kBundle,
+			.AbsOutputDir = "/out",
+		},
+	});
+}
+
+// Static asset coverage — images: the nine image formats pass through the one
+// copy pipeline, land under assets/ with their bytes intact, and come back
+// with their references rewritten.
+TEST(BundlerHTML, HtmlImageFormatsAreEmittedUnderAssets) {
+	html_suite.ExpectBundled(Bundled{
+		.files = {
+			{"/index.html",
+			 R"(<!DOCTYPE html><html><head><link rel="icon" href="./favicon.ico"></head><body>)"
+			 R"(<img src="./images/logo.png">)"
+			 R"(<img src="./images/photo.jpg">)"
+			 R"(<img src="./images/photo2.jpeg">)"
+			 R"(<img src="./images/anim.gif">)"
+			 R"(<img src="./images/banner.webp">)"
+			 R"(<img src="./images/pic.avif">)"
+			 R"(<img src="./images/icon.svg">)"
+			 R"(<img src="./images/tile.bmp">)"
+			 R"(</body></html>)"},
+			{"/favicon.ico", "BYTES-ICO"},
+			{"/images/logo.png", "BYTES-PNG"},
+			{"/images/photo.jpg", "BYTES-JPG"},
+			{"/images/photo2.jpeg", "BYTES-JPEG"},
+			{"/images/anim.gif", "BYTES-GIF"},
+			{"/images/banner.webp", "BYTES-WEBP"},
+			{"/images/pic.avif", "BYTES-AVIF"},
+			{"/images/icon.svg", "BYTES-SVG"},
+			{"/images/tile.bmp", "BYTES-BMP"},
+		},
+		.entry_paths = {"/index.html"},
+		.options = guchho::config::Options{
+			.BuildMode = guchho::config::Mode::kBundle,
+			.AbsOutputDir = "/out",
+		},
+	});
+}
+
+// Static asset coverage — fonts: every font format is referenced from CSS
+// only, is emitted under assets/, and has its url() rewritten to the emitted
+// copy.
+TEST(BundlerHTML, HtmlFontFormatsAreEmittedUnderAssets) {
+	html_suite.ExpectBundled(Bundled{
+		.files = {
+			{"/index.html",
+			 R"(<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css"></head><body></body></html>)"},
+			{"/style.css",
+			 R"(@font-face { font-family: "A"; src: url("./fonts/app.woff") format("woff"); })"
+			 "\n"
+			 R"(@font-face { font-family: "B"; src: url("./fonts/app.woff2") format("woff2"); })"
+			 "\n"
+			 R"(@font-face { font-family: "C"; src: url("./fonts/app.ttf"); })"
+			 "\n"
+			 R"(@font-face { font-family: "D"; src: url("./fonts/app.otf"); })"
+			 "\n"
+			 R"(@font-face { font-family: "E"; src: url("./fonts/app.eot"); })"},
+			{"/fonts/app.woff", "BYTES-WOFF"},
+			{"/fonts/app.woff2", "BYTES-WOFF2"},
+			{"/fonts/app.ttf", "BYTES-TTF"},
+			{"/fonts/app.otf", "BYTES-OTF"},
+			{"/fonts/app.eot", "BYTES-EOT"},
+		},
+		.entry_paths = {"/index.html"},
+		.options = guchho::config::Options{
+			.BuildMode = guchho::config::Mode::kBundle,
+			.AbsOutputDir = "/out",
+		},
+	});
+}
+
+// Static asset coverage — video and audio: the media formats are byte-copied
+// under assets/ through the same pipeline as everything else.
+TEST(BundlerHTML, HtmlVideoAndAudioAreEmittedUnderAssets) {
+	html_suite.ExpectBundled(Bundled{
+		.files = {
+			{"/index.html",
+			 R"(<!DOCTYPE html><html><body>)"
+			 R"(<video src="./media/intro.mp4"></video>)"
+			 R"(<video src="./media/clip.webm"></video>)"
+			 R"(<video src="./media/take.mov"></video>)"
+			 R"(<audio src="./media/sound.mp3"></audio>)"
+			 R"(<audio src="./media/voice.wav"></audio>)"
+			 R"(<audio src="./media/music.ogg"></audio>)"
+			 R"(<audio src="./media/talk.m4a"></audio>)"
+			 R"(</body></html>)"},
+			{"/media/intro.mp4", "BYTES-MP4"},
+			{"/media/clip.webm", "BYTES-WEBM"},
+			{"/media/take.mov", "BYTES-MOV"},
+			{"/media/sound.mp3", "BYTES-MP3"},
+			{"/media/voice.wav", "BYTES-WAV"},
+			{"/media/music.ogg", "BYTES-OGG"},
+			{"/media/talk.m4a", "BYTES-M4A"},
+		},
+		.entry_paths = {"/index.html"},
+		.options = guchho::config::Options{
+			.BuildMode = guchho::config::Mode::kBundle,
+			.AbsOutputDir = "/out",
+		},
+	});
+}
+
+// Static asset coverage — documents: .pdf is the document type the copy
+// loader supports, so an <object data> reference is emitted and rewritten.
+// .json and .txt are module loaders (read as code, never copied byte-for-byte)
+// and .xml has no loader at all, so none of those three is a copied static
+// asset to exercise here.
+TEST(BundlerHTML, HtmlPdfReferencedFromHtmlIsEmittedUnderAssets) {
+	html_suite.ExpectBundled(Bundled{
+		.files = {
+			{"/index.html",
+			 R"(<!DOCTYPE html><html><body><object data="./doc/manual.pdf" type="application/pdf"></object></body></html>)"},
+			{"/doc/manual.pdf", "%PDF-1.4 fake"},
+		},
+		.entry_paths = {"/index.html"},
+		.options = guchho::config::Options{
+			.BuildMode = guchho::config::Mode::kBundle,
+			.AbsOutputDir = "/out",
+		},
+	});
+}
+
+// Asset deduplication matrix — every representative type in the plan's table
+// is referenced twice within one build, and the snapshot's output list shows
+// each type exactly once. Different content per file means a stray
+// cross-contamination between types would show up as a wrong hash rather than
+// hide behind a coincidence.
+TEST(BundlerHTML, HtmlDeduplicationMatrixEmitsEachTypeOnce) {
+	html_suite.ExpectBundled(Bundled{
+		.files = {
+			{"/index.html",
+			 R"(<!DOCTYPE html>
+<html>
+<head>
+<link rel="stylesheet" href="./style.css">
+<link rel="icon" href="./type-ico.ico">
+<link rel="shortcut icon" href="./type-ico.ico">
+</head>
+<body>
+<img src="./type-png.png"><img src="./type-png.png">
+<img src="./type-jpg.jpg"><img src="./type-jpg.jpg">
+<img src="./type-jpeg.jpeg"><img src="./type-jpeg.jpeg">
+<img src="./type-gif.gif"><img src="./type-gif.gif">
+<img src="./type-webp.webp"><img src="./type-webp.webp">
+<img src="./type-avif.avif"><img src="./type-avif.avif">
+<img src="./type-svg.svg"><img src="./type-svg.svg">
+<img src="./type-bmp.bmp"><img src="./type-bmp.bmp">
+<video src="./type-mp4.mp4"></video><video src="./type-mp4.mp4"></video>
+<video src="./type-webm.webm"></video><video src="./type-webm.webm"></video>
+<audio src="./type-mp3.mp3"></audio><audio src="./type-mp3.mp3"></audio>
+<audio src="./type-wav.wav"></audio><audio src="./type-wav.wav"></audio>
+<audio src="./type-ogg.ogg"></audio><audio src="./type-ogg.ogg"></audio>
+</body>
+</html>)"},
+			{"/style.css",
+			 R"(@font-face { font-family: "A"; src: url("./type-woff.woff") format("woff"); })"
+			 "\n"
+			 R"(@font-face { font-family: "A2"; src: url("./type-woff.woff") format("woff"); })"
+			 "\n"
+			 R"(@font-face { font-family: "B"; src: url("./type-woff2.woff2") format("woff2"); })"
+			 "\n"
+			 R"(@font-face { font-family: "B2"; src: url("./type-woff2.woff2") format("woff2"); })"
+			 "\n"
+			 R"(@font-face { font-family: "C"; src: url("./type-ttf.ttf"); })"
+			 "\n"
+			 R"(@font-face { font-family: "C2"; src: url("./type-ttf.ttf"); })"
+			 "\n"
+			 R"(@font-face { font-family: "D"; src: url("./type-otf.otf"); })"
+			 "\n"
+			 R"(@font-face { font-family: "D2"; src: url("./type-otf.otf"); })"
+			 "\n"
+			 R"(@font-face { font-family: "E"; src: url("./type-eot.eot"); })"
+			 "\n"
+			 R"(@font-face { font-family: "E2"; src: url("./type-eot.eot"); })"},
+			{"/type-ico.ico", "BYTES-ICO"},
+			{"/type-png.png", "BYTES-PNG"},
+			{"/type-jpg.jpg", "BYTES-JPG"},
+			{"/type-jpeg.jpeg", "BYTES-JPEG"},
+			{"/type-gif.gif", "BYTES-GIF"},
+			{"/type-webp.webp", "BYTES-WEBP"},
+			{"/type-avif.avif", "BYTES-AVIF"},
+			{"/type-svg.svg", "BYTES-SVG"},
+			{"/type-bmp.bmp", "BYTES-BMP"},
+			{"/type-woff.woff", "BYTES-WOFF"},
+			{"/type-woff2.woff2", "BYTES-WOFF2"},
+			{"/type-ttf.ttf", "BYTES-TTF"},
+			{"/type-otf.otf", "BYTES-OTF"},
+			{"/type-eot.eot", "BYTES-EOT"},
+			{"/type-mp4.mp4", "BYTES-MP4"},
+			{"/type-webm.webm", "BYTES-WEBM"},
+			{"/type-mp3.mp3", "BYTES-MP3"},
+			{"/type-wav.wav", "BYTES-WAV"},
+			{"/type-ogg.ogg", "BYTES-OGG"},
+		},
+		.entry_paths = {"/index.html"},
+		.options = guchho::config::Options{
+			.BuildMode = guchho::config::Mode::kBundle,
+			.AbsOutputDir = "/out",
+		},
 	});
 }
 

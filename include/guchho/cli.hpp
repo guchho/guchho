@@ -562,8 +562,15 @@ namespace guchho::cli {
     //
     // "abs_working_dir" is the directory config discovery starts from, and
     // defaults to the process working directory.
-    api::BuildOptions resolveRunOptions(const api::BuildOptions& options,
-                                        const std::string& abs_working_dir = "");
+    //
+    // "effective_out", when given, receives the resolution as it came back —
+    // which config file won, whether it was found at all, and whether it was
+    // found but cannot be used. A command that wants to report the config it
+    // settled on, or to refuse to run on a broken one the way "guchho build"
+    // does, reads it here rather than resolving a second time.
+    api::BuildOptions resolveRunOptions(const api::BuildOptions&  options,
+                                        const std::string&        abs_working_dir = "",
+                                        api::EffectiveBuildConfigs* effective_out = nullptr);
 
     // Settles everything a command line left open for every configuration the
     // project defines. "runBuild" uses this so a config file whose root is an

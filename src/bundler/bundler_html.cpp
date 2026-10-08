@@ -347,13 +347,11 @@ void PassResourceRewrite(html::AST& ast, const HTMLOutputContext& ctx,
         if (html::FindAttrValue(*origin.element, "guchho-ignore") != nullptr) {
             continue;
         }
-        // <link> tags that are not stylesheets would lose their meaning if
-        // rewritten, with one exception: a preload carrying an "imagesrcset"
-        // whose candidate is itself a bundled asset.
-        if (origin.element->tag_name == "link" && !html::IsStylesheetLink(*origin.element) &&
-            html::FindAttrValue(*origin.element, "imagesrcset") == nullptr) {
-            continue;
-        }
+        // Non-stylesheet <link> tags are rewritten only when their target is
+        // part of the record-to-output map, which the compile pass fills
+        // exclusively with bundled static assets (favicon, preload, ...).
+        // Links to pages or anything not emitted keep their href verbatim
+        // through the map miss below.
         // Scripts consult the richer per-script table first: an import-only
         // facade record there points at the actual chunk it re-exports from,
         // while every other resource type falls back to the generic

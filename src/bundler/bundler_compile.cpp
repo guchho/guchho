@@ -5,6 +5,7 @@
 // parallel source-map data computation used across the bundler.
 
 #include "guchho/bundler.hpp"
+#include "guchho/html/html_analysis.hpp"
 #include "guchho/javascript/js_runtime.hpp"
 
 
@@ -159,6 +160,8 @@ namespace guchho::bundler {
             {".ico",        config::Loader::kCopy},
             {".jpeg",       config::Loader::kCopy},
             {".jpg",        config::Loader::kCopy},
+            {".m4a",        config::Loader::kCopy},
+            {".mov",        config::Loader::kCopy},
             {".mp3",        config::Loader::kCopy},
             {".mp4",        config::Loader::kCopy},
             {".ogg",        config::Loader::kCopy},
@@ -236,7 +239,7 @@ namespace guchho::bundler {
         }
         if (options.AssetPathTemplate.empty()) {
             options.AssetPathTemplate = {
-                { "./", config::PathPlaceholder::kName },
+                { "./assets/", config::PathPlaceholder::kName },
                 { "-",  config::PathPlaceholder::kHash },
             };
         }
@@ -795,6 +798,41 @@ namespace guchho::bundler {
                 source_to_entry[ep.source_index] = &ep;
             }
 
+            // Maps each source index to the chunk(s) the linker produced for
+            // it. Built before the HTML record analysis so output paths can be
+            // read back from the linker, which is the only place that knows
+            // content-hashed chunk names.
+            std::unordered_map<uint32_t, std::vector<const linker::ChunkMetadata*>>
+                source_to_chunk;
+            for (const linker::ChunkMetadata& meta : link_result.chunk_metadata) {
+                if (meta.source_index != UINT32_MAX) {
+                    source_to_chunk[meta.source_index].push_back(&meta);
+                }
+            }
+
+            // Picks the chunk that represents a source in the HTML output:
+            // the entry chunk when one exists, otherwise the first chunk the
+            // source participates in. Multiple chunks can share a source (a
+            // JS entry and the stylesheet chunk it carries), so the entry
+            // chunk is preferred for stability.
+            auto choose_chunk = [&](uint32_t source_index)
+                -> const linker::ChunkMetadata* {
+                const linker::ChunkMetadata* chosen = nullptr;
+                auto range = source_to_chunk.find(source_index);
+                if (range != source_to_chunk.end()) {
+                    for (const linker::ChunkMetadata* meta : range->second) {
+                        if (meta->is_entry_point) {
+                            chosen = meta;
+                            break;
+                        }
+                        if (chosen == nullptr) {
+                            chosen = meta;
+                        }
+                    }
+                }
+                return chosen;
+            };
+
             // Resolves the output location, relative to the output directory, of a
             // given entry source: copied asset modules read their recorded
             // output path while ordinary entries rebuild the location from the
@@ -821,6 +859,18 @@ namespace guchho::bundler {
                 }
                 if (entry == nullptr) {
                     return {};
+                }
+                if (entry->from_html) {
+                    // Outputs generated for an HTML entry use the asset path
+                    // template, whose name embeds a content hash only the
+                    // linker can compute. The linker's recorded path is the
+                    // single source of truth; without it no path is produced
+                    // rather than a template with an unsubstituted hash.
+                    const linker::ChunkMetadata* chosen = choose_chunk(source_index);
+                    if (chosen == nullptr) {
+                        return {};
+                    }
+                    return NormalizeRelativeOutputPath(chosen->final_rel_path);
                 }
                 const char* std_ext =
                     std::holds_alternative<std::shared_ptr<graph::JSRepr>>(file.repr)
@@ -890,25 +940,41 @@ namespace guchho::bundler {
                     continue;
                 }
                 auto& rel_paths = html_record_rel_paths[html_index];
-                for (const compiler::ImportRecord& record :
-                     (*html_repr_ptr)->ImportRecords())
+                const auto& html_records = (*html_repr_ptr)->ImportRecords();
+                const auto& html_origins = (*html_repr_ptr)->ast.record_origins;
+                for (size_t record_index = 0;
+                     record_index < html_records.size();
+                     record_index++)
                 {
+                    const compiler::ImportRecord& record =
+                        html_records[record_index];
                     if (!record.source_index.IsValid()) {
                         continue;
                     }
                     uint32_t target = record.source_index.GetIndex();
+                    // A non-stylesheet <link> (favicon, preload, ...) is only
+                    // rewritten when its target is a bundled static asset;
+                    // links to HTML pages, scripts, or any other target that
+                    // is not emitted through the asset pipeline keep their
+                    // original href verbatim.
+                    if (target < files.size() &&
+                        record_index < html_origins.size()) {
+                        const html::ImportRecordOrigin& origin =
+                            html_origins[record_index];
+                        if (origin.element != nullptr &&
+                            origin.element->tag_name == "link" &&
+                            !html::IsStylesheetLink(*origin.element) &&
+                            !std::holds_alternative<
+                                std::shared_ptr<graph::CopyRepr>>(
+                                files[target].input_file.repr))
+                        {
+                            continue;
+                        }
+                    }
                     std::string rel = entry_output_rel_path(target);
                     if (!rel.empty()) {
                         rel_paths[target] = std::move(rel);
                     }
-                }
-            }
-
-            std::unordered_map<uint32_t, std::vector<const linker::ChunkMetadata*>>
-                source_to_chunk;
-            for (const linker::ChunkMetadata& meta : link_result.chunk_metadata) {
-                if (meta.source_index != UINT32_MAX) {
-                    source_to_chunk[meta.source_index].push_back(&meta);
                 }
             }
 
@@ -961,19 +1027,7 @@ namespace guchho::bundler {
                         continue;
                     }
                     uint32_t source = record.source_index.GetIndex();
-                    const linker::ChunkMetadata* chosen = nullptr;
-                    auto range = source_to_chunk.find(source);
-                    if (range != source_to_chunk.end()) {
-                        for (const linker::ChunkMetadata* meta : range->second) {
-                            if (meta->is_entry_point) {
-                                chosen = meta;
-                                break;
-                            }
-                            if (chosen == nullptr) {
-                                chosen = meta;
-                            }
-                        }
-                    }
+                    const linker::ChunkMetadata* chosen = choose_chunk(source);
                     if (chosen == nullptr) {
                         continue;
                     }

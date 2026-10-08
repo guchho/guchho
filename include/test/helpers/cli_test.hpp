@@ -209,7 +209,87 @@ public:
         return out;
     }
 
+    // The regular files under "relative", relative to the workspace and sorted.
+    // A directory that does not exist yields an empty list, so one call answers
+    // both "is it all there" and "is it all gone".
+    //
+    // The path list is what a test reads when it wants to assert on a layout it
+    // cannot spell exactly — every emitted asset carries a content hash, and
+    // the hash is deliberately not reproducible across source paths, so
+    // asserting on a literal name like "app-GFB5UC3D.js" would pin the test to
+    // one build's bytes rather than to the structure the test is about.
+    std::vector<std::string> FilesUnder(const std::string& relative) const {
+        std::vector<std::string> out;
+        const std::filesystem::path root = Native(At(relative));
+        std::error_code            ec;
+        if (!std::filesystem::is_directory(root, ec)) return out;
+        for (const auto& entry :
+             std::filesystem::recursive_directory_iterator(root, ec)) {
+            std::error_code file_ec;
+            if (!entry.is_regular_file(file_ec)) continue;
+            out.push_back(
+                ToUTF8(std::filesystem::relative(entry.path(), root).generic_string()));
+        }
+        std::sort(out.begin(), out.end());
+        return out;
+    }
+
+    // How many regular files directly inside "relative" have a name starting
+    // with "prefix" and ending with "suffix". The hash-agnostic spelling of
+    // "exactly one file came out": the fixed parts of the name are asserted
+    // and the hash in between is not, because its value is an implementation
+    // detail and its presence is the contract.
+    //
+    //   EXPECT_EQ(ws.CountMatching("dist/assets", "app-", ".js"), 1u);
+    //
+    std::size_t CountMatching(const std::string& relative, const std::string& prefix,
+                              const std::string& suffix) const {
+        std::size_t                 count = 0;
+        const std::filesystem::path root  = Native(At(relative));
+        std::error_code             ec;
+        if (!std::filesystem::is_directory(root, ec)) return 0;
+        for (const auto& entry : std::filesystem::directory_iterator(root, ec)) {
+            std::error_code file_ec;
+            if (!entry.is_regular_file(file_ec)) continue;
+            if (NameMatches(ToUTF8(entry.path().filename()), prefix, suffix)) ++count;
+        }
+        return count;
+    }
+
+    // The name of the one file directly inside "relative" that matches prefix
+    // and suffix, or "" when there is not exactly one. Where a test wants to
+    // read the hashed file — to check the bytes inside it rather than only
+    // that it exists — this finds it without spelling the hash.
+    std::string OneMatching(const std::string& relative, const std::string& prefix,
+                            const std::string& suffix) const {
+        std::string                 found;
+        const std::filesystem::path root = Native(At(relative));
+        std::error_code             ec;
+        if (!std::filesystem::is_directory(root, ec)) return {};
+        for (const auto& entry : std::filesystem::directory_iterator(root, ec)) {
+            std::error_code file_ec;
+            if (!entry.is_regular_file(file_ec)) continue;
+            const std::string name = ToUTF8(entry.path().filename());
+            if (!NameMatches(name, prefix, suffix)) continue;
+            if (!found.empty()) return {};  // more than one: ambiguous
+            found = name;
+        }
+        return found;
+    }
+
 private:
+    // The shared definition of "this name is one of the ones being counted":
+    // long enough, starts with prefix, ends with suffix. Only the fixed parts
+    // of the name take part in the match — the content hash in between is
+    // exactly what these helpers exist to not have to predict.
+    static bool NameMatches(const std::string& name, const std::string& prefix,
+                            const std::string& suffix) {
+        if (name.size() < prefix.size() + suffix.size()) return false;
+        if (name.compare(0, prefix.size(), prefix) != 0) return false;
+        if (name.compare(name.size() - suffix.size(), suffix.size(), suffix) != 0) return false;
+        return true;
+    }
+
     std::string           path_;
     std::filesystem::path native_path_;
     std::filesystem::path previous_;

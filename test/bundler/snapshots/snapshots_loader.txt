@@ -271,23 +271,23 @@ console.log(data_default === data_default, data_default !== data_default2);
 
 ================================================================================
 TestLoaderBundleWithUnknownImportAttributesAndCopyLoader
----------- /foo-AKINYSFH.thing ----------
+---------- /assets/foo-AKINYSFH.thing ----------
 ...
----------- /bar-AXZXSLHF.thing ----------
+---------- /assets/bar-AXZXSLHF.thing ----------
 ,,,
 ---------- /out.js ----------
 // entry.js
-import foo from "./foo-AKINYSFH.thing" with { type: "whatever" };
-import bar from "./bar-AXZXSLHF.thing" with { whatever: "true" };
+import foo from "./assets/foo-AKINYSFH.thing" with { type: "whatever" };
+import bar from "./assets/bar-AXZXSLHF.thing" with { whatever: "true" };
 console.log(foo, bar);
 
 ================================================================================
 TestLoaderCopyEntryPointAdvanced
----------- /out/xyz-DYPYXS7B.copy ----------
+---------- /out/assets/xyz-DYPYXS7B.copy ----------
 more stuff
 ---------- /out/js/input/path.js ----------
 // project/entry.js
-import xyz from "../../xyz-DYPYXS7B.copy";
+import xyz from "../../assets/xyz-DYPYXS7B.copy";
 console.log(xyz);
 
 ---------- /out/copy/input/path.copy ----------
@@ -415,21 +415,21 @@ body {
 
 ================================================================================
 TestLoaderCopyWithBundleFromCSS
----------- /out/some-BYATPJRB.file ----------
+---------- /out/assets/some-BYATPJRB.file ----------
 stuff
 ---------- /out/src/entry.css ----------
 /* Users/user/project/src/entry.css */
 body {
-  background: url("../some-BYATPJRB.file");
+  background: url("../assets/some-BYATPJRB.file");
 }
 
 ================================================================================
 TestLoaderCopyWithBundleFromJS
----------- /out/some-BYATPJRB.file ----------
+---------- /out/assets/some-BYATPJRB.file ----------
 stuff
 ---------- /out/src/entry.js ----------
 // Users/user/project/src/entry.js
-import x from "../some-BYATPJRB.file";
+import x from "../assets/some-BYATPJRB.file";
 console.log(x);
 
 ================================================================================
@@ -443,11 +443,11 @@ TestLoaderCopyWithFormat
 stuff
 ================================================================================
 TestLoaderCopyWithInjectedFileBundle
----------- /out/inject-IFR6YGWW.js ----------
+---------- /out/assets/inject-IFR6YGWW.js ----------
 console.log('in inject.js')
 ---------- /out/entry.js ----------
 // src/entry.ts
-import "./inject-IFR6YGWW.js";
+import "./assets/inject-IFR6YGWW.js";
 console.log("in entry.ts");
 
 ================================================================================
@@ -694,13 +694,13 @@ console.log(a, b);
 
 ================================================================================
 TestLoaderFile
----------- /out/test-IPILGNO5.svg ----------
+---------- /out/assets/test-IPILGNO5.svg ----------
 <svg></svg>
 ---------- /out/entry.js ----------
 // test.svg
 var require_test = __commonJS({
   "test.svg"(exports, module) {
-    module.exports = "./test-IPILGNO5.svg";
+    module.exports = "./assets/test-IPILGNO5.svg";
   }
 });
 
@@ -709,20 +709,20 @@ console.log(require_test());
 
 ================================================================================
 TestLoaderFileCommonJSAndES6
----------- /y-YE5AYNFB.txt ----------
+---------- /assets/y-YE5AYNFB.txt ----------
 y
----------- /x-LSAMBFUD.txt ----------
+---------- /assets/x-LSAMBFUD.txt ----------
 x
 ---------- /out.js ----------
 // x.txt
 var require_x = __commonJS({
   "x.txt"(exports, module) {
-    module.exports = "./x-LSAMBFUD.txt";
+    module.exports = "./assets/x-LSAMBFUD.txt";
   }
 });
 
 // y.txt
-var y_default = "./y-YE5AYNFB.txt";
+var y_default = "./assets/y-YE5AYNFB.txt";
 
 // entry.js
 var x_url = require_x();
@@ -746,20 +746,20 @@ console.log(image_default, file_default);
 
 ================================================================================
 TestLoaderFileMultipleNoCollision
----------- /dist/test-J7OMUXO3.txt ----------
+---------- /dist/assets/test-J7OMUXO3.txt ----------
 test
 ---------- /dist/out.js ----------
 // a/test.txt
 var require_test = __commonJS({
   "a/test.txt"(exports, module) {
-    module.exports = "./test-J7OMUXO3.txt";
+    module.exports = "./assets/test-J7OMUXO3.txt";
   }
 });
 
 // b/test.txt
 var require_test2 = __commonJS({
   "b/test.txt"(exports, module) {
-    module.exports = "./test-J7OMUXO3.txt";
+    module.exports = "./assets/test-J7OMUXO3.txt";
   }
 });
 
@@ -771,12 +771,12 @@ console.log(
 
 ================================================================================
 TestLoaderFileOneSourceTwoDifferentOutputPathsCSS
----------- /out/common-LSAMBFUD.png ----------
+---------- /out/assets/common-LSAMBFUD.png ----------
 x
 ---------- /out/entries/entry.css ----------
 /* src/shared/common.css */
 div {
-  background: url("../common-LSAMBFUD.png");
+  background: url("../assets/common-LSAMBFUD.png");
 }
 
 /* src/entries/entry.css */
@@ -784,25 +784,25 @@ div {
 ---------- /out/entries/other/entry.css ----------
 /* src/shared/common.css */
 div {
-  background: url("../../common-LSAMBFUD.png");
+  background: url("../../assets/common-LSAMBFUD.png");
 }
 
 /* src/entries/other/entry.css */
 
 ================================================================================
 TestLoaderFileOneSourceTwoDifferentOutputPathsJS
----------- /out/common-LSAMBFUD.png ----------
+---------- /out/assets/common-LSAMBFUD.png ----------
 x
 ---------- /out/entries/entry.js ----------
 // src/shared/common.png
-var common_default = "../common-LSAMBFUD.png";
+var common_default = "../assets/common-LSAMBFUD.png";
 
 // src/shared/common.js
 console.log(common_default);
 
 ---------- /out/entries/other/entry.js ----------
 // src/shared/common.png
-var common_default = "../../common-LSAMBFUD.png";
+var common_default = "../../assets/common-LSAMBFUD.png";
 
 // src/shared/common.js
 console.log(common_default);
@@ -830,21 +830,21 @@ console.log(image_default);
 
 ================================================================================
 TestLoaderFilePublicPathCSS
----------- /out/image-LSAMBFUD.png ----------
+---------- /out/assets/image-LSAMBFUD.png ----------
 x
 ---------- /out/entries/entry.css ----------
 /* src/entries/entry.css */
 div {
-  background: url("https://example.com/image-LSAMBFUD.png");
+  background: url("https://example.com/assets/image-LSAMBFUD.png");
 }
 
 ================================================================================
 TestLoaderFilePublicPathJS
----------- /out/image-LSAMBFUD.png ----------
+---------- /out/assets/image-LSAMBFUD.png ----------
 x
 ---------- /out/entries/entry.js ----------
 // src/images/image.png
-var image_default = "https://example.com/image-LSAMBFUD.png";
+var image_default = "https://example.com/assets/image-LSAMBFUD.png";
 
 // src/entries/entry.js
 console.log(image_default);
@@ -872,35 +872,35 @@ console.log(image_default);
 
 ================================================================================
 TestLoaderFileRelativePathCSS
----------- /out/image-LSAMBFUD.png ----------
+---------- /out/assets/image-LSAMBFUD.png ----------
 x
 ---------- /out/entries/entry.css ----------
 /* src/entries/entry.css */
 div {
-  background: url("../image-LSAMBFUD.png");
+  background: url("../assets/image-LSAMBFUD.png");
 }
 
 ================================================================================
 TestLoaderFileRelativePathJS
----------- /out/image-LSAMBFUD.png ----------
+---------- /out/assets/image-LSAMBFUD.png ----------
 x
 ---------- /out/entries/entry.js ----------
 // src/images/image.png
-var image_default = "../image-LSAMBFUD.png";
+var image_default = "../assets/image-LSAMBFUD.png";
 
 // src/entries/entry.js
 console.log(image_default);
 
 ================================================================================
 TestLoaderFileWithQueryParameter
----------- /out/file-UEHVHXRQ.txt ----------
+---------- /out/assets/file-UEHVHXRQ.txt ----------
 This is some text
 ---------- /out/entry.js ----------
 // file.txt?foo
-var file_default = "./file-UEHVHXRQ.txt?foo";
+var file_default = "./assets/file-UEHVHXRQ.txt?foo";
 
 // file.txt?bar
-var file_default2 = "./file-UEHVHXRQ.txt?bar";
+var file_default2 = "./assets/file-UEHVHXRQ.txt?bar";
 
 // entry.js
 console.log(file_default, file_default2);

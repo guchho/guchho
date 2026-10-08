@@ -11,5 +11,4 @@ if (-not (Test-Path $guchhoPath)) {
 
 Install-ChocolateyPath -PathToPersist $toolsDir -PathType 'Machine'
 
-Write-Host "guchho has been added to your PATH."
-Write-Host "guchho installed successfully. Try running: guchho"
+Write-Host "Guchho installed successfully. Run 'guchho' to get started."

@@ -1,6 +1,6 @@
 {
   "name": "@guchho/android-x64",
-  "version": "1.0.3",
+  "version": "1.0.1",
   "description": "The Android 64-bit binary for guchho, a fast build system for web applications.",
   "repository": {
     "type": "git",

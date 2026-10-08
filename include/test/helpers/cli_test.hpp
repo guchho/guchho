@@ -249,6 +249,18 @@ public:
 #endif
         if (file_ == nullptr) return;
 
+        // Whatever the harness itself has printed belongs to the real stream
+        // rather than to this capture, and on a non-interactive stdout the C
+        // buffers still hold it at this point: without this flush the harness's
+        // own "[ RUN ]" line is redirected into the file along with the run and
+        // comes back as part of the command's output. Finish() flushes for the
+        // same reason, but by then the descriptor is already this file, which
+        // is too late for text written before the capture began.
+        std::fflush(stdout);
+        std::fflush(stderr);
+        std::cout.flush();
+        std::cerr.flush();
+
         saved_ = dup_(fd_);
         dup2_(fileno_(file_), fd_);
     }

@@ -9,6 +9,4 @@ if (-not (Test-Path $guchhoPath)) {
     throw "guchho.exe not found in $toolsDir. Package is missing the embedded binary."
 }
 
-Install-ChocolateyPath -PathToPersist $toolsDir -PathType 'Machine'
-
 Write-Host "Guchho installed successfully. Run 'guchho' to get started."

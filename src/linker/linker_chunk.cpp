@@ -259,6 +259,20 @@ namespace guchho::linker {
             }
         }
 
+        // Whether any entry in this build is an HTML document. Generated
+        // chunks (dynamic-import targets, shared split chunks) are part of
+        // what an HTML build generates, so in an HTML-driven build they go
+        // through the asset path template like every other generated resource;
+        // a JavaScript-only build keeps them where they always were, so its
+        // chunk layout does not move.
+        bool html_driven = false;
+        for (const graph::EntryPoint& ep : graph.EntryPoints()) {
+            if (ep.from_html) {
+                html_driven = true;
+                break;
+            }
+        }
+
         for (uint32_t chunk_index = 0; chunk_index < sorted_chunks.size(); chunk_index++) {
             auto& chunk = sorted_chunks[chunk_index];
 
@@ -278,8 +292,21 @@ namespace guchho::linker {
             std::vector<config::PathTemplate> tmpl;
             if (chunk.is_entry_point) {
                 auto& file = graph.files[chunk.source_index];
-                if (file.IsUserSpecifiedEntryPoint()) {
+                const graph::EntryPoint& entry_meta =
+                    graph.EntryPoints()[chunk.entry_point_bit];
+                if (entry_meta.from_html) {
+                    // Resources an HTML entry points at are generated assets:
+                    // emit them through the asset path template so they land
+                    // flat under the assets directory with a content hash.
+                    tmpl = options->AssetPathTemplate;
+                } else if (file.IsUserSpecifiedEntryPoint()) {
                     tmpl = options->EntryPathTemplate;
+                } else if (html_driven) {
+                    // An entry created by the graph itself — a dynamic-import
+                    // target — inside an HTML-driven build: generated output,
+                    // centralised under the assets directory like everything
+                    // else that build generates.
+                    tmpl = options->AssetPathTemplate;
                 } else {
                     tmpl = options->ChunkPathTemplate;
                 }
@@ -309,7 +336,9 @@ namespace guchho::linker {
                 dir = "/";
                 base = "chunk";
                 ext = std_ext;
-                tmpl = options->ChunkPathTemplate;
+                // A shared split chunk is generated output too: under an HTML
+                // build it belongs with the rest of the generated resources.
+                tmpl = html_driven ? options->AssetPathTemplate : options->ChunkPathTemplate;
             }
 
             auto template_ext = ext;

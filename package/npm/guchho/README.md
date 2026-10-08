@@ -66,11 +66,16 @@ guchho build src/index.html --outdir=dist --format=esm --minify --sourcemap
 
 ## Configuration file
 
-Guchho reads the first of these it finds next to the project:
+Guchho walks up from the working directory and stops at the first directory
+that holds a config file — the nearest one wins, and the directories above
+it are never consulted. Within one directory, the first of these is used:
 
 1. `guchho.config.js`
 2. `guchho.config.json`
 3. `guchho.json`
+
+`guchho build` prints the config file it is using, so a build that landed
+somewhere unexpected says which file decided it.
 
 **Precedence: command-line flag → config file → built-in default.** A flag you pass always wins.
 

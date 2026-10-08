@@ -251,6 +251,17 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
             return static_cast<int>(ExitCode::kCLIUsageError);
         }
 
+        // Which config file settled the build is named before the build runs,
+        // because discovery walks up the directory tree and a file several
+        // directories above can be the one that won. Without this line a build
+        // whose outdir landed somewhere unexpected gave its own output no hint
+        // of where the decision was made. The path is absolute for the same
+        // reason: relative to the working directory it could hide the very
+        // directory jump that caused the surprise.
+        if (!quiet && effective.config_found) {
+            std::cout << "  Using " << effective.config_path << "\n";
+        }
+
         std::vector<api::BuildOptions>& builds = effective.builds;
         const size_t build_count                = builds.size();
         const bool   multiple                   = build_count > 1;

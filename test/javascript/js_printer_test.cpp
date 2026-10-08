@@ -66,6 +66,7 @@ void expectPrintedCommon(const std::string& contents, const std::string& expecte
     print_options.ascii_only = options->ASCIIOnly;
     print_options.minify_syntax = options->MinifySyntax;
     print_options.minify_whitespace = options->MinifyWhitespace;
+    print_options.line_limit = options->LineLimit;
     print_options.unsupported_features = options->UnsupportedJSFeatures;
 
     js::PrintResult result = js::Print(parsed.first, symbols, *renamer, print_options);
@@ -106,6 +107,13 @@ void expectPrintedMinifyASCII(LiteralString contents, LiteralString expected) {
     config::Options options{};
     options.MinifyWhitespace = true;
     options.ASCIIOnly = true;
+    expectPrintedCommon(contents.value, expected.value, &options);
+}
+
+void expectPrintedMinifyLineLimit(int line_limit, LiteralString contents, LiteralString expected) {
+    config::Options options{};
+    options.MinifyWhitespace = true;
+    options.LineLimit = line_limit;
     expectPrintedCommon(contents.value, expected.value, &options);
 }
 
@@ -916,6 +924,235 @@ TEST(JsPrinter, TestMinify) {
     expectPrintedMinify("/*!multi-\nline*/\nthrow 1 + 2", "/*!multi-\nline*/throw 1+2;");
 }
 
+// The shape plan/PlAN.md asks for: with whitespace minification a normal
+// program collapses onto a single line, keeping only the whitespace that
+// tokens need to stay separate.
+TEST(JsPrinter, TestMinifyCompactProgram) {
+    expectPrintedMinify(
+        "function hello() {\n"
+        "  const message = \"Hello\";\n"
+        "  console.log(message);\n"
+        "}\n"
+        "\n"
+        "export { hello };",
+        "function hello(){const message=\"Hello\";console.log(message)}export{hello};");
+
+    // Whitespace between identifiers is kept only where tokens would merge.
+    expectPrintedMinify("const foo = bar;", "const foo=bar;");
+    // Whitespace around operators goes away entirely.
+    expectPrintedMinify("const x = a + b;", "const x=a+b;");
+    // Newlines between statements become the single required separator.
+    expectPrintedMinify("const a = 1;\nconst b = 2;", "const a=1;const b=2;");
+    // Indentation is formatting, so it disappears with the newline it hangs on.
+    expectPrintedMinify("function test() {\n    return true;\n}", "function test(){return true}");
+}
+
+// String and template literal contents are data, not layout: --minify may
+// compact the code around them but must never rewrite what they evaluate to.
+TEST(JsPrinter, TestMinifyPreservesLiteralValues) {
+    // A "\n" escape is part of the string value and survives byte for byte.
+    expectPrintedMinify("const text = \"Hello\\nWorld\";", "const text=\"Hello\\nWorld\";");
+    // With syntax minification the same string may become an equivalent
+    // template literal; under whitespace minification the line terminator is
+    // emitted as an escaped sequence so the output stays on one line, and the
+    // runtime value is still "Hello\nWorld".
+    expectPrintedMangleMinify("const text = \"Hello\\nWorld\";", "const text=`Hello\\nWorld`;");
+
+    // A newline inside a template literal is literal text: --minify escapes it
+    // as "\n" instead of keeping the physical line break, which preserves the
+    // value while keeping the generated JavaScript on one line.
+    expectPrintedMinify("const text = `Hello\nWorld`;", "const text=`Hello\\nWorld`;");
+
+    // HTML-looking text inside a template literal is JavaScript data: the
+    // printer must not collapse it the way an HTML minifier would. Only the
+    // representation changes (physical line terminators become escapes); the
+    // indentation, spaces, and blank lines are all preserved.
+    expectPrintedMinify(
+        "const html = `\n"
+        "  <pre>\n"
+        "    Hello\n"
+        "    World\n"
+        "  </pre>\n"
+        "`;",
+        "const html=`\\n"
+        "  <pre>\\n"
+        "    Hello\\n"
+        "    World\\n"
+        "  </pre>\\n"
+        "`;");
+
+    // Interpolations keep working: the literal halves are escaped but keep
+    // their content, and the expression inside ${...} minifies like any other
+    // expression.
+    expectPrintedMinify(
+        "const html = `\n"
+        "  <div>\n"
+        "    Hello ${name}\n"
+        "  </div>\n"
+        "`;",
+        "const html=`\\n"
+        "  <div>\\n"
+        "    Hello ${name}\\n"
+        "  </div>\\n"
+        "`;");
+    expectPrintedMinify("const html = `x ${ a + b } y`;", "const html=`x ${a+b} y`;");
+
+    // A string containing "${" or a backtick must never be rewritten as a
+    // template literal: both would change the value it evaluates to.
+    expectPrintedMangleMinify("const s = \"cost: ${price}\";", "const s=\"cost: ${price}\";");
+    expectPrintedMangleMinify("const s = \"a`b\";", "const s=\"a`b\";");
+}
+
+// --minify escapes the physical line terminators inside template literals so
+// the generated JavaScript stays on one line. This is representation-only:
+// indentation, spaces, blank lines, and ${...} substitutions keep their exact
+// runtime values; only the line terminators are re-encoded as "\n".
+TEST(JsPrinter, TestMinifyEscapesMultilineTemplateLiteral) {
+    // Multiline template with interpolation: the literal chunks become
+    // escaped while ${name} remains a real template interpolation.
+    expectPrintedMinify(
+        "const html = `\n"
+        "  <tr>\n"
+        "    <td>${name}</td>\n"
+        "  </tr>\n"
+        "`;",
+        "const html=`\\n"
+        "  <tr>\\n"
+        "    <td>${name}</td>\\n"
+        "  </tr>\\n"
+        "`;");
+
+    // Multiline template without interpolation: same content, escaped form.
+    expectPrintedMinify(
+        "const html = `\n"
+        "  <pre>\n"
+        "    Hello\n"
+        "    World\n"
+        "  </pre>\n"
+        "`;",
+        "const html=`\\n"
+        "  <pre>\\n"
+        "    Hello\\n"
+        "    World\\n"
+        "  </pre>\\n"
+        "`;");
+
+    // Blank lines are data: each one becomes its own escaped newline.
+    expectPrintedMinify("const html = `\n  a\n\n  b\n`;", "const html=`\\n  a\\n\\n  b\\n`;");
+
+    // Multiple substitutions all stay executable and unchanged.
+    expectPrintedMinify(
+        "const html = `\n"
+        "  <div>\n"
+        "    ${first}\n"
+        "    ${second}\n"
+        "    ${third}\n"
+        "  </div>\n"
+        "`;",
+        "const html=`\\n"
+        "  <div>\\n"
+        "    ${first}\\n"
+        "    ${second}\\n"
+        "    ${third}\\n"
+        "  </div>\\n"
+        "`;");
+
+    // Nested templates: the printer walks the AST, so only the outer
+    // literal's line terminators are escaped and the inner template inside
+    // the substitution is printed normally.
+    expectPrintedMinify(
+        "const html = `\n"
+        "  <div>${items.map(x => `${x.name}`)}</div>\n"
+        "`;",
+        "const html=`\\n"
+        "  <div>${items.map(x=>`${x.name}`)}</div>\\n"
+        "`;");
+
+    // A template that contains nothing but one newline still produces no
+    // physical newline in the generated JavaScript.
+    expectPrintedMinify("const value = `\n`;", "const value=`\\n`;");
+}
+
+// Existing escape sequences must round-trip: never double-escape, never turn
+// an escaped "${" into an interpolation, never terminate the literal early.
+TEST(JsPrinter, TestMinifyTemplateEscapeSafety) {
+    // Backslashes in the cooked value are re-escaped exactly once.
+    expectPrintedMinify("const value = `\n  \\\\server\\\\share\n`;",
+        "const value=`\\n  \\\\server\\\\share\\n`;");
+    // An escaped "${" is literal text, not an interpolation, and stays
+    // escaped in the output.
+    expectPrintedMinify("const value = `\n  \\${notAnInterpolation}\n`;",
+        "const value=`\\n  \\${notAnInterpolation}\\n`;");
+    // An escaped backtick stays escaped so the literal is not terminated.
+    expectPrintedMinify("const value = `\n  backtick: \\`\n`;",
+        "const value=`\\n  backtick: \\`\\n`;");
+}
+
+// Source line terminators are normalized by the lexer (CRLF and CR become
+// LF), and the printer emits the canonical escaped representation: no
+// physical CR or LF survives inside a minified template literal.
+TEST(JsPrinter, TestMinifyTemplateCRLFSource) {
+    expectPrintedMinify("const value = `\r\n  <p>x</p>\r\n`;", "const value=`\\n  <p>x</p>\\n`;");
+    expectPrintedMinify("const value = `\r  <p>x</p>\r`;", "const value=`\\n  <p>x</p>\\n`;");
+}
+
+// Tagged templates print their raw source bytes verbatim. Escaping a physical
+// newline there would change the .raw strings the tag function receives, so
+// the conservative choice is to leave their representation untouched.
+TEST(JsPrinter, TestMinifyTaggedTemplatePreservesRaw) {
+    expectPrintedMinify("tag`\n  Hello\n  ${name}\n`;", "tag`\n  Hello\n  ${name}\n`;");
+    expectPrintedMinify("String.raw`\n  a\n`;", "String.raw`\n  a\n`;");
+}
+
+// --minify wins over the line limit for template CONTENT: the literal's line
+// terminators stay escaped (the "\n" sequence is not a physical newline)
+// even when a line limit is configured. Code-layout wrapping governed by the
+// line limit is a separate concern and keeps its existing behavior.
+TEST(JsPrinter, TestMinifyTemplateLineLimitInteraction) {
+    expectPrintedMinifyLineLimit(40, "const html = `\n  <p>${name}</p>\n`;",
+        "const html=`\\n  <p>${name}</p>\\n`;");
+}
+
+// Without --minify the printer keeps its normal readable output: physical
+// line breaks inside template literals are formatting-neutral there, so
+// nothing about the pretty representation changes.
+TEST(JsPrinter, TestPrettyTemplateLiteralUnchanged) {
+    expectPrinted(
+        "const html = `\n"
+        "  <tr>\n"
+        "    <td>${name}</td>\n"
+        "  </tr>\n"
+        "`;",
+        "const html = `\n"
+        "  <tr>\n"
+        "    <td>${name}</td>\n"
+        "  </tr>\n"
+        "`;\n");
+    expectPrinted("const value = `\n`;", "const value = `\n`;\n");
+}
+
+// Whitespace that carries meaning — the newline ASI looks at, the space that
+// keeps two tokens apart — is exactly the whitespace minification may not
+// remove, so these are the cases where being wrong changes the program.
+TEST(JsPrinter, TestMinifyASIAndTokenBoundaries) {
+    // ASI after "return": the call is a separate statement, not the return
+    // value. Printing them on one line is fine only with the ";" between.
+    expectPrintedMinify("function f() {\n  return\n  foo();\n}", "function f(){return;foo()}");
+    // No ASI before "(": this newline must stay a call, not become two
+    // expression statements.
+    expectPrintedMinify("foo\n(bar);", "foo(bar);");
+    // No ASI before "+": the newline is inside one expression.
+    expectPrintedMinify("const x = foo\n  + bar;", "const x=foo+bar;");
+    // ASI after "1": two statements, so an explicit ";" has to appear.
+    expectPrintedMinify("let x = 1\nfoo();", "let x=1;foo();");
+    // if/else keep their structure when the bodies' newlines collapse.
+    expectPrintedMinify("if (x)\n  y();\nelse\n  z();", "if(x)y();else z();");
+
+    // "return foo" needs the space that stops the two identifiers merging;
+    // the operator-boundary cases live in TestWhitespace above.
+    expectPrintedMinify("function f() { return foo; }", "function f(){return foo}");
+}
+
 TEST(JsPrinter, TestES5) {
     expectPrintedTargetMangle(5, "foo('a\\n\\n\\nb')", "foo(\"a\\n\\n\\nb\");\n");
     expectPrintedTargetMangle(2015, "foo('a\\n\\n\\nb')", "foo(`a\n\n\nb`);\n");
@@ -1562,7 +1799,7 @@ TEST(JsPrinter, TestTargetMangleMinify) {
 
     // Template literals downgraded to strings
     expectPrintedTargetMangleMinify(5, "foo('a\\n\\n\\nb')", "foo(\"a\\n\\n\\nb\");");
-    expectPrintedTargetMangleMinify(2015, "foo('a\\n\\n\\nb')", "foo(`a\n\n\nb`);");
+    expectPrintedTargetMangleMinify(2015, "foo('a\\n\\n\\nb')", "foo(`a\\n\\n\\nb`);");
 
     // Shorthand properties expanded in ES5
     expectPrintedTargetMangleMinify(5, "foo({a, b})", "foo({a:a,b:b});");
@@ -1583,7 +1820,7 @@ TEST(JsPrinter, TestTargetMangleMinify) {
 
     // String template literal to string with newline mangling
     expectPrintedTargetMangleMinify(5, "x = '\\n'", "x=\"\\n\";");
-    expectPrintedTargetMangleMinify(2015, "x = '\\n'", "x=`\n`;");
+    expectPrintedTargetMangleMinify(2015, "x = '\\n'", "x=`\\n`;");
 
     // Class fields (class fields are ES2022, so keep ES2022+)
     expectPrintedTargetMangleMinify(2022, "class A { x = y }", "class A{x=y}");

@@ -9,15 +9,15 @@
 // through the same field mapping used for "guchho.json". See the header
 // comment for the full rationale.
 //
-// Within one directory the supported files are checked in priority order:
-// "guchho.config.js", then "guchho.config.json", then "guchho.json". The
-// primary JS config takes precedence across the whole discovery walk, so a
-// JSON config is only a fallback when no "guchho.config.js" exists in any
-// directory; config files are never merged. Config files are partial
-// overrides on top of the built-in defaults built by
-// "CreateDefaultGuchhoConfig", so an omitted field always keeps its default.
-// A config that exists but is invalid is FOUND + INVALID and is never treated
-// as "no config".
+        // Discovery walks up from the start directory and stops at the first
+        // directory that holds a config file: the nearest config wins, and the
+        // walk never continues past it into the parents. Within one directory
+        // the supported files are checked in priority order: "guchho.config.js",
+        // then "guchho.config.json", then "guchho.json". Config files are never
+        // merged. Config files are partial overrides on top of the built-in
+        // defaults built by "CreateDefaultGuchhoConfig", so an omitted field
+        // always keeps its default. A config that exists but is invalid is
+        // FOUND + INVALID and is never treated as "no config".
 
 #include "guchho/resolver.hpp"
 
@@ -1260,15 +1260,14 @@ namespace guchho::resolver {
         };
 
         // The discovery never merges configs and never silently skips a file
-        // that exists. The primary "guchho.config.js" takes precedence over
-        // the JSON spellings across the whole walk: a JS config found in any
-        // parent overrides a valid JSON config from a deeper directory. A
-        // JSON config is only a fallback when no JS config exists anywhere.
-        // A file that exists but cannot be read or parsed is FOUND + INVALID
-        // and stops discovery immediately -- it is never skipped in favor of
-        // a parent config or the built-in defaults.
-        std::optional<GuchhoConfig> json_fallback;
-
+        // that exists. The walk stops at the first directory that holds a
+        // config file: the nearest config wins, whatever its spelling, and the
+        // parents are never consulted once one is found. Within a directory
+        // the names are tried in priority order, so "guchho.config.js" still
+        // beats "guchho.config.json" beats "guchho.json". A file that exists
+        // but cannot be read or parsed is FOUND + INVALID and stops discovery
+        // immediately -- it is never skipped in favor of a parent config or
+        // the built-in defaults.
         auto invalid_found = [&](const std::string& candidate) -> GuchhoConfig {
             // A config that exists but cannot be turned into configurations
             // carries none. Returning the built-in default here would let a
@@ -1322,25 +1321,19 @@ namespace guchho::resolver {
                             // never continue to other files or to parents.
                             return invalid_found(candidate);
                         }
-                        if (!json_fallback) {
-                            // Keep the nearest valid JSON config. It is not
-                            // returned yet: a JS config in a parent directory
-                            // still takes precedence over it.
-                            json_fallback = std::move(json_result);
-                            apply_default_entry(*json_fallback);
-                        }
+                        // The nearest directory that holds a config file wins.
+                        // The names above were already tried in priority order,
+                        // so the parents hold no say once one is found here.
+                        apply_default_entry(json_result);
+                        return json_result;
                     }
                 }
             }
 
             std::string parent = fs.Dir(dir);
             if (parent == dir) {
-                // Reached the filesystem root: use the nearest valid JSON
-                // config found while walking, or the built-in defaults when
-                // no config file was seen at all.
-                if (json_fallback) {
-                    return std::move(*json_fallback);
-                }
+                // Reached the filesystem root with no config file seen at
+                // all: the built-in defaults win.
                 return result;
             }
             dir = parent;

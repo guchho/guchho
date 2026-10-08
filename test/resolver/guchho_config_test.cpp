@@ -446,13 +446,47 @@ TEST(GuchhoConfig, OnlyOneConfigSelected)
 
     resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project/src");
 
-    // The src directory has no config; discovery walks up to /project where
-    // only the JS config exists. The JSON file in "src" is never consulted.
+    // Discovery stops at the nearest directory that holds a config: the JSON
+    // file in "src" wins, and the JS file in the parent is never consulted.
     EXPECT_TRUE(result.found);
     EXPECT_FALSE(result.parse_error);
-    EXPECT_EQ(result.config_path, std::string("/project/guchho.config.js"));
-    EXPECT_EQ(result.builds[0].opts.AbsOutputDir, std::string("/project/js-out"));
-    EXPECT_TRUE(result.builds[0].opts.MinifyWhitespace);
+    EXPECT_EQ(result.config_path, std::string("/project/src/guchho.config.json"));
+    EXPECT_EQ(result.builds[0].opts.AbsOutputDir, std::string("/project/src/json-out"));
+    EXPECT_FALSE(result.builds[0].opts.MinifyWhitespace);
+}
+
+// The real-world shape of the same rule: a leftover guchho.config.js sitting
+// several directories above the project must not capture a build whose own
+// directory holds a guchho.config.json. Before the nearest-config-wins fix
+// the parent JS config was returned, the JSON was silently discarded, and
+// the relative "outdir" resolved against the parent's directory.
+TEST(GuchhoConfig, NearestJsonBeatsParentJS)
+{
+    TestFs fs;
+    JSLoaderGuard guard(&FakeJSLoader);
+    fs.SetFile("/Documents/guchho.config.js", "{\"build\":{\"outdir\":\"dist\"}}");
+    fs.SetFile("/Documents/GitHub/project/playground/guchho.config.json",
+               "{\"build\":{\"outdir\":\"playground-out\"}}");
+
+    int before = g_fake_js_calls;
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(
+        log, json_cache, fs, opts, "/Documents/GitHub/project/playground");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    EXPECT_EQ(result.config_path,
+              std::string("/Documents/GitHub/project/playground/guchho.config.json"));
+    // The outdir is rooted at the config that won, not at the parent that
+    // lost, so the build stays inside the project.
+    EXPECT_EQ(result.builds[0].opts.AbsOutputDir,
+              std::string("/Documents/GitHub/project/playground/playground-out"));
+    // The parent's guchho.config.js was never even evaluated.
+    EXPECT_EQ(g_fake_js_calls, before);
 }
 
 // ---------------------------------------------------------------------------

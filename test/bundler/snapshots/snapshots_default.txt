@@ -5449,28 +5449,7 @@ var t=o((_,r)=>{r.exports=123});var i=t();console.log(i,"no identifier in this f
 ================================================================================
 TestMinifyNestedLabelsNoBundle
 ---------- /out.js ----------
-l:n:a:b:c:d:e:f:g:h:i:j:k:m:o:p:{nl(`
-`);q:r:s:t:u:v:w:x:y:z:A:B:C:D:E:F:{nl(`
-`);G:H:I:J:K:L:M:N:O:P:Q:R:S:T:U:V:{nl(`
-`);W:X:Y:Z:_:$:ll:nl:al:bl:cl:dl:el:fl:gl:hl:{nl(`
-`);il:jl:kl:ml:ol:pl:ql:rl:sl:tl:ul:vl:wl:xl:yl:zl:{nl(`
-`);Al:Bl:Cl:Dl:El:Fl:Gl:Hl:Il:Jl:Kl:Ll:Ml:Nl:Ol:Pl:{nl(`
-`);Ql:Rl:Sl:Tl:Ul:Vl:Wl:Xl:Yl:Zl:_l:$l:ln:nn:an:bn:{nl(`
-`);cn:dn:en:fn:gn:hn:jn:kn:mn:on:pn:qn:rn:sn:tn:un:{nl(`
-`);vn:wn:xn:yn:zn:An:Bn:Cn:Dn:En:Fn:Gn:Hn:In:Jn:Kn:{nl(`
-`);Ln:Mn:Nn:On:Pn:Qn:Rn:Sn:Tn:Un:Vn:Wn:Xn:Yn:Zn:_n:{nl(`
-`);$n:la:na:aa:ba:ca:da:ea:fa:ga:ha:ia:ja:ka:ma:oa:{nl(`
-`);pa:qa:ra:sa:ta:ua:va:wa:xa:ya:za:Aa:Ba:Ca:Da:Ea:{nl(`
-`);Fa:Ga:Ha:Ia:Ja:Ka:La:Ma:Na:Oa:Pa:Qa:Ra:Sa:Ta:Ua:{nl(`
-`);Va:Wa:Xa:Ya:Za:_a:$a:lb:nb:ab:bb:cb:db:eb:fb:gb:{nl(`
-`);hb:ib:jb:kb:mb:ob:pb:qb:rb:sb:tb:ub:vb:wb:xb:yb:{nl(`
-`);zb:Ab:Bb:Cb:Db:Eb:Fb:Gb:Hb:Ib:Jb:Kb:Lb:Mb:Nb:Ob:{nl(`
-`);Pb:Qb:Rb:Sb:Tb:Ub:Vb:Wb:Xb:Yb:Zb:_b:$b:lc:nc:ac:{nl(`
-`);bc:cc:dc:ec:fc:gc:hc:ic:jc:kc:mc:oc:pc:qc:rc:sc:{nl(`
-`);tc:uc:vc:wc:xc:yc:zc:Ac:Bc:Cc:Dc:Ec:Fc:Gc:Hc:Ic:{nl(`
-`);Jc:Kc:Lc:Mc:Nc:Oc:Pc:Qc:Rc:Sc:Tc:Uc:Vc:Wc:Xc:Yc:{nl(`
-`);Zc:_c:$c:ld:nd:ad:bd:cd:dd:ed:fd:gd:hd:{}}}}}}}}}}}}}}}}}}nl(`
-`)}}}
+l:n:a:b:c:d:e:f:g:h:i:j:k:m:o:p:{nl(`\n`);q:r:s:t:u:v:w:x:y:z:A:B:C:D:E:F:{nl(`\n`);G:H:I:J:K:L:M:N:O:P:Q:R:S:T:U:V:{nl(`\n`);W:X:Y:Z:_:$:ll:nl:al:bl:cl:dl:el:fl:gl:hl:{nl(`\n`);il:jl:kl:ml:ol:pl:ql:rl:sl:tl:ul:vl:wl:xl:yl:zl:{nl(`\n`);Al:Bl:Cl:Dl:El:Fl:Gl:Hl:Il:Jl:Kl:Ll:Ml:Nl:Ol:Pl:{nl(`\n`);Ql:Rl:Sl:Tl:Ul:Vl:Wl:Xl:Yl:Zl:_l:$l:ln:nn:an:bn:{nl(`\n`);cn:dn:en:fn:gn:hn:jn:kn:mn:on:pn:qn:rn:sn:tn:un:{nl(`\n`);vn:wn:xn:yn:zn:An:Bn:Cn:Dn:En:Fn:Gn:Hn:In:Jn:Kn:{nl(`\n`);Ln:Mn:Nn:On:Pn:Qn:Rn:Sn:Tn:Un:Vn:Wn:Xn:Yn:Zn:_n:{nl(`\n`);$n:la:na:aa:ba:ca:da:ea:fa:ga:ha:ia:ja:ka:ma:oa:{nl(`\n`);pa:qa:ra:sa:ta:ua:va:wa:xa:ya:za:Aa:Ba:Ca:Da:Ea:{nl(`\n`);Fa:Ga:Ha:Ia:Ja:Ka:La:Ma:Na:Oa:Pa:Qa:Ra:Sa:Ta:Ua:{nl(`\n`);Va:Wa:Xa:Ya:Za:_a:$a:lb:nb:ab:bb:cb:db:eb:fb:gb:{nl(`\n`);hb:ib:jb:kb:mb:ob:pb:qb:rb:sb:tb:ub:vb:wb:xb:yb:{nl(`\n`);zb:Ab:Bb:Cb:Db:Eb:Fb:Gb:Hb:Ib:Jb:Kb:Lb:Mb:Nb:Ob:{nl(`\n`);Pb:Qb:Rb:Sb:Tb:Ub:Vb:Wb:Xb:Yb:Zb:_b:$b:lc:nc:ac:{nl(`\n`);bc:cc:dc:ec:fc:gc:hc:ic:jc:kc:mc:oc:pc:qc:rc:sc:{nl(`\n`);tc:uc:vc:wc:xc:yc:zc:Ac:Bc:Cc:Dc:Ec:Fc:Gc:Hc:Ic:{nl(`\n`);Jc:Kc:Lc:Mc:Nc:Oc:Pc:Qc:Rc:Sc:Tc:Uc:Vc:Wc:Xc:Yc:{nl(`\n`);Zc:_c:$c:ld:nd:ad:bd:cd:dd:ed:fd:gd:hd:{}}}}}}}}}}}}}}}}}}nl(`\n`)}}}
 
 ================================================================================
 TestMinifyPrivateIdentifiersNoBundle

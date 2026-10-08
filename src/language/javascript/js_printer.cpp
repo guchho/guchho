@@ -1357,7 +1357,11 @@ namespace guchho::javascript {
                     break;
 
                 case '\n':
-                    if (quote == '`') {
+                    // When minifying whitespace, physical line terminators inside
+                    // template literals are emitted as escaped sequences so the
+                    // generated JavaScript stays on one line. The runtime value
+                    // of the literal is unchanged.
+                    if (quote == '`' && !options_.minify_whitespace) {
                         start_line_length = -static_cast<int>(i); // Printing a real newline resets the line length
                         js += '\n';
                     } else {

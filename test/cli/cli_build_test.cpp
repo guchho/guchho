@@ -213,6 +213,29 @@ TEST(CliBuild, ABuildWithNoMinifyFlagIsNotMinified) {
         << "a build with no minify flag came out minified: [" << silent << "]";
 }
 
+// The shape plan/PlAN.md asks for, checked against the whole file rather than
+// fragments: with whitespace minification the program is one compact line and
+// the literals inside it are byte for byte what they were. The fixture is the
+// plan's own example, so a surviving indent, a kept newline, or a rewritten
+// string has nowhere to hide in this comparison.
+TEST(CliBuild, MinifiedOutputIsExactlyOneCompactLine) {
+    CliWorkspace ws("plan-minify");
+    ws.Write("entry.js",
+             "function hello() {\n"
+             "  const message = \"Hello\";\n"
+             "  console.log(message);\n"
+             "}\n"
+             "\n"
+             "export { hello };\n");
+
+    EXPECT_EQ(RunCli({"build", "entry.js", "--outfile=out.js", "--minify-whitespace"}).exit_code,
+              kSuccess);
+
+    const std::string out = ws.Read("out.js");
+    EXPECT_EQ(out, "function hello(){const message=\"Hello\";console.log(message)}export{hello};\n")
+        << "the minified build kept formatting: [" << out << "]";
+}
+
 // The text around the output, asked for in the plain spelling — the one the
 // JavaScript API sends, a single string rather than a record keyed by file
 // kind. That spelling used to be read as a transform's only, so a build that

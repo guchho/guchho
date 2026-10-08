@@ -88,7 +88,7 @@
             "name": "Guchho: Build Interactive",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho.exe",
+            "program": "${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho.exe",
             "args": [
                 "build",
                 "${input:guchhoEntry}",
@@ -108,7 +108,7 @@
             "name": "Guchho: build HTML fixture",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho.exe",
+            "program": "${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho.exe",
             "args": [
                 "build",
                 "${workspaceFolder}/test/fixtures/html/entry.html",
@@ -125,7 +125,7 @@
             "name": "Guchho: build JS, implicit command",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho.exe",
+            "program": "${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho.exe",
             "args": [
                 "${workspaceFolder}/test/fixtures/basic/entry.js",
                 "--log-level=verbose"
@@ -140,7 +140,7 @@
             "name": "Guchho: build minified + sourcemap",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho.exe",
+            "program": "${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho.exe",
             "args": [
                 "build",
                 "${workspaceFolder}/test/fixtures/basic/entry.js",
@@ -158,7 +158,7 @@
             "name": "Guchho: build multi-entry",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho.exe",
+            "program": "${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho.exe",
             "args": [
                 "build",
                 "${workspaceFolder}/test/fixtures/multi-entry/app.js",
@@ -174,7 +174,7 @@
             "name": "Guchho: dev server",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho.exe",
+            "program": "${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho.exe",
             "args": ["dev", "--port=3000"],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false
@@ -186,7 +186,7 @@
             "name": "Guchho: serve dist",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho.exe",
+            "program": "${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho.exe",
             "args": ["serve", "dist", "--port=8080"],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false
@@ -209,25 +209,25 @@
             "name": "Guchho: test core",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_core_tests.exe",
+            "program": "${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho_core_tests.exe",
             "args": ["--filter=${input:testFilter}"],
-            "cwd": "${workspaceFolder}/build/release-win32-x64/test",
+            "cwd": "${workspaceFolder}/build/release-win32-x64-ninja/test",
             "stopAtEntry": false
         },
         {
             "name": "Guchho: test helpers",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_helpers_tests.exe",
+            "program": "${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho_helpers_tests.exe",
             "args": ["--filter=${input:testFilter}"],
-            "cwd": "${workspaceFolder}/build/release-win32-x64/test",
+            "cwd": "${workspaceFolder}/build/release-win32-x64-ninja/test",
             "stopAtEntry": false
         },
         {
             "name": "Guchho: test javascript",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_js_tests.exe",
+            "program": "${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho_js_tests.exe",
             "args": ["--filter=${input:testFilter}"],
             "cwd": "${workspaceFolder}/test/javascript",
             "stopAtEntry": false
@@ -236,7 +236,7 @@
             "name": "Guchho: test css",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_css_tests.exe",
+            "program": "${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho_css_tests.exe",
             "args": ["--filter=${input:testFilter}"],
             "cwd": "${workspaceFolder}/test/css",
             "stopAtEntry": false
@@ -245,7 +245,7 @@
             "name": "Guchho: test html",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_html_tests.exe",
+            "program": "${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho_html_tests.exe",
             "args": ["--filter=${input:testFilter}"],
             "cwd": "${workspaceFolder}/test/html",
             "stopAtEntry": false
@@ -254,7 +254,7 @@
             "name": "Guchho: test cache",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_cache_tests.exe",
+            "program": "${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho_cache_tests.exe",
             "args": ["--filter=${input:testFilter}"],
             "cwd": "${workspaceFolder}/test/cache",
             "stopAtEntry": false
@@ -263,7 +263,7 @@
             "name": "Guchho: test resolver",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_resolver_tests.exe",
+            "program": "${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho_resolver_tests.exe",
             "args": ["--filter=${input:testFilter}"],
             "cwd": "${workspaceFolder}/test/resolver",
             "stopAtEntry": false
@@ -272,7 +272,7 @@
             "name": "Guchho: test graph",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_graph_tests.exe",
+            "program": "${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho_graph_tests.exe",
             "args": ["--filter=${input:testFilter}"],
             "cwd": "${workspaceFolder}/test/graph",
             "stopAtEntry": false
@@ -281,7 +281,7 @@
             "name": "Guchho: test linker",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_linker_tests.exe",
+            "program": "${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho_linker_tests.exe",
             "args": ["--filter=${input:testFilter}"],
             "cwd": "${workspaceFolder}/test/linker",
             "stopAtEntry": false
@@ -292,7 +292,7 @@
             "name": "Guchho: test bundler",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_bundler_tests.exe",
+            "program": "${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho_bundler_tests.exe",
             "args": ["--filter=${input:testFilter}"],
             "cwd": "${workspaceFolder}/test/bundler",
             "stopAtEntry": false
@@ -301,7 +301,7 @@
             "name": "Guchho: test api",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_api_tests.exe",
+            "program": "${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho_api_tests.exe",
             "args": ["--filter=${input:testFilter}"],
             "cwd": "${workspaceFolder}/test/api",
             "stopAtEntry": false
@@ -312,7 +312,7 @@
             "name": "Guchho: test cli",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_cli_tests.exe",
+            "program": "${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho_cli_tests.exe",
             "args": ["--filter=${input:testFilter}"],
             "cwd": "${workspaceFolder}/test/cli",
             "stopAtEntry": false
@@ -321,7 +321,7 @@
             "name": "Guchho: test npm",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/release-win32-x64/bin/guchho_npm_tests.exe",
+            "program": "${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho_npm_tests.exe",
             "args": ["--filter=${input:testFilter}"],
             "cwd": "${workspaceFolder}/test/npm",
             "stopAtEntry": false

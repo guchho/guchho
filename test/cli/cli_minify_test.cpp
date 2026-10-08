@@ -18,7 +18,6 @@
 // so a flag that set a field without marking it would minify and then be
 // minified back on by the config it was meant to beat.
 
-#include "test/helpers/cli_test.hpp"
 #include "test/guchho_test.hpp"
 
 #include "guchho/api.hpp"

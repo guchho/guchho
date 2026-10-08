@@ -943,20 +943,35 @@ void Scanner::ExpandHtmlEntryPoints(std::vector<graph::EntryPoint>& entry_points
                 {
                     const compiler::ImportRecord& record =
                         html_repr->ImportRecords()[record_index];
+                    // Non-stylesheet <link> elements (favicon, preload,
+                    // canonical, ...) only promote their target when it is a
+                    // static asset, so icons and preloads are emitted through
+                    // the asset pipeline while links to HTML pages or scripts
+                    // keep their current behavior.
+                    bool is_plain_link = false;
                     if (record_index < html_repr->ast.record_origins.size()) {
                         const html::ImportRecordOrigin& origin =
                             html_repr->ast.record_origins[record_index];
-                        if (origin.element != nullptr &&
+                        is_plain_link = origin.element != nullptr &&
                             origin.element->tag_name == "link" &&
-                            !html::IsStylesheetLink(*origin.element))
-                        {
-                            continue;
-                        }
+                            !html::IsStylesheetLink(*origin.element);
                     }
                     if (!record.source_index.IsValid()) {
                         continue;
                     }
                     uint32_t target_index = record.source_index.GetIndex();
+                    if (is_plain_link) {
+                        if (target_index >= results.size() ||
+                            !results[target_index].ok)
+                        {
+                            continue;
+                        }
+                        if (results[target_index].file.input_file.loader !=
+                            config::Loader::kCopy)
+                        {
+                            continue;
+                        }
+                    }
                     if (seen.count(target_index) != 0) {
                         continue;
                     }
@@ -980,6 +995,7 @@ void Scanner::ExpandHtmlEntryPoints(std::vector<graph::EntryPoint>& entry_points
                     sub_entry.source_index                = target_index;
                     sub_entry.output_path                 = *rel;
                     sub_entry.output_path_was_auto_generated = true;
+                    sub_entry.from_html                   = true;
 
                     size_t last = sub_entry.output_path.find_last_of("/.\\");
                     if (last != std::string::npos &&
@@ -2011,11 +2027,18 @@ log.AddError(&tracker, record.range,
                         if (meta_iter !=
                             entry_point_source_index_to_meta_index.end())
                         {
-                            path_template    = options.EntryPathTemplate;
-                            custom_file_path =
-                                entry_point_meta[meta_iter->second].output_path;
-                            use_output_file = !options.AbsOutputFile.empty();
-                            is_entry_point  = true;
+                            const graph::EntryPoint& meta_entry =
+                                entry_point_meta[meta_iter->second];
+                            custom_file_path = meta_entry.output_path;
+                            is_entry_point   = true;
+                            if (!meta_entry.from_html) {
+                                // A copy file the user named as an entry keeps
+                                // the entry path template; assets generated for
+                                // an HTML entry use the asset path template so
+                                // they land flat under the assets directory.
+                                path_template = options.EntryPathTemplate;
+                                use_output_file = !options.AbsOutputFile.empty();
+                            }
                         }
                     }
 

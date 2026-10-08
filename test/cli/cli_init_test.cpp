@@ -307,7 +307,8 @@ TEST(CliInit, EveryCombinationBuilds) {
                 << type << "/" << tmpl << " did not build: " << build.out << build.err;
             if (type == "app") {
                 EXPECT_TRUE(ws.Exists("dist/index.html")) << type << "/" << tmpl;
-                EXPECT_TRUE(ws.Exists("dist/main.js")) << type << "/" << tmpl;
+                EXPECT_EQ(ws.CountMatching("dist/assets", "main-", ".js"), 1u)
+                    << type << "/" << tmpl;
             } else {
                 EXPECT_TRUE(ws.Exists("dist/index.js")) << type << "/" << tmpl;
             }

@@ -73,6 +73,38 @@ TEST(CliWatch, SeveralEntryPointsIntoOneFileIsRefused) {
         << "the error does not say which flag would have worked";
 }
 
+// A config file that exists but cannot be parsed leaves this command with
+// nothing to watch, and it says so the same way "guchho build" does — rather
+// than sitting over a session built from the command line alone while the
+// project's real configuration goes unused. The refusal happens before the
+// watcher starts, which is what makes it reachable from a test.
+TEST(CliWatch, WatchRefusesAnInvalidConfig) {
+    CliWorkspace ws("watch-invalid-config");
+    ws.Write("guchho.config.json", "{\"build\": {\"outdir\": \"broken");
+
+    const guchho::test::CliResult result = RunCli({"watch"});
+
+    EXPECT_EQ(result.exit_code, kUsageError);
+    EXPECT_TRUE(OutputContains(result.err, "The project configuration could not be used"));
+}
+
+// The config the session settled on is named before the session's own
+// progress line. A config with an outdir but no entry point, in a workspace
+// with no index.html for the guess to find, gets past the resolution — where
+// "Using" is printed — and stops at the entry-point gate, before any watcher
+// starts. The untestable half is a session that stays up; the file header
+// says why.
+TEST(CliWatch, WatchReportsTheConfigItIsUsing) {
+    CliWorkspace ws("watch-using-config");
+    ws.Write("guchho.config.json", "{\"build\": {\"outdir\": \"custom-out\"}}");
+
+    const guchho::test::CliResult result = RunCli({"watch"});
+
+    EXPECT_EQ(result.exit_code, kUsageError);
+    EXPECT_TRUE(OutputContains(result.out, "Using "));
+    EXPECT_TRUE(OutputContains(result.out, "guchho.config.json"));
+}
+
 // Not tested: the first build, the rebuild on change, the summary between
 // builds, and the shutdown. All four happen after the context is handed over,
 // and none of them can be reached from a process that has to keep running to

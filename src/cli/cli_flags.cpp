@@ -703,10 +703,20 @@ api::TransformOptions newTransformOptions() {
 // Input:  options with entry_points = { "src/index.js" } and no outdir
 // Output: the same options with outdir = "dist", plus whatever guchho.config.json
 //         beside the project had to say about the rest
-api::BuildOptions resolveRunOptions(const api::BuildOptions& options,
-                                    const std::string& abs_working_dir) {
+api::BuildOptions resolveRunOptions(const api::BuildOptions&    options,
+                                    const std::string&          abs_working_dir,
+                                    api::EffectiveBuildConfigs* effective_out) {
     api::EffectiveBuildConfigs effective =
         api::ResolveEffectiveBuildConfigs(options, abs_working_dir);
+
+    // The caller asked to see the resolution — which config file won, and
+    // whether it can be used — before this function narrows it to one build.
+    // "guchho dev", "guchho watch" and "guchho serve" print the config they
+    // settled on and refuse a broken one, the same way "guchho build" does,
+    // and they read it from here rather than resolving a second time.
+    if (effective_out) {
+        *effective_out = effective;
+    }
 
     if (effective.builds.empty()) {
         // The config file was found but could not be turned into configurations,

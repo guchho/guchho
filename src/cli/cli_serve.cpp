@@ -94,11 +94,31 @@ int runServe(const std::vector<std::string>& args) {
     // build with no output location at all — a hand-written options struct, or a
     // config that named a single output file — still leaves a directory here
     // because the resolution always produces one.
+    api::EffectiveBuildConfigs effective;
     if (serve_dir.empty()) {
-        serve_dir = resolveRunOptions(newBuildOptions()).outdir;
+        serve_dir = resolveRunOptions(newBuildOptions(), "", &effective).outdir;
+
+        // A config file that exists but cannot be turned into configurations —
+        // it did not parse, or two configurations write the same output — has
+        // no output directory to serve. "guchho build" refuses one; this command
+        // refuses it too, rather than serving whatever directory the empty
+        // answer happens to point at. The complaint comes before the banner so
+        // that a failed run is one message and not a banner wrapped around one.
+        if (effective.config_invalid) {
+            logger::PrintErrorToStderr(
+                args_copy, "The project configuration could not be used; see the error above");
+            return static_cast<int>(ExitCode::kCLIUsageError);
+        }
     }
 
     printBanner(std::cout);
+
+    // Which config file named the directory about to be served, said before the
+    // serving line names it. This command has no "--quiet": it prints its
+    // banner and its one line of status either way, and this travels with them.
+    if (effective.config_found) {
+        std::cout << "  Using " << effective.config_path << "\n";
+    }
 
     std::cout << "  Serving " << serve_dir << " on http://" << host << ":" << port << "\n\n";
 
@@ -272,8 +292,11 @@ int runDev(const std::vector<std::string>& args,
         build_args.push_back(arg);
     }
 
+    // The banner leads, as it does for every command that prints one. The line
+    // naming the server's address is not printed here: it comes after the
+    // project's config has been read, so that the config this run settled on is
+    // the first thing said about the project rather than the last.
     printBanner(std::cout);
-    std::cout << "  Starting dev server on http://" << host << ":" << port << "\n\n";
 
     // Parse build options from remaining args. The three values set here are the
     // ones that belong to a run rather than to a build: how many messages, how
@@ -300,7 +323,30 @@ int runDev(const std::vector<std::string>& args,
     // Somewhere to put the output, and where to read it from, both decided by the
     // shared resolution so that this command and "guchho build" cannot disagree
     // about a config file they can both see.
-    build_opts = resolveRunOptions(build_opts);
+    api::EffectiveBuildConfigs effective;
+    build_opts                  = resolveRunOptions(build_opts, "", &effective);
+
+    // A config file that exists but cannot be turned into configurations — it
+    // did not parse, or two configurations write the same output — has nothing
+    // to serve. "guchho build" refuses one; this command refuses it for the same
+    // reason and with the same words. Carrying on would hand the server an
+    // output directory that was never set, and "--open" would then launch a
+    // browser at a server serving nothing.
+    if (effective.config_invalid) {
+        logger::PrintErrorToStderr(
+            build_args, "The project configuration could not be used; see the error above");
+        return static_cast<int>(ExitCode::kCLIUsageError);
+    }
+
+    // Which config file settled the build, said before the server is described.
+    // The path is absolute for the same reason "guchho build" prints it
+    // absolutely: relative to the working directory it could hide the directory
+    // the decision actually came from.
+    if (!quiet && effective.config_found) {
+        std::cout << "  Using " << effective.config_path << "\n";
+    }
+
+    std::cout << "  Starting dev server on http://" << host << ":" << port << "\n\n";
 
     // HTML-first: guess a default entry point when none is provided so that
     // "guchho dev" works right after "guchho init". A project created that way

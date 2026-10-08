@@ -48,8 +48,18 @@ namespace {
 // definition is on the object library that compiles this source, not only on the
 // executable, or it would be missing here.
 std::vector<std::string> Exe(std::vector<std::string> args) {
-    args.insert(args.begin(), GUCHHO_TEST_EXE);
-    return args;
+    // The path is pushed into a reserved vector rather than inserted into
+    // "args": growing the vector here makes GCC 13's -Wnull-dereference pass
+    // report a false positive on the std::string construction inside libstdc++
+    // (basic_string.h:193). Reserving first avoids that path, and the
+    // resulting list is identical.
+    std::vector<std::string> full;
+    full.reserve(args.size() + 1);
+    full.emplace_back(GUCHHO_TEST_EXE);
+    for (std::string& arg : args) {
+        full.push_back(std::move(arg));
+    }
+    return full;
 }
 
 } // namespace

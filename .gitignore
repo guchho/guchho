@@ -10,6 +10,7 @@ build/
 out/
 dist/
 lab/
+plan/
 
 cmake-build-*/
 

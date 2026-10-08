@@ -189,8 +189,12 @@ Socket ConnectLoopback(uint16_t port) {
 bool SendAll(SockHandle sock, const std::string& request) {
     size_t sent = 0;
     while (sent < request.size()) {
-        const int n = static_cast<int>(::send(sock, request.data() + sent,
-                                              static_cast<int>(request.size() - sent), 0));
+#ifdef _WIN32
+        const int n = ::send(sock, request.data() + sent,
+                             static_cast<int>(request.size() - sent), 0);
+#else
+        const ssize_t n = ::send(sock, request.data() + sent, request.size() - sent, 0);
+#endif
         if (n <= 0) {
             return false;
         }

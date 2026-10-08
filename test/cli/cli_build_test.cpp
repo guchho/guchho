@@ -89,7 +89,56 @@ TEST(CliBuild, AnEntryPointAndAnOutdirProduceADirectory) {
 
     EXPECT_EQ(result.exit_code, kSuccess);
     EXPECT_TRUE(ws.Exists("dist/index.html"));
-    EXPECT_TRUE(ws.Exists("dist/app.js"));
+    // The script is an HTML-driven generated chunk, so it lands in the shared
+    // assets directory under a content-hashed name the test cannot spell. One
+    // match for the fixed parts of that name is the assertion that exactly one
+    // copy came out — see the output structure in plan/PLAN.md.
+    EXPECT_EQ(ws.CountMatching("dist/assets", "app-", ".js"), 1u);
+}
+
+// Plan Test G — two independent builds must each perform their own emission.
+// The output directory is removed between the runs, so if anything the first
+// build recorded made the second believe its assets were already on disk, the
+// files would simply not be there afterwards. The asset's name is compared
+// between the two runs rather than hard-coded: the same source bytes must
+// resolve to the same hashed name every time, and the name spelling itself is
+// an implementation detail the test does not pin down.
+TEST(CliBuild, ASecondBuildEmitsItsAssetsAgain) {
+    CliWorkspace ws("rebuild-assets");
+    ws.Write("index.html",
+             "<!DOCTYPE html>\n"
+             "<html><head><title>t</title></head>\n"
+             "<body><img src=\"./logo.svg\"><script src=\"./app.js\"></script></body></html>\n");
+    ws.Write("app.js", "console.log(\"hi\");\n");
+    ws.Write("logo.svg", "<svg/>");
+
+    const guchho::test::CliResult first = RunCli({"build", "index.html", "--outdir=dist"});
+    EXPECT_EQ(first.exit_code, kSuccess);
+    EXPECT_TRUE(ws.Exists("dist/index.html")) << ws.Tree();
+    EXPECT_EQ(ws.CountMatching("dist/assets", "logo-", ".svg"), 1u) << ws.Tree();
+    EXPECT_EQ(ws.CountMatching("dist/assets", "app-", ".js"), 1u) << ws.Tree();
+    const std::string first_logo = ws.OneMatching("dist/assets", "logo-", ".svg");
+    ASSERT_FALSE(first_logo.empty()) << ws.Tree();
+    const std::string first_bytes = ws.Read("dist/assets/" + first_logo);
+    ASSERT_FALSE(first_bytes.empty());
+
+    // Take the whole output directory away, not just the asset: the second
+    // build has to write everything again from scratch.
+    std::error_code ec;
+    std::filesystem::remove_all(CliWorkspace::Native(ws.At("dist")), ec);
+    ASSERT_FALSE(ws.Exists("dist"));
+
+    const guchho::test::CliResult second = RunCli({"build", "index.html", "--outdir=dist"});
+    EXPECT_EQ(second.exit_code, kSuccess);
+    EXPECT_TRUE(ws.Exists("dist/index.html")) << ws.Tree();
+    EXPECT_EQ(ws.CountMatching("dist/assets", "logo-", ".svg"), 1u) << ws.Tree();
+    EXPECT_EQ(ws.CountMatching("dist/assets", "app-", ".js"), 1u) << ws.Tree();
+    const std::string second_logo = ws.OneMatching("dist/assets", "logo-", ".svg");
+    ASSERT_FALSE(second_logo.empty()) << ws.Tree();
+
+    // Same source, same content hash, same name — and the same bytes inside.
+    EXPECT_EQ(second_logo, first_logo);
+    EXPECT_EQ(ws.Read("dist/assets/" + second_logo), first_bytes);
 }
 
 // The summary is a report of what was produced, so it names the files. The

@@ -1,6 +1,6 @@
 {
   "name": "@guchho/darwin-x64",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "The macOS 64-bit binary for guchho, a fast build system for web applications.",
   "repository": {
     "type": "git",

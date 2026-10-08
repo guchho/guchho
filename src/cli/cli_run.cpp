@@ -223,7 +223,7 @@ Command detectCommand(const std::vector<std::string>& args, bool& has_entry) {
 // Output: the banner and the usage text, and 0.
 //
 // Input:  { "--version" } or { "-v" }
-// Output: "guchho v1.0.1", and 0.
+// Output: "guchho v1.0.3", and 0.
 //
 // Input:  { }
 // Output: the banner and the usage text, and 0. A bare invocation in a

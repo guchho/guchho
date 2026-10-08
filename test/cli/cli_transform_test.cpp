@@ -20,6 +20,7 @@
 #include "test/helpers/cli_test.hpp"
 #include "test/guchho_test.hpp"
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -45,6 +46,24 @@ std::string Normalized(const std::string& text) {
         }
     }
     return out;
+}
+
+// The fixture the pass tests below all read: one function with a parameter, a
+// local binding read exactly once, and a concatenation. Each of the three
+// passes has something of its own to act on — whitespace has the layout to
+// remove, identifiers have two bindings to shorten, and syntax has the local
+// whose value can be returned directly. The same bytes go to every case; the
+// flag is the only thing that changes.
+const char kGreet[] =
+    "function greet(name) {\n"
+    "    const message = \"Hello \" + name;\n"
+    "    return message;\n"
+    "}\n";
+
+// How many line breaks an output has, once Normalized has taken the carriage
+// returns out. One means a single line plus the newline the program ends with.
+int LineCount(const std::string& text) {
+    return static_cast<int>(std::count(text.begin(), text.end(), '\n'));
 }
 
 } // namespace
@@ -143,6 +162,146 @@ TEST(CliTransform, MinifyShortensTheProgram) {
     EXPECT_TRUE(minified.out.size() + 8 < plain.out.size());
     EXPECT_TRUE(OutputContains(minified.out, "first"));
     EXPECT_FALSE(OutputContains(minified.out, "a comment that minify removes"));
+}
+
+// ---------------------------------------------------------------------------
+// The three passes, seen in the output
+// ---------------------------------------------------------------------------
+
+// Whitespace alone: the program is one compact line, everything that gave it
+// its shape is gone, and everything that gave it its meaning is not. The
+// comparison is exact because this pass's whole effect is layout bytes — a
+// kept space, a surviving newline and a renamed identifier would each break a
+// different claim, and one equality message names all three at once. The
+// retained "const message" and "return message" are also the half of the line
+// that says the syntax pass did not run: it would have returned the value
+// directly.
+TEST(CliTransform, WhitespaceMinifyCompactsTheProgramAndKeepsEveryName) {
+    CliWorkspace ws("minify-whitespace-output");
+
+    const guchho::test::CliResult result =
+        RunCliWithStdin({"transform", "--minify-whitespace"}, kGreet);
+    ASSERT_EQ(result.exit_code, kSuccess) << result.err;
+
+    const std::string out = Normalized(result.out);
+    EXPECT_EQ(out, "function greet(name){const message=\"Hello \"+name;return message}\n")
+        << "whitespace minification did not compact the program while keeping its "
+           "names and its declaration: ["
+        << out << "]";
+}
+
+// Identifiers alone: the two local bindings are shortened and the shape of
+// the program is untouched. The new spellings are the mangler's own choice,
+// so what is asserted is that the old names are gone rather than that some
+// particular letter replaced them — a test that pinned "e" would be pinning
+// the mangler's current habit. The line breaks, the spaces around the
+// operators and the "const" declaration are each a separate expectation,
+// because each is a pass that must not have run.
+TEST(CliTransform, IdentifierMinifyShortensTheLocalsAndLeavesTheLayoutAlone) {
+    CliWorkspace ws("minify-identifiers-output");
+
+    const guchho::test::CliResult result =
+        RunCliWithStdin({"transform", "--minify-identifiers"}, kGreet);
+    ASSERT_EQ(result.exit_code, kSuccess) << result.err;
+
+    const std::string out = Normalized(result.out);
+
+    // The parameter and the binding are not the names they started as.
+    EXPECT_FALSE(OutputContains(out, "name"))
+        << "the parameter kept its name, so identifier minification did not reach it: ["
+        << out << "]";
+    EXPECT_FALSE(OutputContains(out, "message"))
+        << "the local binding kept its name: [" << out << "]";
+
+    // The function's own name is not one of the locals being shortened.
+    EXPECT_TRUE(OutputContains(out, "greet"))
+        << "the function was renamed along with its locals: [" << out << "]";
+
+    // The layout is the unminified one: still several lines, still spaced.
+    EXPECT_GT(LineCount(out), 1)
+        << "the program was collapsed to one line, so the whitespace pass ran too: ["
+        << out << "]";
+    EXPECT_TRUE(OutputContains(out, " = "))
+        << "the spaces around the assignment are gone: [" << out << "]";
+    EXPECT_TRUE(OutputContains(out, " + "))
+        << "the spaces around the concatenation are gone: [" << out << "]";
+
+    // And the syntax pass did not inline the declaration.
+    EXPECT_TRUE(OutputContains(out, "const "))
+        << "the declaration was rewritten, so the syntax pass ran too: [" << out << "]";
+}
+
+// Syntax alone: the local that was read exactly once is gone and its value is
+// returned directly, while the names and the layout are the ones the program
+// arrived with. The specific rewrite — a const read once folded into the
+// return — is what this fixture provably gets from the syntax pass, so the
+// assertions pin the value reaching the return and the declaration leaving,
+// not the exact byte layout around them.
+TEST(CliTransform, SyntaxMinifySimplifiesTheProgramAndKeepsNamesAndLayout) {
+    CliWorkspace ws("minify-syntax-output");
+
+    const guchho::test::CliResult result =
+        RunCliWithStdin({"transform", "--minify-syntax"}, kGreet);
+    ASSERT_EQ(result.exit_code, kSuccess) << result.err;
+
+    const std::string out = Normalized(result.out);
+
+    // The simplification happened: no declaration, and the concatenation is
+    // the value the function returns.
+    EXPECT_FALSE(OutputContains(out, "const"))
+        << "the once-read local is still declared, so no syntax simplification "
+           "happened: ["
+        << out << "]";
+    EXPECT_TRUE(OutputContains(out, "\"Hello \" + name"))
+        << "the return does not carry the value directly: [" << out << "]";
+
+    // Every name the program arrived with that is still in it kept its
+    // spelling: nothing was renamed.
+    EXPECT_TRUE(OutputContains(out, "greet"))
+        << "the function was renamed by the syntax pass: [" << out << "]";
+    EXPECT_TRUE(OutputContains(out, "name"))
+        << "the parameter was renamed by the syntax pass: [" << out << "]";
+
+    // And the program is still laid out, not compacted.
+    EXPECT_GT(LineCount(out), 1)
+        << "the program was collapsed to one line, so the whitespace pass ran too: ["
+        << out << "]";
+    EXPECT_TRUE(OutputContains(out, " + "))
+        << "the spaces around the operators are gone: [" << out << "]";
+}
+
+// The shorthand: all three at once, which is what makes it the shorthand.
+// One line with no spaces around the operators (whitespace), locals that are
+// not the names they arrived as (identifiers), and no declaration left behind
+// (syntax) — three expectations because a "--minify" that quietly ran only
+// two of the passes would still shorten the program and still pass a test
+// that only measured its size.
+TEST(CliTransform, TheShorthandEnablesEveryPassAtOnce) {
+    CliWorkspace ws("minify-all-output");
+
+    const guchho::test::CliResult result =
+        RunCliWithStdin({"transform", "--minify"}, kGreet);
+    ASSERT_EQ(result.exit_code, kSuccess) << result.err;
+
+    const std::string out = Normalized(result.out);
+
+    // Whitespace: one line plus the newline the program ends with, and no
+    // spaces around the operators (the ones inside the string literal stay).
+    EXPECT_EQ(LineCount(out), 1) << "the program is not one compact line: [" << out << "]";
+    EXPECT_FALSE(OutputContains(out, " + "))
+        << "the spaces around the concatenation survived the whitespace pass: ["
+        << out << "]";
+
+    // Identifiers: the locals are not the names they arrived as, and the
+    // function's own name still is.
+    EXPECT_FALSE(OutputContains(out, "name"))
+        << "a local kept its name: [" << out << "]";
+    EXPECT_TRUE(OutputContains(out, "greet"))
+        << "the function was renamed: [" << out << "]";
+
+    // Syntax: the once-read local's declaration is gone.
+    EXPECT_FALSE(OutputContains(out, "const"))
+        << "the declaration survived the syntax pass: [" << out << "]";
 }
 
 // ---------------------------------------------------------------------------

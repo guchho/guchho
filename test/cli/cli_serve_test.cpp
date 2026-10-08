@@ -66,11 +66,22 @@ TEST(CliServe, APortThatIsNotANumberIsRejected) {
     EXPECT_TRUE(OutputContains(result.err, "abc"));
 }
 
-// A port that is not a number is rejected before anything is bound. That is the
-// only part of this command a test can reach: a port that is a number gets past
-// the parsing, past the announcement of the address, and into api::Serve, which
-// does not come back — so there is no way to assert on the other half from
-// here, and the file header says where that half is tested instead.
+// A config file that exists but cannot be parsed has no output directory to
+// serve. Before the shared resolution learned to report "config_invalid" to
+// its callers, this command carried on with an empty answer and served
+// nothing at all — the directory the server started over was the empty
+// string. The refusal is the same one "guchho build" gives, and it happens
+// before the banner and long before a socket is bound, which is what makes it
+// reachable from a test where a started server would not be.
+TEST(CliServe, ServeRefusesAnInvalidConfig) {
+    CliWorkspace ws("serve-invalid-config");
+    ws.Write("guchho.config.json", "{\"build\": {\"outdir\": \"broken");
+
+    const guchho::test::CliResult result = RunCli({"serve"});
+
+    EXPECT_EQ(result.exit_code, kUsageError);
+    EXPECT_TRUE(OutputContains(result.err, "The project configuration could not be used"));
+}
 
 // ---------------------------------------------------------------------------
 // dev
@@ -83,6 +94,48 @@ TEST(CliServe, DevHelpIsItsOwnAndSucceeds) {
 
     EXPECT_EQ(result.exit_code, kSuccess);
     EXPECT_TRUE(OutputContains(result.out, "Usage: guchho dev"));
+}
+
+// The same refusal as the command above, for the command that builds before it
+// serves. An unusable config here used to mean a silent fallback to the raw
+// request, no output directory — not even the built-in "dist" — and a server
+// that "--open" would then point a browser at with nothing behind it.
+TEST(CliServe, DevRefusesAnInvalidConfig) {
+    CliWorkspace ws("dev-invalid-config");
+    ws.Write("guchho.config.json", "{\"build\": {\"outdir\": \"broken");
+
+    const guchho::test::CliResult result = RunCli({"dev"});
+
+    EXPECT_EQ(result.exit_code, kUsageError);
+    EXPECT_TRUE(OutputContains(result.err, "The project configuration could not be used"));
+}
+
+// The config this run settled on is named before the server is. This is the
+// testable half of that promise: a config that names an outdir but no entry
+// point, in a workspace with no index.html for the guess to find, gets past
+// the resolution — where "Using" is printed — and stops at the entry-point
+// gate, before anything is bound. The untestable half is a dev server that
+// stays up, and the file header says why.
+TEST(CliServe, DevReportsTheConfigItIsUsing) {
+    CliWorkspace ws("dev-using-config");
+    ws.Write("guchho.config.json", "{\"build\": {\"outdir\": \"custom-out\"}}");
+
+    const guchho::test::CliResult result = RunCli({"dev"});
+
+    EXPECT_EQ(result.exit_code, kUsageError);
+    EXPECT_TRUE(OutputContains(result.out, "Using "));
+    EXPECT_TRUE(OutputContains(result.out, "guchho.config.json"));
+}
+
+// Quiet takes the line away, the same way it takes the build summary away.
+TEST(CliServe, DevDoesNotReportTheConfigWhenQuiet) {
+    CliWorkspace ws("dev-using-config-quiet");
+    ws.Write("guchho.config.json", "{\"build\": {\"outdir\": \"custom-out\"}}");
+
+    const guchho::test::CliResult result = RunCli({"dev", "--quiet"});
+
+    EXPECT_EQ(result.exit_code, kUsageError);
+    EXPECT_FALSE(OutputContains(result.out, "Using "));
 }
 
 } // namespace cli::test

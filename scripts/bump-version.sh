@@ -9,14 +9,14 @@ set -euo pipefail
 #   - CMakeLists.txt                              project(VERSION)
 #   - package/npm/guchho/package.json             version + @guchho/* pins
 #   - package/npm/@guchho/*/package.json          version, one per platform
-#   - package/chocolatey/guchho/guchho.nuspec     <version>
+#   - package/chocolatey/guchho.nuspec     <version>
 #   - CONTRIBUTING.md                             version table + naming example
 #   - src/cli/cli_run.cpp                         --version doc comment
 #   - .vscode/c_cpp_properties.json               GUCHHO_VERSION_STRING define
 #
 # Deliberately NOT this script's business:
 #
-#   package/chocolatey/guchho/tools/VERIFICATION.txt
+#   package/chocolatey/tools/VERIFICATION.txt
 #       Templated as {VERSION} and filled in by scripts/build-chocolatey.sh
 #       at pack time. The release URL names an artifact that does not exist
 #       until the build has run, so the build owns the number, not the bump.
@@ -32,7 +32,7 @@ set -euo pipefail
 #   src/api/windows.rc.in, src/api/Info.plist.in
 #       CMake substitutes @PROJECT_VERSION@ from the project() call above.
 #
-#   compile_commands.json, package/chocolatey/guchho/guchho.*.nupkg
+#   compile_commands.json, package/chocolatey/guchho.*.nupkg
 #       Generated, and gitignored.
 #
 # Usage:
@@ -319,7 +319,7 @@ verify_versions() {
         "0 stale of ${pins_total}" "${pins_stale} stale of ${pins_total}"
 
     check_eq "guchho.nuspec <version>" \
-        "$VERSION" "$(grep -oP '<version>\K[^<]+' "$ROOT_DIR/package/chocolatey/guchho/guchho.nuspec" | head -1 || true)"
+        "$VERSION" "$(grep -oP '<version>\K[^<]+' "$ROOT_DIR/package/chocolatey/guchho.nuspec" | head -1 || true)"
 
     check_eq "CONTRIBUTING.md version table" \
         "$VERSION" "$(grep -oP '^\| Current version +\|\s*\K[0-9]+\.[0-9]+\.[0-9]+[^\s|]*' "$ROOT_DIR/CONTRIBUTING.md" | head -1 || true)"
@@ -344,7 +344,7 @@ verify_versions() {
     # Build-templated, so it must hold the placeholder and NOT a literal --
     # a literal here is the staleness build-chocolatey.sh used to leave behind.
     check_contains "VERIFICATION.txt is templated" "{VERSION}" \
-        "$(grep -m1 'releases/download/' "$ROOT_DIR/package/chocolatey/guchho/tools/VERIFICATION.txt" || true)"
+        "$(grep -m1 'releases/download/' "$ROOT_DIR/package/chocolatey/tools/VERIFICATION.txt" || true)"
 
     check_not_eq "src/cli/cli_help.cpp fallback" "$VERSION" \
         "$(grep -oP '#define\s+GUCHHO_VERSION_STRING\s+"\K[^"]+' "$ROOT_DIR/src/cli/cli_help.cpp" | head -1 || true)"
@@ -442,7 +442,7 @@ fi
 # copy is what a reader sees in git, the build-time one is what guarantees the
 # packed artifact cannot disagree with what was actually built.
 
-NUSPEC="$ROOT_DIR/package/chocolatey/guchho/guchho.nuspec"
+NUSPEC="$ROOT_DIR/package/chocolatey/guchho.nuspec"
 
 if [[ -f "$NUSPEC" ]]; then
     OLD_NUSPEC_VERSION=$(grep -oP '<version>\K[^<]+' "$NUSPEC" | head -1 || true)

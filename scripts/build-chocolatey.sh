@@ -8,7 +8,7 @@ set -euo pipefail
 #
 # Steps:
 #   1. Build (or locate) the guchho.exe native binary
-#   2. Copy it into package/chocolatey/guchho/tools/
+#   2. Copy it into package/chocolatey/tools/
 #   3. Update version in guchho.nuspec and VERIFICATION.txt
 #   4. Run `choco pack`
 #
@@ -19,7 +19,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-CHOCO_DIR="${ROOT_DIR}/package/chocolatey/guchho"
+CHOCO_DIR="${ROOT_DIR}/package/chocolatey"
 TOOLS_DIR="${CHOCO_DIR}/tools"
 BINARY_NAME="guchho.exe"
 

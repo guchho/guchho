@@ -55,8 +55,8 @@ package/npm/@guchho/*/bin/
 # Chocolatey
 # ------------------------------------------------------------
 
-package/chocolatey/guchho/*.nupkg
-package/chocolatey/guchho/tools/guchho.exe
+package/chocolatey/*.nupkg
+package/chocolatey/tools/guchho.exe
 
 
 # ------------------------------------------------------------

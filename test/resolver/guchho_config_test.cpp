@@ -832,7 +832,8 @@ TEST(GuchhoConfig, CanonicalSchemaStaysSilent)
     fs.SetFile("/project/guchho.config.json",
                "{\"build\":{\"entry\":[\"src/main.html\"],\"outdir\":\"dist\","
                "\"outfile\":\"\",\"format\":\"esm\",\"platform\":\"browser\","
-               "\"target\":\"esnext\",\"minify\":true,\"sourcemap\":false,"
+               "\"target\":\"esnext\",\"minify\":true,\"bundle\":true,"
+               "\"sourcemap\":false,"
                "\"splitting\":false,\"treeShaking\":true,\"pretty\":false},"
                "\"css\":{\"minify\":true},\"assets\":{\"inlineLimit\":4096},"
                "\"resolve\":{\"extensions\":[\".ts\"],\"alias\":{}},"
@@ -851,7 +852,6 @@ TEST(GuchhoConfig, CanonicalSchemaStaysSilent)
     EXPECT_FALSE(result.parse_error);
     EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoJSON_UnknownField), size_t(0));
     EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_AliasIgnored), size_t(0));
-    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_BundleIgnored), size_t(0));
 }
 
 // ---------------------------------------------------------------------------
@@ -862,8 +862,7 @@ TEST(GuchhoConfig, UnsupportedFieldsWarn)
 {
     TestFs fs;
     fs.SetFile("/project/guchho.config.json",
-               "{\"root\":\".\",\"server\":{\"port\":3000},\"watch\":true,"
-               "\"build\":{\"bundle\":true}}");
+               "{\"root\":\".\",\"server\":{\"port\":3000},\"watch\":true}");
 
     config::Options  opts;
     cache::JSONCache json_cache;
@@ -877,7 +876,6 @@ TEST(GuchhoConfig, UnsupportedFieldsWarn)
     EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_RootIgnored), size_t(1));
     EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_ServerIgnored), size_t(1));
     EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_WatchIgnored), size_t(1));
-    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_BundleIgnored), size_t(1));
 
     // Each is still a recognised field, so the generic warning stays quiet and
     // the specific one is the only thing the user has to read.
@@ -902,6 +900,176 @@ TEST(GuchhoConfig, UnsupportedFieldsQuietWhenAbsentOrNull)
     EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_RootIgnored), size_t(0));
     EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_ServerIgnored), size_t(0));
     EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_WatchIgnored), size_t(0));
+}
+
+// ---------------------------------------------------------------------------
+// A banner from a config file is a banner, not an unknown field
+// ---------------------------------------------------------------------------
+
+// Every buffered message's text, so a test can say what the user would have
+// read rather than only how many warnings fired.
+std::string AllMessagesText(const logger::Log& log)
+{
+    std::string all;
+    for (const auto& msg : log.peek()) {
+        all += msg.data.text;
+        all += "\n";
+    }
+    return all;
+}
+
+// The plain spelling: one string, which is what "--banner=text" also means, so
+// it lands on the JavaScript half of the record the API validates.
+TEST(GuchhoConfig, BannerStringIsAccepted)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "{\"build\":{\"entry\":\"src/main.js\",\"banner\":\"/*! themed */\"}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].opts.Banner.at("js"), std::string("/*! themed */"));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoJSON_UnknownField), size_t(0));
+}
+
+// The record spelling: one entry per output kind, the same shape the
+// "--banner:js=" flags build, kept per key rather than collapsed.
+TEST(GuchhoConfig, BannerRecordIsAccepted)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "{\"build\":{\"entry\":\"src/main.js\","
+               "\"banner\":{\"js\":\"/*! j */\",\"css\":\"/*! c */\"}}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].opts.Banner.at("js"), std::string("/*! j */"));
+    EXPECT_EQ(result.builds[0].opts.Banner.at("css"), std::string("/*! c */"));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoJSON_UnknownField), size_t(0));
+}
+
+// A banner of a shape neither spelling accepts is read and not guessed at:
+// the field itself is known, so the generic unknown-field warning has nothing
+// to say, and the value is dropped the way a non-boolean "minify" is dropped.
+TEST(GuchhoConfig, BannerOfAnotherShapeIsSilentlyIgnored)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json", "{\"build\":{\"banner\":5}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_TRUE(result.builds[0].opts.Banner.empty());
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoJSON_UnknownField), size_t(0));
+}
+
+// A typo is still a typo, and the name the user has to fix is in the text:
+// the full dotted path, so "bundile" is not mistaken for a top-level field.
+TEST(GuchhoConfig, UnknownBuildFieldsNameThemselves)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json", "{\"build\":{\"bundile\":true,\"indent\":4}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoJSON_UnknownField), size_t(2));
+
+    const std::string text = AllMessagesText(log);
+    EXPECT_NE(text.find("build.bundile"), std::string::npos) << "text was: [" << text << "]";
+    EXPECT_NE(text.find("build.indent"), std::string::npos) << "text was: [" << text << "]";
+}
+
+// ---------------------------------------------------------------------------
+// A config file may turn bundling on
+// ---------------------------------------------------------------------------
+
+// The field is read the way "splitting" is read: a boolean in, a boolean
+// stored, and no warning of any kind — neither the generic unknown-field one
+// (the name is known) nor the old "not read" one (it is a lie now).
+TEST(GuchhoConfig, ConfigBundleIsRead)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json", "{\"build\":{\"entry\":\"a.js\",\"bundle\":true}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_TRUE(result.builds[0].opts.Bundle);
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoJSON_UnknownField), size_t(0));
+}
+
+// The off half is accepted just as quietly. What the resolver does with it is
+// a resolution's answer — an off means "leave the default alone", so there is
+// no message telling anybody their "false" did something it did not.
+TEST(GuchhoConfig, ConfigBundleFalseIsAccepted)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json", "{\"build\":{\"entry\":\"a.js\",\"bundle\":false}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_FALSE(result.builds[0].opts.Bundle);
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoJSON_UnknownField), size_t(0));
+}
+
+// A value that is not a boolean is dropped rather than guessed at — a field
+// that means one thing must not be invented an answer — and the field itself
+// is known, so the generic warning has nothing to say either way.
+TEST(GuchhoConfig, ConfigBundleOfAnotherShapeIsSilentlyIgnored)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json", "{\"build\":{\"bundle\":\"yes\"}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_FALSE(result.builds[0].opts.Bundle);
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoJSON_UnknownField), size_t(0));
 }
 
 // ---------------------------------------------------------------------------

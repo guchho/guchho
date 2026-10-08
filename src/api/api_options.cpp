@@ -346,6 +346,17 @@ void ResolveOneBuild(BuildOptions& out,
         cfg.SourceMapData != config::SourceMap::kNone) {
         out.sourcemap = ToApiSourceMap(cfg.SourceMapData);
     }
+    // Whether the project bundles, guarded the way splitting just below is
+    // guarded: a config file may switch bundling on, and a build that is
+    // already bundling — because the command line said "--bundle", or because
+    // a caller asked for it — is not switched back off by a config that
+    // carries "bundle: false". The command line's answer is recorded as
+    // explicit and loses to nothing here; an off with no record of anybody
+    // having said it is the built-in default, which is exactly what a config
+    // gets to answer.
+    if (!WasSet(out, kOptBundle) && !out.bundle) {
+        out.bundle = cfg.Bundle;
+    }
     if (!WasSet(out, kOptSplitting) && !out.splitting) {
         out.splitting = cfg.CodeSplitting;
     }
@@ -423,6 +434,14 @@ void ResolveOneBuild(BuildOptions& out,
     if (!WasSet(out, kOptExports) && out.exports == api::Exports::kUnset &&
         cfg.Exports == config::EntryExports::kDefault) {
         out.exports = api::Exports::kDefault;
+    }
+    // The banner text, guarded like the fields above: a command line that
+    // wrote any banner of its own wins outright, and an empty map means the
+    // config file gets to answer. The value crosses as the same "js"/"css"
+    // record both sides speak, so validate_banner_or_footer sees one shape
+    // no matter which side the text came from.
+    if (!WasSet(out, kOptBanner) && out.banner.empty()) {
+        out.banner = cfg.Banner;
     }
 
     // ---- 3. The built-in defaults -----------------------------------------
@@ -519,12 +538,15 @@ EffectiveBuildConfigs ResolveEffectiveBuildConfigs(const BuildOptions& explicit_
     // discovered as a missing file afterwards. Only destinations that can be
     // compared exactly are considered: a named output file, or the same output
     // directory fed the same entry points (distinct entry points get distinct
-    // output names).
+    // output names). The key doubles as the answer to "which path": two keys
+    // that match carry the same path, so the error can name it.
     if (result.builds.size() > 1) {
-        auto target_key = [&](const BuildOptions& b) -> std::optional<std::string> {
+        auto target_key = [&](const BuildOptions& b)
+            -> std::optional<std::pair<std::string, std::string>> {
             if (!b.outfile.empty()) {
                 auto abs = fs->Abs(b.outfile);
-                return std::string("file:") + (abs ? *abs : b.outfile);
+                std::string path = abs ? *abs : b.outfile;
+                return std::pair{std::string("file:") + path, std::move(path)};
             }
             if (b.outdir.empty()) {
                 return std::nullopt;
@@ -533,7 +555,8 @@ EffectiveBuildConfigs ResolveEffectiveBuildConfigs(const BuildOptions& explicit_
                 return std::nullopt;
             }
             auto abs = fs->Abs(b.outdir);
-            std::string key = std::string("dir:") + (abs ? *abs : b.outdir);
+            std::string path = abs ? *abs : b.outdir;
+            std::string key = std::string("dir:") + path;
             if (!b.outbase.empty()) {
                 key += "|outbase:" + b.outbase;
             }
@@ -543,22 +566,24 @@ EffectiveBuildConfigs ResolveEffectiveBuildConfigs(const BuildOptions& explicit_
             for (const EntryPoint& ep : b.entry_points_advanced) {
                 key += "|" + ep.input_path + ">" + ep.output_path;
             }
-            return key;
+            return std::pair{std::move(key), std::move(path)};
         };
 
         std::unordered_map<std::string, size_t> seen;
         for (size_t i = 0; i < result.builds.size(); ++i) {
-            std::optional<std::string> key = target_key(result.builds[i]);
+            std::optional<std::pair<std::string, std::string>> key =
+                target_key(result.builds[i]);
             if (!key) {
                 continue;
             }
-            auto [it, inserted] = seen.emplace(*key, i);
+            auto [it, inserted] = seen.emplace(key->first, i);
             if (!inserted) {
                 log.AddID(logger::MsgID::kGuchhoConfig_ConflictingOutput,
                           logger::MsgKind::kError, nullptr, logger::Range{},
                           logger::FormatMsg(logger::MsgCat::kGuchhoConfig_ConflictingOutputFile,
                                             "configuration " + std::to_string(it->second + 1),
-                                            "configuration " + std::to_string(i + 1)));
+                                            "configuration " + std::to_string(i + 1),
+                                            key->second));
                 result.config_invalid = true;
                 break;
             }

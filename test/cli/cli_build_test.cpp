@@ -268,6 +268,43 @@ TEST(CliBuild, ThePlainBannerAndFooterFlagsReachTheOutput) {
         << "the minified build is not smaller, so the comparison above means nothing";
 }
 
+// The banner a config file carries, asked for the same way the flag's is: a
+// single string sitting above the build. And the ranking the resolver exists
+// for — a command line that named a banner wins over the config's answer,
+// while a run that named none takes the config's.
+TEST(CliBuild, ConfigFileBannerReachesTheOutputAndYieldsToTheFlag) {
+    CliWorkspace ws("banner-from-config");
+    ws.Write("entry.js", "console.log(1);\n");
+    ws.Write("guchho.config.json",
+             "{\"build\":{\"entry\":\"entry.js\",\"outfile\":\"cfg.js\","
+             "\"banner\":\"/*! from config */\"}}");
+
+    EXPECT_EQ(RunCli({"build"}).exit_code, kSuccess);
+
+    const std::string config_banner = "/*! from config */";
+    const std::string cfg            = ws.Read("cfg.js");
+    ASSERT_GE(cfg.size(), config_banner.size())
+        << "the output is shorter than its own banner: [" << cfg << "]";
+    EXPECT_EQ(cfg.substr(0, config_banner.size()), config_banner)
+        << "the config's banner is not first in: [" << cfg << "]";
+
+    // The flag rides beside an entry point, which is what keeps the run a
+    // build rather than a transform; the config file is still there and still
+    // has a banner of its own to lose.
+    EXPECT_EQ(RunCli({"build", "entry.js", "--outfile=flag.js", "--banner=/*! from flag */"})
+                  .exit_code,
+              kSuccess);
+
+    const std::string flag_banner = "/*! from flag */";
+    const std::string flag        = ws.Read("flag.js");
+    ASSERT_GE(flag.size(), flag_banner.size())
+        << "the output is shorter than its own banner: [" << flag << "]";
+    EXPECT_EQ(flag.substr(0, flag_banner.size()), flag_banner)
+        << "the flag's banner is not first in: [" << flag << "]";
+    EXPECT_EQ(flag.find(config_banner), std::string::npos)
+        << "the config's banner survived a flag that overrode it: [" << flag << "]";
+}
+
 // Each of the three passes, asked for on its own, and what the other two are
 // still doing in the output. The source is chosen so each pass has one visible
 // effect and no other does: "localValue" survives whitespace minification and
@@ -382,6 +419,69 @@ TEST(CliBuild, MinifyFalseOverridesAConfigThatMinifies) {
     const std::string off = ws.Read("off.js");
     EXPECT_TRUE(OutputContains(off, "const value = compute(1);"))
         << "\"--minify=false\" left the config in charge: [" << off << "]";
+}
+
+// The other direction for bundling: a config file that says "bundle: true"
+// gets a bundle. The import the entry writes is the proof either way — it is
+// in the output when the graph was not followed, and gone when it was, and
+// the string literal only the helper carries proves the other half.
+TEST(CliBuild, ConfigBundleTurnsOnBundling) {
+    CliWorkspace ws("bundle-from-config");
+    ws.Write("entry.js",
+             "import { helperOnly } from \"./helper.js\";\nconsole.log(helperOnly);\n");
+    ws.Write("helper.js", "export const helperOnly = \"from-helper\";\n");
+    ws.Write("guchho.config.json",
+             R"({"build":{"entry":"entry.js","outfile":"out.js","bundle":true}})");
+
+    EXPECT_EQ(RunCli({"build"}).exit_code, kSuccess);
+
+    const std::string out = ws.Read("out.js");
+    EXPECT_FALSE(OutputContains(out, "./helper.js"))
+        << "the import survived a config that asked for a bundle: [" << out << "]";
+    EXPECT_TRUE(OutputContains(out, "from-helper"))
+        << "the helper's body is missing from the bundle: [" << out << "]";
+    EXPECT_TRUE(OutputContains(out, "console.log"))
+        << "the entry's own code is missing from the bundle: [" << out << "]";
+}
+
+// The off half of the same field: "bundle: false" leaves the default alone,
+// and the default is not to bundle, so the import stays an import for the
+// loader to chase and the helper's body never enters the output.
+TEST(CliBuild, ConfigBundleFalseLeavesBundlingOff) {
+    CliWorkspace ws("bundle-off-from-config");
+    ws.Write("entry.js",
+             "import { helperOnly } from \"./helper.js\";\nconsole.log(helperOnly);\n");
+    ws.Write("helper.js", "export const helperOnly = \"from-helper\";\n");
+    ws.Write("guchho.config.json",
+             R"({"build":{"entry":"entry.js","outfile":"out.js","bundle":false}})");
+
+    EXPECT_EQ(RunCli({"build"}).exit_code, kSuccess);
+
+    const std::string out = ws.Read("out.js");
+    EXPECT_TRUE(OutputContains(out, "./helper.js"))
+        << "a config that asked for no bundle got one anyway: [" << out << "]";
+    EXPECT_FALSE(OutputContains(out, "from-helper"))
+        << "the helper was inlined into a build that was not bundling: [" << out << "]";
+}
+
+// The ranking, on the only field that can be answered in both directions: a
+// config that asks for a bundle and a command line that explicitly declines
+// one. The flag records itself as explicit, and the config's answer loses.
+TEST(CliBuild, BundleFalseFlagOverridesAConfigThatBundles) {
+    CliWorkspace ws("bundle-flag-off");
+    ws.Write("entry.js",
+             "import { helperOnly } from \"./helper.js\";\nconsole.log(helperOnly);\n");
+    ws.Write("helper.js", "export const helperOnly = \"from-helper\";\n");
+    ws.Write("guchho.config.json",
+             R"({"build":{"entry":"entry.js","outfile":"out.js","bundle":true}})");
+
+    EXPECT_EQ(RunCli({"build", "--bundle=false"}).exit_code, kSuccess);
+
+    const std::string out = ws.Read("out.js");
+    EXPECT_TRUE(OutputContains(out, "./helper.js"))
+        << "\"--bundle=false\" left the config in charge: [" << out << "]";
+    EXPECT_FALSE(OutputContains(out, "from-helper"))
+        << "the helper was inlined into a build the flag turned off: [" << out << "]";
 }
 
 // A CommonJS bundle is a script, so it is not strict unless it says so, and

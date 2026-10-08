@@ -577,9 +577,8 @@ namespace guchho::logger {
         case MsgCat::kGuchhoConfig_OnlyFirstConfigurationUsed: return "{} defines {} build configurations; only the first is used here. Run \"guchho build\" to build all of them";
         case MsgCat::kGuchhoConfig_ServerNotSupported: return "The \"server\" field is not supported yet and will be ignored; use \"guchho serve\" for a development server";
         case MsgCat::kGuchhoConfig_WatchNotSupported: return "The \"watch\" field is not supported yet and will be ignored; use \"guchho serve --watch\" to rebuild on change";
-        case MsgCat::kGuchhoConfig_BundleAlwaysOn: return "The \"build.bundle\" field is not read; bundling is turned on with \"--bundle\" on the command line, not in a config file";
         case MsgCat::kGuchhoConfig_ConflictingAlias: return "Both {} and {} are set; {} is the canonical field and the other will be ignored";
-        case MsgCat::kGuchhoConfig_ConflictingOutputFile: return "{} and {} write to the same file; the later one would overwrite the earlier one";
+        case MsgCat::kGuchhoConfig_ConflictingOutputFile: return "{} and {} write to the same file \"{}\"; the later one would overwrite the earlier one";
         case MsgCat::kGuchhoConfig_PlatformMismatchForHTML: return "\"platform: {}\" may not be appropriate for an HTML entry.";
         case MsgCat::kGuchhoConfig_OutfileIgnoredForHTML: return "\"outfile\" is not used for HTML entry output.";
 

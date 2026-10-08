@@ -583,23 +583,23 @@ namespace guchho::resolver {
             "entry", "outdir", "outfile", "format", "platform", "target",
             "minify", "sourcemap", "splitting", "clean", "treeShaking",
             "pretty", "minifyHtml", "bundle", "name", "globalName", "exports",
+            "banner",
         };
         if (auto build_prop = internal::GetProperty(json, "build")) {
             const javascript::Expr& build = build_prop->first;
 
             if (auto bundle = internal::GetProperty(build, "bundle")) {
-                // Bundling is the one build choice a config file does not get to
-                // make: it is the caller's to make and "no" is a real answer, so
-                // there is nothing here a config could switch on or off. The
-                // field is accepted so that a Vite-shaped config does not also
-                // draw the generic unknown-field warning, and warned about so
-                // that "bundle: false" is not left reading as if it did
-                // something. It is a warning and not an error because a config
-                // that is merely redundant is still a config that can be used.
-                log.AddID(logger::MsgID::kGuchhoConfig_BundleIgnored,
-                          logger::MsgKind::kWarning, &tracker,
-                          source.RangeOfString(bundle->second),
-                          logger::FormatMsg(logger::MsgCat::kGuchhoConfig_BundleAlwaysOn));
+                // A config file may turn bundling on; who may turn it off is
+                // the command line's and the caller's, so this value is read
+                // the same way "splitting" below is read and handed to the
+                // resolver, which holds that line. A value that is not a
+                // boolean is dropped rather than guessed at, the way a
+                // non-boolean "minify" is dropped, and the field is known
+                // enough to answer for itself: no generic unknown-field
+                // warning stands in for it.
+                if (auto value = internal::GetBool(bundle->first)) {
+                    opts.Bundle = *value;
+                }
             }
 
             if (auto entry = internal::GetProperty(build, "entry")) {
@@ -727,6 +727,27 @@ namespace guchho::resolver {
             if (auto minify_html = internal::GetProperty(build, "minifyHtml")) {
                 if (auto value = internal::GetBool(minify_html->first)) {
                     opts.MinifyHtml = *value;
+                }
+            }
+            // A banner takes the same two spellings the command line takes: a
+            // plain string, which "--banner=value" also reads as the
+            // JavaScript half because that is what the option means when
+            // nothing says otherwise, and a record keyed by output kind for
+            // the caller who wants to say which. A value of any other shape is
+            // ignored the way a non-boolean "minify" is ignored — read, not
+            // guessed at — and the record's keys are the API's to validate
+            // when it assembles the build, exactly as "--banner:wasm=" is.
+            if (auto banner = internal::GetProperty(build, "banner")) {
+                if (auto str = internal::GetString(banner->first)) {
+                    opts.Banner["js"] = *str;
+                } else if (auto* object =
+                               std::get_if<std::shared_ptr<javascript::EObject>>(
+                                   &banner->first.data)) {
+                    for (const auto& p : (*object)->properties) {
+                        if (auto value = internal::GetString(p.value_or_nil)) {
+                            opts.Banner[PropertyKeyText(p)] = *value;
+                        }
+                    }
                 }
             }
             // "build.clean" is handled by the CLI/build runner, not "opts".

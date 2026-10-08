@@ -664,6 +664,7 @@ inline constexpr std::string_view kOptSourceRoot        = "sourceRoot";
 inline constexpr std::string_view kOptPublicPath        = "publicPath";
 inline constexpr std::string_view kOptGlobalName        = "globalName";
 inline constexpr std::string_view kOptExports           = "exports";
+inline constexpr std::string_view kOptBanner            = "banner";
 
 // Everything a build can be told. The members are grouped by the phase they
 // affect, and the blank lines between groups mark those boundaries.

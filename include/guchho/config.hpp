@@ -1032,6 +1032,12 @@ namespace guchho::config {
         // warnings in the bundler, which need to tell an explicit format from
         // the default so the default does not get reported as ignored.
         bool FormatWasExplicit{};
+        // Whether the project bundles, read from "build.bundle" the way
+        // "build.splitting" is read below: a config file may turn bundling on,
+        // and an off it carries means the default is left alone rather than a
+        // switch the resolver has to throw. Who may turn bundling off stays
+        // where it was — the command line, or the caller of a resolution.
+        bool Bundle{};
         bool CodeSplitting{};
         Platform OutputPlatform{Platform::kBrowser};
         bool NeedsMetafile{};
@@ -1057,6 +1063,13 @@ namespace guchho::config {
         // string or the command line's.
         std::string GlobalNameText{};
         std::vector<std::string> GlobalName{};
+        // The text prepended to each output kind, keyed "js"/"css": the same
+        // shape the command line's "--banner" flags produce, so a banner a
+        // config file carries and a banner a flag carries are the same request
+        // rather than two spellings the resolver has to reconcile. Written by
+        // the config parser from "build.banner"; read by the API, which
+        // validates the keys before any output is written.
+        std::unordered_map<std::string, std::string> Banner{};
         // Which of the entry point's exports a wrapper format publishes as
         // its public value; kNamespace is the namespace object every export
         // name lands on, kDefault the entry's default export itself. Written

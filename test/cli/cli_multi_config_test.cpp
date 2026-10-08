@@ -314,6 +314,8 @@ TEST(CliMultiConfig, MangleCacheIsRejectedWithSeveralConfigurations) {
 
 // Two configurations writing the same file would have the later overwrite the
 // earlier, so the collision is named instead of discovered as a missing file.
+// The message carries both 1-based positions in the array and the path they
+// collide on, so the fix is a number and a name rather than a guess.
 TEST(CliMultiConfig, ConfigurationsSharingAnOutputAreRejected) {
     CliWorkspace ws("multi-collision");
     ws.Write("a.js", "console.log(1);\n");
@@ -325,6 +327,60 @@ TEST(CliMultiConfig, ConfigurationsSharingAnOutputAreRejected) {
 
     EXPECT_EQ(result.exit_code, kUsageError);
     EXPECT_FALSE(ws.Exists("dist"));
+
+    const std::string all = result.err + result.out;
+    EXPECT_EQ(CountOccurrences(all, "configuration 1 and configuration 2 write to the same file"),
+              size_t(1))
+        << "message was: [" << all << "]";
+    EXPECT_TRUE(OutputContains(all, ws.path()))
+        << "the message does not name the path: [" << all << "]";
+}
+
+// The four-configuration shape: the third and the fourth share an output
+// directory and an entry point, and the numbers in the message are positions
+// in the array, so "3 and 4" points at the two elements to edit. Nothing is
+// built — not even the first two configurations, which do not collide —
+// because a run that cannot finish for two of four is refused whole.
+TEST(CliMultiConfig, ThirdAndFourthConfigurationsSharingAnOutputAreRejected) {
+    CliWorkspace ws("multi-collision-34");
+    ws.Write("a.js", "console.log(1);\n");
+    ws.Write("guchho.config.json",
+             "[{\"build\":{\"entry\":\"a.js\",\"outdir\":\"one\"}},"
+             " {\"build\":{\"entry\":\"a.js\",\"outdir\":\"two\"}},"
+             " {\"build\":{\"entry\":\"a.js\",\"outdir\":\"three\"}},"
+             " {\"build\":{\"entry\":\"a.js\",\"outdir\":\"three\"}}]");
+
+    const CliResult result = RunCli({"build"});
+
+    EXPECT_EQ(result.exit_code, kUsageError);
+    EXPECT_FALSE(ws.Exists("one"));
+    EXPECT_FALSE(ws.Exists("two"));
+    EXPECT_FALSE(ws.Exists("three"));
+
+    const std::string all = result.err + result.out;
+    EXPECT_EQ(CountOccurrences(all, "configuration 3 and configuration 4 write to the same file"),
+              size_t(1))
+        << "message was: [" << all << "]";
+    EXPECT_TRUE(OutputContains(all, ws.path()))
+        << "the message does not name the path: [" << all << "]";
+}
+
+// The other side of the check above: configurations that resolve to different
+// destinations are not collateral for it. Two named output files are two
+// different destinations even though they come from the same entry point.
+TEST(CliMultiConfig, ConfigurationsWithDistinctOutputsAreBuilt) {
+    CliWorkspace ws("multi-distinct");
+    ws.Write("a.js", "console.log(1);\n");
+    ws.Write("guchho.config.json",
+             "[{\"build\":{\"entry\":\"a.js\",\"outfile\":\"first.js\"}},"
+             " {\"build\":{\"entry\":\"a.js\",\"outfile\":\"second.js\"}}]");
+
+    const CliResult result = RunCli({"build"});
+
+    EXPECT_EQ(result.exit_code, kSuccess);
+    EXPECT_TRUE(ws.Exists("first.js"));
+    EXPECT_TRUE(ws.Exists("second.js"));
+    EXPECT_EQ(CountOccurrences(result.err + result.out, "write to the same file"), size_t(0));
 }
 
 TEST(CliMultiConfig, EmptyArrayIsRejected) {

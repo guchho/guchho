@@ -982,8 +982,12 @@ std::optional<ErrorWithNote> parseOptionsImpl(
         // caller who wants a banner writes one string rather than a record.
         if (arg.starts_with("--banner=")) {
             auto value = arg.substr(std::string_view("--banner=").size());
-            if (build_opts) build_opts->banner["js"] = value;
-            else transform_opts->banner = value;
+            if (build_opts) {
+                build_opts->banner["js"] = value;
+                mark(api::kOptBanner);
+            } else {
+                transform_opts->banner = value;
+            }
             continue;
         }
         if (arg.starts_with("--footer=")) {
@@ -1001,6 +1005,7 @@ std::optional<ErrorWithNote> parseOptionsImpl(
                     "You need to use either \"--banner:js=...\" or \"--banner:css=...\"");
             }
             build_opts->banner[value.substr(0, eq)] = value.substr(eq + 1);
+            mark(api::kOptBanner);
             continue;
         }
         if (arg.starts_with("--footer:") && build_opts) {

@@ -61,7 +61,7 @@ TEST(CliMultiConfig, ObjectRootBuildsOnceAndSaysNothingAboutCounts) {
 
     EXPECT_EQ(result.exit_code, kSuccess);
     EXPECT_TRUE(ws.Exists("dist/index.html"));
-    EXPECT_TRUE(ws.Exists("dist/app.js"));
+    EXPECT_EQ(ws.CountMatching("dist/assets", "app-", ".js"), 1u);
     EXPECT_FALSE(OutputContains(result.out, "Build 1/"));
 }
 
@@ -113,9 +113,9 @@ TEST(CliMultiConfig, ConfigurationsKeepTheirOwnEntries) {
 
     EXPECT_EQ(result.exit_code, kSuccess);
     EXPECT_TRUE(ws.Exists("one/a.html")) << ws.Tree();
-    EXPECT_TRUE(ws.Exists("one/a.js")) << ws.Tree();
+    EXPECT_EQ(ws.CountMatching("one/assets", "a-", ".js"), 1u) << ws.Tree();
     EXPECT_TRUE(ws.Exists("two/b.html")) << ws.Tree();
-    EXPECT_TRUE(ws.Exists("two/b.js")) << ws.Tree();
+    EXPECT_EQ(ws.CountMatching("two/assets", "b-", ".js"), 1u) << ws.Tree();
     EXPECT_FALSE(ws.Exists("one/b.html"));
 }
 

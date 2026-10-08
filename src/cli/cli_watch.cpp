@@ -239,7 +239,28 @@ int runWatch(const std::vector<std::string>& args, bool quiet,
 
     attachPlugins(build_opts, plugins);
 
-    build_opts = resolveRunOptions(build_opts);
+    api::EffectiveBuildConfigs effective;
+    build_opts                  = resolveRunOptions(build_opts, "", &effective);
+
+    // A config file that exists but cannot be turned into configurations — it
+    // did not parse, or two configurations write the same output — has nothing
+    // to watch. "guchho build" refuses one; this command refuses it for the same
+    // reason and with the same words, rather than sitting over a session built
+    // from the command line alone while the project's real configuration goes
+    // unused.
+    if (effective.config_invalid) {
+        logger::PrintErrorToStderr(
+            args_copy, "The project configuration could not be used; see the error above");
+        return static_cast<int>(ExitCode::kCLIUsageError);
+    }
+
+    // Which config file settled the session, said before the session's own
+    // progress line. The path is absolute for the same reason "guchho build"
+    // prints it absolutely: relative to the working directory it could hide
+    // the directory the decision actually came from.
+    if (!quiet && effective.config_found) {
+        std::cout << "  Using " << effective.config_path << "\n";
+    }
 
     // -------------------------------------------------------------------------
     // An entry point, guessed if none was named

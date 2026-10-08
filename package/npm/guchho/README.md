@@ -75,7 +75,9 @@ it are never consulted. Within one directory, the first of these is used:
 3. `guchho.json`
 
 `guchho build` prints the config file it is using, so a build that landed
-somewhere unexpected says which file decided it.
+somewhere unexpected says which file decided it. `guchho dev`, `guchho watch`
+and `guchho serve` print the same `Using …` line, and all of them stop with an
+error if the nearest config exists but cannot be used.
 
 **Precedence: command-line flag → config file → built-in default.** A flag you pass always wins.
 

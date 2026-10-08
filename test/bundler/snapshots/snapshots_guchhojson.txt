@@ -179,24 +179,24 @@ BundlerGuchhoJSON.BuildFormatUMDWithoutExportsNeedsNoName
 
 ================================================================================
 BundlerGuchhoJSON.BuildHtmlEntryPage
----------- /out/style.css ----------
+---------- /out/assets/style-INAIMUHP.css ----------
 /* style.css */
 p {
   color: red;
 }
 
----------- /out/app.js ----------
+---------- /out/assets/app-HVPNX63T.js ----------
 // dep.js
 var x = 42;
 
 // app.js
 console.log(x);
 
----------- /out/logo.png ----------
+---------- /out/assets/logo-6275NM5S.png ----------
 fake-png-data
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css"></head>
-  <body><script src="./app.js"></script><img src="./logo.png">
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./assets/style-INAIMUHP.css"></head>
+  <body><script src="./assets/app-HVPNX63T.js"></script><img src="./assets/logo-6275NM5S.png">
 </body></html>
 ================================================================================
 BundlerGuchhoJSON.BuildMinifyObjectForm
@@ -309,30 +309,30 @@ BundlerGuchhoJSON.ConfigJSFileNameWins
 
 ================================================================================
 BundlerGuchhoJSON.DefaultEntryIsThePage
----------- /project/out/style.css ----------
+---------- /project/out/assets/style-EJN27CWP.css ----------
 /* project/style.css */
 p {
   color: red;
 }
 
----------- /project/out/app.js ----------
+---------- /project/out/assets/app-RN7JKNZQ.js ----------
 // project/dep.js
 var x = 42;
 
 // project/app.js
 console.log(x);
 
----------- /project/out/logo.png ----------
+---------- /project/out/assets/logo-6275NM5S.png ----------
 fake-png-data
 ---------- /project/out/index.html ----------
 <!DOCTYPE html>
 <html>
   <head>
-    <link rel="stylesheet" href="./style.css">
+    <link rel="stylesheet" href="./assets/style-EJN27CWP.css">
   </head>
   <body>
-    <script src="./app.js"></script>
-    <img src="./logo.png">
+    <script src="./assets/app-RN7JKNZQ.js"></script>
+    <img src="./assets/logo-6275NM5S.png">
   </body>
 </html>
 ================================================================================

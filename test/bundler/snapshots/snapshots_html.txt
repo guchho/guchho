@@ -1,50 +1,58 @@
+BundlerHTML.HtmlAssetSharedByTwoEntriesIsEmittedOnce
+---------- /out/assets/logo-YOVI65JH.svg ----------
+<svg/>
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><img src="./assets/logo-YOVI65JH.svg"></body></html>
+---------- /out/about.html ----------
+<!DOCTYPE html><html><head></head><body><img src="./assets/logo-YOVI65JH.svg"></body></html>
+================================================================================
 BundlerHTML.HtmlBasePathAbsolute
----------- /out/logo.png ----------
+---------- /out/assets/logo-6275NM5S.png ----------
 fake-png-data
----------- /out/app.js ----------
+---------- /out/assets/app-BDJJ4KCS.js ----------
 // app.js
-import("/app/dep-HGXMSJND.js").then((m) => console.log(m.x));
+import("/app/assets/dep-DDOILFD6.js").then((m) => console.log(m.x));
 
----------- /out/dep-HGXMSJND.js ----------
+---------- /out/assets/dep-DDOILFD6.js ----------
 // dep.js
 var x = 42;
 export {
   x
 };
 
----------- /out/app.css ----------
+---------- /out/assets/app-IPGSX27A.css ----------
 /* style.css */
 p {
   color: red;
 }
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="modulepreload" crossorigin="" href="/app/dep-HGXMSJND.js"><link rel="stylesheet" href="/app/app.css"></head><body><script type="module" src="/app/app.js" crossorigin=""></script><img src="/app/logo.png"></body></html>
+<!DOCTYPE html><html><head><link rel="modulepreload" crossorigin="" href="/app/assets/dep-DDOILFD6.js"><link rel="stylesheet" href="/app/assets/app-IPGSX27A.css"></head><body><script type="module" src="/app/assets/app-BDJJ4KCS.js" crossorigin=""></script><img src="/app/assets/logo-6275NM5S.png"></body></html>
 ================================================================================
 BundlerHTML.HtmlBasePathExternalUntouched
----------- /out/app.js ----------
+---------- /out/assets/app-W75JTP2H.js ----------
 // app.js
 console.log("hi");
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head></head><body><script type="module" src="/app/app.js" crossorigin=""></script><img src="https://static.example.com/x.png"><img src="data:image/png;base64,AAAA"></body></html>
+<!DOCTYPE html><html><head></head><body><script type="module" src="/app/assets/app-W75JTP2H.js" crossorigin=""></script><img src="https://static.example.com/x.png"><img src="data:image/png;base64,AAAA"></body></html>
 ================================================================================
 BundlerHTML.HtmlBasePathRelative
----------- /out/app.js ----------
+---------- /out/assets/app-5MWQL4CP.js ----------
 // app.js
 console.log("hi");
 
----------- /out/logo.png ----------
+---------- /out/assets/logo-6275NM5S.png ----------
 fake-png-data
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head></head><body><script src="./app.js"></script><img src="./logo.png"></body></html>
+<!DOCTYPE html><html><head></head><body><script src="./assets/app-5MWQL4CP.js"></script><img src="./assets/logo-6275NM5S.png"></body></html>
 ================================================================================
 BundlerHTML.HtmlBasePathURL
----------- /out/app.js ----------
+---------- /out/assets/app-UVEM43Z6.js ----------
 // app.js
-import("https://cdn.example.com/dep-PDESWVSJ.js").then((m) => console.log(m.x));
+import("https://cdn.example.com/assets/dep-WRR7MBFG.js").then((m) => console.log(m.x));
 
----------- /out/dep-PDESWVSJ.js ----------
+---------- /out/assets/dep-WRR7MBFG.js ----------
 // dep.js
 var x = 42;
 export {
@@ -52,55 +60,55 @@ export {
 };
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="modulepreload" crossorigin="" href="https://cdn.example.com/dep-PDESWVSJ.js"></head><body><script type="module" src="https://cdn.example.com/app.js" crossorigin=""></script></body></html>
+<!DOCTYPE html><html><head><link rel="modulepreload" crossorigin="" href="https://cdn.example.com/assets/dep-WRR7MBFG.js"></head><body><script type="module" src="https://cdn.example.com/assets/app-UVEM43Z6.js" crossorigin=""></script></body></html>
 ================================================================================
 BundlerHTML.HtmlCSSLoadingBlocking
----------- /out/app.js ----------
+---------- /out/assets/app-ZFFVSU3T.js ----------
 // app.js
 console.log("hi");
 
----------- /out/site.css ----------
+---------- /out/assets/site-4SASQT5F.css ----------
 /* site.css */
 body {
   background: blue;
 }
 
----------- /out/app.css ----------
+---------- /out/assets/app-B4MRWN4X.css ----------
 /* style.css */
 p {
   color: green;
 }
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="stylesheet" href="./app.css"><link rel="stylesheet" href="./site.css"></head><body><script type="module" src="./app.js" crossorigin=""></script></body></html>
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./assets/app-B4MRWN4X.css"><link rel="stylesheet" href="./assets/site-4SASQT5F.css"></head><body><script type="module" src="./assets/app-ZFFVSU3T.js" crossorigin=""></script></body></html>
 ================================================================================
 BundlerHTML.HtmlCSSLoadingNonBlocking
----------- /out/app.js ----------
+---------- /out/assets/app-ZFFVSU3T.js ----------
 // app.js
 console.log("hi");
 
----------- /out/site.css ----------
+---------- /out/assets/site-4SASQT5F.css ----------
 /* site.css */
 body {
   background: blue;
 }
 
----------- /out/app.css ----------
+---------- /out/assets/app-B4MRWN4X.css ----------
 /* style.css */
 p {
   color: green;
 }
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="preload" href="./app.css" as="style" onload="this.rel='stylesheet'"><noscript><link rel="stylesheet" href="./app.css"></noscript><link rel="stylesheet" href="https://cdn.example.com/theme.css"><link rel="preload" href="./site.css" as="style" onload="this.rel='stylesheet'"><noscript><link rel="stylesheet" href="./site.css"></noscript></head><body><script type="module" src="./app.js" crossorigin=""></script></body></html>
+<!DOCTYPE html><html><head><link rel="preload" href="./assets/app-B4MRWN4X.css" as="style" onload="this.rel='stylesheet'"><noscript><link rel="stylesheet" href="./assets/app-B4MRWN4X.css"></noscript><link rel="stylesheet" href="https://cdn.example.com/theme.css"><link rel="preload" href="./assets/site-4SASQT5F.css" as="style" onload="this.rel='stylesheet'"><noscript><link rel="stylesheet" href="./assets/site-4SASQT5F.css"></noscript></head><body><script type="module" src="./assets/app-ZFFVSU3T.js" crossorigin=""></script></body></html>
 ================================================================================
 BundlerHTML.HtmlClassicScriptUntouched
----------- /out/app.js ----------
+---------- /out/assets/app-KLWY6BNL.js ----------
 // app.js
 console.log("hi");
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head></head><body><script src="./app.js"></script></body></html>
+<!DOCTYPE html><html><head></head><body><script src="./assets/app-KLWY6BNL.js"></script></body></html>
 ================================================================================
 BundlerHTML.HtmlCspNonceCreatesHead
 ---------- /out/index.html ----------
@@ -111,13 +119,15 @@ BundlerHTML.HtmlCspNonceCreatesHead
 </style></body></html>
 ================================================================================
 BundlerHTML.HtmlCspNonceInjection
----------- /out/a.css ----------
+---------- /out/assets/f-AY5CGEJS.woff2 ----------
+OTTO
+---------- /out/assets/a-F5QWOGR5.css ----------
 /* a.css */
 body {
   color: red;
 }
 
----------- /out/a.js ----------
+---------- /out/assets/a-LC6YLWOZ.js ----------
 // b.js
 console.log("b");
 
@@ -125,7 +135,7 @@ console.log("b");
 console.log("a");
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><meta property="csp-nonce" nonce="abc123"><link rel="modulepreload" href="./x.js" nonce="abc123"><link rel="preload" as="font" type="font/woff2" href="./f.woff2" nonce="abc123"></head><body><link rel="stylesheet" href="./a.css" nonce="abc123"><script type="module" src="./a.js" crossorigin="" nonce="abc123"></script><style nonce="abc123">/* index.html:inline-styles */
+<!DOCTYPE html><html><head><meta property="csp-nonce" nonce="abc123"><link rel="modulepreload" href="./x.js" nonce="abc123"><link rel="preload" as="font" type="font/woff2" href="./assets/f-AY5CGEJS.woff2" nonce="abc123"></head><body><link rel="stylesheet" href="./assets/a-F5QWOGR5.css" nonce="abc123"><script type="module" src="./assets/a-LC6YLWOZ.js" crossorigin="" nonce="abc123"></script><style nonce="abc123">/* index.html:inline-styles */
 body {
   color: red;
 }
@@ -136,44 +146,172 @@ BundlerHTML.HtmlCspNonceMetaInjected
 <!DOCTYPE html><html><head><meta property="csp-nonce" nonce="abc123"></head><body></body></html>
 ================================================================================
 BundlerHTML.HtmlCspNoncePreservesExisting
----------- /out/a.js ----------
+---------- /out/assets/a-G54N2NKH.js ----------
 // a.js
 console.log("a");
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><meta property="csp-nonce" nonce="abc123"></head><body><script nonce="existing" type="module" src="./a.js" crossorigin=""></script></body></html>
+<!DOCTYPE html><html><head><meta property="csp-nonce" nonce="abc123"></head><body><script nonce="existing" type="module" src="./assets/a-G54N2NKH.js" crossorigin=""></script></body></html>
+================================================================================
+BundlerHTML.HtmlCssAndJsShareOneAsset
+---------- /out/assets/logo-YOVI65JH.svg ----------
+<svg/>
+---------- /out/assets/style-LTLOXZZZ.css ----------
+/* style.css */
+.logo {
+  background: url("./logo-YOVI65JH.svg");
+}
+
+---------- /out/assets/app-BSQZPMZD.js ----------
+// app.js
+import logoUrl from "./logo-YOVI65JH.svg";
+console.log(logoUrl);
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./assets/style-LTLOXZZZ.css"></head><body><img src="./assets/logo-YOVI65JH.svg"><script type="module" src="./assets/app-BSQZPMZD.js" crossorigin=""></script></body></html>
+================================================================================
+BundlerHTML.HtmlDeduplicationMatrixEmitsEachTypeOnce
+---------- /out/assets/type-woff-Z6UP36UA.woff ----------
+BYTES-WOFF
+---------- /out/assets/type-woff2-ZJXR3VRY.woff2 ----------
+BYTES-WOFF2
+---------- /out/assets/type-ttf-EDJDNNON.ttf ----------
+BYTES-TTF
+---------- /out/assets/type-otf-3WJAGVTO.otf ----------
+BYTES-OTF
+---------- /out/assets/type-eot-TFYEVRLQ.eot ----------
+BYTES-EOT
+---------- /out/assets/style-XWMGVC53.css ----------
+/* style.css */
+@font-face {
+  font-family: "A";
+  src: url("./type-woff-Z6UP36UA.woff") format("woff");
+}
+@font-face {
+  font-family: "A2";
+  src: url("./type-woff-Z6UP36UA.woff") format("woff");
+}
+@font-face {
+  font-family: "B";
+  src: url("./type-woff2-ZJXR3VRY.woff2") format("woff2");
+}
+@font-face {
+  font-family: "B2";
+  src: url("./type-woff2-ZJXR3VRY.woff2") format("woff2");
+}
+@font-face {
+  font-family: "C";
+  src: url("./type-ttf-EDJDNNON.ttf");
+}
+@font-face {
+  font-family: "C2";
+  src: url("./type-ttf-EDJDNNON.ttf");
+}
+@font-face {
+  font-family: "D";
+  src: url("./type-otf-3WJAGVTO.otf");
+}
+@font-face {
+  font-family: "D2";
+  src: url("./type-otf-3WJAGVTO.otf");
+}
+@font-face {
+  font-family: "E";
+  src: url("./type-eot-TFYEVRLQ.eot");
+}
+@font-face {
+  font-family: "E2";
+  src: url("./type-eot-TFYEVRLQ.eot");
+}
+
+---------- /out/assets/type-ico-QTHUGE5Q.ico ----------
+BYTES-ICO
+---------- /out/assets/type-png-RL6WAFTY.png ----------
+BYTES-PNG
+---------- /out/assets/type-jpg-NMXB74CD.jpg ----------
+BYTES-JPG
+---------- /out/assets/type-jpeg-WINPY233.jpeg ----------
+BYTES-JPEG
+---------- /out/assets/type-gif-2VFFIHSA.gif ----------
+BYTES-GIF
+---------- /out/assets/type-webp-34DNSEQD.webp ----------
+BYTES-WEBP
+---------- /out/assets/type-avif-XS5ZEBX3.avif ----------
+BYTES-AVIF
+---------- /out/assets/type-svg-F3KGAUYK.svg ----------
+BYTES-SVG
+---------- /out/assets/type-bmp-7CYGPFXB.bmp ----------
+BYTES-BMP
+---------- /out/assets/type-mp4-ZCGFA7NQ.mp4 ----------
+BYTES-MP4
+---------- /out/assets/type-webm-D3YG7VIM.webm ----------
+BYTES-WEBM
+---------- /out/assets/type-mp3-DC3MPTDV.mp3 ----------
+BYTES-MP3
+---------- /out/assets/type-wav-ZWQUTCSG.wav ----------
+BYTES-WAV
+---------- /out/assets/type-ogg-NVOWDQ6N.ogg ----------
+BYTES-OGG
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head>
+<link rel="stylesheet" href="./assets/style-XWMGVC53.css">
+<link rel="icon" href="./assets/type-ico-QTHUGE5Q.ico">
+<link rel="shortcut icon" href="./assets/type-ico-QTHUGE5Q.ico">
+</head>
+<body>
+<img src="./assets/type-png-RL6WAFTY.png"><img src="./assets/type-png-RL6WAFTY.png">
+<img src="./assets/type-jpg-NMXB74CD.jpg"><img src="./assets/type-jpg-NMXB74CD.jpg">
+<img src="./assets/type-jpeg-WINPY233.jpeg"><img src="./assets/type-jpeg-WINPY233.jpeg">
+<img src="./assets/type-gif-2VFFIHSA.gif"><img src="./assets/type-gif-2VFFIHSA.gif">
+<img src="./assets/type-webp-34DNSEQD.webp"><img src="./assets/type-webp-34DNSEQD.webp">
+<img src="./assets/type-avif-XS5ZEBX3.avif"><img src="./assets/type-avif-XS5ZEBX3.avif">
+<img src="./assets/type-svg-F3KGAUYK.svg"><img src="./assets/type-svg-F3KGAUYK.svg">
+<img src="./assets/type-bmp-7CYGPFXB.bmp"><img src="./assets/type-bmp-7CYGPFXB.bmp">
+<video src="./assets/type-mp4-ZCGFA7NQ.mp4"></video><video src="./assets/type-mp4-ZCGFA7NQ.mp4"></video>
+<video src="./assets/type-webm-D3YG7VIM.webm"></video><video src="./assets/type-webm-D3YG7VIM.webm"></video>
+<audio src="./assets/type-mp3-DC3MPTDV.mp3"></audio><audio src="./assets/type-mp3-DC3MPTDV.mp3"></audio>
+<audio src="./assets/type-wav-ZWQUTCSG.wav"></audio><audio src="./assets/type-wav-ZWQUTCSG.wav"></audio>
+<audio src="./assets/type-ogg-NVOWDQ6N.ogg"></audio><audio src="./assets/type-ogg-NVOWDQ6N.ogg"></audio>
+
+</body></html>
+================================================================================
+BundlerHTML.HtmlDuplicateContentAtTwoPathsIsEmittedOnce
+---------- /out/assets/logo-IHJ66PCH.svg ----------
+IDENTICAL-BYTES
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><img src="./assets/logo-IHJ66PCH.svg"><img src="./assets/logo-IHJ66PCH.svg"></body></html>
 ================================================================================
 BundlerHTML.HtmlEmbeddedScopedAssets
----------- /out/_.._/styles/main.css ----------
+---------- /out/assets/main-67AIM7VI.css ----------
 /* styles/main.css */
 a {
   color: blue;
 }
 
----------- /out/_.._/img/hero.png ----------
+---------- /out/assets/hero-VUTX4VVU.png ----------
 HERO
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="stylesheet" href="./_.._/styles/main.css"></head><body><img src="./_.._/img/hero.png"></body></html>
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./assets/main-67AIM7VI.css"></head><body><img src="./assets/hero-VUTX4VVU.png"></body></html>
 ================================================================================
 BundlerHTML.HtmlEntryWithAllResourceKinds
----------- /out/style.css ----------
+---------- /out/assets/style-INAIMUHP.css ----------
 /* style.css */
 p {
   color: red;
 }
 
----------- /out/app.js ----------
+---------- /out/assets/app-HVPNX63T.js ----------
 // dep.js
 var x = 42;
 
 // app.js
 console.log(x);
 
----------- /out/logo.png ----------
+---------- /out/assets/logo-6275NM5S.png ----------
 fake-png-data
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css"></head>
-  <body><script src="./app.js"></script><img src="./logo.png">
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./assets/style-INAIMUHP.css"></head>
+  <body><script src="./assets/app-HVPNX63T.js"></script><img src="./assets/logo-6275NM5S.png">
 </body></html>
 ================================================================================
 BundlerHTML.HtmlEnvReplacement
@@ -185,10 +323,10 @@ BundlerHTML.HtmlEnvReplacementEmptyValue
 <!DOCTYPE html><html><head><title></title></head><body></body></html>
 ================================================================================
 BundlerHTML.HtmlEnvReplacementInAttributes
----------- /out/logo.png ----------
+---------- /out/assets/logo-TRZP3TUJ.png ----------
 LOGO
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><meta name="description" content="A product catalog"></head><body><a href="https://example.com/">Home</a><img src="./logo.png" alt="Logo"></body></html>
+<!DOCTYPE html><html><head><meta name="description" content="A product catalog"></head><body><a href="https://example.com/">Home</a><img src="./assets/logo-TRZP3TUJ.png" alt="Logo"></body></html>
 ================================================================================
 BundlerHTML.HtmlEnvReplacementMixed
 ---------- /out/index.html ----------
@@ -206,22 +344,38 @@ BundlerHTML.HtmlEnvReplacementUnknownKeyUntouched
 ---------- /out/index.html ----------
 <!DOCTYPE html><html><head><title>%UNKNOWN%</title></head><body></body></html>
 ================================================================================
+BundlerHTML.HtmlEquivalentNormalizedPathsAreOneAsset
+---------- /out/assets/logo-YOVI65JH.svg ----------
+<svg/>
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><img src="./assets/logo-YOVI65JH.svg"><img src="./assets/logo-YOVI65JH.svg"></body></html>
+================================================================================
 BundlerHTML.HtmlExternalAndDataUrlsArePreserved
----------- /out/local-logo.png ----------
+---------- /out/assets/favicon-MVEWECPK.ico ----------
+ICO
+---------- /out/assets/font-QBPSXL2W.woff2 ----------
+FONT
+---------- /out/assets/local-logo-QS4TGOLG.png ----------
 LOCAL
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="icon" href="./favicon.ico"><link rel="preload" href="./font.woff2"><link rel="stylesheet" href="https://cdn.example.com/site.css"></head><body><script src="https://example.com/app.js"></script><script src="//cdn.example.com/app.js"></script><script src="data:text/javascript,console.log(1)"></script><img src="data:image/png;base64,AAAA"><img src="//cdn.example.com/logo.png"><img src="./local-logo.png"></body></html>
+<!DOCTYPE html><html><head><link rel="icon" href="./assets/favicon-MVEWECPK.ico"><link rel="preload" href="./assets/font-QBPSXL2W.woff2"><link rel="stylesheet" href="https://cdn.example.com/site.css"></head><body><script src="https://example.com/app.js"></script><script src="//cdn.example.com/app.js"></script><script src="data:text/javascript,console.log(1)"></script><img src="data:image/png;base64,AAAA"><img src="//cdn.example.com/logo.png"><img src="./assets/local-logo-QS4TGOLG.png"></body></html>
+================================================================================
+BundlerHTML.HtmlFaviconLinksAreEmittedOnce
+---------- /out/assets/favicon-VOQA3HSA.ico ----------
+FAVICON-BYTES
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="icon" href="./assets/favicon-VOQA3HSA.ico"><link rel="shortcut icon" href="./assets/favicon-VOQA3HSA.ico"></head><body></body></html>
 ================================================================================
 BundlerHTML.HtmlFinalAcceptanceFixture
----------- /out/assets/logo.png ----------
+---------- /out/assets/logo-5Q5SJOPM.png ----------
 FAKEPNG
----------- /out/src/style.css ----------
+---------- /out/assets/style-XKCC65DM.css ----------
 /* src/style.css */
 .card {
   padding: 8px;
 }
 
----------- /out/src/app.js ----------
+---------- /out/assets/app-GSM2KOIE.js ----------
 // src/foo.js
 var foo = "foo";
 
@@ -229,13 +383,50 @@ var foo = "foo";
 console.log(foo);
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="stylesheet" href="./src/style.css"><style>/* index.html:inline-styles */
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./assets/style-XKCC65DM.css"><style>/* index.html:inline-styles */
 body {
-  background: url("./assets/logo.png");
+  background: url("./assets/logo-5Q5SJOPM.png");
 }
-</style></head><body><img src="./assets/logo.png"><script type="module" src="./src/app.js" crossorigin=""></script><script>// index.html:inline-scripts
+</style></head><body><img src="./assets/logo-5Q5SJOPM.png"><script type="module" src="./assets/app-GSM2KOIE.js" crossorigin=""></script><script>// index.html:inline-scripts
 console.log("inline");
 </script></body></html>
+================================================================================
+BundlerHTML.HtmlFontFormatsAreEmittedUnderAssets
+---------- /out/assets/app-Z6UP36UA.woff ----------
+BYTES-WOFF
+---------- /out/assets/app-ZJXR3VRY.woff2 ----------
+BYTES-WOFF2
+---------- /out/assets/app-EDJDNNON.ttf ----------
+BYTES-TTF
+---------- /out/assets/app-3WJAGVTO.otf ----------
+BYTES-OTF
+---------- /out/assets/app-TFYEVRLQ.eot ----------
+BYTES-EOT
+---------- /out/assets/style-MFPHXFLN.css ----------
+/* style.css */
+@font-face {
+  font-family: "A";
+  src: url("./app-Z6UP36UA.woff") format("woff");
+}
+@font-face {
+  font-family: "B";
+  src: url("./app-ZJXR3VRY.woff2") format("woff2");
+}
+@font-face {
+  font-family: "C";
+  src: url("./app-EDJDNNON.ttf");
+}
+@font-face {
+  font-family: "D";
+  src: url("./app-3WJAGVTO.otf");
+}
+@font-face {
+  font-family: "E";
+  src: url("./app-TFYEVRLQ.eot");
+}
+
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./assets/style-MFPHXFLN.css"></head><body></body></html>
 ================================================================================
 BundlerHTML.HtmlGuchhoIgnoreInlineScript
 ---------- /out/index.html ----------
@@ -253,10 +444,10 @@ BundlerHTML.HtmlGuchhoIgnoreInlineStyle
 </style><style>.b { color: blue }</style></body></html>
 ================================================================================
 BundlerHTML.HtmlGuchhoIgnoreMultiple
----------- /out/logo.png ----------
+---------- /out/assets/logo-TRZP3TUJ.png ----------
 LOGO
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head></head><body><img src="./logo.png"><img src="skip.png"></body></html>
+<!DOCTYPE html><html><head></head><body><img src="./assets/logo-TRZP3TUJ.png"><img src="skip.png"></body></html>
 ================================================================================
 BundlerHTML.HtmlGuchhoIgnoreScript
 ---------- /out/index.html ----------
@@ -266,52 +457,74 @@ BundlerHTML.HtmlGuchhoIgnoreSkipsRewriting
 ---------- /out/index.html ----------
 <!DOCTYPE html><html><head></head><body><img src="./a.png"></body></html>
 ================================================================================
+BundlerHTML.HtmlImageFormatsAreEmittedUnderAssets
+---------- /out/assets/favicon-QTHUGE5Q.ico ----------
+BYTES-ICO
+---------- /out/assets/logo-RL6WAFTY.png ----------
+BYTES-PNG
+---------- /out/assets/photo-NMXB74CD.jpg ----------
+BYTES-JPG
+---------- /out/assets/photo2-WINPY233.jpeg ----------
+BYTES-JPEG
+---------- /out/assets/anim-2VFFIHSA.gif ----------
+BYTES-GIF
+---------- /out/assets/banner-34DNSEQD.webp ----------
+BYTES-WEBP
+---------- /out/assets/pic-XS5ZEBX3.avif ----------
+BYTES-AVIF
+---------- /out/assets/icon-F3KGAUYK.svg ----------
+BYTES-SVG
+---------- /out/assets/tile-7CYGPFXB.bmp ----------
+BYTES-BMP
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="icon" href="./assets/favicon-QTHUGE5Q.ico"></head><body><img src="./assets/logo-RL6WAFTY.png"><img src="./assets/photo-NMXB74CD.jpg"><img src="./assets/photo2-WINPY233.jpeg"><img src="./assets/anim-2VFFIHSA.gif"><img src="./assets/banner-34DNSEQD.webp"><img src="./assets/pic-XS5ZEBX3.avif"><img src="./assets/icon-F3KGAUYK.svg"><img src="./assets/tile-7CYGPFXB.bmp"></body></html>
+================================================================================
 BundlerHTML.HtmlImportMapAlreadyCorrect
----------- /out/app.js ----------
+---------- /out/assets/app-GFB5UC3D.js ----------
 // app.js
 console.log("app");
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head></head><body><script type="importmap">{"imports":{"vue":"/vue.js"}}</script><script type="module" src="./app.js" crossorigin=""></script></body></html>
+<!DOCTYPE html><html><head></head><body><script type="importmap">{"imports":{"vue":"/vue.js"}}</script><script type="module" src="./assets/app-GFB5UC3D.js" crossorigin=""></script></body></html>
 ================================================================================
 BundlerHTML.HtmlImportMapMultiple
----------- /out/app.js ----------
+---------- /out/assets/app-GFB5UC3D.js ----------
 // app.js
 console.log("app");
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head></head><body><script type="importmap">{"imports":{"a":"/a.js"}}</script><script type="importmap">{"imports":{"b":"/b.js"}}</script><script type="module" src="./app.js" crossorigin=""></script></body></html>
+<!DOCTYPE html><html><head></head><body><script type="importmap">{"imports":{"a":"/a.js"}}</script><script type="importmap">{"imports":{"b":"/b.js"}}</script><script type="module" src="./assets/app-GFB5UC3D.js" crossorigin=""></script></body></html>
 ================================================================================
 BundlerHTML.HtmlImportMapNoModules
 ---------- /out/index.html ----------
 <!DOCTYPE html><html><head></head><body><div>hello</div><script type="importmap">{"imports":{"vue":"/vue.js"}}</script></body></html>
 ================================================================================
 BundlerHTML.HtmlImportMapReordered
----------- /out/app.js ----------
+---------- /out/assets/app-GFB5UC3D.js ----------
 // app.js
 console.log("app");
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head></head><body><script type="importmap">{"imports":{"vue":"/vue.js"}}</script><script type="module" src="./app.js" crossorigin=""></script></body></html>
+<!DOCTYPE html><html><head></head><body><script type="importmap">{"imports":{"vue":"/vue.js"}}</script><script type="module" src="./assets/app-GFB5UC3D.js" crossorigin=""></script></body></html>
 ================================================================================
 BundlerHTML.HtmlImportOnlyFacadeInlined
----------- /out/app.js ----------
+---------- /out/assets/app-FX6MBEZX.js ----------
 import {
   value
-} from "./chunk-DDGS4UJZ.js";
+} from "./chunk-IR7EKU6W.js";
 export {
   value
 };
 
----------- /out/shared.js ----------
+---------- /out/assets/shared-DRUOTK27.js ----------
 import {
   value
-} from "./chunk-DDGS4UJZ.js";
+} from "./chunk-IR7EKU6W.js";
 export {
   value
 };
 
----------- /out/chunk-DDGS4UJZ.js ----------
+---------- /out/assets/chunk-IR7EKU6W.js ----------
 // util.js
 console.log("util-initialized");
 
@@ -323,9 +536,9 @@ export {
 };
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head></head><body><script type="module" src="./chunk-DDGS4UJZ.js" crossorigin=""></script></body></html>
+<!DOCTYPE html><html><head></head><body><script type="module" src="./assets/chunk-IR7EKU6W.js" crossorigin=""></script></body></html>
 ---------- /out/other.html ----------
-<!DOCTYPE html><html><head></head><body><script type="module" src="./chunk-DDGS4UJZ.js" crossorigin=""></script></body></html>
+<!DOCTYPE html><html><head></head><body><script type="module" src="./assets/chunk-IR7EKU6W.js" crossorigin=""></script></body></html>
 ================================================================================
 BundlerHTML.HtmlInlineBundleEscapesClosingTag
 ---------- /out/index.html ----------
@@ -344,13 +557,13 @@ alert(1);
 </script></body></html>
 ================================================================================
 BundlerHTML.HtmlInlineRunsSplitAtExternalResources
----------- /out/theme.css ----------
+---------- /out/assets/theme-NZRYFYYO.css ----------
 /* theme.css */
 h1 {
   font-size: 1em;
 }
 
----------- /out/ext.js ----------
+---------- /out/assets/ext-IKIW5LUV.js ----------
 // ext.js
 console.log("ext");
 
@@ -359,13 +572,13 @@ console.log("ext");
 a {
   color: red;
 }
-</style><link rel="stylesheet" href="./theme.css"><style>/* index.html:inline-styles:1 */
+</style><link rel="stylesheet" href="./assets/theme-NZRYFYYO.css"><style>/* index.html:inline-styles:1 */
 b {
   color: blue;
 }
 </style></head><body><script>// index.html:inline-scripts
 var a = 1;
-</script><script src="./ext.js"></script><script>// index.html:inline-scripts:1
+</script><script src="./assets/ext-IKIW5LUV.js"></script><script>// index.html:inline-scripts:1
 console.log(a);
 </script></body></html>
 ================================================================================
@@ -402,52 +615,56 @@ body {
 </style></head><body></body></html>
 ================================================================================
 BundlerHTML.HtmlInlineStyleReferencesAsset
----------- /out/bg-K3V4QLR4.png ----------
+---------- /out/assets/bg-K3V4QLR4.png ----------
 BGPNG
 ---------- /out/index.html ----------
 <!DOCTYPE html><html><head><style>/* pages/index.html:inline-styles */
 .app {
-  background: url("./bg-K3V4QLR4.png");
+  background: url("./assets/bg-K3V4QLR4.png");
 }
 </style></head><body>hi</body></html>
 ================================================================================
 BundlerHTML.HtmlJSImportedStylesheetIsDeduplicatedWithLink
----------- /out/app.js ----------
+---------- /out/assets/app-ZFFVSU3T.js ----------
 // app.js
 console.log("hi");
 
----------- /out/style.css ----------
+---------- /out/assets/style-6DYECVKZ.css ----------
 /* style.css */
 p {
   color: green;
 }
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css"></head><body><script type="module" src="./app.js" crossorigin=""></script></body></html>
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./assets/style-6DYECVKZ.css"></head><body><script type="module" src="./assets/app-ZFFVSU3T.js" crossorigin=""></script></body></html>
 ================================================================================
 BundlerHTML.HtmlJSImportedStylesheetIsDeduplicatedWithLinkNoSplitting
----------- /out/style.css ----------
+---------- /out/assets/style-6DYECVKZ.css ----------
 /* style.css */
 p {
   color: green;
 }
 
----------- /out/app.js ----------
+---------- /out/assets/app-ZFFVSU3T.js ----------
 // app.js
 console.log("hi");
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css"></head><body><script type="module" src="./app.js" crossorigin=""></script></body></html>
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./assets/style-6DYECVKZ.css"></head><body><script type="module" src="./assets/app-ZFFVSU3T.js" crossorigin=""></script></body></html>
 ================================================================================
 BundlerHTML.HtmlLinkStylesheetFiltering
----------- /out/site.css ----------
+---------- /out/assets/favicon-MVEWECPK.ico ----------
+ICO
+---------- /out/assets/site-WEILW3U4.css ----------
 /* site.css */
 body {
   margin: 0;
 }
 
+---------- /out/assets/font-QBPSXL2W.woff2 ----------
+FONT
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="icon" href="./favicon.ico"><link rel="stylesheet" href="./site.css"><link rel="preload" href="./font.woff2"></head><body></body></html>
+<!DOCTYPE html><html><head><link rel="icon" href="./assets/favicon-MVEWECPK.ico"><link rel="stylesheet" href="./assets/site-WEILW3U4.css"><link rel="preload" href="./assets/font-QBPSXL2W.woff2"></head><body></body></html>
 ================================================================================
 BundlerHTML.HtmlMinificationAttributeQuotes
 ---------- /out/index.html ----------
@@ -498,44 +715,44 @@ BundlerHTML.HtmlMinifiedClassicBundleStripsSourceComments
 </script></body></html>
 ================================================================================
 BundlerHTML.HtmlModulePreloadAndCssInjection
----------- /out/app.js ----------
+---------- /out/assets/app-VCEUAV3T.js ----------
 // app.js
-import("./dep-KJNKWSSK.js").then((m) => console.log(m.x));
+import("./dep-DSG6FYFB.js").then((m) => console.log(m.x));
 
----------- /out/dep-KJNKWSSK.js ----------
+---------- /out/assets/dep-DSG6FYFB.js ----------
 // dep.js
 var x = 42;
 export {
   x
 };
 
----------- /out/app.css ----------
+---------- /out/assets/app-QHOG7H5Y.css ----------
 /* style.css */
 p {
   color: red;
 }
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="modulepreload" crossorigin="" href="./dep-KJNKWSSK.js"><link rel="stylesheet" href="./app.css"><title>T</title></head><body><script type="module" src="./app.js" crossorigin=""></script></body></html>
+<!DOCTYPE html><html><head><link rel="modulepreload" crossorigin="" href="./assets/dep-DSG6FYFB.js"><link rel="stylesheet" href="./assets/app-QHOG7H5Y.css"><title>T</title></head><body><script type="module" src="./assets/app-VCEUAV3T.js" crossorigin=""></script></body></html>
 ================================================================================
 BundlerHTML.HtmlMultiPageAppSharedModuleChunk
----------- /out/home.js ----------
+---------- /out/assets/home-GMBPLKZZ.js ----------
 import {
   Header
-} from "./chunk-FVTFSJMV.js";
+} from "./chunk-HIQ3BRM2.js";
 
 // home.js
 console.log("home", Header);
 
----------- /out/about.js ----------
+---------- /out/assets/about-555I2PDJ.js ----------
 import {
   Header
-} from "./chunk-FVTFSJMV.js";
+} from "./chunk-HIQ3BRM2.js";
 
 // about.js
 console.log("about", Header);
 
----------- /out/chunk-FVTFSJMV.js ----------
+---------- /out/assets/chunk-HIQ3BRM2.js ----------
 // ui/header.js
 var Header = "site-header";
 
@@ -544,25 +761,25 @@ export {
 };
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="modulepreload" crossorigin="" href="./chunk-FVTFSJMV.js"></head><body><script type="module" src="./home.js" crossorigin=""></script></body></html>
+<!DOCTYPE html><html><head><link rel="modulepreload" crossorigin="" href="./assets/chunk-HIQ3BRM2.js"></head><body><script type="module" src="./assets/home-GMBPLKZZ.js" crossorigin=""></script></body></html>
 ---------- /out/about.html ----------
-<!DOCTYPE html><html><head><link rel="modulepreload" crossorigin="" href="./chunk-FVTFSJMV.js"></head><body><script type="module" src="./about.js" crossorigin=""></script></body></html>
+<!DOCTYPE html><html><head><link rel="modulepreload" crossorigin="" href="./assets/chunk-HIQ3BRM2.js"></head><body><script type="module" src="./assets/about-555I2PDJ.js" crossorigin=""></script></body></html>
 ================================================================================
 BundlerHTML.HtmlNestedOutputDirRelativePaths
----------- /out/style.css ----------
+---------- /out/assets/style-DKZESMEM.css ----------
 /* admin/style.css */
 p {
   color: orange;
 }
 
----------- /out/app.js ----------
+---------- /out/assets/app-TN27LNYZ.js ----------
 // admin/app.js
 console.log("admin");
 
----------- /out/logo.png ----------
+---------- /out/assets/logo-GSFE4ULO.png ----------
 ADMINLOGO
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css"></head><body><script src="./app.js"></script><img src="./logo.png"></body></html>
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./assets/style-DKZESMEM.css"></head><body><script src="./assets/app-TN27LNYZ.js"></script><img src="./assets/logo-GSFE4ULO.png"></body></html>
 ================================================================================
 BundlerHTML.HtmlNonMinifiedClassicBundleKeepsSourceComments
 ---------- /out/index.html ----------
@@ -579,6 +796,12 @@ function greet(name) {
 // index.html:inline-scripts
 console.log(add(1, 2), greet("hi"));
 </script></body></html>
+================================================================================
+BundlerHTML.HtmlPdfReferencedFromHtmlIsEmittedUnderAssets
+---------- /out/assets/manual-TVLOJUNF.pdf ----------
+%PDF-1.4 fake
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><object data="./assets/manual-TVLOJUNF.pdf" type="application/pdf"></object></body></html>
 ================================================================================
 BundlerHTML.HtmlPluginTransformBoth
 ---------- /out/index.html ----------
@@ -600,8 +823,16 @@ BundlerHTML.HtmlPluginTransformTags
 ---------- /out/index.html ----------
 <!DOCTYPE html><html><head><meta content="b" name="plugin-a"><title>T</title><link href="/x.css" rel="stylesheet"></head><body><div>body-start</div><p>hi</p><script src="/late.js"></script></body></html>
 ================================================================================
+BundlerHTML.HtmlPreloadOfLocalAssetIsEmittedAndRewritten
+---------- /out/assets/font-7RYYIGCC.woff2 ----------
+WOFF2-BYTES
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head><link rel="preload" href="./assets/font-7RYYIGCC.woff2" as="font"><link rel="canonical" href="./about.html"></head><body></body></html>
+---------- /out/about.html ----------
+<!DOCTYPE html><html><head></head><body></body></html>
+================================================================================
 BundlerHTML.HtmlPrettyPrintBlankLineFreeSiblings
----------- /out/main.js ----------
+---------- /out/assets/main-PCJSDQHS.js ----------
 // main.js
 console.log("main");
 
@@ -613,7 +844,7 @@ console.log("main");
   </head>
   <body>
     <header>Top</header>
-    <script type="module" src="./main.js" crossorigin=""></script>
+    <script type="module" src="./assets/main-PCJSDQHS.js" crossorigin=""></script>
     <script>
       // index.html:inline-scripts
       console.log("boot");
@@ -649,7 +880,7 @@ body {
 </html>
 ================================================================================
 BundlerHTML.HtmlPrettyPrintModuleAppPage
----------- /out/main.js ----------
+---------- /out/assets/main-RDRTJY5T.js ----------
 // value.js
 var v = 7;
 
@@ -664,7 +895,7 @@ console.log(v);
   </head>
   <body>
     <header>Top</header>
-    <script type="module" src="./main.js" crossorigin=""></script>
+    <script type="module" src="./assets/main-RDRTJY5T.js" crossorigin=""></script>
     <script>
       // index.html:inline-scripts
       console.log("boot");
@@ -674,7 +905,7 @@ console.log(v);
 </html>
 ================================================================================
 BundlerHTML.HtmlPrettyPrintOutput
----------- /out/style.css ----------
+---------- /out/assets/style-INAIMUHP.css ----------
 /* style.css */
 p {
   color: red;
@@ -684,7 +915,7 @@ p {
 <!DOCTYPE html>
 <html>
   <head>
-    <link rel="stylesheet" href="./style.css">
+    <link rel="stylesheet" href="./assets/style-INAIMUHP.css">
   </head>
   <body>
     <script>
@@ -695,11 +926,11 @@ p {
 </html>
 ================================================================================
 BundlerHTML.HtmlPrettyPrintPreservesSimpleAttributes
----------- /out/main.js ----------
+---------- /out/assets/main-PCJSDQHS.js ----------
 // main.js
 console.log("main");
 
----------- /out/other.js ----------
+---------- /out/assets/other-JVWCAIR6.js ----------
 // other.js
 console.log("other");
 
@@ -708,8 +939,8 @@ console.log("other");
 <html>
   <head></head>
   <body>
-    <script type="module" src="./main.js" crossorigin="" defer=""></script>
-    <script async="" src="./other.js"></script>
+    <script type="module" src="./assets/main-PCJSDQHS.js" crossorigin="" defer=""></script>
+    <script async="" src="./assets/other-JVWCAIR6.js"></script>
   </body>
 </html>
 ================================================================================
@@ -741,15 +972,15 @@ BundlerHTML.HtmlPrettyPrintWhitespaceSensitiveElements
 </html>
 ================================================================================
 BundlerHTML.HtmlProductionModuleEntryWithSharedChunkAndPreloads
----------- /out/src/main.js ----------
+---------- /out/assets/main-A3CN6ZUD.js ----------
 // src/ui/button.js
 var Button = "button-class";
 
 // src/main.js
-var lazy = () => import("../widget-SRA5WECX.js");
+var lazy = () => import("./widget-TCSK3YPE.js");
 console.log(Button, lazy);
 
----------- /out/widget-SRA5WECX.js ----------
+---------- /out/assets/widget-TCSK3YPE.js ----------
 // src/lazy/widget.js
 function widget() {
   return "widget";
@@ -758,51 +989,51 @@ export {
   widget
 };
 
----------- /out/src/main.css ----------
+---------- /out/assets/main-VPUDA57V.css ----------
 /* src/app.css */
 .app {
   display: grid;
 }
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="modulepreload" crossorigin="" href="./widget-SRA5WECX.js"><link rel="stylesheet" href="./src/main.css"><title>My App</title></head><body><script type="module" src="./src/main.js" crossorigin=""></script></body></html>
+<!DOCTYPE html><html><head><link rel="modulepreload" crossorigin="" href="./assets/widget-TCSK3YPE.js"><link rel="stylesheet" href="./assets/main-VPUDA57V.css"><title>My App</title></head><body><script type="module" src="./assets/main-A3CN6ZUD.js" crossorigin=""></script></body></html>
 ================================================================================
 BundlerHTML.HtmlResourceHintsDeduplication
 ---------- /out/index.html ----------
 <!DOCTYPE html><html><head><link rel="preconnect" crossorigin="" href="https://cdn.example.com"><link rel="dns-prefetch" href="https://cdn.example.com"></head><body><img src="https://cdn.example.com/a.png"><img src="https://cdn.example.com/b.png"><link rel="stylesheet" href="https://cdn.example.com/c.css"></body></html>
 ================================================================================
 BundlerHTML.HtmlResourceHintsDisabled
----------- /out/logo.png ----------
+---------- /out/assets/logo-6275NM5S.png ----------
 fake-png-data
----------- /out/app.js ----------
+---------- /out/assets/app-KLWY6BNL.js ----------
 // app.js
 console.log("hi");
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head></head><body><img src="./logo.png"><script src="./app.js"></script></body></html>
+<!DOCTYPE html><html><head></head><body><img src="./assets/logo-6275NM5S.png"><script src="./assets/app-KLWY6BNL.js"></script></body></html>
 ================================================================================
 BundlerHTML.HtmlResourceHintsExternalPreconnect
 ---------- /out/index.html ----------
 <!DOCTYPE html><html><head><link rel="preconnect" crossorigin="" href="https://images.example.com"><link rel="dns-prefetch" href="https://images.example.com"><link rel="preconnect" crossorigin="" href="https://fonts.googleapis.com"><link rel="dns-prefetch" href="https://fonts.googleapis.com"></head><body><img src="https://images.example.com/logo.png"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter"><script src="https://scripts.example.com/app.js"></script></body></html>
 ================================================================================
 BundlerHTML.HtmlResourceHintsFontPreload
----------- /out/Inter-RR3GOXBS.woff2 ----------
+---------- /out/assets/Inter-RR3GOXBS.woff2 ----------
 FAKE-FONT-WOFF2
 ---------- /out/style.css ----------
 /* style.css */
 @font-face {
   font-family: "Inter";
-  src: url("./Inter-RR3GOXBS.woff2") format("woff2");
+  src: url("./assets/Inter-RR3GOXBS.woff2") format("woff2");
 }
 body {
   font-family: "Inter";
 }
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="preload" as="font" type="font/woff2" crossorigin="" href="./Inter-RR3GOXBS.woff2"></head><body></body></html>
+<!DOCTYPE html><html><head><link rel="preload" as="font" type="font/woff2" crossorigin="" href="./assets/Inter-RR3GOXBS.woff2"></head><body></body></html>
 ================================================================================
 BundlerHTML.HtmlResourceHintsOrderingAndScriptSkip
----------- /out/app.js ----------
+---------- /out/assets/app-7XVTSKZF.js ----------
 // dep.js
 var x = 1;
 
@@ -810,7 +1041,7 @@ var x = 1;
 console.log(x);
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="preconnect" crossorigin="" href="https://cdn.example.com"><link rel="dns-prefetch" href="https://cdn.example.com"></head><body><script type="module" src="./app.js" crossorigin=""></script><img src="https://cdn.example.com/x.png"></body></html>
+<!DOCTYPE html><html><head><link rel="preconnect" crossorigin="" href="https://cdn.example.com"><link rel="dns-prefetch" href="https://cdn.example.com"></head><body><script type="module" src="./assets/app-7XVTSKZF.js" crossorigin=""></script><img src="https://cdn.example.com/x.png"></body></html>
 ================================================================================
 BundlerHTML.HtmlResourceHintsSkipsDataUrl
 ---------- /out/style.css ----------
@@ -824,124 +1055,142 @@ BundlerHTML.HtmlResourceHintsSkipsDataUrl
 <!DOCTYPE html><html><head></head><body></body></html>
 ================================================================================
 BundlerHTML.HtmlSRIAlgorithmSHA256
----------- /out/app.js ----------
+---------- /out/assets/app-KLWY6BNL.js ----------
 // app.js
 console.log("hi");
 
 ---------- /out/index.html ----------
 <!DOCTYPE html><html><head></head><body><script>// index.html:inline-scripts
 document.write("inline");
-</script><script src="./app.js" integrity="sha256-qtfsLFPI9LYAd/LBwt7etz5hSa13PP9N8CD1lUeC6T8=" crossorigin=""></script></body></html>
+</script><script src="./assets/app-KLWY6BNL.js" integrity="sha256-qtfsLFPI9LYAd/LBwt7etz5hSa13PP9N8CD1lUeC6T8=" crossorigin=""></script></body></html>
 ================================================================================
 BundlerHTML.HtmlSRIDefaultAlgorithm
----------- /out/style.css ----------
+---------- /out/assets/style-PH6PRYGW.css ----------
 /* style.css */
 body {
   color: red;
 }
 
----------- /out/app.js ----------
+---------- /out/assets/app-DFV3TN7J.js ----------
 // app.js
 console.log("script body");
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css" integrity="sha384-ukSHSWBXm7ipL//Guu34+wQH3e+0fRud/xnZ4FLXPHuvnslrh8wKrFN2ajWP/Dpi" crossorigin=""></head><body><script type="module" src="./app.js" crossorigin="" integrity="sha384-pWORLOIDQd4xFMGZgBpv0DZgd7qnwcnKJjWvGpbXuAogh83lsFgmSunuVmulEiVV"></script></body></html>
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./assets/style-PH6PRYGW.css" integrity="sha384-ukSHSWBXm7ipL//Guu34+wQH3e+0fRud/xnZ4FLXPHuvnslrh8wKrFN2ajWP/Dpi" crossorigin=""></head><body><script type="module" src="./assets/app-DFV3TN7J.js" crossorigin="" integrity="sha384-pWORLOIDQd4xFMGZgBpv0DZgd7qnwcnKJjWvGpbXuAogh83lsFgmSunuVmulEiVV"></script></body></html>
 ================================================================================
 BundlerHTML.HtmlSRIDisabled
----------- /out/style.css ----------
+---------- /out/assets/style-PH6PRYGW.css ----------
 /* style.css */
 body {
   color: red;
 }
 
----------- /out/app.js ----------
+---------- /out/assets/app-DFV3TN7J.js ----------
 // app.js
 console.log("script body");
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css"></head><body><script type="module" src="./app.js" crossorigin=""></script></body></html>
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./assets/style-PH6PRYGW.css"></head><body><script type="module" src="./assets/app-DFV3TN7J.js" crossorigin=""></script></body></html>
 ================================================================================
 BundlerHTML.HtmlSRIEnabled
----------- /out/style.css ----------
+---------- /out/assets/style-PH6PRYGW.css ----------
 /* style.css */
 body {
   color: red;
 }
 
----------- /out/app.js ----------
+---------- /out/assets/app-DFV3TN7J.js ----------
 // app.js
 console.log("script body");
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css" integrity="sha384-ukSHSWBXm7ipL//Guu34+wQH3e+0fRud/xnZ4FLXPHuvnslrh8wKrFN2ajWP/Dpi" crossorigin=""></head><body><script type="module" src="./app.js" crossorigin="" integrity="sha384-pWORLOIDQd4xFMGZgBpv0DZgd7qnwcnKJjWvGpbXuAogh83lsFgmSunuVmulEiVV"></script></body></html>
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./assets/style-PH6PRYGW.css" integrity="sha384-ukSHSWBXm7ipL//Guu34+wQH3e+0fRud/xnZ4FLXPHuvnslrh8wKrFN2ajWP/Dpi" crossorigin=""></head><body><script type="module" src="./assets/app-DFV3TN7J.js" crossorigin="" integrity="sha384-pWORLOIDQd4xFMGZgBpv0DZgd7qnwcnKJjWvGpbXuAogh83lsFgmSunuVmulEiVV"></script></body></html>
 ================================================================================
 BundlerHTML.HtmlSRISkipsExternalURL
 ---------- /out/index.html ----------
 <!DOCTYPE html><html><head></head><body><script type="module" src="https://cdn.example.com/app.js"></script></body></html>
 ================================================================================
+BundlerHTML.HtmlSameAssetReferencedTwiceIsEmittedOnce
+---------- /out/assets/logo-YOVI65JH.svg ----------
+<svg/>
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><img src="./assets/logo-YOVI65JH.svg"><img src="./assets/logo-YOVI65JH.svg"></body></html>
+================================================================================
+BundlerHTML.HtmlSameBasenameDifferentContentStaysDistinct
+---------- /out/assets/logo-52ECFJ5V.svg ----------
+ICON-SVG-CONTENT
+---------- /out/assets/logo-QUWMGX6B.svg ----------
+IMAGE-SVG-CONTENT
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><img src="./assets/logo-52ECFJ5V.svg"><img src="./assets/logo-QUWMGX6B.svg"></body></html>
+================================================================================
 BundlerHTML.HtmlSrcsetDensityDescriptor
----------- /out/icon-2x.png ----------
+---------- /out/assets/icon-2x-27RRXCVJ.png ----------
 ICON2X
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head></head><body><img srcset="./icon-2x.png 2x"></body></html>
+<!DOCTYPE html><html><head></head><body><img srcset="./assets/icon-2x-27RRXCVJ.png 2x"></body></html>
 ================================================================================
 BundlerHTML.HtmlSrcsetExternalAndDataUntouched
----------- /out/local.png ----------
+---------- /out/assets/local-QS4TGOLG.png ----------
 LOCAL
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head></head><body><img srcset="./local.png 1x, https://cdn.example.com/remote.png 2x, //cdn.example.com/proto.png 3x"></body></html>
+<!DOCTYPE html><html><head></head><body><img srcset="./assets/local-QS4TGOLG.png 1x, https://cdn.example.com/remote.png 2x, //cdn.example.com/proto.png 3x"></body></html>
 ================================================================================
 BundlerHTML.HtmlSrcsetImagesrcsetLink
+---------- /out/assets/card-1x-VIXF32ZE.png ----------
+CARD1
+---------- /out/assets/card-2x-7LXKN7ZJ.png ----------
+CARD2
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="preload" as="image" imagesrcset="./card-1x-VIXF32ZE.png 1x, ./card-2x-7LXKN7ZJ.png 2x"></head><body></body></html>
+<!DOCTYPE html><html><head><link rel="preload" as="image" imagesrcset="./assets/card-1x-VIXF32ZE.png 1x, ./assets/card-2x-7LXKN7ZJ.png 2x"></head><body></body></html>
 ================================================================================
 BundlerHTML.HtmlSrcsetMalformedInputPreserved
----------- /out/good.png ----------
+---------- /out/assets/good-7CG7BL46.png ----------
 GOOD
----------- /out/bad.png ----------
+---------- /out/assets/bad-LVXCILN7.png ----------
 BAD
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head></head><body><img srcset="  ./good.png 1x , ,./bad.png 2x,  "></body></html>
+<!DOCTYPE html><html><head></head><body><img srcset="  ./assets/good-7CG7BL46.png 1x , ,./assets/bad-LVXCILN7.png 2x,  "></body></html>
 ================================================================================
 BundlerHTML.HtmlSrcsetRespectsPublicPath
----------- /out/hero-480.png ----------
+---------- /out/assets/hero-480-3IOBQSSA.png ----------
 P480
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head></head><body><img srcset="/app/hero-480.png 480w, https://cdn.example.com/hero-800.png 800w"></body></html>
+<!DOCTYPE html><html><head></head><body><img srcset="/app/assets/hero-480-3IOBQSSA.png 480w, https://cdn.example.com/hero-800.png 800w"></body></html>
 ================================================================================
 BundlerHTML.HtmlSrcsetRewritingMultipleEntries
----------- /out/fallback.png ----------
+---------- /out/assets/fallback-HPOD56EP.png ----------
 PFALLBACK
----------- /out/hero-480.png ----------
+---------- /out/assets/hero-480-3IOBQSSA.png ----------
 P480
----------- /out/hero-800.png ----------
+---------- /out/assets/hero-800-SLPX5RPO.png ----------
 P800
----------- /out/hero-1200.png ----------
+---------- /out/assets/hero-1200-WC57DWIH.png ----------
 P1200
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head></head><body><img src="./fallback.png" srcset="./hero-480.png 480w, ./hero-800.png 800w, ./hero-1200.png 1200w"></body></html>
+<!DOCTYPE html><html><head></head><body><img src="./assets/fallback-HPOD56EP.png" srcset="./assets/hero-480-3IOBQSSA.png 480w, ./assets/hero-800-SLPX5RPO.png 800w, ./assets/hero-1200-WC57DWIH.png 1200w"></body></html>
 ================================================================================
 BundlerHTML.HtmlSrcsetSourceElement
----------- /out/a.avif ----------
+---------- /out/assets/a-RQN22FIL.avif ----------
 AVIF1
----------- /out/b.avif ----------
+---------- /out/assets/b-ONA4QX3W.avif ----------
 AVIF2
----------- /out/c.webp ----------
+---------- /out/assets/c-4TBZXNWO.webp ----------
 WEBP1
----------- /out/d.webp ----------
+---------- /out/assets/d-JIDFVSK7.webp ----------
 WEBP2
----------- /out/fallback.png ----------
+---------- /out/assets/fallback-HPOD56EP.png ----------
 PFALLBACK
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head></head><body><picture><source type="image/avif" srcset="./a.avif 1x, ./b.avif 2x"><source type="image/webp" srcset="./c.webp 1x, ./d.webp 2x"><img src="./fallback.png"></picture></body></html>
+<!DOCTYPE html><html><head></head><body><picture><source type="image/avif" srcset="./assets/a-RQN22FIL.avif 1x, ./assets/b-ONA4QX3W.avif 2x"><source type="image/webp" srcset="./assets/c-4TBZXNWO.webp 1x, ./assets/d-JIDFVSK7.webp 2x"><img src="./assets/fallback-HPOD56EP.png"></picture></body></html>
 ================================================================================
 BundlerHTML.HtmlStyleAttributeUrlRebasing
----------- /out/_.._/img/bg.png ----------
+---------- /out/assets/bg-K3V4QLR4.png ----------
 BGPNG
----------- /out/img/logo2.png ----------
+---------- /out/assets/logo2-KBUJ3TCH.png ----------
 LOGO2
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head></head><body><div style="background: url('./_.._/img/bg.png');border:0;background-image:url('./img/logo2.png')"></div></body></html>
+<!DOCTYPE html><html><head></head><body><div style="background: url('./assets/bg-K3V4QLR4.png');border:0;background-image:url('./assets/logo2-KBUJ3TCH.png')"></div></body></html>
 ================================================================================
 BundlerHTML.HtmlTwoElementsShareOneInlineBundle
 ---------- /out/index.html ----------
@@ -958,22 +1207,22 @@ console.log(a);
 </script><script></script></body></html>
 ================================================================================
 BundlerHTML.HtmlTwoEntriesSharingResource
----------- /out/style.css ----------
+---------- /out/assets/style-IGHR2WIW.css ----------
 /* style.css */
 body {
   margin: 0;
 }
 
----------- /out/app.js ----------
+---------- /out/assets/app-GFB5UC3D.js ----------
 // app.js
 console.log("app");
 
----------- /out/logo.png ----------
+---------- /out/assets/logo-QH5AQSJV.png ----------
 PNGDATA
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css"></head><body><script src="./app.js"></script></body></html>
+<!DOCTYPE html><html><head><link rel="stylesheet" href="./assets/style-IGHR2WIW.css"></head><body><script src="./assets/app-GFB5UC3D.js"></script></body></html>
 ---------- /out/other.html ----------
-<!DOCTYPE html><html><head></head><body><script src="./app.js"></script><img src="./logo.png"></body></html>
+<!DOCTYPE html><html><head></head><body><script src="./assets/app-GFB5UC3D.js"></script><img src="./assets/logo-QH5AQSJV.png"></body></html>
 ================================================================================
 BundlerHTML.HtmlTwoPagesEachInlineSharedDep
 ---------- /out/index.html ----------
@@ -991,10 +1240,28 @@ var x = 1;
 alert(x);
 </script></body></html>
 ================================================================================
+BundlerHTML.HtmlVideoAndAudioAreEmittedUnderAssets
+---------- /out/assets/intro-ZCGFA7NQ.mp4 ----------
+BYTES-MP4
+---------- /out/assets/clip-D3YG7VIM.webm ----------
+BYTES-WEBM
+---------- /out/assets/take-DLABZ2YL.mov ----------
+BYTES-MOV
+---------- /out/assets/sound-DC3MPTDV.mp3 ----------
+BYTES-MP3
+---------- /out/assets/voice-ZWQUTCSG.wav ----------
+BYTES-WAV
+---------- /out/assets/music-NVOWDQ6N.ogg ----------
+BYTES-OGG
+---------- /out/assets/talk-BZGYSOVX.m4a ----------
+BYTES-M4A
+---------- /out/index.html ----------
+<!DOCTYPE html><html><head></head><body><video src="./assets/intro-ZCGFA7NQ.mp4"></video><video src="./assets/clip-D3YG7VIM.webm"></video><video src="./assets/take-DLABZ2YL.mov"></video><audio src="./assets/sound-DC3MPTDV.mp3"></audio><audio src="./assets/voice-ZWQUTCSG.wav"></audio><audio src="./assets/music-NVOWDQ6N.ogg"></audio><audio src="./assets/talk-BZGYSOVX.m4a"></audio></body></html>
+================================================================================
 BundlerHTML.HtmlWarningDiagnosticCodeFrame
----------- /out/app.js ----------
+---------- /out/assets/app-GFB5UC3D.js ----------
 // app.js
 console.log("app");
 
 ---------- /out/index.html ----------
-<!DOCTYPE html><html><head></head><body><script type="importmap">{"imports":{}}</script><script type="module" src="./app.js" crossorigin=""></script></body></html>
+<!DOCTYPE html><html><head></head><body><script type="importmap">{"imports":{}}</script><script type="module" src="./assets/app-GFB5UC3D.js" crossorigin=""></script></body></html>

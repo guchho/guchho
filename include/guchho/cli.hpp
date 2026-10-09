@@ -642,14 +642,25 @@ namespace guchho::cli {
 
     // The options for a run, with the settings a host supplied attached and the
     // defaults a command line implies already applied.
+    //
+    // known_build says the caller already knows the run is a build, which every
+    // command inside guchho does: only a command line the dispatcher recognised
+    // as a build reaches runBuild, and clean describes a build's output
+    // directory. With it, a line of flags and no path — "guchho build
+    // --define:__DEV__=true" in a project whose entry point lives in the config
+    // file — still reads as a build instead of a transform whose options are
+    // then thrown away. Left false, the reader guesses from the arguments.
 
     ParseOptionsForRunResult parseOptionsForRun(const std::vector<std::string>& os_args,
-                                                const std::vector<api::Plugin>& plugins);
+                                                const std::vector<api::Plugin>& plugins,
+                                                bool known_build = false);
 
     // The analyze flags, taken out of the argument list before the grammar sees
-    // them, along with how much was asked for.
+    // them, along with how much was asked for. known_build has the same meaning
+    // as for parseOptionsForRun(): with it, the flags are removed whatever else
+    // is on the line.
 
-    AnalyzeMode filterAnalyzeFlags(std::vector<std::string>& os_args);
+    AnalyzeMode filterAnalyzeFlags(std::vector<std::string>& os_args, bool known_build = false);
     void addAnalyzePlugin(api::BuildOptions& build_options);
 
     // The plugins a host handed to RunWithPlugins(), attached to every build

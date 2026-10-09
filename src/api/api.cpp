@@ -2572,8 +2572,8 @@ void print_summary(logger::UseColor color,
 //   * A dispose waits for any running build to finish before running the
 //     plugins' dispose callbacks, so nothing is torn down underneath a pass.
 //
-// Watch mode and serving are mutually exclusive, and both are refused once the
-// session has been disposed.
+// Watch mode and serving may both be on at once — that is what "guchho dev"
+// is — and both are refused once the session has been disposed.
 struct InternalContext : public api::BuildContext {
     mutable std::mutex mu;
     RebuildArgs args;
@@ -2582,6 +2582,11 @@ struct InternalContext : public api::BuildContext {
     std::shared_ptr<BuildInProgress> active_build;
     std::unique_ptr<api::BuildResult> recent_build;
     std::unique_ptr<api::Watcher> watcher;
+    // Set when Serve() succeeds: the way a finished pass tells the running
+    // server's live-reload clients that the output changed. Read by rebuild()
+    // on whichever thread ran the pass, so it is copied out under the lock
+    // exactly like the watcher pointer is.
+    std::function<void(const api::BuildResult&)> serve_notify;
     bool did_dispose = false;
     std::unordered_map<std::string, std::string> latest_hashes;
 
@@ -2608,6 +2613,7 @@ struct InternalContext : public api::BuildContext {
         active_build = build;
         RebuildArgs local_args = args;
         auto wh = watcher.get();
+        auto notify_fn = serve_notify;
         RebuildState state;
         lock.unlock();
 
@@ -2643,8 +2649,31 @@ struct InternalContext : public api::BuildContext {
         // released. The watcher holds its own lock while it scans, and taking
         // that lock here would block every future rebuild behind a scan that may
         // be waiting on a file the build itself is producing.
+        //
+        // This is a copy and not a move, because this function is also how the
+        // watcher's own rebuild loop gets its next set: the loop calls
+        // rebuild(), which installs the data right here, and then installs the
+        // returned state's watch_data a second time. Moving would leave that
+        // returned set empty, and the second install would wipe the first —
+        // leaving the watcher polling nothing after the first rebuild it runs
+        // itself. With a copy both installs carry the same paths, so the
+        // second is a harmless no-op. The set is small (absolute paths to
+        // closures over path strings), so copying it per rebuild costs
+        // nothing next to the rebuild itself.
         if (wh && state.watch_data.paths.size() > 0) {
-            watcher->SetWatchData(std::move(state.watch_data));
+            watcher->SetWatchData(state.watch_data);
+        }
+
+        // Tell a running server's live-reload clients that the output changed,
+        // with the session lock already released for the same reason as the
+        // handoff above. This fires on the thread that ran the pass — the
+        // watcher's rebuild loop, a request that arrived while serving, or a
+        // caller of Rebuild() directly — so every way a pass finishes reaches
+        // an open browser the same way. When the rebuild was itself triggered
+        // by a request, the handler diffs the same result again on its way out;
+        // that second diff finds nothing and pushes nothing.
+        if (notify_fn) {
+            notify_fn(state.result);
         }
 
         build->mu.lock();
@@ -2698,17 +2727,18 @@ struct InternalContext : public api::BuildContext {
         watcher->Start();
     }
 
-    // Serves the build over HTTP. Like watching, this takes over the session:
-    // each request runs a pass and answers from its result. A session cannot both
-    // watch and serve, since both want to own the rebuild loop.
+    // Serves the build over HTTP. Each request runs a pass and answers from its
+    // result. This may be combined with Watch(): the watcher's own rebuilds
+    // then knock the server through ServeResult::notify, so a browser holding
+    // a page reloads itself whenever a save changes the output — that
+    // combination is what "guchho dev" is made of.
     //
-    // Input:  ServeOptions{port = 8080} on a live, idle session
+    // Input:  ServeOptions{port = 8080} on a live session
     // Output: the host and port that were bound; throws if the session is
-    //         disposed or is already watching
+    //         disposed
     api::ServeResult Serve(const api::ServeOptions& options) override {
         std::lock_guard lock(mu);
         if (did_dispose) throw std::runtime_error("Cannot serve a disposed context");
-        if (watcher) throw std::runtime_error("Cannot serve a context that's actively watching");
 
         auto rebuild_fn = [this]() -> api::BuildResult {
             return rebuild().result;
@@ -2720,6 +2750,7 @@ struct InternalContext : public api::BuildContext {
         if (!error.empty()) {
             throw std::runtime_error(error);
         }
+        serve_notify = result.notify;
         return result;
     }
 

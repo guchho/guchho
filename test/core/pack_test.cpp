@@ -248,28 +248,64 @@ guchho::pack::PackOptions OptionsFor(const std::string& input, const std::string
 
 TEST(PackDefaultOutFileTest, DirectoryWithoutExtensionGainsOne)
 {
-    EXPECT_EQ(guchho::pack::DefaultOutFile("dist"), "dist.zip");
-    EXPECT_EQ(guchho::pack::DefaultOutFile("dist/"), "dist.zip");
+    EXPECT_EQ(guchho::pack::DefaultOutFile("dist", "zip"), "dist.zip");
+    EXPECT_EQ(guchho::pack::DefaultOutFile("dist/", "zip"), "dist.zip");
     // The directory part of the input is kept, so the archive lands beside
     // what it was made from rather than wherever the command was run.
-    EXPECT_EQ(guchho::pack::DefaultOutFile("./dist"), "./dist.zip");
+    EXPECT_EQ(guchho::pack::DefaultOutFile("./dist", "zip"), "./dist.zip");
 }
 
 TEST(PackDefaultOutFileTest, ExistingExtensionIsReplaced)
 {
-    EXPECT_EQ(guchho::pack::DefaultOutFile("app.js"), "app.zip");
-    EXPECT_EQ(guchho::pack::DefaultOutFile("src/index.html"), "src/index.zip");
-    EXPECT_EQ(guchho::pack::DefaultOutFile("report.json"), "report.zip");
+    EXPECT_EQ(guchho::pack::DefaultOutFile("app.js", "zip"), "app.zip");
+    EXPECT_EQ(guchho::pack::DefaultOutFile("src/index.html", "zip"),
+              "src/index.zip");
+    EXPECT_EQ(guchho::pack::DefaultOutFile("report.json", "zip"), "report.zip");
 }
 
 TEST(PackDefaultOutFileTest, HiddenFileKeepsItsDot)
 {
-    EXPECT_EQ(guchho::pack::DefaultOutFile(".bashrc"), ".bashrc.zip");
+    EXPECT_EQ(guchho::pack::DefaultOutFile(".bashrc", "zip"), ".bashrc.zip");
 }
 
 TEST(PackDefaultOutFileTest, AlreadyAnArchiveIsStillNamedAfterItself)
 {
-    EXPECT_EQ(guchho::pack::DefaultOutFile("release.zip"), "release.zip");
+    EXPECT_EQ(guchho::pack::DefaultOutFile("release.zip", "zip"), "release.zip");
+}
+
+// ===========================================================================
+// DefaultOutFile, per format
+// ===========================================================================
+
+// The extension follows the format, because two requests that differ only in
+// --format must not produce files that differ only in an extension somebody
+// guessed.
+TEST(PackDefaultOutFileTest, EachFormatHasItsOwnExtension)
+{
+    EXPECT_EQ(guchho::pack::DefaultOutFile("dist", "tar"), "dist.tar");
+    EXPECT_EQ(guchho::pack::DefaultOutFile("dist/", "tar"), "dist.tar");
+    EXPECT_EQ(guchho::pack::DefaultOutFile("dist", "tar.gz"), "dist.tar.gz");
+    EXPECT_EQ(guchho::pack::DefaultOutFile("app.js", "tar"), "app.tar");
+    EXPECT_EQ(guchho::pack::DefaultOutFile("report.json", "tar.gz"),
+              "report.tar.gz");
+    EXPECT_EQ(guchho::pack::DefaultOutFile(".bashrc", "tar.gz"),
+              ".bashrc.tar.gz");
+}
+
+// An extension with two components is the case where "replace the last
+// extension" and "give it its own name" are different rules. Only the second
+// one produces "release.tar.gz" from "release.tar.gz".
+TEST(PackDefaultOutFileTest, ANameAlreadyWrittenForTheFormatIsLeftAlone)
+{
+    EXPECT_EQ(guchho::pack::DefaultOutFile("release.tar", "tar"), "release.tar");
+    EXPECT_EQ(guchho::pack::DefaultOutFile("release.tar.gz", "tar.gz"),
+              "release.tar.gz");
+    // And a name written for one format is re-named for another rather than
+    // growing a second extension.
+    EXPECT_EQ(guchho::pack::DefaultOutFile("dist.tar", "tar.gz"),
+              "dist.tar.gz");
+    EXPECT_EQ(guchho::pack::DefaultOutFile("release.tar.gz", "zip"),
+              "release.tar.zip");
 }
 
 // ===========================================================================
@@ -724,17 +760,39 @@ TEST(PackCreateTest, OmittedModeRecordsThePermissionsAlreadyOnDisk)
 // Refusals
 // ===========================================================================
 
-TEST(PackFormatTest, OnlyOneFormatIsKnown)
+TEST(PackFormatTest, ThreeFormatsAreKnown)
 {
     EXPECT_EQ(std::string(guchho::pack::kDefaultFormat), "zip");
     EXPECT_TRUE(guchho::pack::IsSupportedFormat("zip"));
-    EXPECT_FALSE(guchho::pack::IsSupportedFormat("tar"));
+    EXPECT_TRUE(guchho::pack::IsSupportedFormat("tar"));
+    EXPECT_TRUE(guchho::pack::IsSupportedFormat("tar.gz"));
     EXPECT_FALSE(guchho::pack::IsSupportedFormat("7z"));
+    EXPECT_FALSE(guchho::pack::IsSupportedFormat("tgz"));
 
     // Exact comparison, on purpose: a format is spelled in lower case and
     // "ZIP" is a different answer rather than a near miss.
     EXPECT_FALSE(guchho::pack::IsSupportedFormat("ZIP"));
     EXPECT_FALSE(guchho::pack::IsSupportedFormat(""));
+
+    // The list and the default cannot drift apart: the default is what a
+    // request that named no format gets, so it has to be one of the formats
+    // the list says are available.
+    ASSERT_FALSE(guchho::pack::kFormats.empty());
+    EXPECT_EQ(guchho::pack::kFormats.front(),
+              std::string_view(guchho::pack::kDefaultFormat));
+}
+
+// The refusal has one spelling wherever it is printed, and that spelling names
+// every format rather than the one that was asked for — the point of the
+// message is to say what would have worked.
+TEST(PackFormatTest, TheRefusalNamesEverySupportedFormat)
+{
+    const std::string note = guchho::pack::SupportedFormatsNote();
+
+    EXPECT_EQ(note, "Only \"zip\", \"tar\" and \"tar.gz\" are supported today.");
+    EXPECT_TRUE(note.find("zip") != std::string::npos) << note;
+    EXPECT_TRUE(note.find("tar") != std::string::npos) << note;
+    EXPECT_TRUE(note.find("tar.gz") != std::string::npos) << note;
 }
 
 TEST(PackFormatTest, AnUnspokenFormatIsTheDefaultOne)
@@ -771,22 +829,22 @@ TEST(PackFormatTest, UnsupportedFormatIsRefused)
     PackTempDir dir("format-unsupported");
     dir.Write("a.txt", "a");
 
-    guchho::pack::PackOptions options = OptionsFor(dir.At("a.txt"), dir.At("out.zip"));
-    options.format = "tar";
+    guchho::pack::PackOptions options = OptionsFor(dir.At("a.txt"), dir.At("out.7z"));
+    options.format = "7z";
 
     guchho::pack::PackResult result = guchho::pack::CreatePack(options);
     ASSERT_FALSE(result.Ok());
     EXPECT_TRUE(result.error.find("Unsupported archive format") != std::string::npos)
         << result.error;
-    EXPECT_TRUE(result.error.find("\"tar\"") != std::string::npos) << result.error;
-    EXPECT_TRUE(result.note.find("zip") != std::string::npos) << result.note;
+    EXPECT_TRUE(result.error.find("\"7z\"") != std::string::npos) << result.error;
+    EXPECT_EQ(result.note, guchho::pack::SupportedFormatsNote());
     EXPECT_TRUE(result.path.empty());
 
     // Nothing was written: a format nobody can write must not become an
     // archive nobody can open, not even one the rest of the request was fine
     // with.
     std::error_code ec;
-    EXPECT_FALSE(fs::exists(PathFromUTF8(dir.At("out.zip")), ec));
+    EXPECT_FALSE(fs::exists(PathFromUTF8(dir.At("out.7z")), ec));
 }
 
 TEST(PackFormatTest, UnsupportedFormatIsRefusedBeforeAnythingElse)
@@ -796,11 +854,51 @@ TEST(PackFormatTest, UnsupportedFormatIsRefusedBeforeAnythingElse)
     // No inputs and no output file, both of which are otherwise refusals of
     // their own. The format is the request's first question and answers first.
     guchho::pack::PackOptions options;
-    options.format = "tar";
+    options.format = "7z";
 
     guchho::pack::PackResult result = guchho::pack::CreatePack(options);
     ASSERT_FALSE(result.Ok());
     EXPECT_TRUE(result.error.find("Unsupported archive format") != std::string::npos)
+        << result.error;
+}
+
+// A level on a format that does not compress is refused at the same step, for
+// the same reason: it is a question about the request, not about the disk, and
+// answering it later would mean writing an archive the caller did not ask for.
+TEST(PackFormatTest, ALevelIsRefusedForTheUncompressedFormat)
+{
+    PackTempDir dir("format-level");
+    dir.Write("a.txt", "a");
+
+    guchho::pack::PackOptions options = OptionsFor(dir.At("a.txt"), dir.At("out.tar"));
+    options.format = "tar";
+    options.level  = 9;
+
+    guchho::pack::PackResult result = guchho::pack::CreatePack(options);
+    ASSERT_FALSE(result.Ok());
+    EXPECT_TRUE(result.error.find("does not apply") != std::string::npos)
+        << result.error;
+    EXPECT_TRUE(result.error.find("\"tar\"") != std::string::npos) << result.error;
+    EXPECT_FALSE(result.note.empty());
+    EXPECT_TRUE(result.path.empty());
+
+    std::error_code ec;
+    EXPECT_FALSE(fs::exists(PathFromUTF8(dir.At("out.tar")), ec));
+}
+
+// Refused before anything else, including the level's own range: the level 9
+// is a perfectly good level, it is the pairing that is wrong.
+TEST(PackFormatTest, TheLevelRefusalComesBeforeAnythingAboutTheDisk)
+{
+    PackTempDir dir("format-level-first");
+
+    guchho::pack::PackOptions options;
+    options.format = "tar";
+    options.level  = 9;
+
+    guchho::pack::PackResult result = guchho::pack::CreatePack(options);
+    ASSERT_FALSE(result.Ok());
+    EXPECT_TRUE(result.error.find("does not apply") != std::string::npos)
         << result.error;
 }
 

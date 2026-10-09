@@ -2,6 +2,9 @@
 #include "guchho/filesystem.hpp"
 #include "test/helpers/filesystem_test.hpp"
 
+#include <filesystem>
+#include <fstream>
+#include <memory>
 #include <string>
 #include <string_view>
 
@@ -1265,4 +1268,114 @@ TEST(WatchDataTest, AddMultiplePaths)
     wd.paths["/b"] = []() -> std::string { return "/b"; };
     wd.paths["/c"] = []() -> std::string { return "/c"; };
     EXPECT_EQ(wd.paths.size(), 3u);
+}
+
+// ===========================================================================
+// RealFS watch closures
+// ===========================================================================
+//
+// The closures GetWatchData() hands back are meant to outlive the filesystem
+// that produced them: a build's watch set is installed into a watcher, which
+// calls the closures on later ticks — long after the pass that created them,
+// and the filesystem that pass owned, is gone. A closure capturing the
+// filesystem would be calling into a destroyed object, which is what used to
+// make the watcher go quiet after its first rebuild. These tests build a set
+// against a real directory, destroy the filesystem, and then use the closures.
+
+namespace {
+
+// A scratch directory that exists for one test and is removed with it. Local
+// to this section: the mock filesystems above never touch the disk, so nothing
+// else here needs one.
+class RealTempDir
+{
+public:
+    explicit RealTempDir(const std::string& label)
+    {
+        static int counter = 0;
+        path_ = (std::filesystem::temp_directory_path() /
+                 ("guchho-fs-watch-test-" + label + "-" + std::to_string(counter++)))
+                    .string();
+        std::error_code ec;
+        std::filesystem::remove_all(path_, ec);
+        std::filesystem::create_directories(path_, ec);
+    }
+
+    ~RealTempDir()
+    {
+        std::error_code ec;
+        std::filesystem::remove_all(path_, ec);
+    }
+
+    RealTempDir(const RealTempDir&)            = delete;
+    RealTempDir& operator=(const RealTempDir&) = delete;
+
+    const std::string& path() const { return path_; }
+
+    std::string At(const std::string& relative) const
+    {
+        return (std::filesystem::path(path_) / relative).string();
+    }
+
+    void Write(const std::string& relative, const std::string& contents) const
+    {
+        const std::string full = At(relative);
+        std::error_code   ec;
+        std::filesystem::create_directories(std::filesystem::path(full).parent_path(), ec);
+        std::ofstream out(full, std::ios::binary | std::ios::trunc);
+        out << contents;
+    }
+
+private:
+    std::string path_;
+};
+
+} // namespace
+
+// Every closure — file and directory — keeps working after the filesystem
+// that recorded them is destroyed, and reports the right answer both ways:
+// nothing for an unchanged entry, the path for a changed one. Before the
+// closures were made self-contained the directory ones captured the
+// filesystem, and calling them here was a call into a destroyed object.
+TEST(WatchDataTest, RealFSClosuresOutliveTheFilesystem)
+{
+    RealTempDir dir("closures");
+    dir.Write("a.js", "console.log(1);\n");
+    dir.Write("b.js", "console.log(2);\n");
+
+    WatchData closures;
+    {
+        std::string error;
+        auto        fs = guchho::filesystem::MakeRealFS(
+            {.abs_working_dir = dir.path(), .want_watch_data = true}, error);
+        ASSERT_TRUE(fs != nullptr) << error;
+
+        auto file = fs->ReadFile(dir.At("a.js"));
+        ASSERT_TRUE(file.Ok());
+
+        auto entries = fs->ReadDirectory(dir.path());
+        ASSERT_TRUE(entries.Ok());
+        // The full listing is what records the snapshot the directory closure
+        // compares later reads against.
+        entries.value.SortedKeys();
+
+        closures = fs->GetWatchData();
+    }
+    // The filesystem is gone from here on. Every closure below runs against a
+    // destroyed object if it captured one.
+
+    ASSERT_EQ(closures.paths.count(dir.At("a.js")), 1u);
+    ASSERT_EQ(closures.paths.count(dir.path()), 1u);
+
+    // Unchanged entries report nothing.
+    EXPECT_EQ(closures.paths.at(dir.At("a.js"))(), "");
+    EXPECT_EQ(closures.paths.at(dir.path())(), "");
+
+    // A file whose contents changed reports itself.
+    dir.Write("a.js", "console.log(333);\n");
+    EXPECT_EQ(closures.paths.at(dir.At("a.js"))(), dir.At("a.js"));
+
+    // A directory that gained a file reports the directory.
+    dir.Write("c.js", "console.log(4);\n");
+    EXPECT_EQ(closures.paths.at(dir.path())(), dir.path());
 }

@@ -44,6 +44,8 @@ set(GUCHHO_COMMON_SOURCES
 
     # core/pack/
     core/pack/pack.cpp
+    core/pack/tar.cpp
+    core/pack/zip.cpp
 
     # core/sourcemap/
     core/sourcemap/sourcemap.cpp

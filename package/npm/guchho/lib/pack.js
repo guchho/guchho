@@ -19,11 +19,16 @@
 const { getService } = require("./service");
 const { toPackResult } = require("./convert");
 
-// The formats pack() accepts, kept in step with guchho::pack::kDefaultFormat
-// in include/guchho/pack.hpp. The list is written out rather than discovered:
+// The formats pack() accepts, kept in step with guchho::pack::kFormats in
+// include/guchho/pack.hpp. The list is written out rather than discovered:
 // asking the engine would cost a service start, and a caller's own options
 // should be checkable without one.
-const SUPPORTED_FORMATS = ["zip"];
+const SUPPORTED_FORMATS = ["zip", "tar", "tar.gz"];
+
+// The one format that stores its entries rather than compressing them, so
+// that a level paired with it is refused here rather than sent on. Kept in
+// step with guchho::pack::LevelAppliesTo.
+const UNCOMPRESSED_FORMATS = ["tar"];
 
 /**
  * Writes an archive.
@@ -36,11 +41,12 @@ const SUPPORTED_FORMATS = ["zip"];
  *   created if it is missing; the file itself is written to a temporary path
  *   and moved into place, so a caller reading it after a failure is reading
  *   nothing rather than a half-written archive.
- * @param {string} [options.format] Which archive format to write. Omit it for
- *   the default. `zip` is the only format supported today; anything else is a
- *   RangeError thrown before the engine is asked.
+ * @param {string} [options.format] Which archive format to write. One of
+ *   `zip` (the default), `tar` or `tar.gz`. Anything else is a RangeError
+ *   thrown before the engine is asked.
  * @param {number} [options.level] Deflate level, 0 to 9. 0 stores. The engine's
- *   default is 6.
+ *   default is 6. Does not apply to `tar`, which stores its entries
+ *   uncompressed; a level paired with `tar` is a RangeError.
  * @param {boolean} [options.overwrite] Replace an existing outFile. Without it
  *   an existing file is an error rather than something to destroy.
  * @param {Date} [options.date] The timestamp every entry gets. Without it each
@@ -95,7 +101,7 @@ async function pack(options) {
       const supported = SUPPORTED_FORMATS.map((f) => JSON.stringify(f)).join(", ");
       throw new RangeError(
         `unsupported archive format: ${JSON.stringify(options.format)}; ` +
-          `only ${supported} is supported`
+          `only ${supported} are supported today`
       );
     }
     request.format = options.format;
@@ -107,6 +113,16 @@ async function pack(options) {
     }
     if (options.level < 0 || options.level > 9) {
       throw new RangeError('"level" must be from 0 to 9');
+    }
+    // The level is spelled correctly and paired with a format that cannot use
+    // it. Worth the same code as any other mistake the caller can be told
+    // about without starting the engine.
+    if (request.format !== undefined && UNCOMPRESSED_FORMATS.includes(request.format)) {
+      throw new RangeError(
+        `compression level ${options.level} does not apply to the ` +
+          `${JSON.stringify(request.format)} format; tar stores its entries ` +
+          "uncompressed. Leave the level off, or write zip or tar.gz."
+      );
     }
     request.level = options.level;
   }

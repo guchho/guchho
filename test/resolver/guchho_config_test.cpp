@@ -1017,6 +1017,193 @@ TEST(GuchhoConfig, BannerOfAnotherShapeIsSilentlyIgnored)
     EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoJSON_UnknownField), size_t(0));
 }
 
+// ---------------------------------------------------------------------------
+// A plugin entry that carries a banner record becomes the banner
+// ---------------------------------------------------------------------------
+
+// The config crosses from Node as JSON, so a plugin can only arrive as data.
+// A descriptor carrying a "banner" record speaks the same "js"/"css"
+// spelling "build.banner" speaks, lands on that banner, and raises neither
+// the not-implemented warning (the entry was recognized) nor the
+// unknown-field one ("plugins" is a known field).
+TEST(GuchhoConfig, PluginBannerDescriptorIsApplied)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "{\"build\":{\"entry\":\"src/main.js\"},"
+               "\"plugins\":[{\"name\":\"@guchho/banner\","
+               "\"banner\":{\"js\":\"/*! j */\",\"css\":\"/*! c */\"}}]}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].opts.Banner.at("js"), std::string("/*! j */"));
+    EXPECT_EQ(result.builds[0].opts.Banner.at("css"), std::string("/*! c */"));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_PluginsIgnored), size_t(0));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_UnsupportedPluginEntry), size_t(0));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoJSON_UnknownField), size_t(0));
+}
+
+// The string spelling means what it means for "build.banner": the JavaScript
+// half, and nothing is invented for the other output kinds.
+TEST(GuchhoConfig, PluginBannerStringAppliesToJavaScriptOnly)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "{\"plugins\":[{\"banner\":\"/*! only js */\"}]}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].opts.Banner.at("js"), std::string("/*! only js */"));
+    EXPECT_EQ(result.builds[0].opts.Banner.count("css"), size_t(0));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_PluginsIgnored), size_t(0));
+}
+
+// The plugin's banner is appended below the configured one: nothing already
+// in the config is overwritten, and nothing appears twice.
+TEST(GuchhoConfig, PluginBannerAppendsBelowBuiltInBanner)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "{\"build\":{\"entry\":\"src/main.js\",\"banner\":{\"js\":\"/*! built-in */\"}},"
+               "\"plugins\":[{\"banner\":{\"js\":\"/*! plugin */\"}}]}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].opts.Banner.at("js"),
+              std::string("/*! built-in */\n/*! plugin */"));
+}
+
+// A banner text already configured verbatim is not appended again, so the
+// same copyright never prints twice in one file.
+TEST(GuchhoConfig, PluginBannerDuplicateIsNotAppended)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "{\"build\":{\"entry\":\"src/main.js\",\"banner\":{\"js\":\"/*! same */\"}},"
+               "\"plugins\":[{\"banner\":{\"js\":\"/*! same */\"}}]}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].opts.Banner.at("js"), std::string("/*! same */"));
+}
+
+// A "banner" that is neither the string nor a js/css string record is an
+// error naming the field — read, not guessed at — and it merges nothing, so
+// there is no half-applied banner to run a build with.
+TEST(GuchhoConfig, PluginBannerOfAnotherShapeIsAnError)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "{\"plugins\":[{\"banner\":{\"js\":\"/*! ok */\",\"wasm\":\"/*! w */\"}}]}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_InvalidPluginBanner), size_t(1));
+    EXPECT_TRUE(result.builds[0].opts.Banner.empty());
+    // The entry was recognized as a descriptor, so it is not also warned
+    // about as an unsupported plugin.
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_PluginsIgnored), size_t(0));
+}
+
+// The same error covers a "banner" of a shape no spelling accepts.
+TEST(GuchhoConfig, PluginBannerScalarIsAnError)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json", "{\"plugins\":[{\"banner\":5}]}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_InvalidPluginBanner), size_t(1));
+    EXPECT_TRUE(result.builds[0].opts.Banner.empty());
+}
+
+// A descriptor applies and an entry that cannot run is warned about — once,
+// with a message that no longer claims the whole field was ignored.
+TEST(GuchhoConfig, MixedPluginEntriesWarnAboutTheOnesThatCannotRun)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "{\"plugins\":[{\"banner\":\"/*! ok */\"},\"other-plugin\"]}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].opts.Banner.at("js"), std::string("/*! ok */"));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_UnsupportedPluginEntry), size_t(1));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_PluginsIgnored), size_t(0));
+}
+
+// An entry without a banner record keeps the original warning verbatim: this
+// build cannot run it, and the config must not read as if it had.
+TEST(GuchhoConfig, PluginWithoutBannerIsIgnoredWithTheOriginalWarning)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json", "{\"plugins\":[\"my-plugin\"]}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_TRUE(result.builds[0].opts.Banner.empty());
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_PluginsIgnored), size_t(1));
+    const std::string text = AllMessagesText(log);
+    EXPECT_NE(text.find("Guchho plugins are not implemented yet"), std::string::npos)
+        << "text was: [" << text << "]";
+}
+
 // A typo is still a typo, and the name the user has to fix is in the text:
 // the full dotted path, so "bundile" is not mistaken for a top-level field.
 TEST(GuchhoConfig, UnknownBuildFieldsNameThemselves)

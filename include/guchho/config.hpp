@@ -1070,6 +1070,19 @@ namespace guchho::config {
         // the config parser from "build.banner"; read by the API, which
         // validates the keys before any output is written.
         std::unordered_map<std::string, std::string> Banner{};
+        // The "define" replacements a config file carried, key to the
+        // replacement expression exactly as it was written, so the API can
+        // validate them through the same pass a "--define:" flag goes through
+        // rather than having to trust a table the config parser built. Only
+        // values that survived the parser's own read are here; a value it
+        // refused never reaches this map. Written from "build.define" (and
+        // its top-level "define" alias); read by ResolveOneBuild, which merges
+        // it into BuildOptions::define with the caller's own keys winning.
+        //
+        // "Defines" below is the parsed form for readers that consume a config
+        // directly, without the API in between. The two describe the same
+        // request; this one is the spelling the API re-validates.
+        std::unordered_map<std::string, std::string> DefineTexts{};
         // Which of the entry point's exports a wrapper format publishes as
         // its public value; kNamespace is the namespace object every export
         // name lands on, kDefault the entry's default export itself. Written

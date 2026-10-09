@@ -1318,3 +1318,130 @@ TEST(GuchhoConfig, JSArrayRootProducesMultipleBuilds)
     EXPECT_EQ(result.builds[0].opts.AbsOutputDir, std::string("/project/js-one"));
     EXPECT_EQ(result.builds[1].opts.AbsOutputDir, std::string("/project/js-two"));
 }
+
+// ---------------------------------------------------------------------------
+// define: the substitutions a project sets for itself
+// ---------------------------------------------------------------------------
+
+// The canonical spelling. "define" is a flag's name, and every other option a
+// flag accepts lives under "build", so this is where it belongs — and where a
+// config written from the flag documentation is written.
+TEST(GuchhoConfig, BuildDefineIsAccepted)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "{\"build\":{\"entry\":\"src/main.js\","
+               "\"define\":{\"__DEV__\":\"false\",\"process.env.NODE_ENV\":\"\\\"production\\\"\"}}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoJSON_UnknownField), size_t(0));
+
+    // The raw text the API re-validates through the same pass a "--define:"
+    // flag goes through, exactly as it was written.
+    const auto& texts = result.builds[0].opts.DefineTexts;
+    ASSERT_EQ(texts.size(), size_t(2));
+    EXPECT_EQ(texts.at("__DEV__"), std::string("false"));
+    EXPECT_EQ(texts.at("process.env.NODE_ENV"), std::string("\"production\""));
+
+    // And the parsed table a reader consuming the config directly points at.
+    EXPECT_TRUE(result.builds[0].defines_owned != nullptr);
+    EXPECT_TRUE(result.builds[0].opts.Defines != nullptr);
+}
+
+// The top-level spelling is the alias, and it is still read: a config written
+// before "build.define" existed keeps working.
+TEST(GuchhoConfig, TopLevelDefineAliasIsAccepted)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json", "{\"define\":{\"__DEV__\":\"true\"}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoJSON_UnknownField), size_t(0));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_AliasIgnored), size_t(0));
+    ASSERT_EQ(result.builds[0].opts.DefineTexts.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].opts.DefineTexts.at("__DEV__"), std::string("true"));
+}
+
+// Both spellings at once: the canonical one wins, the alias is reported
+// rather than appended — merging them would double every key the two share
+// and silently pick a winner for the keys they do not.
+TEST(GuchhoConfig, BuildDefineWinsOverTopLevelAlias)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "{\"build\":{\"define\":{\"A\":\"1\"}},\"define\":{\"B\":\"2\"}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoConfig_AliasIgnored), size_t(1));
+    const std::string text = AllMessagesText(log);
+    EXPECT_NE(text.find("build.define"), std::string::npos) << "text was: [" << text << "]";
+
+    const auto& texts = result.builds[0].opts.DefineTexts;
+    ASSERT_EQ(texts.size(), size_t(1));
+    EXPECT_EQ(texts.at("A"), std::string("1"));
+}
+
+// The value is the replacement expression as written, so a value that is not
+// one is reported where it was written and left out of both tables — the
+// field is known, so the generic unknown-field warning has nothing to say.
+TEST(GuchhoConfig, UnsupportedDefineValueUnderBuildIsReported)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json", "{\"build\":{\"define\":{\"FLAG\":{}}}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.parse_error);
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoJSON_UnknownField), size_t(0));
+    EXPECT_EQ(CountMessagesOfID(log, logger::MsgID::kGuchhoJSON_InvalidFormat), size_t(1));
+    EXPECT_TRUE(result.builds[0].opts.DefineTexts.empty());
+}
+
+// Each configuration carries its own substitutions, so two builds in one
+// config file cannot see each other's defines.
+TEST(GuchhoConfig, ArrayElementsHaveIndependentDefineTexts)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "[{\"build\":{\"define\":{\"A\":\"1\"}}}, {\"build\":{\"define\":{\"B\":\"2\"}}}]");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+
+    resolver::GuchhoConfig result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    ASSERT_EQ(result.builds.size(), size_t(2));
+    ASSERT_EQ(result.builds[0].opts.DefineTexts.size(), size_t(1));
+    ASSERT_EQ(result.builds[1].opts.DefineTexts.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].opts.DefineTexts.at("A"), std::string("1"));
+    EXPECT_EQ(result.builds[1].opts.DefineTexts.at("B"), std::string("2"));
+}

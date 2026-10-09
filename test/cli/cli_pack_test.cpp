@@ -35,6 +35,8 @@
 #include <cstdint>
 #include <ctime>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <utility>
 #include <vector>
@@ -124,6 +126,14 @@ bool Contains(const std::vector<std::string>& items, const std::string& value)
     return false;
 }
 
+// A whole file, as the bytes it is on disk. Used for the formats whose first
+// bytes are the only thing this file needs to say about them.
+std::string ReadBytes(const std::string& path)
+{
+    std::ifstream in(CliWorkspace::Native(path), std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+}
+
 // A workspace with one file in it, which is what most of these tests ask for.
 void WriteTree(CliWorkspace& ws, const std::string& dir = "dist")
 {
@@ -164,11 +174,14 @@ TEST(PackHelpTest, AnswersWithItsOwnUsageAndFlags)
     EXPECT_TRUE(OutputContains(result.out, "Usage: guchho pack <input...>")) << result.out;
     EXPECT_TRUE(OutputContains(result.out, "Create an archive")) << result.out;
     EXPECT_TRUE(OutputContains(result.out, "--format=<format>")) << result.out;
-    EXPECT_TRUE(OutputContains(result.out, "only zip is supported")) << result.out;
+    EXPECT_TRUE(OutputContains(result.out, "zip, tar or tar.gz")) << result.out;
+    EXPECT_TRUE(OutputContains(result.out, "default: zip")) << result.out;
     EXPECT_TRUE(OutputContains(result.out, "-o, --outfile=<path>")) << result.out;
     EXPECT_TRUE(OutputContains(result.out, "--level=<0-9>")) << result.out;
+    EXPECT_TRUE(OutputContains(result.out, "zip and tar.gz")) << result.out;
     EXPECT_TRUE(OutputContains(result.out, "--allow-overwrite")) << result.out;
     EXPECT_TRUE(OutputContains(result.out, "guchho pack dist/ -o release.zip")) << result.out;
+    EXPECT_TRUE(OutputContains(result.out, "guchho pack dist/ --format=tar.gz")) << result.out;
     // Help is an answer, not a diagnostic, so it belongs on the standard
     // output where a person can pipe it to a pager.
     EXPECT_TRUE(result.err.empty()) << result.err;
@@ -308,14 +321,48 @@ TEST(PackUsageTest, AnUnsupportedFormatIsRefused)
     CliWorkspace ws("pack-format-unsupported");
     WriteTree(ws);
 
-    const guchho::test::CliResult result = RunCli({"pack", "dist", "--format=tar"});
+    const guchho::test::CliResult result = RunCli({"pack", "dist", "--format=7z"});
 
     EXPECT_EQ(result.exit_code, kUsageError);
-    EXPECT_TRUE(OutputContains(result.err, "Unsupported archive format: \"tar\""))
+    EXPECT_TRUE(OutputContains(result.err, "Unsupported archive format: \"7z\""))
         << result.err;
-    EXPECT_TRUE(OutputContains(result.err, "Only \"zip\" is supported")) << result.err;
-    // Refused at the spelling, so nothing was read and nothing was written.
+    EXPECT_TRUE(OutputContains(result.err,
+                               "Only \"zip\", \"tar\" and \"tar.gz\" are supported today."))
+        << result.err;
+    // Refused at the spelling, so nothing was read and nothing was written —
+    // not even the archive the default format would have produced.
+    EXPECT_FALSE(ws.Exists("dist.7z"));
     EXPECT_FALSE(ws.Exists("dist.zip"));
+}
+
+// The one refusal a format flag has that is not about the format's name: the
+// level is spelled correctly and paired with a format that cannot use it.
+// Worth the same code as any other complaint about what was typed.
+TEST(PackUsageTest, ALevelIsRefusedForAnUncompressedFormat)
+{
+    CliWorkspace ws("pack-level-for-tar");
+    WriteTree(ws);
+
+    const guchho::test::CliResult result =
+        RunCli({"pack", "dist", "--format=tar", "--level=9"});
+
+    EXPECT_EQ(result.exit_code, kUsageError);
+    EXPECT_TRUE(OutputContains(result.err,
+                               "Compression level 9 does not apply to the \"tar\" format"))
+        << result.err;
+    EXPECT_TRUE(OutputContains(result.err, "uncompressed")) << result.err;
+    EXPECT_FALSE(ws.Exists("dist.tar"));
+}
+
+// The level reaches the formats that compress, and only those. A flag that
+// works on two of three formats has to say which, here and in the error.
+TEST(PackUsageTest, ALevelIsAcceptedForTheFormatsThatCompress)
+{
+    CliWorkspace ws("pack-level-compressed");
+    WriteTree(ws);
+
+    EXPECT_EQ(RunCli({"pack", "dist", "--level=9"}).exit_code, kSuccess);
+    EXPECT_TRUE(ws.Exists("dist.zip"));
 }
 
 TEST(PackUsageTest, AFormatWithNoValueIsRefused)
@@ -424,6 +471,63 @@ TEST(PackRunTest, AcceptsBothSpellingsOfTheFormatFlag)
     ASSERT_TRUE(ReadArchive(ws.At("other.zip"), entries, error)) << error;
     EXPECT_TRUE(Contains(Names(entries), "dist/app.js"));
     EXPECT_TRUE(Contains(Names(entries), "dist/index.html"));
+}
+
+// The two formats the flag names other than the default. What is inside each
+// is pack_tar_test.cpp's subject; what is checked here is that the flag
+// reached the writer, and that the file that came out is the shape the named
+// format says a file has — a tar archive starts with a name in its first
+// block and is a whole number of blocks, and a tar.gz starts with the gzip
+// magic.
+TEST(PackRunTest, TheFormatFlagChoosesTar)
+{
+    CliWorkspace ws("pack-format-tar");
+    WriteTree(ws);
+
+    const guchho::test::CliResult result = RunCli({"pack", "dist", "--format=tar"});
+    ASSERT_EQ(result.exit_code, kSuccess) << result.err;
+
+    EXPECT_TRUE(ws.Exists("dist.tar"));
+    EXPECT_FALSE(ws.Exists("dist.zip")) << "the default is not written when another is asked for";
+
+    const std::string bytes = ReadBytes(ws.At("dist.tar"));
+    ASSERT_GE(bytes.size(), 512u);
+    EXPECT_EQ(bytes.substr(0, 5), "dist/");
+    EXPECT_EQ(bytes.size() % 512, 0u);
+    EXPECT_EQ(bytes.size() % 10240, 0u) << "a tar file is a whole number of records";
+}
+
+TEST(PackRunTest, TheFormatFlagChoosesTarGz)
+{
+    CliWorkspace ws("pack-format-tar-gz");
+    WriteTree(ws);
+
+    const guchho::test::CliResult result =
+        RunCli({"pack", "dist", "--format=tar.gz", "-o", "release.tar.gz"});
+    ASSERT_EQ(result.exit_code, kSuccess) << result.err;
+
+    EXPECT_TRUE(ws.Exists("release.tar.gz"));
+
+    const std::string bytes = ReadBytes(ws.At("release.tar.gz"));
+    ASSERT_GE(bytes.size(), 10u);
+    EXPECT_EQ(static_cast<unsigned char>(bytes[0]), 0x1f);
+    EXPECT_EQ(static_cast<unsigned char>(bytes[1]), 0x8b);
+    EXPECT_EQ(static_cast<unsigned char>(bytes[2]), 8) << "CM is deflate";
+}
+
+TEST(PackRunTest, ANamedOutfileAndTheFormatDoNotHaveToAgree)
+{
+    CliWorkspace ws("pack-format-outfile");
+    WriteTree(ws);
+
+    const guchho::test::CliResult result =
+        RunCli({"pack", "dist", "--format=tar", "-o", "named.zip"});
+    ASSERT_EQ(result.exit_code, kSuccess) << result.err;
+
+    // A person who named the destination gets the destination they named.
+    // The flag says how to write it, not where.
+    EXPECT_TRUE(ws.Exists("named.zip"));
+    EXPECT_EQ(ReadBytes(ws.At("named.zip")).substr(0, 5), "dist/");
 }
 
 TEST(PackRunTest, PutsTheTreeUnderItsOwnName)
@@ -604,6 +708,29 @@ TEST(PackServiceTest, AnswersWithAPathAndASize)
     EXPECT_TRUE(ws.Exists("out.zip"));
 }
 
+// The service is the path a JavaScript caller takes, and the format has to
+// arrive there the same way it arrives on the command line. The refusal for
+// a format the engine cannot write is further down; this is the other half
+// of it — one that it can write.
+TEST(PackServiceTest, WritesTheFormatItWasAskedFor)
+{
+    CliWorkspace ws("pack-service-tar");
+    WriteTree(ws);
+
+    const guchho::service::Value response =
+        guchho::cli::RunServiceRequest(guchho::service::Value::Object({
+            {"command", guchho::service::Value::String("pack")},
+            {"inputs", guchho::service::Value::Array({guchho::service::Value::String("dist")})},
+            {"outFile", guchho::service::Value::String("out.tar")},
+            {"format", guchho::service::Value::String("tar")},
+        }));
+
+    EXPECT_EQ(ErrorOf(response), "");
+    EXPECT_EQ(TextOf(response, "path"), "out.tar");
+    EXPECT_TRUE(ws.Exists("out.tar"));
+    EXPECT_EQ(ReadBytes(ws.At("out.tar")).substr(0, 5), "dist/");
+}
+
 TEST(PackServiceTest, NeedsAnInputList)
 {
     const guchho::service::Value response =
@@ -663,8 +790,8 @@ TEST(PackServiceTest, RefusesAFormatTheEngineCannotWrite)
         guchho::cli::RunServiceRequest(guchho::service::Value::Object({
             {"command", guchho::service::Value::String("pack")},
             {"inputs", guchho::service::Value::Array({guchho::service::Value::String("dist")})},
-            {"outFile", guchho::service::Value::String("out.zip")},
-            {"format", guchho::service::Value::String("tar")},
+            {"outFile", guchho::service::Value::String("out.7z")},
+            {"format", guchho::service::Value::String("7z")},
         }));
 
     EXPECT_TRUE(OutputContains(ErrorOf(response), "Unsupported archive format"))
@@ -681,8 +808,16 @@ TEST(PackServiceTest, RefusesAFormatTheEngineCannotWrite)
     const guchho::service::Value* notes = errors->AsArray().front().Find("notes");
     ASSERT_TRUE(notes != nullptr && notes->IsArray());
     ASSERT_FALSE(notes->AsArray().empty());
+    // The note is the shared one, so a caller that reads it in a service
+    // response learns the same three formats the command line would print.
+    const guchho::service::Value* text =
+        notes->AsArray().front().Find("text");
+    ASSERT_TRUE(text != nullptr && text->IsString());
+    EXPECT_EQ(text->AsString(),
+              "Only \"zip\", \"tar\" and \"tar.gz\" are supported today.")
+        << text->AsString();
 
-    EXPECT_FALSE(ws.Exists("out.zip"));
+    EXPECT_FALSE(ws.Exists("out.7z"));
 }
 
 TEST(PackServiceTest, RefusesALevelThatIsNotANumber)

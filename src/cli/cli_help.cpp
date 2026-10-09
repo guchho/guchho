@@ -505,13 +505,18 @@ void printInfoHelp(std::ostream& os) {
 // this one is closest to, being a list of inputs and a short set of choices
 // about the output — and clean, which has one. The options are ordered the way
 // a person meets them: what the archive is to be, where it goes, how hard it
-// is compressed, and then the one flag that changes what would otherwise be a
-// refusal into a replacement.
+// is compressed, and then the one flag that changes what would otherwise be
+// a refusal into a replacement.
 //
-// "--format" is listed with its limits written into the line. There is one
-// format today, and a reader who has to discover that by being refused has
-// been taught the answer the hard way. The list lives in the library and is
-// asked of it, so this line and the refusal cannot drift apart.
+// "--format" is listed with the formats written into the line. There are three
+// today and a reader who has to discover that by being refused has been taught
+// the answer the hard way. The list lives in the library and is asked of it,
+// so this line and the refusal cannot drift apart.
+//
+// "--level" says which formats it reaches, because the one thing a person
+// cannot guess about it is that it means nothing to tar. Stating that here is
+// the difference between an option that works everywhere and an option that
+// works almost everywhere, found out by an error after the flag was typed.
 //
 // "--allow-overwrite" is spelled out rather than shortened to "-f" because it
 // is not a switch somebody reaches for in a hurry: it says "yes, discard the
@@ -519,10 +524,10 @@ void printInfoHelp(std::ostream& os) {
 // waiting to happen. "-f" is taken by init for the same reason it is
 // unabbreviated here.
 //
-// The examples are the four in the plan for this command, in the order a
+// The examples are the ones in the plan for this command, in the order a
 // person is likely to need them: the bare one, the one that names a file, the
-// one with two trees in it, and the one that changes how the archive is
-// compressed.
+// one with two trees in it, the one that changes how the archive is
+// compressed, and the two that name a format other than the default.
 //
 // The paragraph between the sentence and the options is where the two
 // behaviours a person cannot guess from the flags are stated: what each input
@@ -535,7 +540,7 @@ void printInfoHelp(std::ostream& os) {
 // Input:  called by the pack command when the argument list contains --help or
 //         -h
 // Output: the usage line, one sentence saying what it creates, the paragraph
-//         above, the five options, and four examples.
+//         above, the five options, and six examples.
 void printPackHelp(std::ostream& os) {
     os << "Usage: guchho pack <input...> [options]\n"
        << "\n"
@@ -547,9 +552,9 @@ void printPackHelp(std::ostream& os) {
        << "followed.\n"
        << "\n"
        << "Options:\n"
-       << "  --format=<format>       Archive format (default: zip; only zip is supported)\n"
-       << "  -o, --outfile=<path>    Write the archive to this path (default: <input>.zip)\n"
-       << "  --level=<0-9>           Compression level (default: 6)\n"
+       << "  --format=<format>       Archive format: zip, tar or tar.gz (default: zip)\n"
+       << "  -o, --outfile=<path>    Write the archive to this path (default: <input>.<ext>)\n"
+       << "  --level=<0-9>           Compression level for zip and tar.gz (default: 6)\n"
        << "  --allow-overwrite       Replace the output if it already exists\n"
        << "  -h, --help              Show this help message\n"
        << "\n"
@@ -557,7 +562,9 @@ void printPackHelp(std::ostream& os) {
        << "  guchho pack dist/\n"
        << "  guchho pack dist/ -o release.zip\n"
        << "  guchho pack dist/ src/ -o release.zip\n"
-       << "  guchho pack dist/ --level=9\n";
+       << "  guchho pack dist/ --level=9\n"
+       << "  guchho pack dist/ --format=tar\n"
+       << "  guchho pack dist/ --format=tar.gz -o release.tar.gz\n";
 }
 
 // =============================================================================

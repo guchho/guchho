@@ -299,12 +299,23 @@ export interface BuildOptions extends CommonOptions {
   outbase?: string
   format?: Format
   /**
-   * Which entry export a UMD wrapper publishes as its global. `"default"`
-   * exposes the entry point's default export directly — `new Exprify()`
-   * rather than `Exprify.default`. UMD output only; any other format paired
-   * with it fails the build.
+   * Which entry export the bundle publishes as its public value.
+   *
+   * - `"named"` — a namespace object whose properties are the export names
+   *   (the default, and what a build without the option always does).
+   * - `"default"` — the entry point's default export *is* the value: a
+   *   CommonJS `require()` hands it straight back, and a UMD or IIFE global
+   *   is it. The entry must have a default export (a CommonJS entry's
+   *   `module.exports` counts); named exports alongside it are not exposed.
+   * - `"none"` — publish nothing. Valid only when no entry point exports
+   *   anything.
+   * - `"auto"` — infer from the entry's actual exports, Rollup style: no
+   *   exports means `"none"`, a lone default means `"default"`, anything
+   *   else means `"named"`.
+   *
+   * Read for every output format.
    */
-  exports?: "default"
+  exports?: "default" | "named" | "none" | "auto"
   /**
    * The global a UMD or IIFE wrapper publishes under, as a dotted path.
    *

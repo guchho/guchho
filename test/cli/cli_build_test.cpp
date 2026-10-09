@@ -1107,13 +1107,38 @@ TEST(CliBuild, ExportsDefaultWithoutADefaultExportIsABuildFailure) {
         << "a failed build wrote its output anyway";
 }
 
-// The option only means anything for UMD, where there is a wrapper with arms
-// to publish through; a format whose exports are already the module's value
-// is told so rather than silently ignoring the flag. Every other output
-// format Guchho has gets the same answer.
-TEST(CliBuild, ExportsDefaultOutsideUmdIsRejected) {
-    CliWorkspace ws("umd-exports-default-format");
+// The flag used to mean "only UMD can publish this way" and stopped every
+// other format with a note saying which one was required. It is now a request
+// every format understands: esm keeps its own "export" statement, and the
+// formats with a wrapper or a module value publish the default through it.
+// What each format does with the value is the other tests' business; this one
+// is that none of them refuses the option any more.
+TEST(CliBuild, ExportsDefaultIsAcceptedInEveryFormat) {
+    CliWorkspace ws("exports-default-all-formats");
     ws.Write("entry.js", "export default 1;\n");
+
+    for (const char* format : {"esm", "cjs", "iife", "amd", "system", "umd"}) {
+        std::vector<std::string> args = {"build", "entry.js",
+                                         std::string("--format=") + format,
+                                         "--exports=default", "--outfile=out.js"};
+        // The formats whose wrapper needs somewhere to put what it publishes.
+        if (std::string(format) == "iife" || std::string(format) == "umd") {
+            args.push_back("--name=Lib");
+        }
+
+        const CliResult result = RunCli(args);
+        EXPECT_EQ(result.exit_code, kSuccess) << format << ": " << result.err;
+        EXPECT_TRUE(ws.Exists("out.js")) << format << " wrote no output";
+    }
+}
+
+// The other half of the same change: the build still refuses a default mode
+// whose entry has no default export, in every format rather than in UMD alone.
+// The message is the one the UMD half above has always used, so a reader who
+// meets it in another format still meets the same sentence.
+TEST(CliBuild, ExportsDefaultWithoutADefaultExportFailsInEveryFormat) {
+    CliWorkspace ws("exports-default-missing-all-formats");
+    ws.Write("entry.js", "export const onlyNamed = 1;\n");
 
     for (const char* format : {"esm", "cjs", "iife", "amd", "system"}) {
         const CliResult result = RunCli({"build", "entry.js",
@@ -1122,14 +1147,14 @@ TEST(CliBuild, ExportsDefaultOutsideUmdIsRejected) {
 
         EXPECT_EQ(result.exit_code, kBuildFailure) << format << ": " << result.err;
         EXPECT_TRUE(OutputContains(result.err,
-                                   "--exports=default is only supported with --format=umd"))
-            << format << " does not say which format is required: [" << result.err << "]";
+                                   "--exports=default requires the entry point to have a default export"))
+            << format << " does not say what is missing: [" << result.err << "]";
         EXPECT_FALSE(ws.Exists("out.js")) << format << " wrote output anyway";
     }
 }
 
-// An unknown value stops on the command line itself, with the note naming the
-// one value that does exist.
+// An unknown value stops on the command line itself, with the note naming
+// every value that does exist.
 TEST(CliBuild, AnUnknownExportsValueIsAUsageError) {
     CliWorkspace ws("umd-exports-default-value");
     ws.Write("entry.js", "export default 1;\n");
@@ -1141,8 +1166,8 @@ TEST(CliBuild, AnUnknownExportsValueIsAUsageError) {
     EXPECT_EQ(result.exit_code, kUsageError) << result.err;
     EXPECT_TRUE(OutputContains(result.err, "Invalid value"))
         << "the failure does not quote what was rejected: [" << result.err << "]";
-    EXPECT_TRUE(OutputContains(result.err, "\"default\""))
-        << "the note does not name the valid value: [" << result.err << "]";
+    EXPECT_TRUE(OutputContains(result.err, "\"default\", \"named\", \"none\", \"auto\""))
+        << "the note does not name all the valid values: [" << result.err << "]";
 }
 
 // Minified default mode: the wrapper still parses, Guchho still reads its own
@@ -1218,6 +1243,418 @@ TEST(CliBuild, ExportsDefaultStillEmitsASourceMap) {
         << "the map carries no mappings: [" << map << "]";
     EXPECT_TRUE(OutputContains(map, "\"sources\""))
         << "the map names no sources: [" << map << "]";
+}
+
+// ---------------------------------------------------------------------------
+// Entry exports: the four modes, in the formats that consume them
+// ---------------------------------------------------------------------------
+
+// Default mode in CommonJS: require() hands back the default export alone.
+// The named export that rides along beside it is deliberately not exposed --
+// "default" means the value is the module, and a consumer reaching past it
+// should find nothing rather than a second, quieter way to the names. The
+// output shape is asserted as well as the run: the value has to travel
+// through the entry's own "exports.default" getter, and the namespace
+// converter that named mode links in must not be there at all.
+TEST(CliBuild, ExportsDefaultPublishesOnlyTheDefaultValueInCommonJS) {
+    CliWorkspace ws("exports-default-cjs");
+    ws.Write("entry.js", "export default 42;\nexport const named = 1;\n");
+
+    const CliResult build = RunCli({"build", "entry.js", "--format=cjs",
+                                    "--exports=default", "--outfile=out.js"});
+    ASSERT_EQ(build.exit_code, kSuccess) << build.err;
+
+    const std::string out = ws.Read("out.js");
+    EXPECT_TRUE(OutputContains(out, "exports.default"))
+        << "the tail does not read the default through the exports object: [" << out << "]";
+    EXPECT_FALSE(OutputContains(out, "__toCommonJS"))
+        << "the namespace converter was linked into a default-only publish: [" << out << "]";
+
+    if (!RunProcess({"node", "-v"}, ws.path()).started) {
+        std::cout << "node is not on PATH; skipping the execution half of "
+                     "ExportsDefaultPublishesOnlyTheDefaultValueInCommonJS"
+                  << std::endl;
+        return;
+    }
+
+    const ProcessResult as_module = RunProcess(
+        {"node", "-e",
+         "const m = require('./out.js');"
+         "process.stdout.write(String(m) + ':' + String(m.named) + ':' + String(m.default));"},
+        ws.path());
+    ASSERT_TRUE(as_module.started);
+    EXPECT_EQ(as_module.exit_code, 0) << as_module.stderr_data;
+    EXPECT_TRUE(OutputContains(as_module.stdout_data, "42:undefined:undefined"))
+        << "require() did not receive the default alone: [" << as_module.stdout_data << "]";
+}
+
+// Default mode in IIFE: the wrapper assigns what its body returns to the
+// global, and the tail's last act is to return the default export. The
+// runtime half is the whole test -- an output that parses but returns the
+// wrong thing still publishes the wrong value to the browser.
+TEST(CliBuild, ExportsDefaultPublishesTheDefaultValueInIIFE) {
+    CliWorkspace ws("exports-default-iife");
+    ws.Write("entry.js", "export default 42;\n");
+
+    const CliResult build = RunCli({"build", "entry.js", "--format=iife",
+                                    "--exports=default", "--name=Lib",
+                                    "--outfile=out.js"});
+    ASSERT_EQ(build.exit_code, kSuccess) << build.err;
+
+    if (!RunProcess({"node", "-v"}, ws.path()).started) {
+        std::cout << "node is not on PATH; skipping the execution half of "
+                     "ExportsDefaultPublishesTheDefaultValueInIIFE"
+                  << std::endl;
+        return;
+    }
+
+    const ProcessResult as_global = RunProcess(
+        {"node", "-e",
+         "const fs = require('fs'), vm = require('vm');"
+         "const ctx = {}; ctx.globalThis = ctx; ctx.self = ctx;"
+         "vm.runInNewContext(fs.readFileSync('out.js', 'utf8'), ctx);"
+         "process.stdout.write(String(ctx.Lib));"},
+        ws.path());
+    ASSERT_TRUE(as_global.started);
+    EXPECT_EQ(as_global.exit_code, 0) << as_global.stderr_data;
+    EXPECT_TRUE(OutputContains(as_global.stdout_data, "42"))
+        << "the global is not the default value: [" << as_global.stdout_data << "]";
+}
+
+// Default mode in AMD: the loader keeps whatever the factory returns, so the
+// tail returns the default export and the "exports" object -- the thing
+// named mode asks AMD's convention to hand the factory -- never enters the
+// picture. The shim below plays loader: it calls the factory with no
+// exports object at all, which only works if the bundle does not expect one.
+TEST(CliBuild, ExportsDefaultReturnsTheDefaultValueFromAMD) {
+    CliWorkspace ws("exports-default-amd");
+    ws.Write("entry.js", "export default 42;\n");
+
+    const CliResult build = RunCli({"build", "entry.js", "--format=amd",
+                                    "--exports=default", "--outfile=out.js"});
+    ASSERT_EQ(build.exit_code, kSuccess) << build.err;
+
+    if (!RunProcess({"node", "-v"}, ws.path()).started) {
+        std::cout << "node is not on PATH; skipping the execution half of "
+                     "ExportsDefaultReturnsTheDefaultValueFromAMD"
+                  << std::endl;
+        return;
+    }
+
+    const ProcessResult as_amd = RunProcess(
+        {"node", "-e",
+         "const fs = require('fs'), vm = require('vm');"
+         "let got, deps;"
+         "function define(d, factory) { deps = d; got = factory(); }"
+         "define.amd = true;"
+         "const ctx = { define: define }; ctx.globalThis = ctx; ctx.self = ctx;"
+         "vm.runInNewContext(fs.readFileSync('out.js', 'utf8'), ctx);"
+         "process.stdout.write(String(got) + ':' + String(deps.indexOf('exports') === -1));"},
+        ws.path());
+    ASSERT_TRUE(as_amd.started);
+    EXPECT_EQ(as_amd.exit_code, 0) << as_amd.stderr_data;
+    EXPECT_TRUE(OutputContains(as_amd.stdout_data, "42:true"))
+        << "the AMD factory did not return the default alone: [" << as_amd.stdout_data << "]";
+}
+
+// None mode where there is nothing to publish: an entry that only runs side
+// effects builds in every format. The UMD case is the one that carries the
+// new meaning -- it passes with no --name, because none mode promises
+// nothing is missing from the browser branch and the linker has to hold
+// that promise rather than asking for a destination nothing will use.
+TEST(CliBuild, ExportsNoneBuildsWithoutPublishingAnything) {
+    CliWorkspace ws("exports-none-side-effect");
+    ws.Write("entry.js", "export {};\nconsole.log(\"ran\");\n");
+
+    for (const char* format : {"esm", "cjs", "umd"}) {
+        const CliResult result = RunCli({"build", "entry.js",
+                                         std::string("--format=") + format,
+                                         "--exports=none", "--outfile=out.js"});
+
+        EXPECT_EQ(result.exit_code, kSuccess) << format << ": " << result.err;
+        EXPECT_TRUE(OutputContains(ws.Read("out.js"), "console.log(\"ran\")"))
+            << format << " lost the entry's side effects";
+        EXPECT_FALSE(OutputContains(ws.Read("out.js"), "__toCommonJS"))
+            << format << " linked the namespace converter into a none build";
+    }
+}
+
+// None mode where there is something to publish: the build stops, in every
+// format, with the promise the mode makes and the entry breaks. The UMD case
+// deliberately passes no --name -- under none the name is never asked for,
+// so the error that surfaces has to be about the exports and not about a
+// destination nothing will use.
+TEST(CliBuild, ExportsNoneWithAnExportingEntryIsABuildFailure) {
+    CliWorkspace ws("exports-none-with-exports");
+    ws.Write("entry.js", "export const onlyNamed = 1;\n");
+
+    for (const char* format : {"esm", "cjs", "iife", "amd", "system", "umd"}) {
+        const CliResult result = RunCli({"build", "entry.js",
+                                         std::string("--format=") + format,
+                                         "--exports=none", "--outfile=out.js"});
+
+        EXPECT_EQ(result.exit_code, kBuildFailure) << format << ": " << result.err;
+        EXPECT_TRUE(OutputContains(result.err,
+                                   "--exports=none requires the entry point to have no exports"))
+            << format << " does not say what is wrong: [" << result.err << "]";
+        EXPECT_FALSE(OutputContains(result.err, "--name"))
+            << format << " asked for a global name it does not need: [" << result.err << "]";
+        EXPECT_FALSE(ws.Exists("out.js")) << format << " wrote output anyway";
+    }
+}
+
+// None mode in CommonJS at run time: an entry with no exports leaves
+// require() with the empty object CommonJS hands every module and nothing
+// added to it, and the bundle never grows the "__esModule" marker the
+// namespace converter would have put there.
+TEST(CliBuild, ExportsNoneInCommonJSPublishesNothing) {
+    CliWorkspace ws("exports-none-cjs");
+    ws.Write("entry.js", "export {};\nconsole.log(\"ran\");\n");
+
+    const CliResult build = RunCli({"build", "entry.js", "--format=cjs",
+                                    "--exports=none", "--outfile=out.js"});
+    ASSERT_EQ(build.exit_code, kSuccess) << build.err;
+
+    const std::string out = ws.Read("out.js");
+    EXPECT_FALSE(OutputContains(out, "__esModule"))
+        << "a none build still marked itself as a module with exports: [" << out << "]";
+
+    if (!RunProcess({"node", "-v"}, ws.path()).started) {
+        std::cout << "node is not on PATH; skipping the execution half of "
+                     "ExportsNoneInCommonJSPublishesNothing"
+                  << std::endl;
+        return;
+    }
+
+    const ProcessResult as_module = RunProcess(
+        {"node", "-e",
+         "const m = require('./out.js');"
+         "process.stdout.write(Object.keys(m).length + ':' + String(m.default));"},
+        ws.path());
+    ASSERT_TRUE(as_module.started);
+    EXPECT_EQ(as_module.exit_code, 0) << as_module.stderr_data;
+    EXPECT_TRUE(OutputContains(as_module.stdout_data, "0:undefined"))
+        << "require() found exports a none build promised not to make: ["
+        << as_module.stdout_data << "]";
+}
+
+// Auto mode's first inference: an entry whose only export is the default
+// resolves to default, so the build publishes the value the same way an
+// explicit --exports=default would. The run is the proof -- an auto that
+// silently resolved to named would hand require() a namespace object
+// instead of 42.
+TEST(CliBuild, ExportsAutoInfersDefaultFromASoleDefaultExport) {
+    CliWorkspace ws("exports-auto-default");
+    ws.Write("entry.js", "export default 42;\n");
+
+    const CliResult build = RunCli({"build", "entry.js", "--format=cjs",
+                                    "--exports=auto", "--outfile=out.js"});
+    ASSERT_EQ(build.exit_code, kSuccess) << build.err;
+
+    const std::string out = ws.Read("out.js");
+    EXPECT_TRUE(OutputContains(out, "exports.default"))
+        << "auto did not resolve to default mode: [" << out << "]";
+    EXPECT_FALSE(OutputContains(out, "__toCommonJS"))
+        << "auto resolved to named and linked the namespace converter: [" << out << "]";
+
+    if (!RunProcess({"node", "-v"}, ws.path()).started) {
+        std::cout << "node is not on PATH; skipping the execution half of "
+                     "ExportsAutoInfersDefaultFromASoleDefaultExport"
+                  << std::endl;
+        return;
+    }
+
+    const ProcessResult as_module = RunProcess(
+        {"node", "-e",
+         "const m = require('./out.js');"
+         "process.stdout.write(String(typeof m) + ':' + String(m));"},
+        ws.path());
+    ASSERT_TRUE(as_module.started);
+    EXPECT_EQ(as_module.exit_code, 0) << as_module.stderr_data;
+    EXPECT_TRUE(OutputContains(as_module.stdout_data, "number:42"))
+        << "auto did not publish the default as the module's value: ["
+        << as_module.stdout_data << "]";
+}
+
+// Auto mode's second inference: named exports and no default resolve to
+// named, which is the behaviour the build had before the option existed.
+// The namespace object comes back out of require() with the names on it and
+// no "default" among them, because the entry declared none.
+TEST(CliBuild, ExportsAutoInferredNamedPublishesTheNamespace) {
+    CliWorkspace ws("exports-auto-named");
+    ws.Write("entry.js", "export const add = (a, b) => a + b;\n");
+
+    const CliResult build = RunCli({"build", "entry.js", "--format=cjs",
+                                    "--exports=auto", "--outfile=out.js"});
+    ASSERT_EQ(build.exit_code, kSuccess) << build.err;
+
+    const std::string out = ws.Read("out.js");
+    EXPECT_TRUE(OutputContains(out, "__toCommonJS"))
+        << "auto did not resolve to named mode: [" << out << "]";
+
+    if (!RunProcess({"node", "-v"}, ws.path()).started) {
+        std::cout << "node is not on PATH; skipping the execution half of "
+                     "ExportsAutoInferredNamedPublishesTheNamespace"
+                  << std::endl;
+        return;
+    }
+
+    const ProcessResult as_module = RunProcess(
+        {"node", "-e",
+         "const m = require('./out.js');"
+         "process.stdout.write(String(m.add(40, 2)) + ':' + String(m.default));"},
+        ws.path());
+    ASSERT_TRUE(as_module.started);
+    EXPECT_EQ(as_module.exit_code, 0) << as_module.stderr_data;
+    EXPECT_TRUE(OutputContains(as_module.stdout_data, "42:undefined"))
+        << "auto named mode did not publish the names: [" << as_module.stdout_data << "]";
+}
+
+// Auto mode's third inference, where the answer changes what the build may
+// ask for: an entry with no exports at all resolves to none, and none needs
+// no global name. The same command without --exports=auto builds under
+// named semantics and stops asking for --name (see
+// UMDWithExportsAndNoNameIsABuildFailure), so this success is the
+// inference doing real work rather than the flag being ignored.
+TEST(CliBuild, ExportsAutoInfersNoneAndNeedsNoGlobalName) {
+    CliWorkspace ws("exports-auto-none");
+    ws.Write("entry.js", "export {};\nconsole.log(\"ran\");\n");
+
+    const CliResult result = RunCli({"build", "entry.js", "--format=umd",
+                                     "--exports=auto", "--outfile=out.js"});
+
+    EXPECT_EQ(result.exit_code, kSuccess) << result.err;
+    EXPECT_TRUE(OutputContains(ws.Read("out.js"), "console.log(\"ran\")"));
+}
+
+// Auto mode's warning: an entry that mixes a default export in with named
+// ones resolves to named -- the default stops being special -- and the
+// build says so instead of dropping the default silently. Still a success:
+// the warning is information, not a refusal, and the run below shows the
+// named answer the inference reached.
+TEST(CliBuild, ExportsAutoMixedExportsWarnsAndPublishesNamed) {
+    CliWorkspace ws("exports-auto-mixed");
+    ws.Write("entry.js", "export default 7;\nexport const add = (a, b) => a + b;\n");
+
+    const CliResult build = RunCli({"build", "entry.js", "--format=cjs",
+                                    "--exports=auto", "--outfile=out.js"});
+    EXPECT_EQ(build.exit_code, kSuccess) << build.err;
+
+    const std::string said = build.err + build.out;
+    EXPECT_TRUE(OutputContains(said, "--exports=auto resolved to \"named\""))
+        << "the mixed-exports inference was not reported: [" << said << "]";
+
+    const std::string out = ws.Read("out.js");
+    EXPECT_TRUE(OutputContains(out, "__toCommonJS"))
+        << "the warning fired but the build did not publish named: [" << out << "]";
+
+    if (!RunProcess({"node", "-v"}, ws.path()).started) {
+        std::cout << "node is not on PATH; skipping the execution half of "
+                     "ExportsAutoMixedExportsWarnsAndPublishesNamed"
+                  << std::endl;
+        return;
+    }
+
+    const ProcessResult as_module = RunProcess(
+        {"node", "-e",
+         "const m = require('./out.js');"
+         "process.stdout.write(String(m.add(1, 2)) + ':' + String(m.default));"},
+        ws.path());
+    ASSERT_TRUE(as_module.started);
+    EXPECT_EQ(as_module.exit_code, 0) << as_module.stderr_data;
+    EXPECT_TRUE(OutputContains(as_module.stdout_data, "3:7"))
+        << "named mode did not publish both halves of the mixed entry: ["
+        << as_module.stdout_data << "]";
+}
+
+// Explicit "named" is the same answer the build gives when the option is
+// absent, and it has to survive an entry that also has a default export:
+// both halves reach require(), because named publishes the namespace and
+// the default is one of its members.
+TEST(CliBuild, ExportsNamedPublishesTheNamespaceWithItsDefault) {
+    CliWorkspace ws("exports-named");
+    ws.Write("entry.js", "export default 7;\nexport const add = (a, b) => a + b;\n");
+
+    const CliResult build = RunCli({"build", "entry.js", "--format=cjs",
+                                    "--exports=named", "--outfile=out.js"});
+    ASSERT_EQ(build.exit_code, kSuccess) << build.err;
+
+    EXPECT_TRUE(OutputContains(ws.Read("out.js"), "__toCommonJS"))
+        << "named did not publish through the namespace converter";
+
+    if (!RunProcess({"node", "-v"}, ws.path()).started) {
+        std::cout << "node is not on PATH; skipping the execution half of "
+                     "ExportsNamedPublishesTheNamespaceWithItsDefault"
+                  << std::endl;
+        return;
+    }
+
+    const ProcessResult as_module = RunProcess(
+        {"node", "-e",
+         "const m = require('./out.js');"
+         "process.stdout.write(String(m.add(1, 2)) + ':' + String(m.default));"},
+        ws.path());
+    ASSERT_TRUE(as_module.started);
+    EXPECT_EQ(as_module.exit_code, 0) << as_module.stderr_data;
+    EXPECT_TRUE(OutputContains(as_module.stdout_data, "3:7"))
+        << "named mode did not publish both halves: [" << as_module.stdout_data << "]";
+}
+
+// Auto mode and two entries that disagree -- one is the default case, the
+// other is not. What "disagree" means depends on how the outputs are
+// linked. Without code splitting each entry is its own build, so each
+// output resolves auto from the entry it came from: the default-case entry
+// gets default mode and the named entry gets named. With splitting the
+// entries share one link, where a single mode has to serve both -- and
+// named is the answer, proven here by the build staying legal: a shared
+// link resolved to default would fail the named-only entry on its
+// missing-default check.
+TEST(CliBuild, ExportsAutoAcrossDisagreeingEntries) {
+    CliWorkspace ws("exports-auto-disagree");
+    ws.Write("a.js", "export default 1;\n");
+    ws.Write("b.js", "export const named = 2;\n");
+
+    const CliResult separate = RunCli({"build", "a.js", "b.js", "--format=cjs",
+                                       "--exports=auto", "--outdir=dist"});
+    ASSERT_EQ(separate.exit_code, kSuccess) << separate.err;
+
+    const CliResult shared = RunCli({"build", "a.js", "b.js", "--format=esm",
+                                     "--exports=auto", "--outdir=dist-split",
+                                     "--splitting"});
+    EXPECT_EQ(shared.exit_code, kSuccess) << shared.err;
+
+    if (!RunProcess({"node", "-v"}, ws.path()).started) {
+        std::cout << "node is not on PATH; skipping the execution half of "
+                     "ExportsAutoAcrossDisagreeingEntries"
+                  << std::endl;
+        return;
+    }
+
+    // The default-case entry, separately linked: auto read its own entry
+    // and published the default as the whole module value.
+    const ProcessResult probe_default = RunProcess(
+        {"node", "-e",
+         "const m = require('./dist/a.js');"
+         "process.stdout.write(typeof m + ':' + String(m));"},
+        ws.path());
+    ASSERT_TRUE(probe_default.started);
+    EXPECT_EQ(probe_default.exit_code, 0) << probe_default.stderr_data;
+    EXPECT_TRUE(OutputContains(probe_default.stdout_data, "number:1"))
+        << "the default-case entry did not resolve to default: ["
+        << probe_default.stdout_data << "]";
+
+    // The named entry, separately linked: no default to find, so the
+    // namespace came back with its name on it.
+    const ProcessResult probe_named = RunProcess(
+        {"node", "-e",
+         "const m = require('./dist/b.js');"
+         "process.stdout.write(typeof m + ':' + String(m.named));"},
+        ws.path());
+    ASSERT_TRUE(probe_named.started);
+    EXPECT_EQ(probe_named.exit_code, 0) << probe_named.stderr_data;
+    EXPECT_TRUE(OutputContains(probe_named.stdout_data, "object:2"))
+        << "the named entry did not resolve to named: ["
+        << probe_named.stdout_data << "]";
 }
 
 // The metafile is the description of what the build read and produced, and it

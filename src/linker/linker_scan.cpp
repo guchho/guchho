@@ -680,8 +680,15 @@ namespace guchho::linker {
         // return the value from their factory in GenerateEntryPointTailJS instead,
         // and "unbound_module_ref" only exists for the formats that assign it, so
         // this must not widen past kCommonJS.
+        //
+        // Default mode is the other exception, and it publishes in the tail too:
+        // the value goes through the entry's own "exports.default" getter, which
+        // is read after every part has run. Reading it here, inside a part that
+        // can be ordered before the entry's body, would sample the default before
+        // the code that computes it has executed.
         if (repr.meta.force_include_exports_for_entry_point &&
-            options->OutputFormat == config::Format::kCommonJS) {
+            options->OutputFormat == config::Format::kCommonJS &&
+            effective_exports != config::EntryExports::kDefault) {
             auto& runtime_repr = *std::get<std::shared_ptr<graph::JSRepr>>(
                 graph.files[javascript::kSourceIndex].input_file.repr);
             auto to_commonjs_ref = runtime_repr.ast.named_exports["__toCommonJS"].ref;
@@ -1495,14 +1502,20 @@ std::string hint;
                     (!file.IsEntryPoint() ||
                      options->OutputFormat == config::Format::kIIFE ||
                      options->OutputFormat == config::Format::kESModule ||
-                     // A CommonJS entry point running inline would assign the
-                     // *host* environment's "module.exports" from inside the
-                     // factory, and in default mode the wrapper consumes a
-                     // return value the inline body never produces. Wrapping
-                     // it gives the body its own "module" to write to, and the
-                     // wrapper call hands that value back.
-                     (options->OutputFormat == config::Format::kUMD &&
-                      options->Exports == config::EntryExports::kDefault))) {
+                     // A CommonJS entry point running inline in a return-value
+                     // format would assign the *host* environment's
+                     // "module.exports" from inside the factory, and in default
+                     // mode the wrapper consumes a return value the inline body
+                     // never produces. Wrapping it gives the body its own
+                     // "module" to write to, and the wrapper call hands that
+                     // value back. UMD and AMD are the two formats whose
+                     // wrappers are built that way and that were not already
+                     // covered above; "exports=none" cannot reach here with a
+                     // CommonJS entry, because the link rejects that pairing
+                     // once the entry's exports are resolved.
+                     (((options->OutputFormat == config::Format::kUMD ||
+                        options->OutputFormat == config::Format::kAMD) &&
+                       effective_exports == config::EntryExports::kDefault)))) {
                     repr.meta.wrap = graph::WrapKind::kCJS;
                 }
             }

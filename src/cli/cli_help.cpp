@@ -246,7 +246,7 @@ void printBuildHelp(std::ostream& os) {
        << "  --target=<target>      Target (es2020, chrome80, node16)\n"
        << "  --format=<format>      Format: iife, cjs, esm, umd, amd, system\n"
        << "  --name=<name>          Global namespace for umd and iife output\n"
-       << "  --exports=<value>      Expose the entry point's default export as the UMD global\n"
+       << "  --exports=<value>      Entry exports: named, default, none, auto\n"
        << "  --platform=<p>         Platform: browser, node, neutral\n"
        << "  --splitting            Enable code splitting\n"
        << "  --tree-shaking         Enable tree shaking\n"

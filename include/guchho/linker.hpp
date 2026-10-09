@@ -422,6 +422,12 @@ namespace guchho::linker {
         // transformed module. Lazy exports are assigned onto this object when
         // the module format calls for it.
         compiler::Ref unbound_exports_ref{compiler::kInvalidRef};
+        // The export mode this link actually publishes with. It is resolved
+        // once in Link() from options->Exports and the entry points' real
+        // exports, so "kAuto" never reaches code generation and every format
+        // below reads one settled value. An absent option stays kNamespace,
+        // the behaviour builds have always had.
+        config::EntryExports effective_exports{config::EntryExports::kNamespace};
         compiler::Ref cjs_runtime_ref{compiler::kInvalidRef};
         compiler::Ref esm_runtime_ref{compiler::kInvalidRef};
         // Source indices of CSS files written as independent output files, for

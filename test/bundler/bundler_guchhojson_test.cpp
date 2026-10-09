@@ -212,7 +212,67 @@ TEST(BundlerGuchhoJSON, InvalidExportsValueWarns) {
         },
         .guchho_config = R"({"build":{"format":"umd","exports":"banana"}})",
         .expected_scan_log =
-            "guchho.json: WARNING: Invalid exports \"banana\" (expected \"default\")\n",
+            "guchho.json: WARNING: Invalid exports \"banana\" (expected \"default\", \"named\", "
+            "\"none\", or \"auto\")\n",
+    });
+}
+
+TEST(BundlerGuchhoJSON, BuildExportsNamed) {
+    // "named" is the namespace-object behaviour and what the build did before
+    // the field existed; naming it explicitly must land on that same answer
+    // with no diagnostic, which the empty scan log is.
+    guchhojson_suite.ExpectBundled(Bundled{
+        .files = {
+            {"/app.js", "export default 42;\nexport const named = 1;\n"},
+        },
+        .entry_paths = {"/app.js"},
+        .options = guchho::config::Options{
+            .BuildMode = guchho::config::Mode::kBundle,
+            .AbsOutputFile = "/out.js",
+            .GlobalName = {"MyLib"},
+        },
+        .guchho_config = R"({"build":{"format":"umd","exports":"named"}})",
+    });
+}
+
+TEST(BundlerGuchhoJSON, BuildExportsAutoWithASoleDefault) {
+    // "auto" reads the entry and finds a lone default export, so this build
+    // resolves to default mode and publishes through the wrapper's return.
+    // The empty scan log matters twice over: the value was accepted, and the
+    // mixed-exports warning that fires when "auto" lands on named did not.
+    guchhojson_suite.ExpectBundled(Bundled{
+        .files = {
+            {"/app.js", "export default 42;\n"},
+        },
+        .entry_paths = {"/app.js"},
+        .options = guchho::config::Options{
+            .BuildMode = guchho::config::Mode::kBundle,
+            .AbsOutputFile = "/out.js",
+            .GlobalName = {"MyLib"},
+        },
+        .guchho_config = R"({"build":{"format":"umd","exports":"auto"}})",
+    });
+}
+
+TEST(BundlerGuchhoJSON, BuildExportsAutoMixedExportsWarns) {
+    // "auto" on an entry that mixes a default export in with named ones
+    // resolves to named -- the default stops being special -- and Rollup's
+    // contract, which Guchho shares, is to say so rather than dropping the
+    // default silently.
+    guchhojson_suite.ExpectBundled(Bundled{
+        .files = {
+            {"/app.js", "export default 42;\nexport const named = 1;\n"},
+        },
+        .entry_paths = {"/app.js"},
+        .options = guchho::config::Options{
+            .BuildMode = guchho::config::Mode::kBundle,
+            .AbsOutputFile = "/out.js",
+            .GlobalName = {"MyLib"},
+        },
+        .guchho_config = R"({"build":{"format":"umd","exports":"auto"}})",
+        .expected_compile_log =
+            "WARNING: --exports=auto resolved to \"named\": the entry point mixes default and "
+            "named exports\n",
     });
 }
 

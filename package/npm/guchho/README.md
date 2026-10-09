@@ -143,9 +143,16 @@ const result = await build({
 console.log(`${result.outputFiles?.length ?? 0} files written`)
 ```
 
-### UMD: exporting the default directly
+### Choosing which entry export is published
 
-`exports: 'default'` exposes the entry point's default export as the UMD global itself, rather than as a namespace object whose properties are the export names. `new Exprify()` then works on the global because the global *is* the class. Currently supported for UMD output only; an entry point without a default export is an error, and named exports alongside the default are not exposed in this mode.
+`exports` selects the value the bundle exposes. It is a Guchho option in the Rollup tradition of export selection — not an esbuild option — and the same four values may be spelled in the API, in a config file under `build.exports`, or on the command line as `--exports=<value>`:
+
+- `exports: 'named'` — a namespace object whose properties are the export names. This is the default and what a build without the option always does.
+- `exports: 'default'` — the entry point's default export *is* the value: `require()` hands it straight back, and `new Exprify()` works on the UMD global because the global *is* the class. The entry must have a default export (a CommonJS entry's `module.exports` counts) or the build fails; named exports alongside the default are not exposed in this mode.
+- `exports: 'none'` — publish nothing. Valid only when no entry point exports anything; a UMD or IIFE global name is not required, because there is no value to publish under one.
+- `exports: 'auto'` — infer from the entry's actual exports, exactly as Rollup's `auto` does: no exports means `none`, a lone default export means `default`, anything else means `named`.
+
+All four are read for every output format.
 
 ```js
 await build({
@@ -156,8 +163,6 @@ await build({
   exports: 'default',
 })
 ```
-
-This is a Guchho option in the Rollup tradition of export selection — not an esbuild option. The same value may be written in a config file under `build.exports` or passed on the command line as `--exports=default`.
 
 ### Transform
 

@@ -1149,6 +1149,70 @@ namespace guchho::linker {
 
 
 
+    // Picks the export mode "--exports=auto" would choose for one entry
+    // point, from what that entry declares. The cases mirror Rollup's
+    // "auto": no exports means none, a lone "default" means default,
+    // anything else means named -- with two entry shapes classified before
+    // the export names are read. A CommonJS script's "module.exports" value
+    // *is* its default export, so it is the default case; and a lazy export
+    // (a JSON or text entry) becomes either a lone default or a default plus
+    // the object's keys, never nothing, while the only outputs that reach
+    // here un-converted publish their natural exports either way.
+    //
+    // Input : one entry point's representation, after its lazy-export kind
+    //         adjustment has been applied by the caller.
+    // Output: kDefault, kNone, or kNamespace -- never kAuto, which is a
+    //         request to infer rather than an answer.
+    static config::EntryExports InferEntryExportsCandidate(const graph::JSRepr& repr) {
+        if (repr.ast.exports_kind == javascript::ExportsKind::kCommonJS) {
+            return config::EntryExports::kDefault;
+        }
+        if (repr.ast.has_lazy_export) {
+            return config::EntryExports::kNamespace;
+        }
+        // "export * from" merges other modules' names in, and a star never
+        // re-exports "default", so whatever else it brings, this entry is
+        // more than a lone default.
+        if (!repr.ast.export_star_import_records.empty()) {
+            return config::EntryExports::kNamespace;
+        }
+        if (repr.ast.named_exports.empty()) {
+            return config::EntryExports::kNone;
+        }
+        if (repr.ast.named_exports.size() == 1 &&
+            repr.ast.named_exports.count("default") > 0) {
+            return config::EntryExports::kDefault;
+        }
+        return config::EntryExports::kNamespace;
+    }
+
+    // Combines the per-entry candidates into the one mode a whole build
+    // publishes with. Entries that all agree keep their answer; any
+    // disagreement falls back to named, the only mode every entry shape can
+    // share -- an entry with no exports simply publishes nothing under it,
+    // and one whose exports are a lone default still exposes it by name.
+    //
+    // Input : one candidate per JavaScript entry point, in entry order.
+    // Output: kDefault when all entries are the default case, kNone when
+    //         all have no exports, kNamespace otherwise (including when
+    //         there are no JavaScript entries at all, which is what builds
+    //         without one have always published).
+    static config::EntryExports CombineEntryExportsCandidates(
+        const std::vector<config::EntryExports>& candidates) {
+        if (candidates.empty()) {
+            return config::EntryExports::kNamespace;
+        }
+        config::EntryExports combined = candidates.front();
+        for (config::EntryExports candidate : candidates) {
+            if (candidate != combined) {
+                return config::EntryExports::kNamespace;
+            }
+        }
+        return combined;
+    }
+
+
+
     ////////////////////////////////////////////////////////////////////////////////
     // Main entry point
     //
@@ -1230,6 +1294,7 @@ namespace guchho::linker {
         }
 
         std::vector<graph::OutputFile> additional_files;
+        std::vector<config::EntryExports> auto_candidates;
         for (auto& ep : entry_points) {
             auto& file = c.graph.files[ep.source_index].input_file;
             if (auto* repr_ptr = std::get_if<std::shared_ptr<graph::JSRepr>>(&file.repr)) {
@@ -1239,41 +1304,95 @@ namespace guchho::linker {
                      (options->BuildMode == config::Mode::kConvertFormat && !config::FormatKeepESMImportExportSyntax(options->OutputFormat)))) {
                     repr.ast.exports_kind = javascript::ExportsKind::kCommonJS;
                 }
-                if (repr.ast.export_keyword.len > 0 &&
-                    (options->OutputFormat == config::Format::kCommonJS ||
-                     options->OutputFormat == config::Format::kUMD ||
-                     options->OutputFormat == config::Format::kAMD ||
-                     options->OutputFormat == config::Format::kSystem ||
-                     (options->OutputFormat == config::Format::kIIFE && !options->GlobalName.empty()))) {
-                    repr.ast.uses_exports_ref = true;
-                    repr.meta.force_include_exports_for_entry_point = true;
-
-                    // UMD is the one format here with nowhere to put its exports
-                    // unless somebody says where. Its wrapper has three
-                    // branches and the first two — CommonJS and AMD — already
-                    // have a destination the caller did not have to name:
-                    // "module.exports" and the value AMD keeps for the module's
-                    // own return. Only the browser branch has to invent a global
-                    // to write to, and it invents nothing. Without a name the
-                    // factory runs and its exports are dropped, so a <script>
-                    // tag loading the bundle gets no global and no explanation.
-                    //
-                    // Reported here rather than in option validation because
-                    // this is the first point that knows both halves at once:
-                    // that the format is UMD and that the entry exports
-                    // something. A UMD bundle with nothing to export is a
-                    // legitimate build — a side-effect script that any module
-                    // system can load — and asking it for a global name would be
-                    // inventing a requirement instead of reporting a missing one.
-                    if (options->OutputFormat == config::Format::kUMD &&
-                        options->GlobalName.empty()) {
-                        c.log.AddError(nullptr, logger::Range{},
-                                       logger::FormatMsg(logger::MsgCat::kAPI_UMDRequiresName));
-                    }
-                }
+                auto_candidates.push_back(InferEntryExportsCandidate(repr));
             } else if (std::get_if<std::shared_ptr<graph::CopyRepr>>(&file.repr)) {
                 additional_files.insert(additional_files.end(),
                     file.additional_files.begin(), file.additional_files.end());
+            }
+        }
+
+        // The mode this link publishes with. An explicit request is already
+        // an answer; "--exports=auto" is the one value that has to read the
+        // entry points before it can be settled, so it is resolved here --
+        // still before the scan, which is the first phase that emits
+        // exports-shaped code and therefore the first that needs to know.
+        c.effective_exports = options->Exports;
+        if (options->Exports == config::EntryExports::kAuto) {
+            c.effective_exports = CombineEntryExportsCandidates(auto_candidates);
+
+            // Rollup warns when "auto" lands on named for an entry that
+            // mixes a default export in with its named ones, because the
+            // default is about to stop being special. ESM-shaped outputs
+            // have no single public value to speak of, so there is nothing
+            // to warn about there.
+            if (c.effective_exports == config::EntryExports::kNamespace &&
+                options->OutputFormat != config::Format::kESModule &&
+                options->OutputFormat != config::Format::kSystem &&
+                options->OutputFormat != config::Format::kPreserve) {
+                for (auto& ep : entry_points) {
+                    auto* repr_ptr = std::get_if<std::shared_ptr<graph::JSRepr>>(
+                        &c.graph.files[ep.source_index].input_file.repr);
+                    if (!repr_ptr || !*repr_ptr) continue;
+                    auto& repr = **repr_ptr;
+                    bool has_default = repr.ast.named_exports.count("default") > 0;
+                    if (has_default &&
+                        (repr.ast.named_exports.size() > 1 ||
+                         !repr.ast.export_star_import_records.empty())) {
+                        c.log.AddID(logger::MsgID::kAPI_ExportsAutoMixedExports,
+                                    logger::MsgKind::kWarning, nullptr, logger::Range{},
+                                    logger::FormatMsg(logger::MsgCat::kAPI_ExportsAutoMixedExports));
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Deciding to publish is separate from deciding what to publish: the
+        // flags that pull an entry's exports into the bundle are set only
+        // once the mode is settled, so "exports=none" never sets them at
+        // all rather than setting them and taking them back. An entry with
+        // no "export" keyword has no names to publish however the mode
+        // reads, which is why this branch keys on the keyword.
+        for (auto& ep : entry_points) {
+            auto* repr_ptr = std::get_if<std::shared_ptr<graph::JSRepr>>(
+                &c.graph.files[ep.source_index].input_file.repr);
+            if (!repr_ptr || !*repr_ptr) continue;
+            auto& repr = **repr_ptr;
+            if (c.effective_exports == config::EntryExports::kNone) continue;
+            if (repr.ast.export_keyword.len > 0 &&
+                (options->OutputFormat == config::Format::kCommonJS ||
+                 options->OutputFormat == config::Format::kUMD ||
+                 options->OutputFormat == config::Format::kAMD ||
+                 options->OutputFormat == config::Format::kSystem ||
+                 (options->OutputFormat == config::Format::kIIFE && !options->GlobalName.empty()))) {
+                repr.ast.uses_exports_ref = true;
+                repr.meta.force_include_exports_for_entry_point = true;
+
+                // UMD is the one format here with nowhere to put its exports
+                // unless somebody says where. Its wrapper has three
+                // branches and the first two — CommonJS and AMD — already
+                // have a destination the caller did not have to name:
+                // "module.exports" and the value AMD keeps for the module's
+                // own return. Only the browser branch has to invent a global
+                // to write to, and it invents nothing. Without a name the
+                // factory runs and its exports are dropped, so a <script>
+                // tag loading the bundle gets no global and no explanation.
+                //
+                // Reported here rather than in option validation because
+                // this is the first point that knows both halves at once:
+                // that the format is UMD and that the entry exports
+                // something. A UMD bundle with nothing to export is a
+                // legitimate build — a side-effect script that any module
+                // system can load — and asking it for a global name would be
+                // inventing a requirement instead of reporting a missing one,
+                // which is exactly what "exports=none" asks for. Hence the
+                // check living behind the publish flag above: when nothing is
+                // published, nothing is missing.
+                if (options->OutputFormat == config::Format::kUMD &&
+                    options->GlobalName.empty()) {
+                    c.log.AddError(nullptr, logger::Range{},
+                                   logger::FormatMsg(logger::MsgCat::kAPI_UMDRequiresName));
+                }
             }
         }
 
@@ -1305,8 +1424,13 @@ namespace guchho::linker {
         // actually declare it. Reported here because this is the first point
         // where the entry's exports are fully resolved, including aliases
         // filled in from lazy or re-exported sources during the scan above.
-        if (options->OutputFormat == config::Format::kUMD &&
-            options->Exports == config::EntryExports::kDefault) {
+        //
+        // "--exports=none" is the mirror image: it promises that no entry
+        // exports anything, so an entry that does -- by name, or as a
+        // CommonJS script whose "module.exports" is itself an export, or as
+        // a lazy value like a JSON entry's -- breaks the promise rather than
+        // being quietly published anyway.
+        if (c.effective_exports == config::EntryExports::kDefault) {
             for (auto& ep : entry_points) {
                 auto& file = c.graph.files[ep.source_index].input_file;
                 auto* repr_ptr = std::get_if<std::shared_ptr<graph::JSRepr>>(&file.repr);
@@ -1319,6 +1443,20 @@ namespace guchho::linker {
                                    logger::FormatMsg(logger::MsgCat::kAPI_ExportsDefaultRequiresDefaultExport));
                     break;
                 }
+            }
+        } else if (c.effective_exports == config::EntryExports::kNone) {
+            for (auto& ep : entry_points) {
+                auto& file = c.graph.files[ep.source_index].input_file;
+                auto* repr_ptr = std::get_if<std::shared_ptr<graph::JSRepr>>(&file.repr);
+                if (!repr_ptr || !*repr_ptr) continue;
+                auto& repr = **repr_ptr;
+                if (repr.ast.exports_kind != javascript::ExportsKind::kCommonJS &&
+                    repr.meta.sorted_and_filtered_export_aliases.empty()) {
+                    continue;
+                }
+                c.log.AddError(nullptr, logger::Range{},
+                               logger::FormatMsg(logger::MsgCat::kAPI_ExportsNoneRequiresNoExports));
+                break;
             }
         }
 

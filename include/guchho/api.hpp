@@ -262,20 +262,29 @@ enum class Format : uint8_t {
     kSystem,
 };
 
-// Which of the entry point's exports a wrapper format exposes as its public
+// Which of the entry point's exports a bundle format exposes as its public
 // value.
 //   kUnset   - nothing was asked for, so every format keeps the behaviour it
-//              has always had: the UMD wrapper publishes a namespace object
+//              has always had: a wrapper publishes a namespace object
 //              carrying every export name.
 //   kDefault - "--exports=default": the entry point's default export is the
-//              value. The UMD global, the CommonJS export and the AMD module
-//              value are all that one default export, directly, rather than a
-//              namespace object with a "default" property on it. Supported
-//              for UMD output only; any other format drawing this value is
-//              rejected when the build's options are validated.
+//              value. The CommonJS export, the IIFE and AMD module values
+//              and the UMD global are all that one default export,
+//              directly, rather than a namespace object with a "default"
+//              property on it. Valid for every format; the entry must have
+//              a default export unless it is a CommonJS script.
+//   kNamed   - "--exports=named": the namespace object, spelled the way
+//              Rollup spells it. Identical to kUnset.
+//   kNone    - "--exports=none": publish nothing; valid only when no entry
+//              point exports anything.
+//   kAuto    - "--exports=auto": let the entry's actual exports choose, the
+//              way Rollup's "auto" does (none / default / named).
 enum class Exports : uint8_t {
     kUnset,
     kDefault,
+    kNamed,
+    kNone,
+    kAuto,
 };
 
 // How imports that name a package are treated.
@@ -764,11 +773,13 @@ struct BuildOptions {
     // coexist, and "globals" maps external module ids to the global names the
     // wrapper should read them from.
     //
-    // "exports" chooses which entry export the wrapper publishes: kUnset
+    // "exports" chooses which entry export the bundle publishes: kUnset
     // keeps the namespace object, kDefault publishes the entry's default
-    // export directly. It is spelled "--exports=default" on the command line
-    // and "exports: 'default'" through the API, and it is read only for UMD
-    // output.
+    // export directly, kNamed is the namespace object spelled the Rollup
+    // way, kNone publishes nothing, and kAuto lets the entry's actual
+    // exports decide. It is spelled "--exports=<value>" on the command line
+    // and "exports: '<value>'" through the API or a guchho.json "build"
+    // object, and it is read for every output format.
     bool        extend{};
     bool        no_conflict{};
     bool        strict{true};

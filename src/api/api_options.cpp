@@ -428,12 +428,19 @@ void ResolveOneBuild(BuildOptions& out,
     if (!WasSet(out, kOptGlobalName) && out.global_name.empty() && !cfg.GlobalNameText.empty()) {
         out.global_name = cfg.GlobalNameText;
     }
-    // Which entry export a wrapper format publishes, guarded the same way as
-    // the fields above: a command line that asked for one wins, and kUnset
-    // means the config file gets to answer.
-    if (!WasSet(out, kOptExports) && out.exports == api::Exports::kUnset &&
-        cfg.Exports == config::EntryExports::kDefault) {
-        out.exports = api::Exports::kDefault;
+    // Which entry export the bundle publishes, guarded the same way as the
+    // fields above: a command line that asked for one wins, and kUnset
+    // means the config file gets to answer. A config that says "named" is
+    // left at kUnset because the namespace object is what an absent option
+    // already does -- there is nothing to carry across.
+    if (!WasSet(out, kOptExports) && out.exports == api::Exports::kUnset) {
+        if (cfg.Exports == config::EntryExports::kDefault) {
+            out.exports = api::Exports::kDefault;
+        } else if (cfg.Exports == config::EntryExports::kNone) {
+            out.exports = api::Exports::kNone;
+        } else if (cfg.Exports == config::EntryExports::kAuto) {
+            out.exports = api::Exports::kAuto;
+        }
     }
     // The banner text, guarded like the fields above: a command line that
     // wrote any banner of its own wins outright, and an empty map means the

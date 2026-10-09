@@ -197,11 +197,12 @@ namespace guchho::resolver {
             }
         }
 
-        // Which of the entry point's exports a UMD wrapper publishes as its
-        // public value. One value for now, and an invalid one is a warning
-        // rather than an error for the same reason an invalid "format" is:
-        // the build still has an honest answer (the namespace object) to fall
-        // back on, and a config file that is merely wrong should still build.
+        // Which of the entry point's exports the bundle publishes as its
+        // public value. Four values, the Rollup set, and an invalid one is a
+        // warning rather than an error for the same reason an invalid
+        // "format" is: the build still has an honest answer (the namespace
+        // object) to fall back on, and a config file that is merely wrong
+        // should still build.
         void ApplyExportsValue(config::Options& opts, const javascript::Expr& value,
                                logger::Log& log, logger::LineColumnTracker& tracker,
                                const logger::Source& source)
@@ -209,6 +210,12 @@ namespace guchho::resolver {
             if (auto str = internal::GetString(value)) {
                 if (*str == "default") {
                     opts.Exports = config::EntryExports::kDefault;
+                } else if (*str == "named") {
+                    opts.Exports = config::EntryExports::kNamespace;
+                } else if (*str == "none") {
+                    opts.Exports = config::EntryExports::kNone;
+                } else if (*str == "auto") {
+                    opts.Exports = config::EntryExports::kAuto;
                 } else {
                     log.AddID(logger::MsgID::kGuchhoJSON_InvalidExports,
                               logger::MsgKind::kWarning, &tracker,
@@ -695,8 +702,9 @@ namespace guchho::resolver {
                     }
                 }
             }
-            // Which of the entry point's exports a UMD wrapper publishes as
-            // its public value ("default", for now).
+            // Which of the entry point's exports the output publishes as its
+            // public value: "default", "named", "none", or "auto" to infer
+            // from the entry.
             if (auto exports = internal::GetProperty(build, "exports")) {
                 ApplyExportsValue(opts, exports->first, log, tracker, source);
             }

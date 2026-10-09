@@ -657,6 +657,11 @@ namespace guchho::linker {
         // Set for the formats that bind an entry point's exports at all.
         if (!repr.meta.force_include_exports_for_entry_point) return false;
 
+        // Default mode never converts: the tail publishes the entry's own
+        // "exports.default" value directly, so the helper this predicate
+        // exists for has nothing to do and must not be linked in.
+        if (effective_exports == config::EntryExports::kDefault) return false;
+
         switch (options->OutputFormat) {
         case config::Format::kCommonJS:
         case config::Format::kAMD:
@@ -717,7 +722,17 @@ namespace guchho::linker {
                 if (repr.meta.wrap == graph::WrapKind::kESM) {
                     stmts.push_back(javascript::Stmt{.data = std::make_shared<javascript::SExpr>(javascript::SExpr{.value = make_wrapper_call()})});
                 }
-                if (EntryPointEmitsToCommonJS(source_index)) {
+                // In default mode the value handed to the global is the
+                // entry's default export, read through the "exports" object
+                // the namespace-export part built -- a getter, sampled at
+                // the tail, after the entry's body has run.
+                if (effective_exports == config::EntryExports::kDefault &&
+                    repr.meta.force_include_exports_for_entry_point) {
+                    auto edot = std::make_shared<javascript::EDot>();
+                    edot->target = javascript::Expr(std::make_shared<javascript::EIdentifier>(javascript::EIdentifier{.ref = repr.ast.exports_ref}), {});
+                    edot->name = "default";
+                    stmts.push_back(javascript::Stmt{.data = std::make_shared<javascript::SReturn>(javascript::SReturn{.value_or_nil = javascript::Expr(std::move(edot), {})})});
+                } else if (EntryPointEmitsToCommonJS(source_index)) {
                     auto ecall = std::make_shared<javascript::ECall>();
                     ecall->target = javascript::Expr(std::make_shared<javascript::EIdentifier>(javascript::EIdentifier{.ref = to_commonjs_ref}), {});
                     ecall->args.push_back(javascript::Expr(std::make_shared<javascript::EIdentifier>(javascript::EIdentifier{.ref = repr.ast.exports_ref}), {}));
@@ -741,9 +756,40 @@ namespace guchho::linker {
                 if (repr.meta.wrap == graph::WrapKind::kESM) {
                     stmts.push_back(javascript::Stmt{.data = std::make_shared<javascript::SExpr>(javascript::SExpr{.value = make_wrapper_call()})});
                 }
+                // In default mode the CommonJS value is the entry's default
+                // export itself, read through the "exports" object the
+                // namespace-export part built. The read happens here, at the
+                // tail, because a getter call samples the value at the moment
+                // it runs and this is the one point that is guaranteed to be
+                // after the entry's body has.
+                if (effective_exports == config::EntryExports::kDefault &&
+                    repr.meta.force_include_exports_for_entry_point) {
+                    auto target = javascript::Expr(std::make_shared<javascript::EDot>(javascript::EDot{
+                        .target = javascript::Expr(std::make_shared<javascript::EIdentifier>(javascript::EIdentifier{.ref = unbound_module_ref}), {}),
+                        .name = "exports",
+                    }), {});
+                    auto value = javascript::Expr(std::make_shared<javascript::EDot>(javascript::EDot{
+                        .target = javascript::Expr(std::make_shared<javascript::EIdentifier>(javascript::EIdentifier{.ref = repr.ast.exports_ref}), {}),
+                        .name = "default",
+                    }), {});
+                    stmts.push_back(javascript::Stmt{.data = std::make_shared<javascript::SExpr>(javascript::SExpr{
+                        .value = javascript::Expr(std::make_shared<javascript::EBinary>(javascript::EBinary{
+                            .left = std::move(target),
+                            .right = std::move(value),
+                            .op = javascript::OpCode::kBinOpAssign,
+                        }), {})
+                    })});
+                }
             }
 
-            if (options->OutputPlatform == config::Platform::kNode) {
+            // The annotation advertises which names a CommonJS export carries
+            // so node's "cjs-module-lexer" can see them without executing the
+            // bundle. It describes the namespace mode and only that one:
+            // default mode publishes a single value with no names beside it,
+            // and none publishes nothing, so an annotation under either would
+            // describe exports the consumer cannot reach.
+            if (options->OutputPlatform == config::Platform::kNode &&
+                effective_exports == config::EntryExports::kNamespace) {
                 std::vector<javascript::Property> module_exports;
                 for (auto& export_name : repr.meta.sorted_and_filtered_export_aliases) {
                     if (export_name == "default") {
@@ -864,7 +910,7 @@ namespace guchho::linker {
                 if (repr.meta.wrap == graph::WrapKind::kESM) {
                     stmts.push_back(javascript::Stmt{.data = std::make_shared<javascript::SExpr>(javascript::SExpr{.value = make_wrapper_call()})});
                 }
-                if (options->Exports == config::EntryExports::kDefault) {
+                if (effective_exports == config::EntryExports::kDefault) {
                     // The entry point has a "default" export -- the build
                     // rejects one that does not -- so the factory's whole job
                     // on the way out is to hand its value back.
@@ -952,6 +998,17 @@ namespace guchho::linker {
             } else {
                 if (repr.meta.wrap == graph::WrapKind::kESM) {
                     stmts.push_back(javascript::Stmt{.data = std::make_shared<javascript::SExpr>(javascript::SExpr{.value = make_wrapper_call()})});
+                }
+                // In default mode the module's value is the entry's default
+                // export, read through the "exports" object the
+                // namespace-export part built -- a getter, sampled at the
+                // tail, after the entry's body has run.
+                if (effective_exports == config::EntryExports::kDefault &&
+                    repr.meta.force_include_exports_for_entry_point) {
+                    auto edot = std::make_shared<javascript::EDot>();
+                    edot->target = javascript::Expr(std::make_shared<javascript::EIdentifier>(javascript::EIdentifier{.ref = repr.ast.exports_ref}), {});
+                    edot->name = "default";
+                    stmts.push_back(javascript::Stmt{.data = std::make_shared<javascript::SReturn>(javascript::SReturn{.value_or_nil = javascript::Expr(std::move(edot), {})})});
                 }
             }
             if (EntryPointEmitsToCommonJS(source_index)) {
@@ -1447,11 +1504,16 @@ config::Format format = options->OutputFormat;
 
             auto global_parts = options->GlobalName;
 
-            // In "--exports=default" the factory returns a value instead of
-            // receiving the exports object, and every branch below consumes
-            // that return. In the default namespace mode the factory writes
-            // into the object it is handed and the return value is ignored.
-            bool exports_default = options->Exports == config::EntryExports::kDefault;
+            // In "--exports=default" the factory returns the entry's default
+            // export, and in "--exports=none" it returns nothing at all --
+            // opposite values with the same shape here, since both are
+            // consumed as the factory's return and both leave the exports
+            // parameter out. Every branch below is built to give that return
+            // to its module system. In the default namespace mode the factory
+            // writes into the object it is handed instead and the return value
+            // is ignored.
+            bool exports_return_style = effective_exports == config::EntryExports::kDefault ||
+                                        effective_exports == config::EntryExports::kNone;
 
             std::string text;
             // "typeof " keeps a literal space even when minifying: without it
@@ -1468,24 +1530,25 @@ config::Format format = options->OutputFormat;
             // helpers of machinery whose only purpose was to move a value the
             // caller had already been given a place to put.
             //
-            // "exports=default" is the mode where the factory does return: the
-            // body hands back the default export and each of the three
-            // branches below gives that value to its module system — assigned
-            // to "module.exports" in CommonJS, kept by AMD's loader because
-            // "exports" is no longer among its dependencies, assigned to the
-            // named global in the browser. The exports parameter is dropped
-            // from the factory and from every call site, since nothing writes
-            // to it any more.
+            // "exports=default" and "exports=none" are the modes where the
+            // factory does return: the body hands back the default export --
+            // or nothing -- and each of the three branches below gives that
+            // value to its module system — assigned to "module.exports" in
+            // CommonJS, kept by AMD's loader because "exports" is no longer
+            // among its dependencies, assigned to the named global in the
+            // browser. The exports parameter is dropped from the factory and
+            // from every call site, since nothing writes to it any more.
             //
             // "require" still comes first among the factory's parameters,
             // because a factory parameter list and its call site have to agree
             // and every one of the three branches below spells them in the same
             // order. "exports" is threaded in ahead of it at each call site —
-            // except in default mode, where it is not a parameter at all.
+            // except in the return-style modes, where it is not a parameter at
+            // all.
             text += indent + "typeof exports ===" + space + quote_json("object") +
                     space + "&&" + space + "typeof module !==" + space + quote_json("undefined") +
                     space + "?" + space;
-            if (exports_default) {
+            if (exports_return_style) {
                 // The conditional's middle accepts an assignment expression,
                 // so "module.exports = factory(...)" needs no parentheses.
                 text += "module.exports =" + space + factory_param + "(require";
@@ -1503,7 +1566,7 @@ config::Format format = options->OutputFormat;
             // is the same contract as the other two branches. Default mode
             // drops it, which is also what makes AMD's loader keep the factory's
             // return value as the module's own rather than discarding it.
-            if (!exports_default) {
+            if (!exports_return_style) {
                 text += quote_json("exports");
                 if (!wrapper_external_deps.empty()) {
                     text += "," + space + quote_json("require");
@@ -1518,7 +1581,7 @@ config::Format format = options->OutputFormat;
             std::string global_close;
             text += indent + "(" + global_param + space + "=" + space + "typeof globalThis !==" + space + quote_json("undefined") +
                     space + "?" + space + "globalThis" + space + ":" + space + global_param + space + "||" + space + "self," + space;
-            if (!global_parts.empty() && exports_default) {
+            if (!global_parts.empty() && exports_return_style) {
                 // Every intermediate member of a dotted name is still created
                 // first, so "Foo.Bar" lands where it says, but the final member
                 // is assigned what the factory returns instead of an empty
@@ -1555,15 +1618,17 @@ config::Format format = options->OutputFormat;
             } else {
                 // No name to publish to, so the exports object is a plain
                 // object the factory writes into and nobody reads back. The
-                // linker rejects this combination when the entry exports
-                // something, so reaching here means a build that only runs
-                // side effects. Default mode has no exports object to invent
-                // either; its first parameter is "require", which takes the
-                // same "void 0" the named path passes there.
-                text += factory_param + (exports_default ? "(void 0" : "({}");
+                // linker rejects this when the entry exports something in a
+                // mode that publishes, so reaching here means either a build
+                // that only runs side effects or an explicit "exports=none",
+                // which wants exactly this. The return-style modes have no
+                // exports object to invent either; their first parameter is
+                // "require", which takes the same "void 0" the named path
+                // passes there.
+                text += factory_param + (exports_return_style ? "(void 0" : "({}");
                 global_close = ")";
             }
-            if (!exports_default) {
+            if (!exports_return_style) {
                 text += "," + space + "void 0";
             }
             for (auto& dep : wrapper_external_deps) {
@@ -1581,7 +1646,7 @@ config::Format format = options->OutputFormat;
             }
             text += global_close + ");" + newline;
             text += "})(this," + space + "function(";
-            if (!exports_default) {
+            if (!exports_return_style) {
                 text += "exports," + space;
             }
             text += "require";

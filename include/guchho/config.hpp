@@ -389,18 +389,33 @@ namespace guchho::config {
     // Which of an entry point's exports a wrapper format exposes as its
     // public value:
     //
-    //   kNamespace  The behaviour every format has always had: the value is
-    //               an object carrying every export name, including
-    //               "default" when there is one.
+    //   kNamespace  "exports=named" and the behaviour every format has always
+    //               had: the value is an object carrying every export name,
+    //               including "default" when there is one.
     //   kDefault    "exports=default": the entry point's default export is
-    //               the value itself, so a UMD global, a CommonJS require()
-    //               result and an AMD module value are all that one default
-    //               export rather than a namespace object. Read only when
-    //               the output format is UMD; any other format paired with
-    //               it is rejected when the build's options are validated.
+    //               the value itself, so a CommonJS require() result, an
+    //               IIFE or AMD module value and a UMD global are all that
+    //               one default export rather than a namespace object. The
+    //               entry has to actually have a default export (or be a
+    //               CommonJS script, whose "module.exports" is it); a build
+    //               without one is rejected when the entry's exports are
+    //               resolved.
+    //   kNone       "exports=none": nothing is published. Valid only when
+    //               no entry point exports anything, which makes the output
+    //               byte-identical to a build that never asked. A UMD or
+    //               IIFE global name is not required, because there is no
+    //               value to publish under one.
+    //   kAuto       "exports=auto": each entry's actual exports choose the
+    //               mode the way Rollup's "auto" does -- no exports means
+    //               kNone, a lone "default" means kDefault, anything else
+    //               (and any CommonJS entry, whose "module.exports" is its
+    //               default) means kNamespace. Only an explicit request
+    //               selects this; an absent option keeps kNamespace.
     enum class EntryExports : uint8_t {
         kNamespace,
         kDefault,
+        kNone,
+        kAuto,
     };
 
     // FormatKeepESMImportExportSyntax

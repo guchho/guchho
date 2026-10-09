@@ -174,6 +174,7 @@ namespace guchho::logger {
 
         // api
         kAPI_FormatIgnoredForHTMLEntry,
+        kAPI_ExportsAutoMixedExports,
 
         kEND,
     };
@@ -1682,8 +1683,9 @@ namespace guchho::logger {
         kAPI_MustSpecifyKindWhenResolving,
         kAPI_FormatIgnoredForHTMLEntry,
         kAPI_UMDRequiresName,
-        kAPI_ExportsDefaultOnlyUMD,
         kAPI_ExportsDefaultRequiresDefaultExport,
+        kAPI_ExportsNoneRequiresNoExports,
+        kAPI_ExportsAutoMixedExports,
 
         // -------------------------------------------------------------------
         // CLI mangle cache (mangle_cache.cpp)

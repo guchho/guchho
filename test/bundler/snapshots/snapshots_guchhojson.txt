@@ -8,6 +8,36 @@ export {
 };
 
 ================================================================================
+BundlerGuchhoJSON.BuildExportsAutoMixedExportsWarns
+---------- /out.js ----------
+(function(global, factory) {
+  typeof exports === "object" && typeof module !== "undefined" ? factory(exports, require) :
+  typeof define === "function" && define.amd ? define(["exports"], factory) :
+  (global = typeof globalThis !== "undefined" ? globalThis : global || self, (global.MyLib = global.MyLib || {}, factory(global.MyLib, void 0), global.MyLib));
+})(this, function(exports, require) {
+  "use strict";
+  // app.js
+  var app_default = 42;
+  var named = 1;
+  exports.default = app_default;
+  exports.named = named;
+});
+
+================================================================================
+BundlerGuchhoJSON.BuildExportsAutoWithASoleDefault
+---------- /out.js ----------
+(function(global, factory) {
+  typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory(require) :
+  typeof define === "function" && define.amd ? define([], factory) :
+  (global = typeof globalThis !== "undefined" ? globalThis : global || self, global.MyLib = factory(void 0));
+})(this, function(require) {
+  "use strict";
+  // app.js
+  var app_default = 42;
+  return app_default;
+});
+
+================================================================================
 BundlerGuchhoJSON.BuildExportsDefault
 ---------- /out.js ----------
 (function(global, factory) {
@@ -20,6 +50,22 @@ BundlerGuchhoJSON.BuildExportsDefault
   var app_default = 42;
   var named = 1;
   return app_default;
+});
+
+================================================================================
+BundlerGuchhoJSON.BuildExportsNamed
+---------- /out.js ----------
+(function(global, factory) {
+  typeof exports === "object" && typeof module !== "undefined" ? factory(exports, require) :
+  typeof define === "function" && define.amd ? define(["exports"], factory) :
+  (global = typeof globalThis !== "undefined" ? globalThis : global || self, (global.MyLib = global.MyLib || {}, factory(global.MyLib, void 0), global.MyLib));
+})(this, function(exports, require) {
+  "use strict";
+  // app.js
+  var app_default = 42;
+  var named = 1;
+  exports.default = app_default;
+  exports.named = named;
 });
 
 ================================================================================

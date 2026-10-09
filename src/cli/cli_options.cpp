@@ -856,20 +856,27 @@ std::optional<ErrorWithNote> parseOptionsImpl(
             }
             continue;
         }
-        // Which entry export a wrapper format publishes as its public value.
+        // Which entry export a bundle format publishes as its public value.
         // Build-only, because a transform has no entry point whose exports to
-        // choose between. The one value is "default"; whether it may be used
-        // with the format actually selected is checked once the options are
+        // choose between. The four values are Rollup's -- "default", "named",
+        // "none" and "auto" -- and any other spelling stops on the command
+        // line itself with a note naming the ones that exist. Which formats a
+        // given value may be used with is checked once the options are
         // resolved, where the format is known no matter which of the three
         // places it was set in.
         if (arg.starts_with("--exports=") && build_opts) {
             auto value = arg.substr(std::string_view("--exports=").size());
-            if (value != "default") {
+            api::Exports exports;
+            if (value == "default")      exports = api::Exports::kDefault;
+            else if (value == "named")   exports = api::Exports::kNamed;
+            else if (value == "none")    exports = api::Exports::kNone;
+            else if (value == "auto")    exports = api::Exports::kAuto;
+            else {
                 return MakeErrorWithNote(
                     "Invalid value " + helpers::QuoteSingle(value, true) + " in " + helpers::QuoteSingle(arg, true),
-                    "Valid values are \"default\".");
+                    "Valid values are \"default\", \"named\", \"none\", \"auto\".");
             }
-            build_opts->exports = api::Exports::kDefault;
+            build_opts->exports = exports;
             mark(api::kOptExports);
             continue;
         }

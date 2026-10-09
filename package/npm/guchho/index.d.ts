@@ -450,14 +450,17 @@ export interface PackOptions {
   /** The files and directories to put in the archive. */
   inputs: string[]
   /**
-   * Which archive format to write. `"zip"` is the only format supported
-   * today, and leaving this out is the same as writing it; any other string
-   * is a RangeError thrown before the engine is asked.
+   * Which archive format to write: `"zip"` (the default), `"tar"` or
+   * `"tar.gz"`. Leaving this out is the same as writing `"zip"`; any other
+   * string is a RangeError thrown before the engine is asked.
    */
-  format?: "zip"
+  format?: "zip" | "tar" | "tar.gz"
   /**
    * Deflate level, 0 to 9. 0 stores rather than compresses. The engine's
    * default is 6, which is what a caller gets by leaving this out.
+   *
+   * Does not apply to `"tar"`, which stores its entries uncompressed; a level
+   * paired with `"tar"` is a RangeError.
    */
   level?: number
   /**

@@ -53,7 +53,7 @@
 #include "guchho/api.hpp"
 #include "guchho/cli.hpp"
 #include "guchho/service.hpp"
-#include "guchho/zip.hpp"
+#include "guchho/pack.hpp"
 
 namespace guchho::cli {
 
@@ -500,24 +500,24 @@ namespace guchho::cli {
             return true;
         }
 
-        // Runs one zip request and returns the response.
+        // Runs one pack request and returns the response.
         //
         // The request carries the fields rather than a flags array, which is
         // the one place this file departs from the rule at the top. The rule
         // exists so an option is accepted for the same reason it is accepted
-        // on the command line, but a zip request has no grammar to read:
-        // "inputs" is a list of paths, "date" is a timestamp and "mode" is a
-        // permission mask, and none of the three is a spelling of a build
-        // option. Sending them through the flag parser would mean inventing
-        // three flags that no command line has, for the sake of a rule about
-        // flags.
+        // on the command line, but a pack request has no grammar to read:
+        // "inputs" is a list of paths, "format" is an archive format, "date"
+        // is a timestamp and "mode" is a permission mask, and the grammar this
+        // file would have to use is the build's, which knows about none of
+        // them. Sending them through the flag parser would mean inventing
+        // flags no command line has, for the sake of a rule about flags.
         //
         // Types are checked here and values by the core, so a caller that
         // sent the wrong shape gets an answer about the shape and a caller
         // that sent a shape the engine refuses gets the engine's own words
         // about it — the same words the command line would have printed.
-        service::Value HandleZip(const service::Value& request) {
-            zip::ZipOptions options;
+        service::Value HandlePack(const service::Value& request) {
+            pack::PackOptions options;
 
             const service::Value* inputs = request.Find("inputs");
             if (inputs == nullptr || !inputs->IsArray()) {
@@ -536,6 +536,14 @@ namespace guchho::cli {
                 return ErrorResponse(ProtocolError("\"outFile\" must be a string"));
             }
             options.outFile = out_file->AsString();
+
+            if (const service::Value* format = request.Find("format");
+                format != nullptr && !format->IsNull()) {
+                if (!format->IsString()) {
+                    return ErrorResponse(ProtocolError("\"format\" must be a string"));
+                }
+                options.format = format->AsString();
+            }
 
             if (const service::Value* level = request.Find("level");
                 level != nullptr && !level->IsNull()) {
@@ -579,7 +587,7 @@ namespace guchho::cli {
                 options.mode = static_cast<std::uint32_t>(mode->AsNumber());
             }
 
-            const zip::ZipResult result = zip::CreateZip(options);
+            const pack::PackResult result = pack::CreatePack(options);
 
             std::vector<service::Value> warnings;
             warnings.reserve(result.warnings.size());
@@ -593,7 +601,7 @@ namespace guchho::cli {
                 // other failing call in this package throws. The note travels
                 // as a note on the message, which is where a caller reading
                 // errors[0].notes expects to find it.
-                api::Message message = EngineError("zip-failed", result.error);
+                api::Message message = EngineError("pack-failed", result.error);
                 if (!result.note.empty()) {
                     api::Note note;
                     note.text = result.note;
@@ -980,7 +988,7 @@ namespace guchho::cli {
             if (name == "cancel") return HandleCancel(request);
             if (name == "dispose") return HandleDispose(request);
             if (name == "transform") return HandleTransform(request);
-            if (name == "zip") return HandleZip(request);
+            if (name == "pack") return HandlePack(request);
             if (name == "format-msgs") return HandleFormatMessages(request);
             if (name == "analyze-metafile") return HandleAnalyzeMetafile(request);
 

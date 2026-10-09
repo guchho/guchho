@@ -39,6 +39,7 @@
 
 #include "guchho/api.hpp"
 #include "guchho/cli.hpp"
+#include "guchho/logger.hpp"
 #include "guchho/service.hpp"
 
 #include <atomic>
@@ -182,7 +183,7 @@ Command detectCommand(const std::vector<std::string>& args, bool& has_entry) {
     if (first == "clean")  return Command::kClean;
     if (first == "info")   return Command::kInfo;
     if (first == "transform") return Command::kTransform;
-    if (first == "zip") return Command::kZip;
+    if (first == "pack") return Command::kPack;
 
     // Not a command word, so the leading argument means something else. A path
     // is the case worth catching, and it is recognised by the one thing a
@@ -357,6 +358,21 @@ static int runImpl(const std::vector<std::string>& os_args,
     // and 0 returned, for the same reason the empty case does: a run that asked
     // nothing cannot have failed at anything.
 
+    // The one first word that is no longer a command, and says so rather than
+    // being read as a path.
+    //
+    // Dropping it without a word would leave "guchho zip dist" to be answered
+    // with a failed build of an entry point called "zip" — a complaint about
+    // a file for what was plainly a spelling. One recogniser, one line, and
+    // the answer names the command that took its place.
+    if (os_args[0] == "zip") {
+        logger::PrintErrorWithNoteToStderr(os_args,
+                                           "'guchho zip' has been replaced by 'guchho pack'",
+                                           "Run 'guchho pack --help' to see how it is "
+                                           "spelled now.");
+        return static_cast<int>(ExitCode::kCLIUsageError);
+    }
+
     bool has_entry = false;
     Command cmd = detectCommand(os_args, has_entry);
 
@@ -434,8 +450,8 @@ static int runImpl(const std::vector<std::string>& os_args,
         return runClean(os_args);
     case Command::kInfo:
         return runInfo(os_args);
-    case Command::kZip:
-        return runZip(os_args);
+    case Command::kPack:
+        return runPack(os_args);
     default:
         printUsage(std::cout);
         return 0;

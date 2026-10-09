@@ -1,6 +1,6 @@
 "use strict";
 
-// zip(options) — paths in, one archive out.
+// pack(options) — paths in, one archive out.
 //
 // The same contract as build(): the request is validated before anything is
 // sent, a failure throws, and a success returns the answer as data. What is
@@ -17,10 +17,16 @@
 // as a BuildFailure with the engine's own words in it.
 
 const { getService } = require("./service");
-const { toZipResult } = require("./convert");
+const { toPackResult } = require("./convert");
+
+// The formats pack() accepts, kept in step with guchho::pack::kDefaultFormat
+// in include/guchho/pack.hpp. The list is written out rather than discovered:
+// asking the engine would cost a service start, and a caller's own options
+// should be checkable without one.
+const SUPPORTED_FORMATS = ["zip"];
 
 /**
- * Writes a zip archive.
+ * Writes an archive.
  *
  * @param {object} options
  * @param {string[]} options.inputs The files and directories to put in the
@@ -30,6 +36,9 @@ const { toZipResult } = require("./convert");
  *   created if it is missing; the file itself is written to a temporary path
  *   and moved into place, so a caller reading it after a failure is reading
  *   nothing rather than a half-written archive.
+ * @param {string} [options.format] Which archive format to write. Omit it for
+ *   the default. `zip` is the only format supported today; anything else is a
+ *   RangeError thrown before the engine is asked.
  * @param {number} [options.level] Deflate level, 0 to 9. 0 stores. The engine's
  *   default is 6.
  * @param {boolean} [options.overwrite] Replace an existing outFile. Without it
@@ -41,17 +50,18 @@ const { toZipResult } = require("./convert");
  *   permissions of the file it came from.
  * @returns {Promise<{path: string, size: number, warnings: string[]}>}
  * @throws {TypeError} When an option is missing or has the wrong type.
- * @throws {RangeError} When a level, a mode or a date is out of range.
+ * @throws {RangeError} When a level, a mode or a date is out of range, or when
+ *   the format is not one this engine can write.
  * @throws {BuildFailure} When the engine refused the request.
  */
-async function zip(options) {
+async function pack(options) {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
-    throw new TypeError("zip needs an options object");
+    throw new TypeError("pack needs an options object");
   }
 
   const inputs = options.inputs;
   if (!Array.isArray(inputs) || inputs.length === 0) {
-    throw new TypeError('zip needs "inputs" as a non-empty array of paths');
+    throw new TypeError('pack needs "inputs" as a non-empty array of paths');
   }
   for (const entry of inputs) {
     if (typeof entry !== "string") {
@@ -60,17 +70,36 @@ async function zip(options) {
   }
 
   if (typeof options.outFile !== "string" || options.outFile.length === 0) {
-    throw new TypeError('zip needs "outFile" as a path');
+    throw new TypeError('pack needs "outFile" as a path');
   }
 
   const request = {
-    command: "zip",
+    command: "pack",
     // Copied rather than shared: a caller who keeps the array and pushes to it
     // while the request is in flight would be editing a request the service
     // has not read yet.
     inputs: inputs.slice(),
     outFile: options.outFile,
   };
+
+  if (options.format !== undefined && options.format !== null) {
+    if (typeof options.format !== "string") {
+      throw new TypeError('"format" must be a string');
+    }
+    if (options.format.length === 0) {
+      throw new RangeError(
+        '"format" must not be empty; leave it out to use the default'
+      );
+    }
+    if (!SUPPORTED_FORMATS.includes(options.format)) {
+      const supported = SUPPORTED_FORMATS.map((f) => JSON.stringify(f)).join(", ");
+      throw new RangeError(
+        `unsupported archive format: ${JSON.stringify(options.format)}; ` +
+          `only ${supported} is supported`
+      );
+    }
+    request.format = options.format;
+  }
 
   if (options.level !== undefined && options.level !== null) {
     if (typeof options.level !== "number" || !Number.isInteger(options.level)) {
@@ -116,7 +145,7 @@ async function zip(options) {
 
   const service = await getService();
   const response = await service.call(request);
-  return toZipResult(response);
+  return toPackResult(response);
 }
 
-module.exports = { zip };
+module.exports = { pack };

@@ -19,11 +19,16 @@
 // changes. Everything else that used to be exported is internal now, reachable
 // by requiring the module that has it, which a caller depending on a promise
 // should not be doing.
+//
+// zip is absent because it is pack: the archive command and the function were
+// renamed together, so the package publishes one archive-creating name rather
+// than two that do the same thing. An import of `zip` gives undefined, which
+// is what any name this package does not publish gives.
 
 const { build, analyzeMetafile } = require("./build");
 const { analyze } = require("./analyze");
 const { transform } = require("./transform");
-const { zip } = require("./zip");
+const { pack } = require("./pack");
 const { context, BuildContext } = require("./context");
 const { watch, Watcher } = require("./watch");
 const { serve, DevServer } = require("./serve");
@@ -39,7 +44,7 @@ module.exports = {
     // The guchho API.
     build,
     transform,
-    zip,
+    pack,
     context,
     analyze,
     analyzeMetafile,

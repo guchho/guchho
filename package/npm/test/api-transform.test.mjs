@@ -78,7 +78,7 @@ describe("the module's shape", () => {
         assert.equal(typeof guchho.watch, "function");
         assert.equal(typeof guchho.serve, "function");
         assert.equal(typeof guchho.stop, "function");
-        assert.equal(typeof guchho.zip, "function");
+        assert.equal(typeof guchho.pack, "function");
         assert.equal(typeof guchho.version, "string");
         assert.equal(typeof guchho.lexer, "function");
         assert.equal(typeof guchho.parse, "function");
@@ -94,6 +94,9 @@ describe("the module's shape", () => {
         // changed meaning, and the metafile report it used to do is still
         // reachable under the name that says so.
         assert.equal(guchho.formatMessages, undefined);
+        // zip is not a leftover of the old surface either: it became pack, and
+        // a name that does the same thing twice is a promise nobody wants.
+        assert.equal(guchho.zip, undefined);
         assert.equal(guchho.getBinaryPath, undefined);
         assert.equal(guchho.getPlatformKey, undefined);
         assert.equal(guchho.spawnBinary, undefined);

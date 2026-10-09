@@ -433,13 +433,13 @@ export interface TransformResult {
 }
 
 /**
- * What zip() writes, and from what.
+ * What pack() writes, and from what.
  *
  * Every path is a path on disk. Each entry of inputs becomes a top-level name
  * taken from its last path component, so "dist" and "site/build" each arrive
  * under their own name rather than under the tree they came from.
  */
-export interface ZipOptions {
+export interface PackOptions {
   /**
    * Where to write the archive. The parent directory is created if it is
    * missing, and the archive itself is moved into place at the end — so a
@@ -449,6 +449,12 @@ export interface ZipOptions {
   outFile: string
   /** The files and directories to put in the archive. */
   inputs: string[]
+  /**
+   * Which archive format to write. `"zip"` is the only format supported
+   * today, and leaving this out is the same as writing it; any other string
+   * is a RangeError thrown before the engine is asked.
+   */
+  format?: "zip"
   /**
    * Deflate level, 0 to 9. 0 stores rather than compresses. The engine's
    * default is 6, which is what a caller gets by leaving this out.
@@ -477,7 +483,7 @@ export interface ZipOptions {
   mode?: number
 }
 
-export interface ZipResult {
+export interface PackResult {
   /** The archive, as the path it was written to. */
   path: string
   /** Its size in bytes. */
@@ -676,18 +682,19 @@ export declare function transform(
 ): Promise<TransformResult>
 
 /**
- * Writes a zip archive from files and directories already on disk.
+ * Writes an archive from files and directories already on disk.
  *
- * Everything the command line's `guchho zip` does, reached as a function:
+ * Everything the command line's `guchho pack` does, reached as a function:
  * the same entry naming, the same symlink policy, the same refusal of an
  * archive that would collide with itself. What differs is the shape — a path
  * and a size come back as data rather than as a line on a terminal.
  *
  * @throws {TypeError} When an option is missing or has the wrong type.
- * @throws {RangeError} When a level, a mode or a date is out of range.
+ * @throws {RangeError} When a level, a mode or a date is out of range, or when
+ *   the format is not one this engine can write.
  * @throws {BuildFailure} When the engine refused the request.
  */
-export declare function zip(options: ZipOptions): Promise<ZipResult>
+export declare function pack(options: PackOptions): Promise<PackResult>
 
 /** Sets up a build that can be repeated. */
 export declare function context(options: BuildOptions): Promise<BuildContext>

@@ -298,7 +298,7 @@ function toTransformResult(response) {
 }
 
 /**
- * A zip response, in the shape guchho publishes.
+ * A pack response, in the shape guchho publishes.
  *
  * The size arrives as a decimal string rather than as a number because the
  * protocol's number is a 32-bit integer and an archive past two gigabytes is a
@@ -306,7 +306,7 @@ function toTransformResult(response) {
  * limit on the caller's side, but a caller who hits it sees a number rather
  * than a wrapped one.
  */
-function toZipResult(response) {
+function toPackResult(response) {
   const size = typeof response.size === "string" ? Number(response.size) : response.size;
   return {
     path: typeof response.path === "string" ? response.path : "",
@@ -328,7 +328,7 @@ module.exports = {
   toText,
   toBuildResult,
   toTransformResult,
-  toZipResult,
+  toPackResult,
   toInputSummaries,
   toOutputSummaries,
   toDependencySummaries,

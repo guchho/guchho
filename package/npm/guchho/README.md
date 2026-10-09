@@ -44,7 +44,7 @@ npx guchho build
 npx guchho serve
 
 # 5. Package the built output into one archive
-npx guchho zip dist -o release.zip
+npx guchho pack dist -o release.zip
 ```
 
 Add scripts to `package.json`:
@@ -182,20 +182,20 @@ const { code, map, errors, warnings } = await transform('const add = (a, b) => a
 
 Loaders: `js`, `jsx`, `ts`, `tsx`, `json`, `text`, `css`, `html`, `base64`, `dataurl`, `file`, `binary`, `copy`, `empty`. A `transform` takes a single loader name; a `build` takes a loader **map** keyed by extension.
 
-### Zip
+### Pack
 
 Files and directories already on disk, in one archive.
 
 ```js
-import { zip } from 'guchho'
+import { pack } from 'guchho'
 
-const { path, size, warnings } = await zip({
+const { path, size, warnings } = await pack({
   inputs: ['dist', 'src/index.html'],
   outFile: 'release.zip',
 })
 ```
 
-Options, all optional but the two above: `level` (0–9, 0 stores instead of compressing, the default is 6), `overwrite` (without it an existing `outFile` is an error), `date` (a `Date` — the timestamp every entry gets), and `mode` (Unix permission bits such as `0o755`, recorded for every entry).
+Options, all optional but the two above: `format` (the archive format — `zip` is the only one supported today, it is the default, and any other value throws a `RangeError` before the engine is asked), `level` (0–9, 0 stores instead of compressing, the default is 6), `overwrite` (without it an existing `outFile` is an error), `date` (a `Date` — the timestamp every entry gets), and `mode` (Unix permission bits such as `0o755`, recorded for every entry).
 
 `date` and `mode` are **recorded, not applied**: they are metadata the archive carries for whoever extracts it. Extracting on Windows does not make a file executable because a mode was written into it, and a timestamp is only as precise as the format holds — ZIP stores it in two-second steps, and its calendar starts in 1980.
 
@@ -203,7 +203,7 @@ Each input arrives under its own last path component, so `dist` and `site/build`
 
 `warnings` is what was deliberately left out — a symlink the walk would not follow (a symlink named as an input is followed once; one found inside a tree is skipped), a cycle it would not go round, the archive itself when it sits inside one of its own inputs. It is empty when nothing was, which is not the same as "nothing to report".
 
-A failure throws a `BuildFailure` with the engine's own message in it, the same one `guchho zip` would have printed.
+A failure throws a `BuildFailure` with the engine's own message in it, the same one `guchho pack` would have printed.
 
 ### Compiler API
 

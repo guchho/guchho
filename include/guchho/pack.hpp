@@ -1,8 +1,8 @@
 // =============================================================================
-// include/guchho/zip.hpp — turning paths on disk into a zip archive
+// include/guchho/pack.hpp — turning paths on disk into an archive
 // =============================================================================
 //
-// This header is the boundary between "somebody asked for a zip file" and the
+// This header is the boundary between "somebody asked for an archive" and the
 // bytes of one. Everything above it — reading a command line, answering a
 // service request, validating the options a JavaScript caller passed — speaks
 // in terms of the two structures below. Everything below is a function of
@@ -10,12 +10,12 @@
 // command line, a pipe or a module.
 //
 // That split exists for two reasons. The first is that the interesting half of
-// a zip operation is the half that decides what goes into the archive: which
-// entries, under which names, with which metadata, and what is deliberately
-// left out. A command that both parses a flag and walks a tree can only be
-// tested by running the command; a function that takes a list of paths and
-// hands back a result can be tested by comparing the archive it produced
-// against the list it was given.
+// a packing operation is the half that decides what goes into the archive:
+// which entries, under which names, with which metadata, and what is
+// deliberately left out. A command that both parses a flag and walks a tree
+// can only be tested by running the command; a function that takes a list of
+// paths and hands back a result can be tested by comparing the archive it
+// produced against the list it was given.
 //
 // The second is that there are two callers with nothing else in common. The
 // CLI prints; the npm package returns data. Neither of them may find its own
@@ -46,7 +46,39 @@
 #include <string>
 #include <vector>
 
-namespace guchho::zip {
+namespace guchho::pack {
+
+// =========================================================================
+// The formats
+// =========================================================================
+
+// The format this API writes when the request does not name one, and the only
+// format it writes today.
+//
+// This is the whole of the format vocabulary. "pack" is the command and the
+// format is a fact about the bytes inside it: a request says pack, and
+// --format (or the npm `format` option) says what those bytes are. The list
+// lives here rather than in the command line or in JavaScript so that every
+// front end reads the same one and an unsupported format is refused with one
+// message, whoever asked.
+inline constexpr const char* kDefaultFormat = "zip";
+
+// Whether a format name is one this API can write.
+//
+// The name is compared exactly: a format is spelled in lower case and a
+// spelling that differs in case is a different answer, not a near miss.
+// IsSupportedFormat() does not know about the default — an empty name is not
+// a supported format, it is a name that was never given, which is why
+// PackOptions::format is normalized to kDefaultFormat before it is asked.
+//
+// Input:  IsSupportedFormat("zip") -> true
+// Input:  IsSupportedFormat("tar") -> false
+// Input:  IsSupportedFormat("ZIP") -> false
+// Input:  IsSupportedFormat("") -> false, because "" is not a format name
+inline bool IsSupportedFormat(const std::string& format)
+{
+    return format == kDefaultFormat;
+}
 
 // =========================================================================
 // What was asked for
@@ -60,7 +92,7 @@ namespace guchho::zip {
 // input — is a case the caller already knows how to answer, which is what
 // DefaultOutFile() below is for. The CLI computes a name and passes it in;
 // the npm API requires one.
-struct ZipOptions {
+struct PackOptions {
     // The files and directories to archive, in the order they were given.
     //
     // Each input becomes an archive root named after itself, so
@@ -72,12 +104,19 @@ struct ZipOptions {
     //
     // An input may be a symbolic link. It is followed exactly once, at the
     // top level, because naming a link is naming the thing it points at.
-    // Links found *inside* the walk are never followed; see CreateZip().
+    // Links found *inside* the walk are never followed; see CreatePack().
     std::vector<std::string> inputs;
 
     // Where the archive is written, as a UTF-8 path. Its parent directory is
     // created if it does not exist. Required.
     std::string outFile;
+
+    // Which archive format to write. Empty means kDefaultFormat, because a
+    // caller that did not ask for a particular format has not asked for
+    // anything surprising. Anything else that IsSupportedFormat() refuses is
+    // rejected by CreatePack() before a single entry is read, so a format
+    // nobody can write never turns into an archive nobody can open.
+    std::string format;
 
     // Compression level, 0 through 9. 0 stores every entry uncompressed;
     // 9 compresses hardest. An empty value means the library's own default,
@@ -130,7 +169,7 @@ struct ZipOptions {
 // error; one that wants to know what was quietly left out reads warnings.
 // Nothing else is in here, because nothing else is knowable until the archive
 // has been finalized and renamed into place.
-struct ZipResult {
+struct PackResult {
     // The archive that was written, as the path it was asked for. Set only
     // on success: an operation that failed part way through has not produced
     // a file at that path, and saying otherwise would be the misleading
@@ -184,15 +223,29 @@ struct ZipResult {
 // A hidden file keeps its dot: ".bashrc" has an extension only by accident
 // of the rule above, and turning it into ".zip" would be nonsense.
 //
+// ".zip" is the extension of kDefaultFormat, and this function is not told a
+// format: it answers the question a caller who named no format is asking, and
+// a caller who named one has a name to build the answer from itself.
+//
 // Input:  DefaultOutFile("dist/")     -> "dist.zip"
 // Input:  DefaultOutFile("src/app.js") -> "src/app.zip"
 // Input:  DefaultOutFile("archive.zip") -> "archive.zip", which is the input
-//         itself; CreateZip refuses that combination rather than archiving a
+//         itself; CreatePack refuses that combination rather than archiving a
 //         file into itself.
 // Input:  DefaultOutFile(".bashrc")    -> ".bashrc.zip"
 std::string DefaultOutFile(const std::string& input);
 
 // Writes the archive the request describes, or explains why it did not.
+//
+// The format is settled first, before an input is read or the destination is
+// touched: an empty options.format means kDefaultFormat, and a name
+// IsSupportedFormat() refuses comes back as an error with a note, with no
+// file written and no temporary file left behind. A format nobody can write
+// must not become an archive nobody can open.
+//
+// Input:  { format = "tar", inputs = { "dist/" }, outFile = "release.zip" }
+// Output: no path, error "Unsupported archive format: \"tar\"", and the note
+//         naming the formats that are supported.
 //
 // On success the archive is complete, finalized and closed before this
 // returns: path, size and Ok() are all about a finished file, and there is no
@@ -231,7 +284,7 @@ std::string DefaultOutFile(const std::string& input);
 //     an ordering nobody chose.
 //
 //   * The output file is excluded when it sits inside one of the input trees,
-//     with a warning, so "guchho zip dist/ -o dist/out.zip --allow-overwrite"
+//     with a warning, so "guchho pack dist/ -o dist/out.zip --allow-overwrite"
 //     does not archive the previous run's output into the next one.
 //
 //   * Empty directories are represented by a trailing-slash entry, because a
@@ -253,6 +306,6 @@ std::string DefaultOutFile(const std::string& input);
 //         is already there
 // Output: error naming it, note saying overwrite is off, and the old archive
 //         untouched.
-ZipResult CreateZip(const ZipOptions& options);
+PackResult CreatePack(const PackOptions& options);
 
-} // namespace guchho::zip
+} // namespace guchho::pack

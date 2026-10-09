@@ -7,7 +7,7 @@ add_library(guchho_core_test_objects OBJECT
     compiler_test.cpp
     miniz_test.cpp
     filesystem_test.cpp
-    zip_test.cpp
+    pack_test.cpp
     sourcemap_test.cpp
     compat_test.cpp
     config_test.cpp

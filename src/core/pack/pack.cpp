@@ -1,8 +1,8 @@
 // =============================================================================
-// src/core/zip/zip.cpp — turning paths on disk into a zip archive
+// src/core/pack/pack.cpp — turning paths on disk into an archive
 // =============================================================================
 //
-// The whole of CreateZip() is one sequence in four steps: settle what was
+// The whole of CreatePack() is one sequence in four steps: settle what was
 // asked for, work out what goes in, write it somewhere safe, move it into
 // place. Each step is a separate group of functions below rather than a
 // paragraph of one long one, because the three failures a caller cares about
@@ -35,7 +35,7 @@
 // is a question for whoever called.
 // =============================================================================
 
-#include "guchho/zip.hpp"
+#include "guchho/pack.hpp"
 
 #include "guchho/filesystem.hpp"
 #include "guchho/miniz.hpp"
@@ -53,7 +53,7 @@
 #include <unordered_set>
 #include <vector>
 
-namespace guchho::zip {
+namespace guchho::pack {
 
 namespace {
 
@@ -177,7 +177,7 @@ std::time_t DiskWriteTime(const fs::path& source)
 
 // The timestamp one entry is written with: the one that was asked for when
 // there was one, and the file's own otherwise.
-MZ_TIME_T EntryTime(const fs::path& source, const ZipOptions& options)
+MZ_TIME_T EntryTime(const fs::path& source, const PackOptions& options)
 {
     if (options.date) return static_cast<MZ_TIME_T>(*options.date);
     return static_cast<MZ_TIME_T>(DiskWriteTime(source));
@@ -310,7 +310,7 @@ struct Entry {
     fs::file_status status;
 };
 
-// Everything one call to CreateZip() accumulates, before anything is written.
+// Everything one call to CreatePack() accumulates, before anything is written.
 struct Collector {
     // The archive being written, so a tree that contains it does not archive
     // its own output. Whether it is there yet is a separate question: on a
@@ -517,7 +517,7 @@ bool WalkDirectory(Collector& c, const fs::path& dir, const std::string& prefix,
 
 // Collects every entry for the whole request, or reports the first thing that
 // stops one being produced at all.
-bool Collect(Collector& c, const ZipOptions& options)
+bool Collect(Collector& c, const PackOptions& options)
 {
     for (const std::string& input : options.inputs) {
         std::string root;
@@ -577,7 +577,7 @@ bool Collect(Collector& c, const ZipOptions& options)
 // none of them are there — because a tree that is 0700 is a deliberate
 // choice, and turning it into 0711 to satisfy a rule would be the archive
 // disagreeing with the disk about who may walk where.
-std::uint32_t PermissionBits(const Entry& entry, const ZipOptions& options)
+std::uint32_t PermissionBits(const Entry& entry, const PackOptions& options)
 {
     std::uint32_t bits;
     if (options.mode) {
@@ -598,7 +598,7 @@ std::uint32_t PermissionBits(const Entry& entry, const ZipOptions& options)
 // the high half, the DOS flags in the low half. The DOS directory bit is not
 // set here — miniz sets it itself when an entry's name ends in "/", which is
 // the one place that knows whether the entry is one.
-std::uint32_t ExternalAttributes(const Entry& entry, const ZipOptions& options)
+std::uint32_t ExternalAttributes(const Entry& entry, const PackOptions& options)
 {
     const std::uint32_t bits = PermissionBits(entry, options);
     const std::uint32_t type = fs::is_directory(entry.status) ? kDirectoryBits
@@ -767,9 +767,9 @@ std::string DefaultOutFile(const std::string& input)
     return name;
 }
 
-ZipResult CreateZip(const ZipOptions& options)
+PackResult CreatePack(const PackOptions& options)
 {
-    ZipResult result;
+    PackResult result;
 
     // -------------------------------------------------------------------------
     // 1. What was asked for
@@ -778,6 +778,15 @@ ZipResult CreateZip(const ZipOptions& options)
     // Everything here is settled before the disk is touched, so a request that
     // could never have worked leaves nothing behind — no directories created,
     // no temporary file, no partial archive.
+
+    const std::string format =
+        options.format.empty() ? std::string(kDefaultFormat) : options.format;
+    if (!IsSupportedFormat(format)) {
+        result.error = std::format("Unsupported archive format: {}", Quoted(format));
+        result.note =
+            std::format("Only \"{}\" is supported today.", kDefaultFormat);
+        return result;
+    }
 
     if (options.inputs.empty()) {
         result.error = "No input files were given";
@@ -986,4 +995,4 @@ ZipResult CreateZip(const ZipOptions& options)
     return result;
 }
 
-} // namespace guchho::zip
+} // namespace guchho::pack

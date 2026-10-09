@@ -1,12 +1,12 @@
 // =============================================================================
-// test/cli/cli_zip_test.cpp — the command that writes an archive
+// test/cli/cli_pack_test.cpp — the command that writes an archive
 // =============================================================================
 //
 // Two halves, tested in the two ways the harness offers.
 //
-// The command line half runs runZip through RunCli and checks what a person
+// The command line half runs runPack through RunCli and checks what a person
 // would see: the exit code, which stream each line went to, and what was left
-// on disk. The argument handling is where a zip command has the decisions a
+// on disk. The argument handling is where a pack command has the decisions a
 // build does not — which word is an input, what the archive is called when
 // nobody named it, and whether a mistake in the spelling is worth 2 or worth 1
 // — and none of that is reachable from the core layer.
@@ -20,7 +20,7 @@
 //
 // The archive's own contents are not checked here beyond a name and a method.
 // Whether an entry lands under the right name, with the right permissions and
-// the right timestamp, is test/core/zip_test.cpp's subject and it reads every
+// the right timestamp, is test/core/pack_test.cpp's subject and it reads every
 // one of those back with miniz. What is checked here is that the options a
 // person typed arrived there: one archive read back with enough in it to prove
 // the command did not swallow a flag.
@@ -153,56 +153,62 @@ std::string TextOf(const guchho::service::Value& response, const std::string& ke
 // Help
 // ---------------------------------------------------------------------------
 
-TEST(ZipHelpTest, AnswersWithItsOwnUsageAndFlags)
+TEST(PackHelpTest, AnswersWithItsOwnUsageAndFlags)
 {
-    CliWorkspace ws("zip-help");
+    CliWorkspace ws("pack-help");
     WriteTree(ws);
 
-    const guchho::test::CliResult result = RunCli({"zip", "--help"});
+    const guchho::test::CliResult result = RunCli({"pack", "--help"});
 
     EXPECT_EQ(result.exit_code, kSuccess);
-    EXPECT_TRUE(OutputContains(result.out, "Usage: guchho zip <input...>")) << result.out;
-    EXPECT_TRUE(OutputContains(result.out, "Create a zip archive")) << result.out;
+    EXPECT_TRUE(OutputContains(result.out, "Usage: guchho pack <input...>")) << result.out;
+    EXPECT_TRUE(OutputContains(result.out, "Create an archive")) << result.out;
+    EXPECT_TRUE(OutputContains(result.out, "--format=<format>")) << result.out;
+    EXPECT_TRUE(OutputContains(result.out, "only zip is supported")) << result.out;
     EXPECT_TRUE(OutputContains(result.out, "-o, --outfile=<path>")) << result.out;
     EXPECT_TRUE(OutputContains(result.out, "--level=<0-9>")) << result.out;
     EXPECT_TRUE(OutputContains(result.out, "--allow-overwrite")) << result.out;
-    EXPECT_TRUE(OutputContains(result.out, "guchho zip dist/ -o release.zip")) << result.out;
+    EXPECT_TRUE(OutputContains(result.out, "guchho pack dist/ -o release.zip")) << result.out;
     // Help is an answer, not a diagnostic, so it belongs on the standard
     // output where a person can pipe it to a pager.
     EXPECT_TRUE(result.err.empty()) << result.err;
 }
 
-TEST(ZipHelpTest, HelpWinsOverARestThatIsWrong)
+TEST(PackHelpTest, HelpWinsOverARestThatIsWrong)
 {
-    CliWorkspace ws("zip-help-first");
+    CliWorkspace ws("pack-help-first");
 
     // --help is read before the arguments are, so a command line that is
     // otherwise refused still explains itself. The alternative — parsing first
     // and answering afterwards — would make help depend on getting the rest of
     // the line right, which is backwards.
-    const guchho::test::CliResult result = RunCli({"zip", "--allow-ovewrite", "--help"});
+    const guchho::test::CliResult result = RunCli({"pack", "--allow-ovewrite", "--help"});
 
     EXPECT_EQ(result.exit_code, kSuccess);
-    EXPECT_TRUE(OutputContains(result.out, "Usage: guchho zip <input...>")) << result.out;
+    EXPECT_TRUE(OutputContains(result.out, "Usage: guchho pack <input...>")) << result.out;
 }
 
 // ---------------------------------------------------------------------------
 // What is refused before anything is read from disk
 // ---------------------------------------------------------------------------
 
-TEST(ZipUsageTest, IsListedAlongsideTheOtherCommands)
+TEST(PackUsageTest, IsListedAlongsideTheOtherCommands)
 {
     const guchho::test::CliResult result = RunCli({"--help"});
 
     EXPECT_EQ(result.exit_code, kSuccess);
-    EXPECT_TRUE(OutputContains(result.out, "zip <input...>")) << result.out;
+    EXPECT_TRUE(OutputContains(result.out, "pack <input...>")) << result.out;
+
+    // The old word is not listed: a command that is gone must not be half
+    // present in the one text a person reads to find out what they can type.
+    EXPECT_FALSE(OutputContains(result.out, "zip <input...>")) << result.out;
 }
 
-TEST(ZipUsageTest, NoInputsIsRefused)
+TEST(PackUsageTest, NoInputsIsRefused)
 {
-    CliWorkspace ws("zip-no-inputs");
+    CliWorkspace ws("pack-no-inputs");
 
-    const guchho::test::CliResult result = RunCli({"zip"});
+    const guchho::test::CliResult result = RunCli({"pack"});
 
     EXPECT_EQ(result.exit_code, kUsageError);
     EXPECT_TRUE(OutputContains(result.err, "No input files were given")) << result.err;
@@ -210,85 +216,85 @@ TEST(ZipUsageTest, NoInputsIsRefused)
     EXPECT_TRUE(result.out.empty()) << result.out;
 }
 
-TEST(ZipUsageTest, TwoInputsWithoutAnOutputFileAreRefused)
+TEST(PackUsageTest, TwoInputsWithoutAnOutputFileAreRefused)
 {
-    CliWorkspace ws("zip-two-inputs");
+    CliWorkspace ws("pack-two-inputs");
     WriteTree(ws, "one");
     WriteTree(ws, "two");
 
-    const guchho::test::CliResult result = RunCli({"zip", "one", "two"});
+    const guchho::test::CliResult result = RunCli({"pack", "one", "two"});
 
     EXPECT_EQ(result.exit_code, kUsageError);
     EXPECT_TRUE(OutputContains(result.err, "Multiple inputs need an output file")) << result.err;
     EXPECT_TRUE(OutputContains(result.err, "-o/--outfile")) << result.err;
 }
 
-TEST(ZipUsageTest, AFlagThisCommandDoesNotHaveIsRefused)
+TEST(PackUsageTest, AFlagThisCommandDoesNotHaveIsRefused)
 {
-    CliWorkspace ws("zip-unknown-flag");
+    CliWorkspace ws("pack-unknown-flag");
     WriteTree(ws);
 
-    const guchho::test::CliResult result = RunCli({"zip", "dist", "--allow-ovewrite"});
+    const guchho::test::CliResult result = RunCli({"pack", "dist", "--allow-ovewrite"});
 
     EXPECT_EQ(result.exit_code, kUsageError);
-    EXPECT_TRUE(OutputContains(result.err, "Unknown zip flag: \"--allow-ovewrite\"")) << result.err;
-    EXPECT_TRUE(OutputContains(result.err, "guchho zip --help")) << result.err;
+    EXPECT_TRUE(OutputContains(result.err, "Unknown pack flag: \"--allow-ovewrite\"")) << result.err;
+    EXPECT_TRUE(OutputContains(result.err, "guchho pack --help")) << result.err;
     // Refused rather than read as a path: the alternative is an archive with a
     // strange entry in it and no complaint at all.
     EXPECT_FALSE(ws.Exists("dist.zip"));
 }
 
-TEST(ZipUsageTest, ALevelOutsideTheRangeIsRefused)
+TEST(PackUsageTest, ALevelOutsideTheRangeIsRefused)
 {
-    CliWorkspace ws("zip-level-range");
+    CliWorkspace ws("pack-level-range");
     WriteTree(ws);
 
-    const guchho::test::CliResult result = RunCli({"zip", "dist", "--level=11"});
+    const guchho::test::CliResult result = RunCli({"pack", "dist", "--level=11"});
 
     EXPECT_EQ(result.exit_code, kUsageError);
     EXPECT_TRUE(OutputContains(result.err, "Invalid compression level: \"11\"")) << result.err;
     EXPECT_FALSE(ws.Exists("dist.zip"));
 }
 
-TEST(ZipUsageTest, ALevelThatIsNotWholeNumberIsRefused)
+TEST(PackUsageTest, ALevelThatIsNotWholeNumberIsRefused)
 {
-    CliWorkspace ws("zip-level-text");
+    CliWorkspace ws("pack-level-text");
     WriteTree(ws);
 
-    const guchho::test::CliResult result = RunCli({"zip", "dist", "--level=6x"});
+    const guchho::test::CliResult result = RunCli({"pack", "dist", "--level=6x"});
 
     EXPECT_EQ(result.exit_code, kUsageError);
     EXPECT_TRUE(OutputContains(result.err, "Invalid compression level: \"6x\"")) << result.err;
 }
 
-TEST(ZipUsageTest, ALevelWithNoValueIsRefused)
+TEST(PackUsageTest, ALevelWithNoValueIsRefused)
 {
-    CliWorkspace ws("zip-level-no-value");
+    CliWorkspace ws("pack-level-no-value");
     WriteTree(ws);
 
-    const guchho::test::CliResult result = RunCli({"zip", "dist", "--level"});
+    const guchho::test::CliResult result = RunCli({"pack", "dist", "--level"});
 
     EXPECT_EQ(result.exit_code, kUsageError);
     EXPECT_TRUE(OutputContains(result.err, "Missing value for --level")) << result.err;
 }
 
-TEST(ZipUsageTest, AnOutfileWithNoValueIsRefused)
+TEST(PackUsageTest, AnOutfileWithNoValueIsRefused)
 {
-    CliWorkspace ws("zip-outfile-no-value");
+    CliWorkspace ws("pack-outfile-no-value");
     WriteTree(ws);
 
-    const guchho::test::CliResult result = RunCli({"zip", "dist", "-o"});
+    const guchho::test::CliResult result = RunCli({"pack", "dist", "-o"});
 
     EXPECT_EQ(result.exit_code, kUsageError);
     EXPECT_TRUE(OutputContains(result.err, "Missing value for -o")) << result.err;
 }
 
-TEST(ZipUsageTest, AnEmptyOutfileIsRefused)
+TEST(PackUsageTest, AnEmptyOutfileIsRefused)
 {
-    CliWorkspace ws("zip-outfile-empty");
+    CliWorkspace ws("pack-outfile-empty");
     WriteTree(ws);
 
-    const guchho::test::CliResult result = RunCli({"zip", "dist", "-o", ""});
+    const guchho::test::CliResult result = RunCli({"pack", "dist", "-o", ""});
 
     EXPECT_EQ(result.exit_code, kUsageError);
     EXPECT_TRUE(OutputContains(result.err, "Missing value for --outfile")) << result.err;
@@ -297,16 +303,72 @@ TEST(ZipUsageTest, AnEmptyOutfileIsRefused)
     EXPECT_FALSE(ws.Exists("dist.zip"));
 }
 
+TEST(PackUsageTest, AnUnsupportedFormatIsRefused)
+{
+    CliWorkspace ws("pack-format-unsupported");
+    WriteTree(ws);
+
+    const guchho::test::CliResult result = RunCli({"pack", "dist", "--format=tar"});
+
+    EXPECT_EQ(result.exit_code, kUsageError);
+    EXPECT_TRUE(OutputContains(result.err, "Unsupported archive format: \"tar\""))
+        << result.err;
+    EXPECT_TRUE(OutputContains(result.err, "Only \"zip\" is supported")) << result.err;
+    // Refused at the spelling, so nothing was read and nothing was written.
+    EXPECT_FALSE(ws.Exists("dist.zip"));
+}
+
+TEST(PackUsageTest, AFormatWithNoValueIsRefused)
+{
+    CliWorkspace ws("pack-format-no-value");
+    WriteTree(ws);
+
+    const guchho::test::CliResult result = RunCli({"pack", "dist", "--format"});
+
+    EXPECT_EQ(result.exit_code, kUsageError);
+    EXPECT_TRUE(OutputContains(result.err, "Missing value for --format")) << result.err;
+    EXPECT_FALSE(ws.Exists("dist.zip"));
+}
+
+TEST(PackUsageTest, AnEmptyFormatIsRefused)
+{
+    CliWorkspace ws("pack-format-empty");
+    WriteTree(ws);
+
+    const guchho::test::CliResult result = RunCli({"pack", "dist", "--format="});
+
+    EXPECT_EQ(result.exit_code, kUsageError);
+    EXPECT_TRUE(OutputContains(result.err, "Missing value for --format")) << result.err;
+    EXPECT_FALSE(ws.Exists("dist.zip"));
+}
+
+TEST(PackUsageTest, TheFormerZipWordSaysWhereItWent)
+{
+    CliWorkspace ws("zip-word-retired");
+    WriteTree(ws);
+
+    const guchho::test::CliResult result = RunCli({"zip", "dist"});
+
+    // Answered rather than falling through as a path. Without this the run
+    // would be a build whose entry point is a file called "zip", and the
+    // message would be about a file rather than about a spelling.
+    EXPECT_EQ(result.exit_code, kUsageError);
+    EXPECT_TRUE(OutputContains(result.err, "'guchho zip' has been replaced by 'guchho pack'"))
+        << result.err;
+    EXPECT_TRUE(OutputContains(result.err, "guchho pack --help")) << result.err;
+    EXPECT_FALSE(ws.Exists("dist.zip"));
+}
+
 // ---------------------------------------------------------------------------
 // What it does when it works
 // ---------------------------------------------------------------------------
 
-TEST(ZipRunTest, NamesTheArchiveAfterTheSingleInput)
+TEST(PackRunTest, NamesTheArchiveAfterTheSingleInput)
 {
-    CliWorkspace ws("zip-default-outfile");
+    CliWorkspace ws("pack-default-outfile");
     WriteTree(ws);
 
-    const guchho::test::CliResult result = RunCli({"zip", "dist"});
+    const guchho::test::CliResult result = RunCli({"pack", "dist"});
 
     EXPECT_EQ(result.exit_code, kSuccess) << result.err;
     EXPECT_TRUE(OutputContains(result.out, "Created dist.zip")) << result.out;
@@ -316,12 +378,12 @@ TEST(ZipRunTest, NamesTheArchiveAfterTheSingleInput)
     EXPECT_TRUE(result.err.empty()) << result.err;
 }
 
-TEST(ZipRunTest, WritesToTheNamedOutfile)
+TEST(PackRunTest, WritesToTheNamedOutfile)
 {
-    CliWorkspace ws("zip-named-outfile");
+    CliWorkspace ws("pack-named-outfile");
     WriteTree(ws);
 
-    const guchho::test::CliResult result = RunCli({"zip", "dist", "-o", "release.zip"});
+    const guchho::test::CliResult result = RunCli({"pack", "dist", "-o", "release.zip"});
 
     EXPECT_EQ(result.exit_code, kSuccess) << result.err;
     EXPECT_TRUE(OutputContains(result.out, "Created release.zip")) << result.out;
@@ -329,27 +391,48 @@ TEST(ZipRunTest, WritesToTheNamedOutfile)
     EXPECT_FALSE(ws.Exists("dist.zip"));
 }
 
-TEST(ZipRunTest, AcceptsBothSpellingsOfTheOutfileFlag)
+TEST(PackRunTest, AcceptsBothSpellingsOfTheOutfileFlag)
 {
-    CliWorkspace ws("zip-outfile-spellings");
+    CliWorkspace ws("pack-outfile-spellings");
     WriteTree(ws);
 
-    const guchho::test::CliResult spaced = RunCli({"zip", "dist", "--outfile", "a.zip"});
+    const guchho::test::CliResult spaced = RunCli({"pack", "dist", "--outfile", "a.zip"});
     EXPECT_EQ(spaced.exit_code, kSuccess) << spaced.err;
     EXPECT_TRUE(ws.Exists("a.zip"));
 
-    const guchho::test::CliResult joined = RunCli({"zip", "dist", "--outfile=b.zip"});
+    const guchho::test::CliResult joined = RunCli({"pack", "dist", "--outfile=b.zip"});
     EXPECT_EQ(joined.exit_code, kSuccess) << joined.err;
     EXPECT_TRUE(ws.Exists("b.zip"));
 }
 
-TEST(ZipRunTest, PutsTheTreeUnderItsOwnName)
+TEST(PackRunTest, AcceptsBothSpellingsOfTheFormatFlag)
 {
-    CliWorkspace ws("zip-entry-names");
+    CliWorkspace ws("pack-format-spellings");
+    WriteTree(ws);
+
+    const guchho::test::CliResult joined = RunCli({"pack", "dist", "--format=zip"});
+    ASSERT_EQ(joined.exit_code, kSuccess) << joined.err;
+
+    const guchho::test::CliResult spaced =
+        RunCli({"pack", "dist", "--format", "zip", "-o", "other.zip"});
+    ASSERT_EQ(spaced.exit_code, kSuccess) << spaced.err;
+
+    // Naming the default format out loud is not a different request, so the
+    // archive is the one the flag-less run would have written.
+    std::vector<Entry> entries;
+    std::string        error;
+    ASSERT_TRUE(ReadArchive(ws.At("other.zip"), entries, error)) << error;
+    EXPECT_TRUE(Contains(Names(entries), "dist/app.js"));
+    EXPECT_TRUE(Contains(Names(entries), "dist/index.html"));
+}
+
+TEST(PackRunTest, PutsTheTreeUnderItsOwnName)
+{
+    CliWorkspace ws("pack-entry-names");
     WriteTree(ws);
     ws.Write("dist/assets/logo.svg", "<svg/>");
 
-    const guchho::test::CliResult result = RunCli({"zip", "dist", "-o", "out.zip"});
+    const guchho::test::CliResult result = RunCli({"pack", "dist", "-o", "out.zip"});
     ASSERT_EQ(result.exit_code, kSuccess) << result.err;
 
     std::vector<Entry> entries;
@@ -363,15 +446,15 @@ TEST(ZipRunTest, PutsTheTreeUnderItsOwnName)
     EXPECT_TRUE(Contains(names, "dist/assets/logo.svg"));
 }
 
-TEST(ZipRunTest, CompressionLevelReachesTheArchive)
+TEST(PackRunTest, CompressionLevelReachesTheArchive)
 {
-    CliWorkspace ws("zip-level");
+    CliWorkspace ws("pack-level");
     // Repetitive, so that the two ends of the range differ by more than the
     // headers around them.
     ws.Write("dist/bundle.js", std::string(4096, 'a'));
 
-    ASSERT_EQ(RunCli({"zip", "dist", "-o", "stored.zip", "--level=0"}).exit_code, kSuccess);
-    ASSERT_EQ(RunCli({"zip", "dist", "-o", "packed.zip", "--level=9"}).exit_code, kSuccess);
+    ASSERT_EQ(RunCli({"pack", "dist", "-o", "stored.zip", "--level=0"}).exit_code, kSuccess);
+    ASSERT_EQ(RunCli({"pack", "dist", "-o", "packed.zip", "--level=9"}).exit_code, kSuccess);
 
     std::vector<Entry> stored;
     std::string        error;
@@ -393,13 +476,13 @@ TEST(ZipRunTest, CompressionLevelReachesTheArchive)
     EXPECT_GT(stored_size, packed_size);
 }
 
-TEST(ZipRunTest, AnExistingOutputIsAFailure)
+TEST(PackRunTest, AnExistingOutputIsAFailure)
 {
-    CliWorkspace ws("zip-exists");
+    CliWorkspace ws("pack-exists");
     WriteTree(ws);
     ws.Write("out.zip", "not an archive");
 
-    const guchho::test::CliResult result = RunCli({"zip", "dist", "-o", "out.zip"});
+    const guchho::test::CliResult result = RunCli({"pack", "dist", "-o", "out.zip"});
 
     EXPECT_EQ(result.exit_code, kBuildFailure);
     EXPECT_TRUE(OutputContains(result.err, "Output file already exists: \"out.zip\""))
@@ -410,14 +493,14 @@ TEST(ZipRunTest, AnExistingOutputIsAFailure)
     EXPECT_EQ(ws.Read("out.zip"), "not an archive");
 }
 
-TEST(ZipRunTest, AllowOverwriteReplacesIt)
+TEST(PackRunTest, AllowOverwriteReplacesIt)
 {
-    CliWorkspace ws("zip-overwrite");
+    CliWorkspace ws("pack-overwrite");
     WriteTree(ws);
     ws.Write("out.zip", "not an archive");
 
     const guchho::test::CliResult result =
-        RunCli({"zip", "dist", "-o", "out.zip", "--allow-overwrite"});
+        RunCli({"pack", "dist", "-o", "out.zip", "--allow-overwrite"});
 
     EXPECT_EQ(result.exit_code, kSuccess) << result.err;
 
@@ -426,11 +509,11 @@ TEST(ZipRunTest, AllowOverwriteReplacesIt)
     EXPECT_TRUE(ReadArchive(ws.At("out.zip"), entries, error)) << error;
 }
 
-TEST(ZipRunTest, AnInputThatIsNotThereIsAFailure)
+TEST(PackRunTest, AnInputThatIsNotThereIsAFailure)
 {
-    CliWorkspace ws("zip-missing-input");
+    CliWorkspace ws("pack-missing-input");
 
-    const guchho::test::CliResult result = RunCli({"zip", "absent", "-o", "out.zip"});
+    const guchho::test::CliResult result = RunCli({"pack", "absent", "-o", "out.zip"});
 
     // The spelling was right and the path was not, which is the line between
     // 1 and 2 for this command.
@@ -439,14 +522,14 @@ TEST(ZipRunTest, AnInputThatIsNotThereIsAFailure)
     EXPECT_FALSE(ws.Exists("out.zip"));
 }
 
-TEST(ZipRunTest, TwoInputsWithTheSameNameAreRefused)
+TEST(PackRunTest, TwoInputsWithTheSameNameAreRefused)
 {
-    CliWorkspace ws("zip-colliding-roots");
+    CliWorkspace ws("pack-colliding-roots");
     WriteTree(ws, "one/dist");
     WriteTree(ws, "two/dist");
 
     const guchho::test::CliResult result =
-        RunCli({"zip", "one/dist", "two/dist", "-o", "out.zip"});
+        RunCli({"pack", "one/dist", "two/dist", "-o", "out.zip"});
 
     EXPECT_EQ(result.exit_code, kBuildFailure);
     EXPECT_TRUE(OutputContains(result.err, "Two inputs would produce the same archive path"))
@@ -454,33 +537,33 @@ TEST(ZipRunTest, TwoInputsWithTheSameNameAreRefused)
     EXPECT_FALSE(ws.Exists("out.zip"));
 }
 
-TEST(ZipRunTest, LeavesNoTemporaryFileBehind)
+TEST(PackRunTest, LeavesNoTemporaryFileBehind)
 {
-    CliWorkspace ws("zip-temp-file");
+    CliWorkspace ws("pack-temp-file");
     WriteTree(ws);
 
     // A failure after the archive has been named, which is the point at which
     // a temporary file would exist if one were ever created.
-    ASSERT_EQ(RunCli({"zip", "absent", "-o", "out.zip"}).exit_code, kBuildFailure);
+    ASSERT_EQ(RunCli({"pack", "absent", "-o", "out.zip"}).exit_code, kBuildFailure);
     EXPECT_EQ(ws.Tree().find(".tmp"), std::string::npos) << ws.Tree();
 
     // And the same on the way through a success, so a rename that quietly
     // failed to remove its own is caught rather than compounding.
-    ASSERT_EQ(RunCli({"zip", "dist", "-o", "out.zip"}).exit_code, kSuccess);
+    ASSERT_EQ(RunCli({"pack", "dist", "-o", "out.zip"}).exit_code, kSuccess);
     EXPECT_EQ(ws.Tree().find(".tmp"), std::string::npos) << ws.Tree();
 }
 
-TEST(ZipRunTest, WarnsWhenTheOutputIsInsideAnInputTree)
+TEST(PackRunTest, WarnsWhenTheOutputIsInsideAnInputTree)
 {
-    CliWorkspace ws("zip-output-inside");
+    CliWorkspace ws("pack-output-inside");
     WriteTree(ws);
 
     // The first run creates the archive; the second finds it standing inside
     // the tree it is about to read.
-    ASSERT_EQ(RunCli({"zip", "dist", "-o", "dist/out.zip"}).exit_code, kSuccess);
+    ASSERT_EQ(RunCli({"pack", "dist", "-o", "dist/out.zip"}).exit_code, kSuccess);
 
     const guchho::test::CliResult second =
-        RunCli({"zip", "dist", "-o", "dist/out.zip", "--allow-overwrite"});
+        RunCli({"pack", "dist", "-o", "dist/out.zip", "--allow-overwrite"});
 
     EXPECT_EQ(second.exit_code, kSuccess) << second.err;
     EXPECT_TRUE(OutputContains(second.out, "Created dist/out.zip")) << second.out;
@@ -493,14 +576,14 @@ TEST(ZipRunTest, WarnsWhenTheOutputIsInsideAnInputTree)
 // The same request, over the service
 // ---------------------------------------------------------------------------
 
-TEST(ZipServiceTest, AnswersWithAPathAndASize)
+TEST(PackServiceTest, AnswersWithAPathAndASize)
 {
-    CliWorkspace ws("zip-service-ok");
+    CliWorkspace ws("pack-service-ok");
     WriteTree(ws);
 
     const guchho::service::Value response =
         guchho::cli::RunServiceRequest(guchho::service::Value::Object({
-            {"command", guchho::service::Value::String("zip")},
+            {"command", guchho::service::Value::String("pack")},
             {"inputs", guchho::service::Value::Array({guchho::service::Value::String("dist")})},
             {"outFile", guchho::service::Value::String("out.zip")},
         }));
@@ -521,22 +604,22 @@ TEST(ZipServiceTest, AnswersWithAPathAndASize)
     EXPECT_TRUE(ws.Exists("out.zip"));
 }
 
-TEST(ZipServiceTest, NeedsAnInputList)
+TEST(PackServiceTest, NeedsAnInputList)
 {
     const guchho::service::Value response =
         guchho::cli::RunServiceRequest(guchho::service::Value::Object({
-            {"command", guchho::service::Value::String("zip")},
+            {"command", guchho::service::Value::String("pack")},
             {"outFile", guchho::service::Value::String("out.zip")},
         }));
 
     EXPECT_EQ(ErrorOf(response), "\"inputs\" must be an array of strings");
 }
 
-TEST(ZipServiceTest, RefusesAnEntryThatIsNotAPath)
+TEST(PackServiceTest, RefusesAnEntryThatIsNotAPath)
 {
     const guchho::service::Value response =
         guchho::cli::RunServiceRequest(guchho::service::Value::Object({
-            {"command", guchho::service::Value::String("zip")},
+            {"command", guchho::service::Value::String("pack")},
             {"inputs", guchho::service::Value::Array({guchho::service::Value::Number(3)})},
             {"outFile", guchho::service::Value::String("out.zip")},
         }));
@@ -544,22 +627,69 @@ TEST(ZipServiceTest, RefusesAnEntryThatIsNotAPath)
     EXPECT_EQ(ErrorOf(response), "every entry in \"inputs\" must be a string");
 }
 
-TEST(ZipServiceTest, NeedsAnOutfile)
+TEST(PackServiceTest, NeedsAnOutfile)
 {
     const guchho::service::Value response =
         guchho::cli::RunServiceRequest(guchho::service::Value::Object({
-            {"command", guchho::service::Value::String("zip")},
+            {"command", guchho::service::Value::String("pack")},
             {"inputs", guchho::service::Value::Array({guchho::service::Value::String("dist")})},
         }));
 
     EXPECT_EQ(ErrorOf(response), "\"outFile\" must be a string");
 }
 
-TEST(ZipServiceTest, RefusesALevelThatIsNotANumber)
+TEST(PackServiceTest, RefusesAFormatThatIsNotAString)
 {
     const guchho::service::Value response =
         guchho::cli::RunServiceRequest(guchho::service::Value::Object({
-            {"command", guchho::service::Value::String("zip")},
+            {"command", guchho::service::Value::String("pack")},
+            {"inputs", guchho::service::Value::Array({guchho::service::Value::String("dist")})},
+            {"outFile", guchho::service::Value::String("out.zip")},
+            {"format", guchho::service::Value::Number(9)},
+        }));
+
+    EXPECT_EQ(ErrorOf(response), "\"format\" must be a string");
+}
+
+TEST(PackServiceTest, RefusesAFormatTheEngineCannotWrite)
+{
+    CliWorkspace ws("pack-service-format");
+    WriteTree(ws);
+
+    // The shape is right and the value is not, so this is the engine's answer
+    // rather than a protocol one — the same words the command line prints,
+    // carrying the same note, arriving as a BuildFailure the host can throw.
+    const guchho::service::Value response =
+        guchho::cli::RunServiceRequest(guchho::service::Value::Object({
+            {"command", guchho::service::Value::String("pack")},
+            {"inputs", guchho::service::Value::Array({guchho::service::Value::String("dist")})},
+            {"outFile", guchho::service::Value::String("out.zip")},
+            {"format", guchho::service::Value::String("tar")},
+        }));
+
+    EXPECT_TRUE(OutputContains(ErrorOf(response), "Unsupported archive format"))
+        << ErrorOf(response);
+
+    const guchho::service::Value* errors = response.Find("errors");
+    ASSERT_TRUE(errors != nullptr && errors->IsArray());
+    ASSERT_EQ(errors->AsArray().size(), 1u);
+
+    const guchho::service::Value* id = errors->AsArray().front().Find("id");
+    ASSERT_TRUE(id != nullptr && id->IsString());
+    EXPECT_EQ(id->AsString(), "pack-failed");
+
+    const guchho::service::Value* notes = errors->AsArray().front().Find("notes");
+    ASSERT_TRUE(notes != nullptr && notes->IsArray());
+    ASSERT_FALSE(notes->AsArray().empty());
+
+    EXPECT_FALSE(ws.Exists("out.zip"));
+}
+
+TEST(PackServiceTest, RefusesALevelThatIsNotANumber)
+{
+    const guchho::service::Value response =
+        guchho::cli::RunServiceRequest(guchho::service::Value::Object({
+            {"command", guchho::service::Value::String("pack")},
             {"inputs", guchho::service::Value::Array({guchho::service::Value::String("dist")})},
             {"outFile", guchho::service::Value::String("out.zip")},
             {"level", guchho::service::Value::String("9")},
@@ -568,11 +698,11 @@ TEST(ZipServiceTest, RefusesALevelThatIsNotANumber)
     EXPECT_EQ(ErrorOf(response), "\"level\" must be a number");
 }
 
-TEST(ZipServiceTest, RefusesAnOverwriteThatIsNotABoolean)
+TEST(PackServiceTest, RefusesAnOverwriteThatIsNotABoolean)
 {
     const guchho::service::Value response =
         guchho::cli::RunServiceRequest(guchho::service::Value::Object({
-            {"command", guchho::service::Value::String("zip")},
+            {"command", guchho::service::Value::String("pack")},
             {"inputs", guchho::service::Value::Array({guchho::service::Value::String("dist")})},
             {"outFile", guchho::service::Value::String("out.zip")},
             {"overwrite", guchho::service::Value::String("yes")},
@@ -581,11 +711,11 @@ TEST(ZipServiceTest, RefusesAnOverwriteThatIsNotABoolean)
     EXPECT_EQ(ErrorOf(response), "\"overwrite\" must be a boolean");
 }
 
-TEST(ZipServiceTest, RefusesADateThatIsNotWholeSeconds)
+TEST(PackServiceTest, RefusesADateThatIsNotWholeSeconds)
 {
     const guchho::service::Value response =
         guchho::cli::RunServiceRequest(guchho::service::Value::Object({
-            {"command", guchho::service::Value::String("zip")},
+            {"command", guchho::service::Value::String("pack")},
             {"inputs", guchho::service::Value::Array({guchho::service::Value::String("dist")})},
             {"outFile", guchho::service::Value::String("out.zip")},
             {"date", guchho::service::Value::String("yesterday")},
@@ -594,14 +724,14 @@ TEST(ZipServiceTest, RefusesADateThatIsNotWholeSeconds)
     EXPECT_EQ(ErrorOf(response), "\"date\" must be a whole number of seconds");
 }
 
-TEST(ZipServiceTest, RefusesADateSentAsANumber)
+TEST(PackServiceTest, RefusesADateSentAsANumber)
 {
     // The protocol's number is a 32-bit integer, so a date cannot travel as
     // one — a host that sent it anyway would have it truncated rather than
     // refused, and would get an archive with a plausible, wrong timestamp.
     const guchho::service::Value response =
         guchho::cli::RunServiceRequest(guchho::service::Value::Object({
-            {"command", guchho::service::Value::String("zip")},
+            {"command", guchho::service::Value::String("pack")},
             {"inputs", guchho::service::Value::Array({guchho::service::Value::String("dist")})},
             {"outFile", guchho::service::Value::String("out.zip")},
             {"date", guchho::service::Value::Number(1500000000)},
@@ -611,14 +741,14 @@ TEST(ZipServiceTest, RefusesADateSentAsANumber)
               "\"date\" must be seconds since the Unix epoch, sent as a string");
 }
 
-TEST(ZipServiceTest, RefusesANegativeMode)
+TEST(PackServiceTest, RefusesANegativeMode)
 {
     // A negative number would become an enormous unsigned one on the way into
     // the core, and the complaint would be about a permission mask nobody asked
     // for rather than about the value that was sent.
     const guchho::service::Value response =
         guchho::cli::RunServiceRequest(guchho::service::Value::Object({
-            {"command", guchho::service::Value::String("zip")},
+            {"command", guchho::service::Value::String("pack")},
             {"inputs", guchho::service::Value::Array({guchho::service::Value::String("dist")})},
             {"outFile", guchho::service::Value::String("out.zip")},
             {"mode", guchho::service::Value::Number(-1)},
@@ -627,14 +757,14 @@ TEST(ZipServiceTest, RefusesANegativeMode)
     EXPECT_EQ(ErrorOf(response), "\"mode\" must not be negative");
 }
 
-TEST(ZipServiceTest, TakesADateAndAModeAndWritesTheArchive)
+TEST(PackServiceTest, TakesADateAndAModeAndWritesTheArchive)
 {
-    CliWorkspace ws("zip-service-metadata");
+    CliWorkspace ws("pack-service-metadata");
     WriteTree(ws);
 
     const guchho::service::Value response =
         guchho::cli::RunServiceRequest(guchho::service::Value::Object({
-            {"command", guchho::service::Value::String("zip")},
+            {"command", guchho::service::Value::String("pack")},
             {"inputs", guchho::service::Value::Array({guchho::service::Value::String("dist")})},
             {"outFile", guchho::service::Value::String("out.zip")},
             {"date", guchho::service::Value::String("1500000000")},
@@ -658,13 +788,13 @@ TEST(ZipServiceTest, TakesADateAndAModeAndWritesTheArchive)
     }
 }
 
-TEST(ZipServiceTest, ReportsAFailureWithTheEnginesOwnWords)
+TEST(PackServiceTest, ReportsAFailureWithTheEnginesOwnWords)
 {
-    CliWorkspace ws("zip-service-failure");
+    CliWorkspace ws("pack-service-failure");
 
     const guchho::service::Value response =
         guchho::cli::RunServiceRequest(guchho::service::Value::Object({
-            {"command", guchho::service::Value::String("zip")},
+            {"command", guchho::service::Value::String("pack")},
             {"inputs", guchho::service::Value::Array({guchho::service::Value::String("absent")})},
             {"outFile", guchho::service::Value::String("out.zip")},
         }));
@@ -682,7 +812,7 @@ TEST(ZipServiceTest, ReportsAFailureWithTheEnginesOwnWords)
     const guchho::service::Value& message = errors->AsArray().front();
     const guchho::service::Value* id      = message.Find("id");
     ASSERT_TRUE(id != nullptr && id->IsString());
-    EXPECT_EQ(id->AsString(), "zip-failed");
+    EXPECT_EQ(id->AsString(), "pack-failed");
 
     const guchho::service::Value* notes = message.Find("notes");
     ASSERT_TRUE(notes != nullptr && notes->IsArray());
@@ -690,20 +820,20 @@ TEST(ZipServiceTest, ReportsAFailureWithTheEnginesOwnWords)
     EXPECT_FALSE(ws.Exists("out.zip"));
 }
 
-TEST(ZipServiceTest, CarriesWarningsBack)
+TEST(PackServiceTest, CarriesWarningsBack)
 {
-    CliWorkspace ws("zip-service-warnings");
+    CliWorkspace ws("pack-service-warnings");
     WriteTree(ws);
 
     guchho::cli::RunServiceRequest(guchho::service::Value::Object({
-        {"command", guchho::service::Value::String("zip")},
+        {"command", guchho::service::Value::String("pack")},
         {"inputs", guchho::service::Value::Array({guchho::service::Value::String("dist")})},
         {"outFile", guchho::service::Value::String("dist/out.zip")},
     }));
 
     const guchho::service::Value second =
         guchho::cli::RunServiceRequest(guchho::service::Value::Object({
-            {"command", guchho::service::Value::String("zip")},
+            {"command", guchho::service::Value::String("pack")},
             {"inputs", guchho::service::Value::Array({guchho::service::Value::String("dist")})},
             {"outFile", guchho::service::Value::String("dist/out.zip")},
             {"overwrite", guchho::service::Value::Bool(true)},

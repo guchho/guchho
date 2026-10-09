@@ -42,8 +42,8 @@ set(GUCHHO_COMMON_SOURCES
     core/filesystem/filesystem_zip.cpp
     core/filesystem/miniz/miniz.cpp
 
-    # core/zip/
-    core/zip/zip.cpp
+    # core/pack/
+    core/pack/pack.cpp
 
     # core/sourcemap/
     core/sourcemap/sourcemap.cpp
@@ -445,7 +445,7 @@ set(GUCHHO_CLI_SOURCES
     cli/cli_compile.cpp
     cli/cli_watch.cpp
     cli/cli_mangle.cpp
-    cli/cli_zip.cpp
+    cli/cli_pack.cpp
     service/json.cpp
     service/protocol.cpp
 )

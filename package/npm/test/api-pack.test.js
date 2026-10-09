@@ -1,7 +1,7 @@
-// guchho.zip(), reached the way a caller reaches it.
+// guchho.pack(), reached the way a caller reaches it.
 //
-//     import { zip } from "guchho";
-//     const result = await zip({ inputs: ["dist"], outFile: "release.zip" });
+//     import { pack } from "guchho";
+//     const result = await pack({ inputs: ["dist"], outFile: "release.zip" });
 //
 // The whole of the public contract: an options object in, a promise of a path
 // and a size out, and a throw when either half did not happen. What this file
@@ -32,7 +32,7 @@ const needsBinary = { skip: skipWithoutBinary() };
 
 // A temporary directory with one file in it, registered for cleanup.
 function makeTree(files = {}) {
-    const root = makeTempDir("zip");
+    const root = makeTempDir("pack");
     const sources = { "dist/app.js": "let a = 1;\n", ...files };
 
     for (const [relative, contents] of Object.entries(sources)) {
@@ -43,7 +43,7 @@ function makeTree(files = {}) {
     return root;
 }
 
-// The zip local-file-header signature. The one assertion that says "this is an
+// The ZIP local-file-header signature. The one assertion that says "this is an
 // archive" rather than "this is a file at the path the result named" — the
 // latter is true even when the engine wrote nothing and the caller is reading
 // a file from an earlier run.
@@ -59,70 +59,92 @@ function isZip(file) {
 }
 
 describe("the module's shape", () => {
-    it("has zip as a named binding", () => {
-        assert.equal(typeof guchho.zip, "function");
+    it("has pack as a named binding", () => {
+        assert.equal(typeof guchho.pack, "function");
     });
 });
 
-describe("zip() validates what it is given", () => {
+describe("pack() validates what it is given", () => {
     it("needs an options object", async () => {
-        await assert.rejects(() => guchho.zip(), TypeError);
-        await assert.rejects(() => guchho.zip(null), TypeError);
-        await assert.rejects(() => guchho.zip("dist"), TypeError);
-        await assert.rejects(() => guchho.zip(["dist"]), TypeError);
+        await assert.rejects(() => guchho.pack(), TypeError);
+        await assert.rejects(() => guchho.pack(null), TypeError);
+        await assert.rejects(() => guchho.pack("dist"), TypeError);
+        await assert.rejects(() => guchho.pack(["dist"]), TypeError);
     });
 
     it("needs a non-empty list of paths", async () => {
-        await assert.rejects(() => guchho.zip({ outFile: "a.zip" }), TypeError);
-        await assert.rejects(() => guchho.zip({ outFile: "a.zip", inputs: [] }), TypeError);
+        await assert.rejects(() => guchho.pack({ outFile: "a.zip" }), TypeError);
+        await assert.rejects(() => guchho.pack({ outFile: "a.zip", inputs: [] }), TypeError);
         await assert.rejects(
-            () => guchho.zip({ outFile: "a.zip", inputs: "dist" }),
+            () => guchho.pack({ outFile: "a.zip", inputs: "dist" }),
             TypeError
         );
     });
 
     it("needs every entry to be a path", async () => {
         await assert.rejects(
-            () => guchho.zip({ outFile: "a.zip", inputs: ["dist", 3] }),
+            () => guchho.pack({ outFile: "a.zip", inputs: ["dist", 3] }),
             TypeError
         );
     });
 
     it("needs an outFile", async () => {
-        await assert.rejects(() => guchho.zip({ inputs: ["dist"] }), TypeError);
-        await assert.rejects(() => guchho.zip({ inputs: ["dist"], outFile: "" }), TypeError);
-        await assert.rejects(() => guchho.zip({ inputs: ["dist"], outFile: 7 }), TypeError);
+        await assert.rejects(() => guchho.pack({ inputs: ["dist"] }), TypeError);
+        await assert.rejects(() => guchho.pack({ inputs: ["dist"], outFile: "" }), TypeError);
+        await assert.rejects(() => guchho.pack({ inputs: ["dist"], outFile: 7 }), TypeError);
     });
 
     it("refuses a level it could not send", async () => {
         const base = { inputs: ["dist"], outFile: "a.zip" };
-        await assert.rejects(() => guchho.zip({ ...base, level: 9.5 }), TypeError);
-        await assert.rejects(() => guchho.zip({ ...base, level: "9" }), TypeError);
-        await assert.rejects(() => guchho.zip({ ...base, level: -1 }), RangeError);
-        await assert.rejects(() => guchho.zip({ ...base, level: 10 }), RangeError);
+        await assert.rejects(() => guchho.pack({ ...base, level: 9.5 }), TypeError);
+        await assert.rejects(() => guchho.pack({ ...base, level: "9" }), TypeError);
+        await assert.rejects(() => guchho.pack({ ...base, level: -1 }), RangeError);
+        await assert.rejects(() => guchho.pack({ ...base, level: 10 }), RangeError);
     });
 
     it("refuses an overwrite it could not send", async () => {
         await assert.rejects(
-            () => guchho.zip({ inputs: ["dist"], outFile: "a.zip", overwrite: "yes" }),
+            () => guchho.pack({ inputs: ["dist"], outFile: "a.zip", overwrite: "yes" }),
             TypeError
         );
     });
 
     it("refuses a date that is not a date", async () => {
         const base = { inputs: ["dist"], outFile: "a.zip" };
-        await assert.rejects(() => guchho.zip({ ...base, date: 1500000000 }), TypeError);
-        await assert.rejects(() => guchho.zip({ ...base, date: "2017" }), TypeError);
-        await assert.rejects(() => guchho.zip({ ...base, date: new Date("nope") }), RangeError);
+        await assert.rejects(() => guchho.pack({ ...base, date: 1500000000 }), TypeError);
+        await assert.rejects(() => guchho.pack({ ...base, date: "2017" }), TypeError);
+        await assert.rejects(() => guchho.pack({ ...base, date: new Date("nope") }), RangeError);
     });
 
     it("refuses a mode outside the bits a permission mask holds", async () => {
         const base = { inputs: ["dist"], outFile: "a.zip" };
         // 0o755 with a fraction: the right value with the wrong type of number.
-        await assert.rejects(() => guchho.zip({ ...base, mode: 493.5 }), TypeError);
-        await assert.rejects(() => guchho.zip({ ...base, mode: "755" }), TypeError);
-        await assert.rejects(() => guchho.zip({ ...base, mode: -1 }), RangeError);
-        await assert.rejects(() => guchho.zip({ ...base, mode: 0o100000 }), RangeError);
+        await assert.rejects(() => guchho.pack({ ...base, mode: 493.5 }), TypeError);
+        await assert.rejects(() => guchho.pack({ ...base, mode: "755" }), TypeError);
+        await assert.rejects(() => guchho.pack({ ...base, mode: -1 }), RangeError);
+        await assert.rejects(() => guchho.pack({ ...base, mode: 0o100000 }), RangeError);
+    });
+
+    it("refuses a format it could not write", async () => {
+        const base = { inputs: ["dist"], outFile: "a.zip" };
+        await assert.rejects(() => guchho.pack({ ...base, format: 9 }), TypeError);
+        await assert.rejects(() => guchho.pack({ ...base, format: "" }), RangeError);
+        await assert.rejects(() => guchho.pack({ ...base, format: "tar" }), RangeError);
+
+        // Exact spelling, as the engine compares it: "ZIP" is a different
+        // answer rather than a near miss, and a caller told now has not paid
+        // for a service start to hear it.
+        await assert.rejects(() => guchho.pack({ ...base, format: "ZIP" }), RangeError);
+    });
+
+    it("returns a Promise, even when it is about to reject", async () => {
+        // The whole API is awaited, so the return shape is part of the contract
+        // even on the path that fails. An async function rejects rather than
+        // throws, which is the difference between `await` and `try` at the call
+        // site — and this one never reaches a service, so it needs no binary.
+        const pending = guchho.pack({ inputs: [] });
+        assert.ok(pending instanceof Promise, "pack() should return a Promise");
+        await assert.rejects(() => pending, TypeError);
     });
 
     it("fails before starting anything when the options are wrong", async () => {
@@ -130,7 +152,7 @@ describe("zip() validates what it is given", () => {
         // skip rather than a failure, and a validation mistake is exactly what
         // these tests are about. Reaching the TypeError at all proves the
         // service was never asked.
-        await assert.rejects(() => guchho.zip({ inputs: [] }), (error) => {
+        await assert.rejects(() => guchho.pack({ inputs: [] }), (error) => {
             assert.ok(error instanceof TypeError, `expected a TypeError, got ${error}`);
             assert.ok(!(error instanceof guchho.BuildFailure));
             return true;
@@ -138,12 +160,12 @@ describe("zip() validates what it is given", () => {
     });
 });
 
-describe("zip()", () => {
+describe("pack()", () => {
     it("writes the archive and reports where and how big", needsBinary, async () => {
         const root = makeTree();
         const outFile = path.join(root, "release.zip");
 
-        const result = await guchho.zip({
+        const result = await guchho.pack({
             inputs: [path.join(root, "dist")],
             outFile,
         });
@@ -162,7 +184,7 @@ describe("zip()", () => {
         const root = makeTree({ "dist/assets/logo.svg": "<svg/>" });
         const outFile = path.join(root, "out.zip");
 
-        await guchho.zip({ inputs: [path.join(root, "dist")], outFile });
+        await guchho.pack({ inputs: [path.join(root, "dist")], outFile });
 
         // Read from the end of the file, where the central directory is: the
         // names live there rather than in the local headers, and a reader that
@@ -179,7 +201,7 @@ describe("zip()", () => {
         fs.writeFileSync(outFile, "not an archive");
 
         await assert.rejects(
-            () => guchho.zip({ inputs: [path.join(root, "dist")], outFile }),
+            () => guchho.pack({ inputs: [path.join(root, "dist")], outFile }),
             (error) => {
                 assert.ok(error instanceof guchho.BuildFailure);
                 assert.match(error.message, /already exists/);
@@ -188,7 +210,7 @@ describe("zip()", () => {
         );
         assert.equal(fs.readFileSync(outFile, "utf8"), "not an archive");
 
-        const result = await guchho.zip({
+        const result = await guchho.pack({
             inputs: [path.join(root, "dist")],
             outFile,
             overwrite: true,
@@ -201,7 +223,7 @@ describe("zip()", () => {
         const root = makeTree();
 
         await assert.rejects(
-            () => guchho.zip({
+            () => guchho.pack({
                 inputs: [path.join(root, "absent")],
                 outFile: path.join(root, "out.zip"),
             }),
@@ -218,12 +240,12 @@ describe("zip()", () => {
         const root = makeTree();
         const outFile = path.join(root, "dist/out.zip");
 
-        await guchho.zip({ inputs: [path.join(root, "dist")], outFile });
+        await guchho.pack({ inputs: [path.join(root, "dist")], outFile });
 
         // The archive is now standing inside the tree being read, which is the
         // case a caller has to be told about: without the warning the archive
         // would quietly contain itself on the next run.
-        const second = await guchho.zip({
+        const second = await guchho.pack({
             inputs: [path.join(root, "dist")],
             outFile,
             overwrite: true,
@@ -237,7 +259,7 @@ describe("zip()", () => {
         const root = makeTree();
 
         await assert.rejects(
-            () => guchho.zip({
+            () => guchho.pack({
                 inputs: [path.join(root, "absent")],
                 outFile: path.join(root, "a.zip"),
             }),
@@ -246,7 +268,7 @@ describe("zip()", () => {
 
         // A service that gave up after refusing a request would leave every
         // later call waiting for an answer that is not coming.
-        const ok = await guchho.zip({
+        const ok = await guchho.pack({
             inputs: [path.join(root, "dist")],
             outFile: path.join(root, "b.zip"),
         });
@@ -257,7 +279,7 @@ describe("zip()", () => {
         const root = makeTree();
         const outFile = path.join(root, "out.zip");
 
-        const result = await guchho.zip({
+        const result = await guchho.pack({
             inputs: [path.join(root, "dist")],
             outFile,
             level: 0,
@@ -274,11 +296,25 @@ describe("zip()", () => {
         const source = path.join(root, "dist");
         const outFile = path.join(source, "bundle.zip");
 
-        await guchho.zip({ inputs: [source], outFile });
+        await guchho.pack({ inputs: [source], outFile });
 
         // The source file is still there afterwards — the archive skipped
         // itself rather than reading the half-written bytes it was creating.
         assert.ok(fs.existsSync(path.join(source, "app.js")));
+        assert.ok(isZip(outFile));
+    });
+
+    it("writes the default format when it is named out loud", needsBinary, async () => {
+        const root = makeTree();
+        const outFile = path.join(root, "release.zip");
+
+        const result = await guchho.pack({
+            inputs: [path.join(root, "dist")],
+            outFile,
+            format: "zip",
+        });
+
+        assert.equal(result.path, outFile);
         assert.ok(isZip(outFile));
     });
 });

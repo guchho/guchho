@@ -164,7 +164,7 @@ void printUsage(std::ostream& os) {
        << "  clean               Remove build output\n"
        << "  info                Show environment info\n"
        << "  transform           Transform source from stdin\n"
-       << "  zip <input...>      Create a zip archive\n"
+       << "  pack <input...>     Create an archive\n"
        << "\n"
        << "Run 'guchho <command> --help' for command-specific help.\n"
        << "Run 'guchho --version' for version information.\n";
@@ -499,14 +499,19 @@ void printInfoHelp(std::ostream& os) {
        << "Show environment and configuration information.\n";
 }
 
-// The zip command.
+// The pack command.
 //
-// Four options and nothing else, which puts this between init — the command
+// Five options and nothing else, which puts this between init — the command
 // this one is closest to, being a list of inputs and a short set of choices
 // about the output — and clean, which has one. The options are ordered the way
-// a person meets them: where the archive goes, how hard it is compressed, and
-// then the one flag that changes what would otherwise be a refusal into a
-// replacement.
+// a person meets them: what the archive is to be, where it goes, how hard it
+// is compressed, and then the one flag that changes what would otherwise be a
+// refusal into a replacement.
+//
+// "--format" is listed with its limits written into the line. There is one
+// format today, and a reader who has to discover that by being refused has
+// been taught the answer the hard way. The list lives in the library and is
+// asked of it, so this line and the refusal cannot drift apart.
 //
 // "--allow-overwrite" is spelled out rather than shortened to "-f" because it
 // is not a switch somebody reaches for in a hurry: it says "yes, discard the
@@ -527,31 +532,32 @@ void printInfoHelp(std::ostream& os) {
 // command with a paragraph there, and for the same reason — it is information
 // about every run rather than about one flag.
 //
-// Input:  called by the zip command when the argument list contains --help or
+// Input:  called by the pack command when the argument list contains --help or
 //         -h
 // Output: the usage line, one sentence saying what it creates, the paragraph
-//         above, the four options, and four examples.
-void printZipHelp(std::ostream& os) {
-    os << "Usage: guchho zip <input...> [options]\n"
+//         above, the five options, and four examples.
+void printPackHelp(std::ostream& os) {
+    os << "Usage: guchho pack <input...> [options]\n"
        << "\n"
-       << "Create a zip archive from files and directories.\n"
+       << "Create an archive from files and directories.\n"
        << "\n"
-       << "Every input is stored under its own last path component: 'guchho zip dist'\n"
-       << "stores the tree under dist/, and 'guchho zip src/app.js' stores the file as\n"
+       << "Every input is stored under its own last path component: 'guchho pack dist'\n"
+       << "stores the tree under dist/, and 'guchho pack src/app.js' stores the file as\n"
        << "app.js. Symlinks found inside a tree are skipped with a warning rather than\n"
        << "followed.\n"
        << "\n"
        << "Options:\n"
+       << "  --format=<format>       Archive format (default: zip; only zip is supported)\n"
        << "  -o, --outfile=<path>    Write the archive to this path (default: <input>.zip)\n"
        << "  --level=<0-9>           Compression level (default: 6)\n"
        << "  --allow-overwrite       Replace the output if it already exists\n"
        << "  -h, --help              Show this help message\n"
        << "\n"
        << "Examples:\n"
-       << "  guchho zip dist/\n"
-       << "  guchho zip dist/ -o release.zip\n"
-       << "  guchho zip dist/ src/ -o release.zip\n"
-       << "  guchho zip dist/ --level=9\n";
+       << "  guchho pack dist/\n"
+       << "  guchho pack dist/ -o release.zip\n"
+       << "  guchho pack dist/ src/ -o release.zip\n"
+       << "  guchho pack dist/ --level=9\n";
 }
 
 // =============================================================================

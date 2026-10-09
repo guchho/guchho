@@ -477,7 +477,7 @@ namespace guchho::cli {
         kClean,
         kInfo,
         kTransform,
-        kZip,
+        kPack,
     };
 
     // Whether the flags being parsed are the ones the command line itself will
@@ -538,7 +538,7 @@ namespace guchho::cli {
     void printInitHelp(std::ostream& os);
     void printCleanHelp(std::ostream& os);
     void printInfoHelp(std::ostream& os);
-    void printZipHelp(std::ostream& os);
+    void printPackHelp(std::ostream& os);
 
     void printBuildSummary(const api::BuildResult& result, double elapsed_ms, bool quiet);
 
@@ -708,7 +708,7 @@ namespace guchho::cli {
     int runInit(const std::vector<std::string>& args);
     int runClean(const std::vector<std::string>& args);
     int runInfo(const std::vector<std::string>& args);
-    int runZip(const std::vector<std::string>& args);
+    int runPack(const std::vector<std::string>& args);
 
 // =============================================================================
 // End of the command line surface. Everything above is pure declaration plus

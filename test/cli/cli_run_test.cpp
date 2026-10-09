@@ -40,7 +40,7 @@ namespace {
 // on its own rather than a diff nobody reads.
 const std::vector<std::string> kCommandWords = {
     "build", "dev", "serve", "watch", "init", "clean", "info", "transform",
-    "zip",
+    "pack",
 };
 
 } // namespace

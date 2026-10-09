@@ -1,5 +1,5 @@
 // =============================================================================
-// test/core/zip_test.cpp — what guchho::zip puts into an archive, and what it
+// test/core/pack_test.cpp — what guchho::pack puts into an archive, and what it
 // refuses to
 // =============================================================================
 //
@@ -21,7 +21,7 @@
 
 #include "guchho/filesystem.hpp"
 #include "guchho/miniz.hpp"
-#include "guchho/zip.hpp"
+#include "guchho/pack.hpp"
 
 #include <chrono>
 #include <cstdint>
@@ -44,10 +44,10 @@ using guchho::filesystem::PathToUTF8;
 // an fs::path straight from a UTF-8 string would read those bytes as the
 // system's narrow encoding on Windows, and a name with an accent in it would
 // arrive at the filesystem as two entirely different characters.
-class ZipTempDir
+class PackTempDir
 {
 public:
-    explicit ZipTempDir(const std::string& label)
+    explicit PackTempDir(const std::string& label)
     {
         static int counter = 0;
         path_ = fs::temp_directory_path() /
@@ -62,14 +62,14 @@ public:
         fs::create_directories(path_, ec);
     }
 
-    ~ZipTempDir()
+    ~PackTempDir()
     {
         std::error_code ec;
         fs::remove_all(path_, ec);
     }
 
-    ZipTempDir(const ZipTempDir&)            = delete;
-    ZipTempDir& operator=(const ZipTempDir&) = delete;
+    PackTempDir(const PackTempDir&)            = delete;
+    PackTempDir& operator=(const PackTempDir&) = delete;
 
     fs::path Path(const std::string& relative) const
     {
@@ -232,9 +232,9 @@ constexpr std::int64_t kTestDate = 1500000000;
 
 // A plain request with one input and one output, which most tests only need
 // to vary by a field or two.
-guchho::zip::ZipOptions OptionsFor(const std::string& input, const std::string& out)
+guchho::pack::PackOptions OptionsFor(const std::string& input, const std::string& out)
 {
-    guchho::zip::ZipOptions options;
+    guchho::pack::PackOptions options;
     options.inputs = {input};
     options.outFile = out;
     return options;
@@ -246,43 +246,43 @@ guchho::zip::ZipOptions OptionsFor(const std::string& input, const std::string& 
 // DefaultOutFile
 // ===========================================================================
 
-TEST(ZipDefaultOutFileTest, DirectoryWithoutExtensionGainsOne)
+TEST(PackDefaultOutFileTest, DirectoryWithoutExtensionGainsOne)
 {
-    EXPECT_EQ(guchho::zip::DefaultOutFile("dist"), "dist.zip");
-    EXPECT_EQ(guchho::zip::DefaultOutFile("dist/"), "dist.zip");
+    EXPECT_EQ(guchho::pack::DefaultOutFile("dist"), "dist.zip");
+    EXPECT_EQ(guchho::pack::DefaultOutFile("dist/"), "dist.zip");
     // The directory part of the input is kept, so the archive lands beside
     // what it was made from rather than wherever the command was run.
-    EXPECT_EQ(guchho::zip::DefaultOutFile("./dist"), "./dist.zip");
+    EXPECT_EQ(guchho::pack::DefaultOutFile("./dist"), "./dist.zip");
 }
 
-TEST(ZipDefaultOutFileTest, ExistingExtensionIsReplaced)
+TEST(PackDefaultOutFileTest, ExistingExtensionIsReplaced)
 {
-    EXPECT_EQ(guchho::zip::DefaultOutFile("app.js"), "app.zip");
-    EXPECT_EQ(guchho::zip::DefaultOutFile("src/index.html"), "src/index.zip");
-    EXPECT_EQ(guchho::zip::DefaultOutFile("report.json"), "report.zip");
+    EXPECT_EQ(guchho::pack::DefaultOutFile("app.js"), "app.zip");
+    EXPECT_EQ(guchho::pack::DefaultOutFile("src/index.html"), "src/index.zip");
+    EXPECT_EQ(guchho::pack::DefaultOutFile("report.json"), "report.zip");
 }
 
-TEST(ZipDefaultOutFileTest, HiddenFileKeepsItsDot)
+TEST(PackDefaultOutFileTest, HiddenFileKeepsItsDot)
 {
-    EXPECT_EQ(guchho::zip::DefaultOutFile(".bashrc"), ".bashrc.zip");
+    EXPECT_EQ(guchho::pack::DefaultOutFile(".bashrc"), ".bashrc.zip");
 }
 
-TEST(ZipDefaultOutFileTest, AlreadyAnArchiveIsStillNamedAfterItself)
+TEST(PackDefaultOutFileTest, AlreadyAnArchiveIsStillNamedAfterItself)
 {
-    EXPECT_EQ(guchho::zip::DefaultOutFile("release.zip"), "release.zip");
+    EXPECT_EQ(guchho::pack::DefaultOutFile("release.zip"), "release.zip");
 }
 
 // ===========================================================================
 // The happy path
 // ===========================================================================
 
-TEST(ZipCreateTest, SingleFileIsStoredUnderItsOwnName)
+TEST(PackCreateTest, SingleFileIsStoredUnderItsOwnName)
 {
-    ZipTempDir dir("single");
+    PackTempDir dir("single");
     dir.Write("app.js", "console.log(1);\n");
 
-    guchho::zip::ZipResult result =
-        guchho::zip::CreateZip(OptionsFor(dir.At("app.js"), dir.At("out.zip")));
+    guchho::pack::PackResult result =
+        guchho::pack::CreatePack(OptionsFor(dir.At("app.js"), dir.At("out.zip")));
 
     ASSERT_TRUE(result.Ok()) << result.error;
     EXPECT_EQ(result.path, dir.At("out.zip"));
@@ -298,16 +298,16 @@ TEST(ZipCreateTest, SingleFileIsStoredUnderItsOwnName)
     EXPECT_FALSE(entries[0].is_dir);
 }
 
-TEST(ZipCreateTest, DirectoryIsArchivedUnderItsOwnName)
+TEST(PackCreateTest, DirectoryIsArchivedUnderItsOwnName)
 {
-    ZipTempDir dir("tree");
+    PackTempDir dir("tree");
     dir.Write("dist/index.html", "<html></html>");
     dir.Write("dist/app.js", "let a = 1;\n");
     dir.Write("dist/assets/logo.svg", "<svg/>");
     dir.MakeDir("dist/empty");
 
-    guchho::zip::ZipResult result =
-        guchho::zip::CreateZip(OptionsFor(dir.At("dist"), dir.At("out.zip")));
+    guchho::pack::PackResult result =
+        guchho::pack::CreatePack(OptionsFor(dir.At("dist"), dir.At("out.zip")));
 
     ASSERT_TRUE(result.Ok()) << result.error;
 
@@ -333,13 +333,13 @@ TEST(ZipCreateTest, DirectoryIsArchivedUnderItsOwnName)
     EXPECT_TRUE(empty->contents.empty());
 }
 
-TEST(ZipCreateTest, EntrySeparatorsAreForwardSlashesOnEveryPlatform)
+TEST(PackCreateTest, EntrySeparatorsAreForwardSlashesOnEveryPlatform)
 {
-    ZipTempDir dir("separators");
+    PackTempDir dir("separators");
     dir.Write("dist/sub/leaf.txt", "leaf");
 
-    guchho::zip::ZipResult result =
-        guchho::zip::CreateZip(OptionsFor(dir.At("dist"), dir.At("out.zip")));
+    guchho::pack::PackResult result =
+        guchho::pack::CreatePack(OptionsFor(dir.At("dist"), dir.At("out.zip")));
     ASSERT_TRUE(result.Ok()) << result.error;
 
     std::vector<ArchiveEntry> entries;
@@ -353,14 +353,14 @@ TEST(ZipCreateTest, EntrySeparatorsAreForwardSlashesOnEveryPlatform)
     }
 }
 
-TEST(ZipCreateTest, HiddenFilesAreIncluded)
+TEST(PackCreateTest, HiddenFilesAreIncluded)
 {
-    ZipTempDir dir("hidden");
+    PackTempDir dir("hidden");
     dir.Write("proj/.gitignore", "*.log\n");
     dir.Write("proj/visible.txt", "hi");
 
-    guchho::zip::ZipResult result =
-        guchho::zip::CreateZip(OptionsFor(dir.At("proj"), dir.At("out.zip")));
+    guchho::pack::PackResult result =
+        guchho::pack::CreatePack(OptionsFor(dir.At("proj"), dir.At("out.zip")));
     ASSERT_TRUE(result.Ok()) << result.error;
 
     std::vector<ArchiveEntry> entries;
@@ -369,13 +369,13 @@ TEST(ZipCreateTest, HiddenFilesAreIncluded)
     EXPECT_TRUE(Contains(Names(entries), "proj/.gitignore"));
 }
 
-TEST(ZipCreateTest, EmptyFileIsStored)
+TEST(PackCreateTest, EmptyFileIsStored)
 {
-    ZipTempDir dir("empty-file");
+    PackTempDir dir("empty-file");
     dir.Write("zero.bin", "");
 
-    guchho::zip::ZipResult result =
-        guchho::zip::CreateZip(OptionsFor(dir.At("zero.bin"), dir.At("out.zip")));
+    guchho::pack::PackResult result =
+        guchho::pack::CreatePack(OptionsFor(dir.At("zero.bin"), dir.At("out.zip")));
     ASSERT_TRUE(result.Ok()) << result.error;
 
     std::vector<ArchiveEntry> entries;
@@ -385,9 +385,9 @@ TEST(ZipCreateTest, EmptyFileIsStored)
     EXPECT_EQ(entries[0].contents, "");
 }
 
-TEST(ZipCreateTest, CurrentDirectoryHasNoPrefix)
+TEST(PackCreateTest, CurrentDirectoryHasNoPrefix)
 {
-    ZipTempDir dir("dot");
+    PackTempDir dir("dot");
     dir.Write("index.html", "<html></html>");
     dir.Write("src/main.js", "main();");
 
@@ -397,8 +397,8 @@ TEST(ZipCreateTest, CurrentDirectoryHasNoPrefix)
     // "." names the tree this command is standing in, and there is no name
     // for it that would mean the same thing on another machine — so its
     // contents go to the top of the archive.
-    guchho::zip::ZipResult result =
-        guchho::zip::CreateZip(OptionsFor(".", dir.At("out.zip")));
+    guchho::pack::PackResult result =
+        guchho::pack::CreatePack(OptionsFor(".", dir.At("out.zip")));
     ASSERT_TRUE(result.Ok()) << result.error;
 
     std::vector<ArchiveEntry> entries;
@@ -409,15 +409,15 @@ TEST(ZipCreateTest, CurrentDirectoryHasNoPrefix)
     EXPECT_TRUE(Contains(Names(entries), "src/"));
 }
 
-TEST(ZipCreateTest, NestedInputUsesOnlyItsLastComponent)
+TEST(PackCreateTest, NestedInputUsesOnlyItsLastComponent)
 {
-    ZipTempDir dir("nested");
+    PackTempDir dir("nested");
     dir.Write("a/b/dist/file.txt", "x");
 
     // "../../dist" and "./dist" and "dist" are three spellings of one root,
     // and none of them carries the journey to it into the archive.
-    guchho::zip::ZipResult result =
-        guchho::zip::CreateZip(OptionsFor(dir.At("a/b/dist"), dir.At("out.zip")));
+    guchho::pack::PackResult result =
+        guchho::pack::CreatePack(OptionsFor(dir.At("a/b/dist"), dir.At("out.zip")));
     ASSERT_TRUE(result.Ok()) << result.error;
 
     std::vector<ArchiveEntry> entries;
@@ -427,14 +427,14 @@ TEST(ZipCreateTest, NestedInputUsesOnlyItsLastComponent)
     EXPECT_TRUE(Contains(Names(entries), "dist/"));
 }
 
-TEST(ZipCreateTest, ParentDirectoryComponentsNeverReachTheArchive)
+TEST(PackCreateTest, ParentDirectoryComponentsNeverReachTheArchive)
 {
-    ZipTempDir dir("dotdot");
+    PackTempDir dir("dotdot");
     dir.Write("a/inner/file.txt", "x");
 
     const std::string input = dir.At("a") + "/inner/../inner";
-    guchho::zip::ZipResult result =
-        guchho::zip::CreateZip(OptionsFor(input, dir.At("out.zip")));
+    guchho::pack::PackResult result =
+        guchho::pack::CreatePack(OptionsFor(input, dir.At("out.zip")));
     ASSERT_TRUE(result.Ok()) << result.error;
 
     std::vector<ArchiveEntry> entries;
@@ -446,17 +446,17 @@ TEST(ZipCreateTest, ParentDirectoryComponentsNeverReachTheArchive)
     EXPECT_TRUE(Contains(Names(entries), "inner/file.txt"));
 }
 
-TEST(ZipCreateTest, MultipleInputsKeepDistinctRoots)
+TEST(PackCreateTest, MultipleInputsKeepDistinctRoots)
 {
-    ZipTempDir dir("multi");
+    PackTempDir dir("multi");
     dir.Write("dist/app.js", "a");
     dir.Write("src/main.js", "b");
 
-    guchho::zip::ZipOptions options;
+    guchho::pack::PackOptions options;
     options.inputs  = {dir.At("dist"), dir.At("src")};
     options.outFile = dir.At("out.zip");
 
-    guchho::zip::ZipResult result = guchho::zip::CreateZip(options);
+    guchho::pack::PackResult result = guchho::pack::CreatePack(options);
     ASSERT_TRUE(result.Ok()) << result.error;
 
     std::vector<ArchiveEntry> entries;
@@ -466,14 +466,14 @@ TEST(ZipCreateTest, MultipleInputsKeepDistinctRoots)
     EXPECT_TRUE(Contains(Names(entries), "src/main.js"));
 }
 
-TEST(ZipCreateTest, UnicodeFilenamesSurvive)
+TEST(PackCreateTest, UnicodeFilenamesSurvive)
 {
-    ZipTempDir dir("unicode");
+    PackTempDir dir("unicode");
     dir.Write("proj/café.txt", "buerger");
     dir.Write("proj/日本語.md", "nihongo");
 
-    guchho::zip::ZipResult result =
-        guchho::zip::CreateZip(OptionsFor(dir.At("proj"), dir.At("out.zip")));
+    guchho::pack::PackResult result =
+        guchho::pack::CreatePack(OptionsFor(dir.At("proj"), dir.At("out.zip")));
     ASSERT_TRUE(result.Ok()) << result.error;
 
     std::vector<ArchiveEntry> entries;
@@ -486,9 +486,9 @@ TEST(ZipCreateTest, UnicodeFilenamesSurvive)
     EXPECT_TRUE(Contains(Names(entries), "proj/日本語.md"));
 }
 
-TEST(ZipCreateTest, BinaryContentsRoundTripByteForByte)
+TEST(PackCreateTest, BinaryContentsRoundTripByteForByte)
 {
-    ZipTempDir dir("binary");
+    PackTempDir dir("binary");
     std::string bytes;
     bytes.reserve(513);
     for (int i = 0; i < 513; i++) {
@@ -496,8 +496,8 @@ TEST(ZipCreateTest, BinaryContentsRoundTripByteForByte)
     }
     dir.Write("blob.bin", bytes);
 
-    guchho::zip::ZipResult result =
-        guchho::zip::CreateZip(OptionsFor(dir.At("blob.bin"), dir.At("out.zip")));
+    guchho::pack::PackResult result =
+        guchho::pack::CreatePack(OptionsFor(dir.At("blob.bin"), dir.At("out.zip")));
     ASSERT_TRUE(result.Ok()) << result.error;
 
     std::vector<ArchiveEntry> entries;
@@ -508,9 +508,9 @@ TEST(ZipCreateTest, BinaryContentsRoundTripByteForByte)
     EXPECT_EQ(std::memcmp(entries[0].contents.data(), bytes.data(), bytes.size()), 0);
 }
 
-TEST(ZipCreateTest, LargeFileIsStreamedRatherThanHeldInMemory)
+TEST(PackCreateTest, LargeFileIsStreamedRatherThanHeldInMemory)
 {
-    ZipTempDir dir("large");
+    PackTempDir dir("large");
 
     // Big enough that a one-megabyte-at-a-time reader has to come back for
     // more than one buffer, which is the part of the streaming path a small
@@ -521,8 +521,8 @@ TEST(ZipCreateTest, LargeFileIsStreamedRatherThanHeldInMemory)
         for (int i = 0; i < 40; i++) out << chunk;
     }
 
-    guchho::zip::ZipResult result =
-        guchho::zip::CreateZip(OptionsFor(dir.At("big.txt"), dir.At("out.zip")));
+    guchho::pack::PackResult result =
+        guchho::pack::CreatePack(OptionsFor(dir.At("big.txt"), dir.At("out.zip")));
     ASSERT_TRUE(result.Ok()) << result.error;
 
     std::vector<ArchiveEntry> entries;
@@ -534,21 +534,21 @@ TEST(ZipCreateTest, LargeFileIsStreamedRatherThanHeldInMemory)
     EXPECT_EQ(entries[0].contents.back(), 'z');
 }
 
-TEST(ZipCreateTest, CompressionLevelsAreRecordedAndReadable)
+TEST(PackCreateTest, CompressionLevelsAreRecordedAndReadable)
 {
-    ZipTempDir dir("levels");
+    PackTempDir dir("levels");
     std::string text;
     for (int i = 0; i < 4000; i++) text += "the quick brown fox jumps over the lazy dog\n";
     dir.Write("text.txt", text);
 
-    guchho::zip::ZipOptions stored = OptionsFor(dir.At("text.txt"), dir.At("stored.zip"));
+    guchho::pack::PackOptions stored = OptionsFor(dir.At("text.txt"), dir.At("stored.zip"));
     stored.level = 0;
-    guchho::zip::ZipResult stored_result = guchho::zip::CreateZip(stored);
+    guchho::pack::PackResult stored_result = guchho::pack::CreatePack(stored);
     ASSERT_TRUE(stored_result.Ok()) << stored_result.error;
 
-    guchho::zip::ZipOptions hard = OptionsFor(dir.At("text.txt"), dir.At("hard.zip"));
+    guchho::pack::PackOptions hard = OptionsFor(dir.At("text.txt"), dir.At("hard.zip"));
     hard.level = 9;
-    guchho::zip::ZipResult hard_result = guchho::zip::CreateZip(hard);
+    guchho::pack::PackResult hard_result = guchho::pack::CreatePack(hard);
     ASSERT_TRUE(hard_result.Ok()) << hard_result.error;
 
     std::vector<ArchiveEntry> stored_entries;
@@ -573,17 +573,17 @@ TEST(ZipCreateTest, CompressionLevelsAreRecordedAndReadable)
 // date and mode metadata
 // ===========================================================================
 
-TEST(ZipCreateTest, DateIsWrittenToEveryEntry)
+TEST(PackCreateTest, DateIsWrittenToEveryEntry)
 {
-    ZipTempDir dir("date");
+    PackTempDir dir("date");
     dir.Write("proj/a.txt", "a");
     dir.Write("proj/sub/b.txt", "b");
     dir.MakeDir("proj/sub");
 
-    guchho::zip::ZipOptions options = OptionsFor(dir.At("proj"), dir.At("out.zip"));
+    guchho::pack::PackOptions options = OptionsFor(dir.At("proj"), dir.At("out.zip"));
     options.date = kTestDate;
 
-    guchho::zip::ZipResult result = guchho::zip::CreateZip(options);
+    guchho::pack::PackResult result = guchho::pack::CreatePack(options);
     ASSERT_TRUE(result.Ok()) << result.error;
 
     std::vector<ArchiveEntry> entries;
@@ -596,17 +596,17 @@ TEST(ZipCreateTest, DateIsWrittenToEveryEntry)
     }
 }
 
-TEST(ZipCreateTest, DateOutsideTheDosRangeIsRefused)
+TEST(PackCreateTest, DateOutsideTheDosRangeIsRefused)
 {
-    ZipTempDir dir("date-range");
+    PackTempDir dir("date-range");
     dir.Write("a.txt", "a");
 
     // 1970 is before the format's first representable year. Wrapping would
     // record it as 2107 or thereabouts, so it is refused instead.
-    guchho::zip::ZipOptions options = OptionsFor(dir.At("a.txt"), dir.At("out.zip"));
+    guchho::pack::PackOptions options = OptionsFor(dir.At("a.txt"), dir.At("out.zip"));
     options.date = 0;
 
-    guchho::zip::ZipResult result = guchho::zip::CreateZip(options);
+    guchho::pack::PackResult result = guchho::pack::CreatePack(options);
     ASSERT_FALSE(result.Ok());
     EXPECT_TRUE(result.error.find("1980") != std::string::npos) << result.error;
 
@@ -614,15 +614,15 @@ TEST(ZipCreateTest, DateOutsideTheDosRangeIsRefused)
     EXPECT_FALSE(fs::exists(PathFromUTF8(dir.At("out.zip")), ec));
 }
 
-TEST(ZipCreateTest, ModeIsWrittenToFilesAsUnixAttributes)
+TEST(PackCreateTest, ModeIsWrittenToFilesAsUnixAttributes)
 {
-    ZipTempDir dir("mode");
+    PackTempDir dir("mode");
     dir.Write("script.sh", "#!/bin/sh\n");
 
-    guchho::zip::ZipOptions options = OptionsFor(dir.At("script.sh"), dir.At("out.zip"));
+    guchho::pack::PackOptions options = OptionsFor(dir.At("script.sh"), dir.At("out.zip"));
     options.mode = 0755u;
 
-    guchho::zip::ZipResult result = guchho::zip::CreateZip(options);
+    guchho::pack::PackResult result = guchho::pack::CreatePack(options);
     ASSERT_TRUE(result.Ok()) << result.error;
 
     std::vector<ArchiveEntry> entries;
@@ -637,15 +637,15 @@ TEST(ZipCreateTest, ModeIsWrittenToFilesAsUnixAttributes)
     EXPECT_EQ(entries[0].made_by, 0x0314u);
 }
 
-TEST(ZipCreateTest, DirectoryModeGainsExecuteBitsItWouldOtherwiseLack)
+TEST(PackCreateTest, DirectoryModeGainsExecuteBitsItWouldOtherwiseLack)
 {
-    ZipTempDir dir("dir-mode");
+    PackTempDir dir("dir-mode");
     dir.Write("proj/a.txt", "a");
 
-    guchho::zip::ZipOptions options = OptionsFor(dir.At("proj"), dir.At("out.zip"));
+    guchho::pack::PackOptions options = OptionsFor(dir.At("proj"), dir.At("out.zip"));
     options.mode = 0644u;
 
-    guchho::zip::ZipResult result = guchho::zip::CreateZip(options);
+    guchho::pack::PackResult result = guchho::pack::CreatePack(options);
     ASSERT_TRUE(result.Ok()) << result.error;
 
     std::vector<ArchiveEntry> entries;
@@ -665,15 +665,15 @@ TEST(ZipCreateTest, DirectoryModeGainsExecuteBitsItWouldOtherwiseLack)
     EXPECT_EQ(file->external, 0100644u << 16);
 }
 
-TEST(ZipCreateTest, ModeOutsideThePermissionMaskIsRefused)
+TEST(PackCreateTest, ModeOutsideThePermissionMaskIsRefused)
 {
-    ZipTempDir dir("mode-range");
+    PackTempDir dir("mode-range");
     dir.Write("a.txt", "a");
 
-    guchho::zip::ZipOptions options = OptionsFor(dir.At("a.txt"), dir.At("out.zip"));
+    guchho::pack::PackOptions options = OptionsFor(dir.At("a.txt"), dir.At("out.zip"));
     options.mode = 0100777u;
 
-    guchho::zip::ZipResult result = guchho::zip::CreateZip(options);
+    guchho::pack::PackResult result = guchho::pack::CreatePack(options);
     ASSERT_FALSE(result.Ok());
     EXPECT_TRUE(result.error.find("0100777") != std::string::npos) << result.error;
 
@@ -681,9 +681,9 @@ TEST(ZipCreateTest, ModeOutsideThePermissionMaskIsRefused)
     EXPECT_FALSE(fs::exists(PathFromUTF8(dir.At("out.zip")), ec));
 }
 
-TEST(ZipCreateTest, OmittedModeRecordsThePermissionsAlreadyOnDisk)
+TEST(PackCreateTest, OmittedModeRecordsThePermissionsAlreadyOnDisk)
 {
-    ZipTempDir dir("default-mode");
+    PackTempDir dir("default-mode");
     dir.Write("data.txt", "data");
 
     const std::string source = dir.At("data.txt");
@@ -692,8 +692,8 @@ TEST(ZipCreateTest, OmittedModeRecordsThePermissionsAlreadyOnDisk)
                     fs::perms::owner_read | fs::perms::owner_write, ec);
     ASSERT_FALSE(ec);
 
-    guchho::zip::ZipResult result =
-        guchho::zip::CreateZip(OptionsFor(source, dir.At("out.zip")));
+    guchho::pack::PackResult result =
+        guchho::pack::CreatePack(OptionsFor(source, dir.At("out.zip")));
     ASSERT_TRUE(result.Ok()) << result.error;
 
     std::vector<ArchiveEntry> entries;
@@ -724,41 +724,121 @@ TEST(ZipCreateTest, OmittedModeRecordsThePermissionsAlreadyOnDisk)
 // Refusals
 // ===========================================================================
 
-TEST(ZipCreateTest, NoInputsIsRefused)
+TEST(PackFormatTest, OnlyOneFormatIsKnown)
 {
-    ZipTempDir dir("no-inputs");
+    EXPECT_EQ(std::string(guchho::pack::kDefaultFormat), "zip");
+    EXPECT_TRUE(guchho::pack::IsSupportedFormat("zip"));
+    EXPECT_FALSE(guchho::pack::IsSupportedFormat("tar"));
+    EXPECT_FALSE(guchho::pack::IsSupportedFormat("7z"));
 
-    guchho::zip::ZipOptions options;
+    // Exact comparison, on purpose: a format is spelled in lower case and
+    // "ZIP" is a different answer rather than a near miss.
+    EXPECT_FALSE(guchho::pack::IsSupportedFormat("ZIP"));
+    EXPECT_FALSE(guchho::pack::IsSupportedFormat(""));
+}
+
+TEST(PackFormatTest, AnUnspokenFormatIsTheDefaultOne)
+{
+    PackTempDir dir("format-default");
+    dir.Write("a.txt", "a");
+
+    // Nothing sets format, which is the way almost every caller spells it.
+    guchho::pack::PackResult result =
+        guchho::pack::CreatePack(OptionsFor(dir.At("a.txt"), dir.At("out.zip")));
+    ASSERT_TRUE(result.Ok()) << result.error;
+
+    std::vector<ArchiveEntry> entries;
+    std::string               error;
+    ASSERT_TRUE(ReadArchive(result.path, entries, error)) << error;
+    ASSERT_EQ(entries.size(), 1u);
+    EXPECT_EQ(entries[0].name, "a.txt");
+}
+
+TEST(PackFormatTest, TheDefaultFormatNamedOutLoudIsStillAccepted)
+{
+    PackTempDir dir("format-zip");
+    dir.Write("a.txt", "a");
+
+    guchho::pack::PackOptions options = OptionsFor(dir.At("a.txt"), dir.At("out.zip"));
+    options.format = "zip";
+
+    guchho::pack::PackResult result = guchho::pack::CreatePack(options);
+    EXPECT_TRUE(result.Ok()) << result.error;
+}
+
+TEST(PackFormatTest, UnsupportedFormatIsRefused)
+{
+    PackTempDir dir("format-unsupported");
+    dir.Write("a.txt", "a");
+
+    guchho::pack::PackOptions options = OptionsFor(dir.At("a.txt"), dir.At("out.zip"));
+    options.format = "tar";
+
+    guchho::pack::PackResult result = guchho::pack::CreatePack(options);
+    ASSERT_FALSE(result.Ok());
+    EXPECT_TRUE(result.error.find("Unsupported archive format") != std::string::npos)
+        << result.error;
+    EXPECT_TRUE(result.error.find("\"tar\"") != std::string::npos) << result.error;
+    EXPECT_TRUE(result.note.find("zip") != std::string::npos) << result.note;
+    EXPECT_TRUE(result.path.empty());
+
+    // Nothing was written: a format nobody can write must not become an
+    // archive nobody can open, not even one the rest of the request was fine
+    // with.
+    std::error_code ec;
+    EXPECT_FALSE(fs::exists(PathFromUTF8(dir.At("out.zip")), ec));
+}
+
+TEST(PackFormatTest, UnsupportedFormatIsRefusedBeforeAnythingElse)
+{
+    PackTempDir dir("format-first");
+
+    // No inputs and no output file, both of which are otherwise refusals of
+    // their own. The format is the request's first question and answers first.
+    guchho::pack::PackOptions options;
+    options.format = "tar";
+
+    guchho::pack::PackResult result = guchho::pack::CreatePack(options);
+    ASSERT_FALSE(result.Ok());
+    EXPECT_TRUE(result.error.find("Unsupported archive format") != std::string::npos)
+        << result.error;
+}
+
+TEST(PackCreateTest, NoInputsIsRefused)
+{
+    PackTempDir dir("no-inputs");
+
+    guchho::pack::PackOptions options;
     options.outFile = dir.At("out.zip");
 
-    guchho::zip::ZipResult result = guchho::zip::CreateZip(options);
+    guchho::pack::PackResult result = guchho::pack::CreatePack(options);
     ASSERT_FALSE(result.Ok());
     EXPECT_FALSE(result.note.empty());
     EXPECT_TRUE(result.path.empty());
 }
 
-TEST(ZipCreateTest, NoOutputFileIsRefused)
+TEST(PackCreateTest, NoOutputFileIsRefused)
 {
-    ZipTempDir dir("no-output");
+    PackTempDir dir("no-output");
     dir.Write("a.txt", "a");
 
-    guchho::zip::ZipOptions options;
+    guchho::pack::PackOptions options;
     options.inputs = {dir.At("a.txt")};
 
-    guchho::zip::ZipResult result = guchho::zip::CreateZip(options);
+    guchho::pack::PackResult result = guchho::pack::CreatePack(options);
     ASSERT_FALSE(result.Ok());
 }
 
-TEST(ZipCreateTest, MissingInputIsNamed)
+TEST(PackCreateTest, MissingInputIsNamed)
 {
-    ZipTempDir dir("missing");
+    PackTempDir dir("missing");
     dir.Write("present.txt", "here");
 
-    guchho::zip::ZipOptions options;
+    guchho::pack::PackOptions options;
     options.inputs  = {dir.At("present.txt"), dir.At("absent.txt")};
     options.outFile = dir.At("out.zip");
 
-    guchho::zip::ZipResult result = guchho::zip::CreateZip(options);
+    guchho::pack::PackResult result = guchho::pack::CreatePack(options);
     ASSERT_FALSE(result.Ok());
     EXPECT_TRUE(result.error.find("absent.txt") != std::string::npos) << result.error;
 
@@ -768,16 +848,16 @@ TEST(ZipCreateTest, MissingInputIsNamed)
     EXPECT_FALSE(fs::exists(PathFromUTF8(dir.At("out.zip")), ec));
 }
 
-TEST(ZipCreateTest, CompressionLevelOutOfRangeIsRefused)
+TEST(PackCreateTest, CompressionLevelOutOfRangeIsRefused)
 {
-    ZipTempDir dir("bad-level");
+    PackTempDir dir("bad-level");
     dir.Write("a.txt", "a");
 
     for (int level : {-1, 10, 99}) {
-        guchho::zip::ZipOptions options = OptionsFor(dir.At("a.txt"), dir.At("out.zip"));
+        guchho::pack::PackOptions options = OptionsFor(dir.At("a.txt"), dir.At("out.zip"));
         options.level = level;
 
-        guchho::zip::ZipResult result = guchho::zip::CreateZip(options);
+        guchho::pack::PackResult result = guchho::pack::CreatePack(options);
         ASSERT_FALSE(result.Ok()) << level;
         EXPECT_TRUE(result.error.find("out of range") != std::string::npos)
             << result.error;
@@ -787,14 +867,14 @@ TEST(ZipCreateTest, CompressionLevelOutOfRangeIsRefused)
     EXPECT_FALSE(fs::exists(PathFromUTF8(dir.At("out.zip")), ec));
 }
 
-TEST(ZipCreateTest, ExistingOutputIsLeftAloneWithoutOverwrite)
+TEST(PackCreateTest, ExistingOutputIsLeftAloneWithoutOverwrite)
 {
-    ZipTempDir dir("existing");
+    PackTempDir dir("existing");
     dir.Write("a.txt", "new content");
     dir.Write("out.zip", "an old archive, or anything else");
 
-    guchho::zip::ZipResult result =
-        guchho::zip::CreateZip(OptionsFor(dir.At("a.txt"), dir.At("out.zip")));
+    guchho::pack::PackResult result =
+        guchho::pack::CreatePack(OptionsFor(dir.At("a.txt"), dir.At("out.zip")));
     ASSERT_FALSE(result.Ok());
     EXPECT_TRUE(result.error.find("already exists") != std::string::npos)
         << result.error;
@@ -806,16 +886,16 @@ TEST(ZipCreateTest, ExistingOutputIsLeftAloneWithoutOverwrite)
     EXPECT_EQ(untouched, "an old archive, or anything else");
 }
 
-TEST(ZipCreateTest, ExistingOutputIsReplacedWithOverwrite)
+TEST(PackCreateTest, ExistingOutputIsReplacedWithOverwrite)
 {
-    ZipTempDir dir("overwrite");
+    PackTempDir dir("overwrite");
     dir.Write("a.txt", "new content");
     dir.Write("out.zip", "an old archive");
 
-    guchho::zip::ZipOptions options = OptionsFor(dir.At("a.txt"), dir.At("out.zip"));
+    guchho::pack::PackOptions options = OptionsFor(dir.At("a.txt"), dir.At("out.zip"));
     options.overwrite = true;
 
-    guchho::zip::ZipResult result = guchho::zip::CreateZip(options);
+    guchho::pack::PackResult result = guchho::pack::CreatePack(options);
     ASSERT_TRUE(result.Ok()) << result.error;
 
     std::vector<ArchiveEntry> entries;
@@ -825,29 +905,29 @@ TEST(ZipCreateTest, ExistingOutputIsReplacedWithOverwrite)
     EXPECT_EQ(entries[0].contents, "new content");
 }
 
-TEST(ZipCreateTest, OutputThatIsADirectoryIsRefused)
+TEST(PackCreateTest, OutputThatIsADirectoryIsRefused)
 {
-    ZipTempDir dir("out-is-dir");
+    PackTempDir dir("out-is-dir");
     dir.Write("a.txt", "a");
     dir.MakeDir("out.zip");
 
-    guchho::zip::ZipResult result =
-        guchho::zip::CreateZip(OptionsFor(dir.At("a.txt"), dir.At("out.zip")));
+    guchho::pack::PackResult result =
+        guchho::pack::CreatePack(OptionsFor(dir.At("a.txt"), dir.At("out.zip")));
     ASSERT_FALSE(result.Ok());
     EXPECT_TRUE(result.error.find("directory") != std::string::npos) << result.error;
 }
 
-TEST(ZipCreateTest, DuplicateArchivePathsAreRefused)
+TEST(PackCreateTest, DuplicateArchivePathsAreRefused)
 {
-    ZipTempDir dir("duplicate");
+    PackTempDir dir("duplicate");
     dir.Write("a/file.txt", "one");
     dir.Write("b/file.txt", "two");
 
-    guchho::zip::ZipOptions options;
+    guchho::pack::PackOptions options;
     options.inputs  = {dir.At("a"), dir.At("a")};
     options.outFile = dir.At("out.zip");
 
-    guchho::zip::ZipResult result = guchho::zip::CreateZip(options);
+    guchho::pack::PackResult result = guchho::pack::CreatePack(options);
     ASSERT_FALSE(result.Ok());
     EXPECT_TRUE(result.error.find("same archive path") != std::string::npos)
         << result.error;
@@ -857,20 +937,20 @@ TEST(ZipCreateTest, DuplicateArchivePathsAreRefused)
     EXPECT_FALSE(fs::exists(PathFromUTF8(dir.At("out.zip")), ec));
 }
 
-TEST(ZipCreateTest, InputsWhoseRootsCollideAreRefused)
+TEST(PackCreateTest, InputsWhoseRootsCollideAreRefused)
 {
-    ZipTempDir dir("collide");
+    PackTempDir dir("collide");
     dir.Write("one/dist/app.js", "1");
     dir.Write("two/dist/app.js", "2");
 
     // Each input is stored under the name of its own last component, so two
     // different trees called "dist" would both claim "dist/" and one would
     // silently overwrite the other in the central directory.
-    guchho::zip::ZipOptions options;
+    guchho::pack::PackOptions options;
     options.inputs  = {dir.At("one/dist"), dir.At("two/dist")};
     options.outFile = dir.At("out.zip");
 
-    guchho::zip::ZipResult result = guchho::zip::CreateZip(options);
+    guchho::pack::PackResult result = guchho::pack::CreatePack(options);
     ASSERT_FALSE(result.Ok());
     EXPECT_TRUE(result.error.find("same archive path") != std::string::npos)
         << result.error;
@@ -880,16 +960,16 @@ TEST(ZipCreateTest, InputsWhoseRootsCollideAreRefused)
     EXPECT_FALSE(fs::exists(PathFromUTF8(dir.At("out.zip")), ec));
 }
 
-TEST(ZipCreateTest, OutputInsideItsOwnInputTreeIsExcluded)
+TEST(PackCreateTest, OutputInsideItsOwnInputTreeIsExcluded)
 {
-    ZipTempDir dir("self-output");
+    PackTempDir dir("self-output");
     dir.Write("dist/app.js", "a");
     dir.Write("dist/out.zip", "the archive from a previous run");
 
-    guchho::zip::ZipOptions options = OptionsFor(dir.At("dist"), dir.At("dist/out.zip"));
+    guchho::pack::PackOptions options = OptionsFor(dir.At("dist"), dir.At("dist/out.zip"));
     options.overwrite = true;
 
-    guchho::zip::ZipResult result = guchho::zip::CreateZip(options);
+    guchho::pack::PackResult result = guchho::pack::CreatePack(options);
     ASSERT_TRUE(result.Ok()) << result.error;
     ASSERT_EQ(result.warnings.size(), 1u);
     EXPECT_TRUE(result.warnings[0].find("being written") != std::string::npos)
@@ -902,54 +982,54 @@ TEST(ZipCreateTest, OutputInsideItsOwnInputTreeIsExcluded)
     EXPECT_TRUE(Contains(Names(entries), "dist/app.js"));
 }
 
-TEST(ZipCreateTest, OutputFileCannotAlsoBeAnInput)
+TEST(PackCreateTest, OutputFileCannotAlsoBeAnInput)
 {
-    ZipTempDir dir("output-is-input");
+    PackTempDir dir("output-is-input");
     dir.Write("release.zip", "an existing archive");
 
-    guchho::zip::ZipOptions options = OptionsFor(dir.At("release.zip"),
+    guchho::pack::PackOptions options = OptionsFor(dir.At("release.zip"),
                                                  dir.At("release.zip"));
     options.overwrite = true;
 
-    guchho::zip::ZipResult result = guchho::zip::CreateZip(options);
+    guchho::pack::PackResult result = guchho::pack::CreatePack(options);
     ASSERT_FALSE(result.Ok());
     EXPECT_TRUE(result.error.find("also an input") != std::string::npos)
         << result.error;
     EXPECT_FALSE(result.note.empty());
 }
 
-TEST(ZipCreateTest, OutputDirectoryIsCreatedWhenMissing)
+TEST(PackCreateTest, OutputDirectoryIsCreatedWhenMissing)
 {
-    ZipTempDir dir("out-dir");
+    PackTempDir dir("out-dir");
     dir.Write("a.txt", "a");
 
-    guchho::zip::ZipResult result =
-        guchho::zip::CreateZip(OptionsFor(dir.At("a.txt"), dir.At("build/deep/out.zip")));
+    guchho::pack::PackResult result =
+        guchho::pack::CreatePack(OptionsFor(dir.At("a.txt"), dir.At("build/deep/out.zip")));
     ASSERT_TRUE(result.Ok()) << result.error;
 
     std::error_code ec;
     EXPECT_TRUE(fs::exists(PathFromUTF8(result.path), ec));
 }
 
-TEST(ZipCreateTest, AFailedRunLeavesNoTemporaryFileBehind)
+TEST(PackCreateTest, AFailedRunLeavesNoTemporaryFileBehind)
 {
-    ZipTempDir dir("temp-cleanup");
+    PackTempDir dir("temp-cleanup");
     dir.Write("tree/a.txt", "a");
     dir.Write("tree/b.txt", "b");
 
     // The second input does not exist, so the run fails after the first has
     // been walked and before a byte of archive has been written.
-    guchho::zip::ZipOptions bad;
+    guchho::pack::PackOptions bad;
     bad.inputs  = {dir.At("tree"), dir.At("nope")};
     bad.outFile = dir.At("out.zip");
-    ASSERT_FALSE(guchho::zip::CreateZip(bad).Ok());
+    ASSERT_FALSE(guchho::pack::CreatePack(bad).Ok());
 
     // And a run that succeeds over the same output must not find anything
     // left over from the one that did not.
-    guchho::zip::ZipOptions good;
+    guchho::pack::PackOptions good;
     good.inputs  = {dir.At("tree")};
     good.outFile = dir.At("out.zip");
-    ASSERT_TRUE(guchho::zip::CreateZip(good).Ok());
+    ASSERT_TRUE(guchho::pack::CreatePack(good).Ok());
 
     std::error_code ec;
     std::vector<std::string> leftovers;
@@ -965,9 +1045,9 @@ TEST(ZipCreateTest, AFailedRunLeavesNoTemporaryFileBehind)
 // Symlinks
 // ===========================================================================
 
-TEST(ZipCreateTest, SymlinksInsideTheTreeAreSkippedWithAWarning)
+TEST(PackCreateTest, SymlinksInsideTheTreeAreSkippedWithAWarning)
 {
-    ZipTempDir dir("symlink-inside");
+    PackTempDir dir("symlink-inside");
     dir.Write("tree/real.txt", "real");
     dir.Write("elsewhere.txt", "somewhere else");
 
@@ -976,8 +1056,8 @@ TEST(ZipCreateTest, SymlinksInsideTheTreeAreSkippedWithAWarning)
         return;
     }
 
-    guchho::zip::ZipResult result =
-        guchho::zip::CreateZip(OptionsFor(dir.At("tree"), dir.At("out.zip")));
+    guchho::pack::PackResult result =
+        guchho::pack::CreatePack(OptionsFor(dir.At("tree"), dir.At("out.zip")));
     ASSERT_TRUE(result.Ok()) << result.error;
 
     ASSERT_EQ(result.warnings.size(), 1u);
@@ -991,9 +1071,9 @@ TEST(ZipCreateTest, SymlinksInsideTheTreeAreSkippedWithAWarning)
     EXPECT_TRUE(Contains(Names(entries), "tree/real.txt"));
 }
 
-TEST(ZipCreateTest, SymlinkNamedAsTheInputIsFollowedOnce)
+TEST(PackCreateTest, SymlinkNamedAsTheInputIsFollowedOnce)
 {
-    ZipTempDir dir("symlink-root");
+    PackTempDir dir("symlink-root");
     dir.Write("target/inside.txt", "reached");
 
     if (!dir.TrySymlink(dir.At("target"), "alias")) {
@@ -1002,8 +1082,8 @@ TEST(ZipCreateTest, SymlinkNamedAsTheInputIsFollowedOnce)
 
     // Naming a link is naming what it points at, so the archive is rooted
     // at the name the person typed and holds the target's contents.
-    guchho::zip::ZipResult result =
-        guchho::zip::CreateZip(OptionsFor(dir.At("alias"), dir.At("out.zip")));
+    guchho::pack::PackResult result =
+        guchho::pack::CreatePack(OptionsFor(dir.At("alias"), dir.At("out.zip")));
     ASSERT_TRUE(result.Ok()) << result.error;
 
     std::vector<ArchiveEntry> entries;
@@ -1017,17 +1097,17 @@ TEST(ZipCreateTest, SymlinkNamedAsTheInputIsFollowedOnce)
     EXPECT_EQ(file->contents, "reached");
 }
 
-TEST(ZipCreateTest, BrokenSymlinkInputIsReportedAsSuch)
+TEST(PackCreateTest, BrokenSymlinkInputIsReportedAsSuch)
 {
-    ZipTempDir dir("symlink-broken");
+    PackTempDir dir("symlink-broken");
     dir.Write("real.txt", "here");
 
     if (!dir.TrySymlink(dir.At("does-not-exist.txt"), "dangling")) {
         return;
     }
 
-    guchho::zip::ZipResult result =
-        guchho::zip::CreateZip(OptionsFor(dir.At("dangling"), dir.At("out.zip")));
+    guchho::pack::PackResult result =
+        guchho::pack::CreatePack(OptionsFor(dir.At("dangling"), dir.At("out.zip")));
     ASSERT_FALSE(result.Ok());
     EXPECT_TRUE(result.error.find("does not resolve") != std::string::npos)
         << result.error;

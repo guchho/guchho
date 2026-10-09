@@ -581,6 +581,8 @@ namespace guchho::logger {
         case MsgCat::kGuchhoConfig_ConflictingOutputFile: return "{} and {} write to the same file \"{}\"; the later one would overwrite the earlier one";
         case MsgCat::kGuchhoConfig_PlatformMismatchForHTML: return "\"platform: {}\" may not be appropriate for an HTML entry.";
         case MsgCat::kGuchhoConfig_OutfileIgnoredForHTML: return "\"outfile\" is not used for HTML entry output.";
+        case MsgCat::kGuchhoConfig_InvalidPluginBanner: return "Invalid plugin \"banner\" in the \"plugins\" field: expected a string, or an object with \"js\" and/or \"css\" string fields";
+        case MsgCat::kGuchhoConfig_UnsupportedPluginEntry: return "Plugin entries without a \"banner\" record are not supported yet and will be ignored";
 
         // -------------------------------------------------------------------
         // Yarn PnP (yarnpnp.cpp)
@@ -760,6 +762,77 @@ namespace guchho::logger {
         case MsgCat::kAPI_ExportsDefaultRequiresDefaultExport: return "--exports=default requires the entry point to have a default export";
         case MsgCat::kAPI_ExportsNoneRequiresNoExports: return "--exports=none requires the entry point to have no exports";
         case MsgCat::kAPI_ExportsAutoMixedExports: return "--exports=auto resolved to \"named\": the entry point mixes default and named exports";
+
+        // -------------------------------------------------------------------
+        // Archive packing (pack.cpp / zip.cpp / tar.cpp)
+        // -------------------------------------------------------------------
+        case MsgCat::kPack_EmptyInputPath: return "An input path is empty";
+        case MsgCat::kPack_EmptyInputPathNote: return "Give a file or a directory to archive.";
+        case MsgCat::kPack_InputCannotBeArchiveRoot: return "Input \"{}\" cannot be an archive root";
+        case MsgCat::kPack_DotDotRootNote: return "A \"..\" has no name of its own to store contents under; give the directory's own name instead.";
+        case MsgCat::kPack_UnusableArchiveName: return "Input \"{}\" does not have a usable archive name";
+        case MsgCat::kPack_DriveRelativeNote: return "\"{}\" is a drive-relative path; give the directory's full path instead.";
+        case MsgCat::kPack_SkippedArchiveBeingWritten: return "Skipped \"{}\", which is the archive being written";
+        case MsgCat::kPack_SameArchivePath: return "Two inputs would produce the same archive path: \"{}\"";
+        case MsgCat::kPack_SameArchivePathNote: return "Keep the inputs to distinct trees, or archive them separately.";
+        case MsgCat::kPack_InputNotRegularFileOrDirectory: return "Input is not a regular file or directory: \"{}\"";
+        case MsgCat::kPack_RegularFilesOnlyNote: return "An archive holds regular files and directories.";
+        case MsgCat::kPack_DirectoryTooDeep: return "Directory nesting under \"{}\" is more than {} levels deep";
+        case MsgCat::kPack_DirectoryTooDeepNote: return "A tree that deep usually means a directory that resolves back into itself.";
+        case MsgCat::kPack_SkippedAlreadyBeingArchived: return "Skipped \"{}\": it resolves to a directory already being archived";
+        case MsgCat::kPack_CannotReadDirectory: return "Cannot read directory \"{}\": {}";
+        case MsgCat::kPack_SkippedUnreadable: return "Skipped \"{}\", which cannot be read: {}";
+        case MsgCat::kPack_SkippedSymbolicLink: return "Skipped symbolic link \"{}\"";
+        case MsgCat::kPack_SkippedNotRegularFile: return "Skipped \"{}\", which is not a regular file";
+        case MsgCat::kPack_InputDoesNotExist: return "Input does not exist: \"{}\"";
+        case MsgCat::kPack_InputDoesNotExistNote: return "Check the spelling, and that the path is relative to the directory this command is running in.";
+        case MsgCat::kPack_CannotReadInput: return "Cannot read input \"{}\": {}";
+        case MsgCat::kPack_SymlinkDoesNotResolve: return "Input is a symbolic link that does not resolve: \"{}\"";
+        case MsgCat::kPack_OutputFileAlsoInput: return "The output file is also an input: \"{}\"";
+        case MsgCat::kPack_OutputFileAlsoInputNote: return "An archive cannot contain itself; choose a different output.";
+        case MsgCat::kPack_OnlySupportedFormats: return "Only {} are supported today.";
+        case MsgCat::kPack_UnsupportedFormat: return "Unsupported archive format: \"{}\"";
+        case MsgCat::kPack_LevelDoesNotApplyToFormat: return "Compression level {} does not apply to the \"{}\" format";
+        case MsgCat::kPack_LevelDoesNotApplyNote: return "Tar stores its entries uncompressed. Leave the level off, or write zip or tar.gz.";
+        case MsgCat::kPack_NoInputFiles: return "No input files were given";
+        case MsgCat::kPack_NoInputFilesNote: return "Name at least one file or directory to archive.";
+        case MsgCat::kPack_NoOutputFile: return "No output file was given";
+        case MsgCat::kPack_NoOutputFileNote: return "Name the archive to write, with -o/--outfile or outFile.";
+        case MsgCat::kPack_LevelOutOfRange: return "Compression level {} is out of range";
+        case MsgCat::kPack_LevelOutOfRangeNote: return "The level runs from 0 (store, do not compress) to 9.";
+        case MsgCat::kPack_NotAPermissionMask: return "mode 0{:o} is not a permission mask";
+        case MsgCat::kPack_NotAPermissionMaskNote: return "The value is Unix permission bits, from 0 to 07777.";
+        case MsgCat::kPack_DateOutOfRangePlatform: return "date is outside the range this platform can represent";
+        case MsgCat::kPack_DateNotLocalTimestamp: return "date cannot be read as a local timestamp";
+        case MsgCat::kPack_DateOutsideZipRange: return "date is outside the range a ZIP entry can hold ({} through {})";
+        case MsgCat::kPack_DateOutsideZipRangeNote: return "The value is seconds since the Unix epoch, and ZIP timestamps start in 1980.";
+        case MsgCat::kPack_DateBeforeUnixEpoch: return "date is before the Unix epoch";
+        case MsgCat::kPack_DateBeforeUnixEpochNote: return "The value is seconds since the Unix epoch, which begins on 1970-01-01.";
+        case MsgCat::kPack_OutputPathIsDirectory: return "Output path is a directory: \"{}\"";
+        case MsgCat::kPack_OutputFileAlreadyExists: return "Output file already exists: \"{}\"";
+        case MsgCat::kPack_EnableOverwriteNote: return "Enable overwrite (--allow-overwrite, or overwrite: true) to replace it.";
+        case MsgCat::kPack_CannotCreateOutputDirectory: return "Cannot create the output directory \"{}\": {}";
+        case MsgCat::kPack_NoFreeTempName: return "Cannot find a free temporary name next to \"{}\"";
+        case MsgCat::kPack_CannotMoveFinishedArchive: return "Cannot move the finished archive to \"{}\": {}";
+        case MsgCat::kPack_CannotOpenForReading: return "Cannot open \"{}\" for reading";
+        case MsgCat::kPack_CannotMeasure: return "Cannot measure \"{}\"";
+        case MsgCat::kPack_UnknownZipError: return "unknown zip error";
+        case MsgCat::kPack_CannotStartWriting: return "Cannot start writing \"{}\": {}";
+        case MsgCat::kPack_CannotSetMetadata: return "Cannot set the metadata for \"{}\": {}";
+        case MsgCat::kPack_CannotAddEntry: return "Cannot add \"{}\": {}";
+        case MsgCat::kPack_CannotReadInFull: return "Cannot read \"{}\" in full";
+        case MsgCat::kPack_CannotFinish: return "Cannot finish \"{}\": {}";
+        case MsgCat::kPack_CannotClose: return "Cannot close \"{}\": {}";
+        case MsgCat::kPack_FileCouldNotBeWritten: return "the file could not be written";
+        case MsgCat::kPack_CompressionCouldNotStart: return "compression could not be started";
+        case MsgCat::kPack_CompressionFailed: return "compression failed";
+        case MsgCat::kPack_CompressionMadeNoProgress: return "compression made no progress";
+        case MsgCat::kPack_ArchiveCouldNotBeWritten: return "the archive could not be written";
+        case MsgCat::kPack_CannotWriteArchive: return "Cannot write \"{}\": {}";
+        case MsgCat::kPack_CannotMeasureWithError: return "Cannot measure \"{}\": {}";
+        case MsgCat::kPack_TimestampBeforeUnixEpoch: return "The timestamp for \"{}\" is before the Unix epoch";
+        case MsgCat::kPack_TimestampBeforeUnixEpochNote: return "The value is seconds since the Unix epoch, and this file is recorded as modified before it began.";
+        case MsgCat::kPack_CannotStartWritingFileNotOpened: return "Cannot start writing \"{}\": the file could not be opened";
 
             default:
                 return "";

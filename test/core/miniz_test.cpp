@@ -343,3 +343,138 @@ TEST(CompressSizeTest, CompressedIsSmallerForText)
     ASSERT_EQ(ret, MZ_OK);
     EXPECT_LT(comp_len, src_len);
 }
+
+// ---------------------------------------------------------------------------
+// Guchho extension: mz_zip_writer_set_default_attributes
+// ---------------------------------------------------------------------------
+
+// 2017-07-14 02:40:00 UTC -- even, so it survives DOS 2-second precision.
+static const MZ_TIME_T kDosRoundTripTime = 1500000000;
+
+// Builds a heap archive holding one entry under the given archive-level
+// default attributes, then reads it back so the central directory can be
+// inspected. Returns false on any writer/reader failure.
+static bool BuildAndStat(const char* entry_name, const char* contents,
+                         mz_uint32 default_attributes,
+                         bool call_setter,
+                         MZ_TIME_T entry_time,
+                         mz_zip_archive_file_stat* out_stat)
+{
+    mz_zip_archive writer;
+    mz_zip_zero_struct(&writer);
+    if (!mz_zip_writer_init_heap(&writer, 0, 0))
+        return false;
+
+    if (call_setter &&
+        !mz_zip_writer_set_default_attributes(&writer, default_attributes)) {
+        mz_zip_writer_end(&writer);
+        return false;
+    }
+
+    MZ_TIME_T time = entry_time;
+    bool added = mz_zip_writer_add_mem_ex_v2(
+        &writer, entry_name, contents, strlen(contents), nullptr, 0,
+        MZ_DEFAULT_LEVEL, 0, 0, &time, nullptr, 0, nullptr, 0);
+    if (!added) {
+        mz_zip_writer_end(&writer);
+        return false;
+    }
+
+    void* archive = nullptr;
+    size_t archive_size = 0;
+    if (!mz_zip_writer_finalize_heap_archive(&writer, &archive, &archive_size)) {
+        mz_zip_writer_end(&writer);
+        return false;
+    }
+    mz_zip_writer_end(&writer);
+
+    mz_zip_archive reader;
+    mz_zip_zero_struct(&reader);
+    bool ok = mz_zip_reader_init_mem(&reader, archive, archive_size, 0) &&
+              mz_zip_reader_get_num_files(&reader) == 1 &&
+              mz_zip_reader_file_stat(&reader, 0, out_stat);
+    mz_zip_end(&reader);
+    mz_free(archive);
+    return ok;
+}
+
+TEST(MzZipDefaultAttributesTest, SetterRejectsNullArchive)
+{
+    EXPECT_EQ(mz_zip_writer_set_default_attributes(nullptr, 0), MZ_FALSE);
+}
+
+TEST(MzZipDefaultAttributesTest, DefaultIsZeroLikeUpstream)
+{
+    mz_zip_archive_file_stat stat;
+    ASSERT_TRUE(BuildAndStat("file.txt", "hello", 0, false,
+                             kDosRoundTripTime, &stat));
+    EXPECT_EQ(stat.m_external_attr, 0u);
+    EXPECT_EQ(stat.m_version_made_by, 0x0014u);
+}
+
+TEST(MzZipDefaultAttributesTest, UnixModeIsWrittenToExternalAttr)
+{
+    const mz_uint32 mode_644 = 0100644u;
+    mz_zip_archive_file_stat stat;
+    ASSERT_TRUE(BuildAndStat("file.txt", "hello", mode_644 << 16, true,
+                             kDosRoundTripTime, &stat));
+    EXPECT_EQ(stat.m_external_attr, mode_644 << 16);
+    EXPECT_EQ(stat.m_version_made_by, 0x0314u);
+}
+
+TEST(MzZipDefaultAttributesTest, DosDirBitIsSetForDirectoryEntries)
+{
+    const mz_uint32 mode_755 = 040755u;
+    mz_zip_archive_file_stat stat;
+    ASSERT_TRUE(BuildAndStat("subdir/", "", mode_755 << 16, true,
+                             kDosRoundTripTime, &stat));
+    EXPECT_EQ(stat.m_external_attr, (mode_755 << 16) | 0x10u);
+    EXPECT_TRUE(stat.m_is_directory);
+    EXPECT_EQ(stat.m_version_made_by, 0x0314u);
+}
+
+TEST(MzZipDefaultAttributesTest, ExplicitTimestampIsPreserved)
+{
+    const MZ_TIME_T when = kDosRoundTripTime;
+    mz_zip_archive_file_stat stat;
+    ASSERT_TRUE(BuildAndStat("file.txt", "hello", 0, false, when, &stat));
+    EXPECT_EQ(static_cast<MZ_TIME_T>(stat.m_time), when);
+}
+
+TEST(MzZipDefaultAttributesTest, SetterIsAppliedToLaterEntriesOnly)
+{
+    mz_zip_archive writer;
+    mz_zip_zero_struct(&writer);
+    ASSERT_EQ(mz_zip_writer_init_heap(&writer, 0, 0), MZ_TRUE);
+
+    ASSERT_EQ(mz_zip_writer_add_mem(&writer, "before.txt", "a", 1,
+                                    MZ_DEFAULT_LEVEL),
+              MZ_TRUE);
+    ASSERT_EQ(mz_zip_writer_set_default_attributes(&writer, 0100644u << 16),
+              MZ_TRUE);
+    ASSERT_EQ(mz_zip_writer_add_mem(&writer, "after.txt", "b", 1,
+                                    MZ_DEFAULT_LEVEL),
+              MZ_TRUE);
+
+    void* archive = nullptr;
+    size_t archive_size = 0;
+    ASSERT_EQ(mz_zip_writer_finalize_heap_archive(&writer, &archive,
+                                                  &archive_size),
+              MZ_TRUE);
+    mz_zip_writer_end(&writer);
+
+    mz_zip_archive reader;
+    mz_zip_zero_struct(&reader);
+    ASSERT_EQ(mz_zip_reader_init_mem(&reader, archive, archive_size, 0),
+              MZ_TRUE);
+    ASSERT_EQ(mz_zip_reader_get_num_files(&reader), 2u);
+
+    mz_zip_archive_file_stat before, after;
+    ASSERT_TRUE(mz_zip_reader_file_stat(&reader, 0, &before));
+    ASSERT_TRUE(mz_zip_reader_file_stat(&reader, 1, &after));
+    EXPECT_EQ(before.m_external_attr, 0u);
+    EXPECT_EQ(after.m_external_attr, 0100644u << 16);
+
+    mz_zip_end(&reader);
+    mz_free(archive);
+}

@@ -147,7 +147,7 @@ void printBanner(std::ostream& os) {
 //
 // Input:  called when the argument list is empty, when it is a lone --help, and
 //         when it names no command and contains no path
-// Output: the banner, then "Usage:", the eight commands, and the two closing
+// Output: the banner, then "Usage:", the nine commands, and the two closing
 //         lines. The same text in all three cases, because they are the same
 //         question asked three ways.
 void printUsage(std::ostream& os) {
@@ -164,6 +164,7 @@ void printUsage(std::ostream& os) {
        << "  clean               Remove build output\n"
        << "  info                Show environment info\n"
        << "  transform           Transform source from stdin\n"
+       << "  zip <input...>      Create a zip archive\n"
        << "\n"
        << "Run 'guchho <command> --help' for command-specific help.\n"
        << "Run 'guchho --version' for version information.\n";
@@ -186,7 +187,7 @@ void printVersion(std::ostream& os) {
 // Help for the individual commands
 // =============================================================================
 //
-// Eight functions, one per command, each printed by the command itself when it
+// Nine functions, one per command, each printed by the command itself when it
 // sees --help before it has done anything else. Printing it from the command
 // rather than from the dispatcher is what lets the text describe that command's
 // flags and no others, and it means a run that has already printed a banner has
@@ -204,7 +205,7 @@ void printVersion(std::ostream& os) {
 // out of line. The values in angle brackets are the ones a flag requires rather
 // than accepts as a switch.
 
-// The build: the largest of the eight, and the reference for the rest.
+// The build: the largest of the nine, and the reference for the rest.
 //
 // This is the text every other one is measured against, because build is the
 // command that has every kind of flag: a switch, a switch that takes a value, a
@@ -344,7 +345,7 @@ void printServeHelp(std::ostream& os) {
 // Watch without a server: the command for when whatever reads the output is
 // not a browser.
 //
-// The shortest of the eight, because the flags are not its own. The one line
+// The shortest of the nine, because the flags are not its own. The one line
 // under "Options" says so rather than repeating the build's twenty, and that is
 // the honest text: a person who has read the build help already knows them, and
 // a person who has not is one command away from it. The parenthetical in the
@@ -496,6 +497,61 @@ void printInfoHelp(std::ostream& os) {
     os << "Usage: guchho info [options]\n"
        << "\n"
        << "Show environment and configuration information.\n";
+}
+
+// The zip command.
+//
+// Four options and nothing else, which puts this between init — the command
+// this one is closest to, being a list of inputs and a short set of choices
+// about the output — and clean, which has one. The options are ordered the way
+// a person meets them: where the archive goes, how hard it is compressed, and
+// then the one flag that changes what would otherwise be a refusal into a
+// replacement.
+//
+// "--allow-overwrite" is spelled out rather than shortened to "-f" because it
+// is not a switch somebody reaches for in a hurry: it says "yes, discard the
+// file that is already there", and a one-letter spelling of that is a typo
+// waiting to happen. "-f" is taken by init for the same reason it is
+// unabbreviated here.
+//
+// The examples are the four in the plan for this command, in the order a
+// person is likely to need them: the bare one, the one that names a file, the
+// one with two trees in it, and the one that changes how the archive is
+// compressed.
+//
+// The paragraph between the sentence and the options is where the two
+// behaviours a person cannot guess from the flags are stated: what each input
+// is called inside the archive, and what happens to a symlink. Both are
+// otherwise learned by opening the archive, or by an archive that quietly
+// does not contain the file somebody pointed at. The build help is the other
+// command with a paragraph there, and for the same reason — it is information
+// about every run rather than about one flag.
+//
+// Input:  called by the zip command when the argument list contains --help or
+//         -h
+// Output: the usage line, one sentence saying what it creates, the paragraph
+//         above, the four options, and four examples.
+void printZipHelp(std::ostream& os) {
+    os << "Usage: guchho zip <input...> [options]\n"
+       << "\n"
+       << "Create a zip archive from files and directories.\n"
+       << "\n"
+       << "Every input is stored under its own last path component: 'guchho zip dist'\n"
+       << "stores the tree under dist/, and 'guchho zip src/app.js' stores the file as\n"
+       << "app.js. Symlinks found inside a tree are skipped with a warning rather than\n"
+       << "followed.\n"
+       << "\n"
+       << "Options:\n"
+       << "  -o, --outfile=<path>    Write the archive to this path (default: <input>.zip)\n"
+       << "  --level=<0-9>           Compression level (default: 6)\n"
+       << "  --allow-overwrite       Replace the output if it already exists\n"
+       << "  -h, --help              Show this help message\n"
+       << "\n"
+       << "Examples:\n"
+       << "  guchho zip dist/\n"
+       << "  guchho zip dist/ -o release.zip\n"
+       << "  guchho zip dist/ src/ -o release.zip\n"
+       << "  guchho zip dist/ --level=9\n";
 }
 
 // =============================================================================

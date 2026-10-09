@@ -477,6 +477,7 @@ namespace guchho::cli {
         kClean,
         kInfo,
         kTransform,
+        kZip,
     };
 
     // Whether the flags being parsed are the ones the command line itself will
@@ -537,8 +538,17 @@ namespace guchho::cli {
     void printInitHelp(std::ostream& os);
     void printCleanHelp(std::ostream& os);
     void printInfoHelp(std::ostream& os);
+    void printZipHelp(std::ostream& os);
 
     void printBuildSummary(const api::BuildResult& result, double elapsed_ms, bool quiet);
+
+    // A byte count as a person reads it, and the only number formatter the
+    // command line has. It is declared here rather than kept to cli_help.cpp
+    // because the commands that print a size — a build summary, an archive
+    // just written — all need the same one, and two spellings of "one and a
+    // half kilobytes" in one tool's output is a discrepancy somebody will
+    // eventually report as a bug.
+    std::string formatSize(size_t bytes);
 
     // -------------------------------------------------------------------------
     // The flag grammar
@@ -698,6 +708,7 @@ namespace guchho::cli {
     int runInit(const std::vector<std::string>& args);
     int runClean(const std::vector<std::string>& args);
     int runInfo(const std::vector<std::string>& args);
+    int runZip(const std::vector<std::string>& args);
 
 // =============================================================================
 // End of the command line surface. Everything above is pure declaration plus

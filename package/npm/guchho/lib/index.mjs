@@ -21,6 +21,7 @@ import mod from "./index.js";
 export const {
     build,
     transform,
+    zip,
     context,
     analyze,
     analyzeMetafile,

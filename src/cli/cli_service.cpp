@@ -33,8 +33,10 @@
 // while it does it.
 
 #include <cstdio>
+#include <cstdint>
 #include <exception>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -51,6 +53,7 @@
 #include "guchho/api.hpp"
 #include "guchho/cli.hpp"
 #include "guchho/service.hpp"
+#include "guchho/zip.hpp"
 
 namespace guchho::cli {
 
@@ -465,6 +468,156 @@ namespace guchho::cli {
             return service::Value::Object(std::move(entries));
         }
 
+        // A whole number of seconds, from the text form a host sends.
+        //
+        // "date" travels as a string rather than as a number for the same
+        // reason a size does: the protocol's number is a 32-bit integer, and
+        // an epoch in seconds stops fitting in one a decade from now. A host
+        // that sent the number anyway would have it truncated on the way in
+        // and would get an archive with a plausible, wrong timestamp — so a
+        // value that is not a decimal integer is refused rather than read as
+        // one.
+        bool ParseInt64(const std::string& text, std::int64_t& out) {
+            if (text.empty() || text.size() > 20) return false;
+
+            std::int64_t value = 0;
+            size_t       i     = 0;
+            bool         minus = false;
+            if (text[0] == '-') {
+                minus = true;
+                i     = 1;
+                if (text.size() == 1) return false;
+            }
+            for (; i < text.size(); ++i) {
+                const char digit = text[i];
+                if (digit < '0' || digit > '9') return false;
+                if (value > (std::numeric_limits<std::int64_t>::max() - (digit - '0')) / 10) {
+                    return false;
+                }
+                value = value * 10 + (digit - '0');
+            }
+            out = minus ? -value : value;
+            return true;
+        }
+
+        // Runs one zip request and returns the response.
+        //
+        // The request carries the fields rather than a flags array, which is
+        // the one place this file departs from the rule at the top. The rule
+        // exists so an option is accepted for the same reason it is accepted
+        // on the command line, but a zip request has no grammar to read:
+        // "inputs" is a list of paths, "date" is a timestamp and "mode" is a
+        // permission mask, and none of the three is a spelling of a build
+        // option. Sending them through the flag parser would mean inventing
+        // three flags that no command line has, for the sake of a rule about
+        // flags.
+        //
+        // Types are checked here and values by the core, so a caller that
+        // sent the wrong shape gets an answer about the shape and a caller
+        // that sent a shape the engine refuses gets the engine's own words
+        // about it — the same words the command line would have printed.
+        service::Value HandleZip(const service::Value& request) {
+            zip::ZipOptions options;
+
+            const service::Value* inputs = request.Find("inputs");
+            if (inputs == nullptr || !inputs->IsArray()) {
+                return ErrorResponse(ProtocolError("\"inputs\" must be an array of strings"));
+            }
+            for (const service::Value& entry : inputs->AsArray()) {
+                if (!entry.IsString()) {
+                    return ErrorResponse(
+                        ProtocolError("every entry in \"inputs\" must be a string"));
+                }
+                options.inputs.push_back(entry.AsString());
+            }
+
+            const service::Value* out_file = request.Find("outFile");
+            if (out_file == nullptr || !out_file->IsString()) {
+                return ErrorResponse(ProtocolError("\"outFile\" must be a string"));
+            }
+            options.outFile = out_file->AsString();
+
+            if (const service::Value* level = request.Find("level");
+                level != nullptr && !level->IsNull()) {
+                if (!level->IsNumber()) {
+                    return ErrorResponse(ProtocolError("\"level\" must be a number"));
+                }
+                options.level = level->AsNumber();
+            }
+
+            if (const service::Value* overwrite = request.Find("overwrite");
+                overwrite != nullptr && !overwrite->IsNull()) {
+                if (!overwrite->IsBool()) {
+                    return ErrorResponse(ProtocolError("\"overwrite\" must be a boolean"));
+                }
+                options.overwrite = overwrite->AsBool();
+            }
+
+            if (const service::Value* date = request.Find("date");
+                date != nullptr && !date->IsNull()) {
+                if (!date->IsString()) {
+                    return ErrorResponse(ProtocolError(
+                        "\"date\" must be seconds since the Unix epoch, sent as a string"));
+                }
+                std::int64_t seconds = 0;
+                if (!ParseInt64(date->AsString(), seconds)) {
+                    return ErrorResponse(
+                        ProtocolError("\"date\" must be a whole number of seconds"));
+                }
+                options.date = seconds;
+            }
+
+            if (const service::Value* mode = request.Find("mode");
+                mode != nullptr && !mode->IsNull()) {
+                if (!mode->IsNumber()) {
+                    return ErrorResponse(ProtocolError("\"mode\" must be a number"));
+                }
+                if (mode->AsNumber() < 0) {
+                    return ErrorResponse(
+                        ProtocolError("\"mode\" must not be negative"));
+                }
+                options.mode = static_cast<std::uint32_t>(mode->AsNumber());
+            }
+
+            const zip::ZipResult result = zip::CreateZip(options);
+
+            std::vector<service::Value> warnings;
+            warnings.reserve(result.warnings.size());
+            for (const std::string& warning : result.warnings) {
+                warnings.push_back(service::Value::String(warning));
+            }
+
+            if (!result.Ok()) {
+                // Reported as an error rather than as a result with an error
+                // field in it, so that unwrap() throws the BuildFailure every
+                // other failing call in this package throws. The note travels
+                // as a note on the message, which is where a caller reading
+                // errors[0].notes expects to find it.
+                api::Message message = EngineError("zip-failed", result.error);
+                if (!result.note.empty()) {
+                    api::Note note;
+                    note.text = result.note;
+                    message.notes.push_back(std::move(note));
+                }
+                return service::Value::Object({
+                    {"error", service::Value::String(result.error)},
+                    {"errors", service::Value::Array({service::MessageToValue(message)})},
+                    {"warnings", service::Value::Array(std::move(warnings))},
+                });
+            }
+
+            // The size is a decimal string for the reason "date" is: an
+            // archive past two gigabytes is a real thing to have written, and
+            // a number field that cannot hold it would report a wrapped one.
+            // The host turns it back into a number, where the same limit
+            // applies but is at least visible when it is reached.
+            return service::Value::Object({
+                {"path", service::Value::String(result.path)},
+                {"size", service::Value::String(std::to_string(result.size))},
+                {"warnings", service::Value::Array(std::move(warnings))},
+            });
+        }
+
         // Formats diagnostics the way a terminal would show them, for a host that
         // has messages and wants the sentences rather than the fields.
         service::Value HandleFormatMessages(const service::Value& request) {
@@ -827,6 +980,7 @@ namespace guchho::cli {
             if (name == "cancel") return HandleCancel(request);
             if (name == "dispose") return HandleDispose(request);
             if (name == "transform") return HandleTransform(request);
+            if (name == "zip") return HandleZip(request);
             if (name == "format-msgs") return HandleFormatMessages(request);
             if (name == "analyze-metafile") return HandleAnalyzeMetafile(request);
 

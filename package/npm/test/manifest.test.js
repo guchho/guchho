@@ -106,7 +106,7 @@ describe("guchho/package.json", () => {
             }
         }
 
-        for (const needed of ["bin/guchho.js", "lib/index.js", "lib/index.mjs", "lib/main.js", "lib/transform.js", "lib/build.js", "lib/exec.js", "lib/flags.js", "lib/platforms.js", "install.js", "README.md", "LICENSE"]) {
+        for (const needed of ["bin/guchho.js", "lib/index.js", "lib/index.mjs", "lib/main.js", "lib/transform.js", "lib/zip.js", "lib/build.js", "lib/exec.js", "lib/flags.js", "lib/platforms.js", "install.js", "README.md", "LICENSE"]) {
             assert.ok(shipped.has(needed), `${needed} is needed to run but is not in files`);
         }
     });

@@ -45,6 +45,7 @@ const PUBLIC_API = [
     "stop",
     "transform",
     "watch",
+    "zip",
 ];
 
 // The classes. Checked as constructors rather than as functions, because what a

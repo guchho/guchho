@@ -422,6 +422,65 @@ export interface TransformResult {
 }
 
 /**
+ * What zip() writes, and from what.
+ *
+ * Every path is a path on disk. Each entry of inputs becomes a top-level name
+ * taken from its last path component, so "dist" and "site/build" each arrive
+ * under their own name rather than under the tree they came from.
+ */
+export interface ZipOptions {
+  /**
+   * Where to write the archive. The parent directory is created if it is
+   * missing, and the archive itself is moved into place at the end — so a
+   * caller reading this path after a failure is reading nothing rather than a
+   * half-written archive.
+   */
+  outFile: string
+  /** The files and directories to put in the archive. */
+  inputs: string[]
+  /**
+   * Deflate level, 0 to 9. 0 stores rather than compresses. The engine's
+   * default is 6, which is what a caller gets by leaving this out.
+   */
+  level?: number
+  /**
+   * Replace an existing outFile. Without it, an existing file is an error
+   * rather than something to destroy.
+   */
+  overwrite?: boolean
+  /**
+   * The timestamp every entry gets. Without it each entry keeps the time of
+   * the file it came from.
+   *
+   * A Date rather than a number of seconds, because that is the type a caller
+   * has and converting it in the caller would be a step they would get wrong
+   * on the one day a timestamp is not in this decade's range.
+   */
+  date?: Date
+  /**
+   * Unix permission bits to record for every file and directory, as `0o755`
+   * and friends. Without it each entry keeps the permissions of the file it
+   * came from. Recorded, not applied: an archive extracted on Windows does not
+   * become executable because a mode was written into it.
+   */
+  mode?: number
+}
+
+export interface ZipResult {
+  /** The archive, as the path it was written to. */
+  path: string
+  /** Its size in bytes. */
+  size: number
+  /**
+   * What was deliberately left out: a symlink the walk would not follow, a
+   * cycle it would not go round, the output file standing inside an input
+   * tree. Never empty because something was missed — empty because nothing
+   * was.
+   */
+  warnings: string[]
+}
+
+/**
  * A build that is set up once and built as many times as asked.
  *
  * A context holds everything the engine learned reading the project, which is
@@ -604,6 +663,20 @@ export declare function transform(
   code: string | Uint8Array,
   options?: TransformOptions
 ): Promise<TransformResult>
+
+/**
+ * Writes a zip archive from files and directories already on disk.
+ *
+ * Everything the command line's `guchho zip` does, reached as a function:
+ * the same entry naming, the same symlink policy, the same refusal of an
+ * archive that would collide with itself. What differs is the shape — a path
+ * and a size come back as data rather than as a line on a terminal.
+ *
+ * @throws {TypeError} When an option is missing or has the wrong type.
+ * @throws {RangeError} When a level, a mode or a date is out of range.
+ * @throws {BuildFailure} When the engine refused the request.
+ */
+export declare function zip(options: ZipOptions): Promise<ZipResult>
 
 /** Sets up a build that can be repeated. */
 export declare function context(options: BuildOptions): Promise<BuildContext>

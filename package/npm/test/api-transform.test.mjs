@@ -78,6 +78,7 @@ describe("the module's shape", () => {
         assert.equal(typeof guchho.watch, "function");
         assert.equal(typeof guchho.serve, "function");
         assert.equal(typeof guchho.stop, "function");
+        assert.equal(typeof guchho.zip, "function");
         assert.equal(typeof guchho.version, "string");
         assert.equal(typeof guchho.lexer, "function");
         assert.equal(typeof guchho.parse, "function");

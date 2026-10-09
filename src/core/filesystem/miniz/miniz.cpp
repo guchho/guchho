@@ -6199,10 +6199,20 @@ mz_bool mz_zip_writer_init_heap_v2(mz_zip_archive *pZip,
 }
 
 mz_bool mz_zip_writer_init_heap(mz_zip_archive *pZip,
-                                size_t size_to_reserve_at_beginning,
-                                size_t initial_allocation_size) {
+                               size_t size_to_reserve_at_beginning,
+                               size_t initial_allocation_size) {
   return mz_zip_writer_init_heap_v2(pZip, size_to_reserve_at_beginning,
                                     initial_allocation_size, 0);
+}
+
+/* Guchho extension: see the declaration in guchho/miniz.hpp. */
+mz_bool mz_zip_writer_set_default_attributes(mz_zip_archive *pZip,
+                                             mz_uint32 ext_attributes) {
+  if (!pZip)
+    return mz_zip_set_error(pZip, MZ_ZIP_INVALID_PARAMETER);
+
+  pZip->m_entry_ext_attributes = ext_attributes;
+  return MZ_TRUE;
 }
 
 #ifndef MINIZ_NO_STDIO
@@ -6658,6 +6668,9 @@ mz_bool mz_zip_writer_add_mem_ex_v2(
 
   pState = pZip->m_pState;
 
+  /* Guchho extension: default external attributes (0 == upstream miniz). */
+  ext_attributes = pZip->m_entry_ext_attributes;
+
   if (pState->m_zip64) {
     if (pZip->m_total_files == MZ_UINT32_MAX)
       return mz_zip_set_error(pZip, MZ_ZIP_TOO_MANY_FILES);
@@ -6932,7 +6945,8 @@ mz_bool mz_zip_writer_add_read_buf_callback(
     mz_uint user_extra_data_central_len) {
   mz_uint16 gen_flags;
   mz_uint uncomp_crc32 = MZ_CRC32_INIT, level, num_alignment_padding_bytes;
-  mz_uint16 method = 0, dos_time = 0, dos_date = 0, ext_attributes = 0;
+  mz_uint16 method = 0, dos_time = 0, dos_date = 0;
+  mz_uint32 ext_attributes = 0;
   mz_uint64 local_dir_header_ofs, cur_archive_file_ofs = pZip->m_archive_size,
                                   uncomp_size = 0, comp_size = 0;
   size_t archive_name_size;
@@ -6961,6 +6975,9 @@ mz_bool mz_zip_writer_add_read_buf_callback(
     return mz_zip_set_error(pZip, MZ_ZIP_INVALID_PARAMETER);
 
   pState = pZip->m_pState;
+
+  /* Guchho extension: default external attributes (0 == upstream miniz). */
+  ext_attributes = pZip->m_entry_ext_attributes;
 
   if ((!pState->m_zip64) && (max_size > MZ_UINT32_MAX)) {
     /* Source file is too large for non-zip64 */

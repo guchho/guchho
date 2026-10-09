@@ -223,7 +223,7 @@ int runClean(const std::vector<std::string>& args) {
 // Three facts about the machine and the project, and the first thing anybody
 // pastes into a bug report.
 //
-// It is the shortest of the eight commands and the only one with no settings at
+// It is the shortest of the nine commands and the only one with no settings at
 // all, and that is a deliberate answer to the question of what to print. A
 // person who has typed "guchho info" has usually just seen something they did
 // not expect, and the useful thing to tell them is which machine they are on

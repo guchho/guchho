@@ -182,6 +182,7 @@ Command detectCommand(const std::vector<std::string>& args, bool& has_entry) {
     if (first == "clean")  return Command::kClean;
     if (first == "info")   return Command::kInfo;
     if (first == "transform") return Command::kTransform;
+    if (first == "zip") return Command::kZip;
 
     // Not a command word, so the leading argument means something else. A path
     // is the case worth catching, and it is recognised by the one thing a
@@ -433,6 +434,8 @@ static int runImpl(const std::vector<std::string>& os_args,
         return runClean(os_args);
     case Command::kInfo:
         return runInfo(os_args);
+    case Command::kZip:
+        return runZip(os_args);
     default:
         printUsage(std::cout);
         return 0;

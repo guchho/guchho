@@ -35,11 +35,12 @@ using guchho::test::RunCli;
 
 namespace {
 
-// The eight words the usage text lists, in the order it lists them. Each is
+// The nine words the usage text lists, in the order it lists them. Each is
 // checked by name so that a command dropped from the list is a test that fails
 // on its own rather than a diff nobody reads.
 const std::vector<std::string> kCommandWords = {
     "build", "dev", "serve", "watch", "init", "clean", "info", "transform",
+    "zip",
 };
 
 } // namespace

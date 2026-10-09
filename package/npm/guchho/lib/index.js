@@ -23,6 +23,7 @@
 const { build, analyzeMetafile } = require("./build");
 const { analyze } = require("./analyze");
 const { transform } = require("./transform");
+const { zip } = require("./zip");
 const { context, BuildContext } = require("./context");
 const { watch, Watcher } = require("./watch");
 const { serve, DevServer } = require("./serve");
@@ -38,6 +39,7 @@ module.exports = {
     // The guchho API.
     build,
     transform,
+    zip,
     context,
     analyze,
     analyzeMetafile,

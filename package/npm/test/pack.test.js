@@ -61,6 +61,7 @@ describe("the main package", () => {
             "lib/index.mjs",
             "lib/main.js",
             "lib/transform.js",
+            "lib/zip.js",
             "lib/build.js",
             "lib/exec.js",
             "lib/flags.js",

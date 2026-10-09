@@ -1449,6 +1449,14 @@ typedef struct {
 
   mz_zip_internal_state *m_pState;
 
+  /* Guchho extension: default external attributes (Unix mode in the high 16
+   * bits, DOS flags in the low 16 bits) applied to each entry added by the
+   * writer. Zero -- the value mz_zip_zero_struct() leaves here, and the only
+   * value upstream miniz ever writes -- produces byte-identical output to
+   * upstream miniz. Set it with mz_zip_writer_set_default_attributes().
+   * See src/core/filesystem/miniz/README.md. */
+  mz_uint32 m_entry_ext_attributes;
+
 } mz_zip_archive;
 
 typedef struct {
@@ -1735,6 +1743,14 @@ MINIZ_EXPORT mz_bool mz_zip_writer_init_heap(
 MINIZ_EXPORT mz_bool mz_zip_writer_init_heap_v2(
     mz_zip_archive *pZip, size_t size_to_reserve_at_beginning,
     size_t initial_allocation_size, mz_uint flags);
+
+/* Guchho extension: sets the default external attributes recorded in the
+ * central directory for every entry added after this call (Unix mode in the
+ * high 16 bits, DOS flags in the low 16 bits). The default is 0, which is
+ * exactly what upstream miniz writes. See src/core/filesystem/miniz/README.md. */
+MINIZ_EXPORT mz_bool
+mz_zip_writer_set_default_attributes(mz_zip_archive *pZip,
+                                    mz_uint32 ext_attributes);
 
 #ifndef MINIZ_NO_STDIO
 MINIZ_EXPORT

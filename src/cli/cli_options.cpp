@@ -1265,6 +1265,12 @@ std::optional<ErrorWithNote> parseOptionsImpl(
 // which is the same answer it would have given, arrived at without a special
 // case here.
 //
+// The guessing is only for a caller that does not already know, with the same
+// escape hatch parseOptionsForRun() has: runBuild is only reached for a build,
+// so it passes known_build and the flags are removed whatever else is on the
+// line. Without that, "guchho build --analyze" in a project whose entry point
+// lives in the config file keeps the flag, and the grammar rejects it.
+//
 // If both spellings appear, the last one wins, because the loop does not stop
 // at the first: a person who writes the flag twice has said it twice, and the
 // second mention is the one they meant.
@@ -1282,23 +1288,33 @@ std::optional<ErrorWithNote> parseOptionsImpl(
 // Input:  { "--analyze" }
 // Output: AnalyzeMode::kDisabled, and the vector unchanged, since a line of
 //         nothing but flags is not yet known to be a build.
-AnalyzeMode filterAnalyzeFlags(std::vector<std::string>& os_args) {
-    for (const auto& arg : os_args) {
-        if (isArgForBuild(arg)) {
-            AnalyzeMode analyze = AnalyzeMode::kDisabled;
-            size_t end = 0;
-            for (const auto& a : os_args) {
-                if (a == "--analyze") {
-                    analyze = AnalyzeMode::kEnabled;
-                } else if (a == "--analyze=verbose") {
-                    analyze = AnalyzeMode::kVerbose;
-                } else {
-                    os_args[end++] = a;
-                }
+//
+// Input:  { "--analyze" }, the run already known to be a build
+// Output: AnalyzeMode::kEnabled, and an empty vector.
+AnalyzeMode filterAnalyzeFlags(std::vector<std::string>& os_args, bool known_build) {
+    if (!known_build) {
+        for (const auto& arg : os_args) {
+            if (isArgForBuild(arg)) {
+                known_build = true;
+                break;
             }
-            os_args.resize(end);
-            return analyze;
         }
+    }
+
+    if (known_build) {
+        AnalyzeMode analyze = AnalyzeMode::kDisabled;
+        size_t end = 0;
+        for (const auto& a : os_args) {
+            if (a == "--analyze") {
+                analyze = AnalyzeMode::kEnabled;
+            } else if (a == "--analyze=verbose") {
+                analyze = AnalyzeMode::kVerbose;
+            } else {
+                os_args[end++] = a;
+            }
+        }
+        os_args.resize(end);
+        return analyze;
     }
     return AnalyzeMode::kDisabled;
 }
@@ -1361,6 +1377,14 @@ void attachPlugins(api::BuildOptions& build_options,
 // typed it has not said what. That decision is made here, once, by the same
 // helper the analyze filter uses, so the two agree about what a build is.
 //
+// The guessing is only for a caller that does not already know. Every command
+// inside guchho does know: only a command line the dispatcher recognised as a
+// build reaches runBuild, and clean describes a build's output directory. Such
+// a caller passes known_build and the guess is skipped. Without that, a line of
+// flags with no path among them — "guchho build --define:__DEV__=true" in a
+// project whose entry point lives in the config file — reads as a transform,
+// and the flags land in a structure the caller then throws away.
+//
 // The defaults set here are the ones that belong to the command line rather
 // than to the engine. The engine's own defaults describe what each option means
 // and are the same for every caller; how chatty a run should be and how many
@@ -1391,6 +1415,11 @@ void attachPlugins(api::BuildOptions& build_options,
 // Output: a transform with minify on, the log at info with a cap of six, write
 //         left off, and no complaint.
 //
+// Input:  { "--minify" }, the run already known to be a build
+// Output: a build with minify on, the log at info with a cap of six, write
+//         left off — nothing on the line named something to build from — and
+//         no complaint.
+//
 // Input:  { "--sourcemap=linked" }
 // Output: a complaint reading "Use \"--sourcemap\" instead of
 //         \"--sourcemap=linked\" when transforming stdin", and the default
@@ -1400,22 +1429,44 @@ void attachPlugins(api::BuildOptions& build_options,
 // Output: a complaint reading "Invalid build flag: \"--nope\"", and a build
 //         that already has its entry point.
 ParseOptionsForRunResult parseOptionsForRun(const std::vector<std::string>& os_args,
-                      const std::vector<api::Plugin>& plugins) {
-    for (const auto& arg : os_args) {
-        if (isArgForBuild(arg)) {
-            auto build_opts = newBuildOptions();
-            build_opts.log_limit = 6;
-            build_opts.log_level = api::LogLevel::kInfo;
-            build_opts.write = true;
-
-            ParseOptionsExtras extras;
-            auto err = parseOptionsImpl(os_args, &build_opts, nullptr, ParseOptionsKind::kInternal, extras);
-            attachPlugins(build_opts, plugins);
-            // Written on with plugins, and the internal kind: this is the
-            // command line itself, so it is entitled to the two flags that name
-            // files the run is about to write.
-            return {nullptr, nullptr, std::move(build_opts), {}, std::move(extras), std::move(err)};
+                      const std::vector<api::Plugin>& plugins,
+                      bool known_build) {
+    if (!known_build) {
+        for (const auto& arg : os_args) {
+            if (isArgForBuild(arg)) {
+                known_build = true;
+                break;
+            }
         }
+    }
+
+    if (known_build) {
+        auto build_opts = newBuildOptions();
+        build_opts.log_limit = 6;
+        build_opts.log_level = api::LogLevel::kInfo;
+
+        // "write" marks a command line that named something to build from — a
+        // path, or a build-only flag — and it stays the evidence runBuild's
+        // gate reads to tell "build this" from "nothing to do", which is why it
+        // is set from the arguments rather than from known_build: a bare
+        // "guchho build" asks for nothing and is still the usage error it has
+        // always been. A line of flags with no path among them now has those
+        // flags in the structure that survives instead of one that is thrown
+        // away, and its entry point can come from the project's config file.
+        for (const auto& arg : os_args) {
+            if (isArgForBuild(arg)) {
+                build_opts.write = true;
+                break;
+            }
+        }
+
+        ParseOptionsExtras extras;
+        auto err = parseOptionsImpl(os_args, &build_opts, nullptr, ParseOptionsKind::kInternal, extras);
+        attachPlugins(build_opts, plugins);
+        // Written on with plugins, and the internal kind: this is the
+        // command line itself, so it is entitled to the two flags that name
+        // files the run is about to write.
+        return {nullptr, nullptr, std::move(build_opts), {}, std::move(extras), std::move(err)};
     }
 
     auto transform_opts = newTransformOptions();

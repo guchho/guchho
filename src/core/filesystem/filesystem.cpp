@@ -670,6 +670,53 @@ namespace guchho::filesystem {
             return {contents, {}};
         }
 
+        // Lists the names directly inside a directory, with no filesystem
+        // object involved.  This is the same iteration RealFS::ReadDir does,
+        // factored out so that the change-detection closures GetWatchData()
+        // builds can list a directory without capturing the filesystem —
+        // those closures outlive the pass that created them, and a closure
+        // holding a pointer back into that pass would be holding a pointer
+        // into a destroyed object.
+        //
+        // EINVAL from the iterator is canonicalized to ENOTDIR, matching
+        // ReadDir, so a path that stopped being a directory is reported the
+        // same way from both call sites.
+        //
+        // Example:
+        //   auto [names, ec] = ListDirNames("/src");
+        //   ec == std::error_code{}  =>  true on success
+        //   names                    =>  {"main.cpp", "util.cpp"}
+        std::pair<std::vector<std::string>, std::error_code> ListDirNames(const std::string& dirname)
+        {
+            BeforeFileOpen();
+
+            std::error_code                 ec;
+            std::filesystem::directory_iterator iterator(PathFromUTF8(dirname), ec);
+            if (ec) {
+                if (ec == std::errc::invalid_argument) {
+                    ec = std::make_error_code(std::errc::not_a_directory);
+                }
+                AfterFileClose();
+                return {{}, ec};
+            }
+
+            std::vector<std::string>            names;
+            std::filesystem::directory_iterator end;
+            for (; iterator != end; iterator.increment(ec)) {
+                if (ec) {
+                    break;
+                }
+                names.push_back(PathToUTF8(iterator->path().filename()));
+            }
+
+            if (ec == std::errc::invalid_argument) {
+                ec = std::make_error_code(std::errc::not_a_directory);
+            }
+
+            AfterFileClose();
+            return {names, ec};
+        }
+
 #ifdef _WIN32
 
         // Computes a metadata fingerprint for a file on Windows using _wstat64.
@@ -1146,9 +1193,17 @@ namespace guchho::filesystem {
 
                     switch (data.state) {
                     case WatchState::kDirUnreadable: {
+                        // Every closure below captures values only — never
+                        // "this". These closures outlive the pass that built
+                        // them: the caller hands the whole set to a watcher
+                        // that calls them on later ticks, by which time the
+                        // filesystem that produced the set is gone. A closure
+                        // capturing "this" would be calling into a destroyed
+                        // object, which is what used to make the watcher stop
+                        // working after its first rebuild.
                         std::string watched = path;
-                        result.paths.emplace(watched, [this, watched]() -> std::string {
-                            auto [names, ec, original_error] = ReadDir(watched);
+                        result.paths.emplace(watched, [watched]() -> std::string {
+                            auto [names, ec] = ListDirNames(watched);
                             if (!ec) {
                                 return watched;
                             }
@@ -1158,10 +1213,10 @@ namespace guchho::filesystem {
                     }
 
                     case WatchState::kDirHasAccessedEntries: {
-                        std::string     watched  = path;
+                        std::string      watched  = path;
                         PrivateWatchData captured = data;
-                        result.paths.emplace(watched, [this, watched, captured]() -> std::string {
-                            auto [names, ec, original_error] = ReadDir(watched);
+                        result.paths.emplace(watched, [watched, captured]() -> std::string {
+                            auto [names, ec] = ListDirNames(watched);
                             if (ec) {
                                 return watched;
                             }
@@ -1192,7 +1247,16 @@ namespace guchho::filesystem {
                                     bool is_present = found != lookup.end();
                                     if (was_present != is_present) {
                                         if (is_present) {
-                                            return Join({watched, found->second});
+                                            // Joined through the platform's
+                                            // path syntax so the returned path
+                                            // reads the same as one the build
+                                            // itself would name. The value is
+                                            // only ever shown in a log line;
+                                            // the watch set is keyed by
+                                            // "watched", not by this.
+                                            return PathToUTF8(
+                                                std::filesystem::path(PathFromUTF8(watched)) /
+                                                found->second);
                                         } else {
                                             return watched;
                                         }

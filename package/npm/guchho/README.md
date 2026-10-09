@@ -92,6 +92,7 @@ export default {
     minify: true,
     pretty: true,
     minifyHtml: false,
+    define: { __DEV__: 'false', __VERSION__: '"1.0.0"' },
   },
 }
 ```
@@ -105,12 +106,15 @@ The same document as JSON:
     "outdir": "dist",
     "format": "esm",
     "target": "esnext",
-    "minify": true
+    "minify": true,
+    "define": { "__DEV__": "false", "__VERSION__": "\"1.0.0\"" }
   }
 }
 ```
 
 Any option a flag accepts may be set here, using the flag's name in camelCase (`outdir`, `minifyHtml`, `treeShaking`, `logLevel`, …). Unknown fields are reported as warnings rather than ignored, so a typo is visible.
+
+`define` values are the JavaScript expression to substitute, written as a string: bare `false`, `true` and numbers need no quoting of their own, while string values carry their quotes inside the text (`__VERSION__: '"1.0.0"'`). A `--define:` flag on the command line wins for the keys it names; every other key the config set still applies.
 
 ## JavaScript API
 

@@ -1440,6 +1440,48 @@ TEST(CliBuild, TheBuildOnlyFlagsThatNeedNothingElseAllSucceed) {
 }
 
 // ---------------------------------------------------------------------------
+// define
+// ---------------------------------------------------------------------------
+
+// A project's own substitutions, written where every other build option is
+// written. The value the config set is the value in the output — the
+// identifier is gone and its replacement is what stands in its place.
+TEST(CliBuild, ConfigDefineIsSubstitutedIntoTheOutput) {
+    CliWorkspace ws("define-from-config");
+    ws.Write("entry.js", "const state = __DEV__;\nconsole.log(state);\n");
+    ws.Write("guchho.config.json",
+             R"({"build":{"entry":"entry.js","outfile":"out.js","define":{"__DEV__":"false"}}})");
+
+    EXPECT_EQ(RunCli({"build"}).exit_code, kSuccess);
+
+    const std::string out = ws.Read("out.js");
+    EXPECT_TRUE(OutputContains(out, "false"))
+        << "the config's define never reached the output: [" << out << "]";
+    EXPECT_FALSE(OutputContains(out, "__DEV__"))
+        << "the identifier survived its own definition: [" << out << "]";
+}
+
+// The merge, end to end: a flag owns the key it named and nothing else, so
+// the config's other define still applies to the same build.
+TEST(CliBuild, DefineFlagAndConfigDefineBothApply) {
+    CliWorkspace ws("define-merge");
+    ws.Write("entry.js", "const a = __DEV__;\nconst b = __FROM_CONFIG__;\nconsole.log(a, b);\n");
+    ws.Write("guchho.config.json",
+             R"({"build":{"entry":"entry.js","outfile":"out.js",)"
+             R"("define":{"__DEV__":"false","__FROM_CONFIG__":"1"}}})");
+
+    EXPECT_EQ(RunCli({"build", "--define:__DEV__=true"}).exit_code, kSuccess);
+
+    const std::string out = ws.Read("out.js");
+    EXPECT_TRUE(OutputContains(out, "true"))
+        << "the flag did not win for the key it named: [" << out << "]";
+    EXPECT_TRUE(OutputContains(out, "1"))
+        << "the flag took the config's define with it: [" << out << "]";
+    EXPECT_FALSE(OutputContains(out, "__FROM_CONFIG__"))
+        << "the config's define never reached the output: [" << out << "]";
+}
+
+// ---------------------------------------------------------------------------
 // Flag errors
 // ---------------------------------------------------------------------------
 

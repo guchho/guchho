@@ -894,31 +894,6 @@ TEST(Api, BuildWithWriteCreatesTheOutputFile) {
     EXPECT_TRUE(contains(dir.Read("dist/bundle.js"), "42"));
 }
 
-// "@charset" only means anything at the very start of a stylesheet, so the
-// banner goes after it, never before.
-TEST(Api, BuildCssBannerComesAfterCharset) {
-    TempDir dir("css-banner-charset");
-    dir.Write("entry.css", "@charset \"UTF-8\";\nbody { color: red; }\n");
-
-    api::BuildOptions opts;
-    opts.entry_points = {dir.At("entry.css")};
-    opts.bundle = true;
-    opts.outfile = "dist/out.css";
-    opts.banner["css"] = "/*! plugin banner */";
-    opts.abs_working_dir = dir.path();
-    opts.log_level = quiet();
-    api::BuildResult r = api::Build(opts);
-    ASSERT_TRUE(r.errors.empty());
-    ASSERT_EQ(r.output_files.size(), 1u);
-    const std::string text = to_string(r.output_files[0].contents);
-    const size_t       charset_pos = text.find("@charset");
-    ASSERT_NE(charset_pos, std::string::npos) << "output was: [" << text << "]";
-    EXPECT_EQ(charset_pos, size_t(0)) << "output was: [" << text << "]";
-    const size_t banner_pos = text.find("/*! plugin banner */");
-    ASSERT_NE(banner_pos, std::string::npos) << "output was: [" << text << "]";
-    EXPECT_LT(charset_pos, banner_pos);
-}
-
 TEST(Api, BuildWithOutdirWritesEveryEntry) {
     TempDir dir("outdir");
     dir.Write("a.js", "export const a = 1;\n");

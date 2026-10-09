@@ -1053,97 +1053,21 @@ namespace guchho::resolver {
         }
 
         // ---- "plugins" ---------------------------------------------------
-        // A config crosses from Node to here as JSON, so nothing callable
-        // survives the trip: a plugin can only be data when it arrives. What
-        // is recognized is a descriptor — an object carrying a "banner"
-        // record in the same "js"/"css" spelling "build.banner" speaks — and
-        // its text is appended to that banner, which puts it at the top of
-        // every generated JavaScript and CSS file through the placement,
-        // minification, and source-map machinery the built-in banner already
-        // runs on. An entry without a banner record is a plugin this build
-        // cannot run, so it is warned about rather than dropped in silence.
+        // The plugin system is not implemented yet, and JS functions cannot be
+        // transported through JSON anyway. Warn so configs do not silently
+        // lose behavior.
         if (auto plugins = internal::GetProperty(json, "plugins")) {
-            // Appends one banner text below whatever is already configured
-            // for that output kind, skipping text that is already present so
-            // the same banner never appears twice in one file.
-            auto append_banner = [](std::string& slot, const std::string& text) {
-                if (text.empty()) return;
-                if (slot.empty()) {
-                    slot = text;
-                    return;
-                }
-                if (slot.find(text) != std::string::npos) return;
-                slot += "\n";
-                slot += text;
-            };
-
-            // Validates and applies one descriptor. Returns true when the
-            // entry was a descriptor — a "banner" record that is malformed is
-            // an error, never a silent no-op — and false for an entry that
-            // simply is not one, which is what the caller warns about.
-            auto apply_banner_descriptor = [&](const javascript::Expr& entry) -> bool {
-                auto banner = internal::GetProperty(entry, "banner");
-                if (!banner) return false;
-                if (auto text = internal::GetString(banner->first)) {
-                    // The string spelling means what it means for
-                    // "build.banner": the JavaScript half.
-                    append_banner(opts.Banner["js"], *text);
-                    return true;
-                }
-                auto* record = std::get_if<std::shared_ptr<javascript::EObject>>(
-                    &banner->first.data);
-                if (record == nullptr || (*record)->properties.empty()) {
-                    log.AddID(logger::MsgID::kGuchhoConfig_InvalidPluginBanner,
-                              logger::MsgKind::kError, &tracker,
-                              source.RangeOfString(banner->second),
-                              logger::FormatMsg(logger::MsgCat::kGuchhoConfig_InvalidPluginBanner));
-                    return true;
-                }
-                // Every key and value is checked before any of it is merged,
-                // so an invalid record leaves no half-applied banner behind.
-                for (const javascript::Property& prop : (*record)->properties) {
-                    const std::string key = PropertyKeyText(prop);
-                    if ((key != "js" && key != "css") ||
-                        !internal::GetString(prop.value_or_nil)) {
-                        log.AddID(logger::MsgID::kGuchhoConfig_InvalidPluginBanner,
-                                  logger::MsgKind::kError, &tracker,
-                                  source.RangeOfString(prop.key.loc),
-                                  logger::FormatMsg(
-                                      logger::MsgCat::kGuchhoConfig_InvalidPluginBanner));
-                        return true;
-                    }
-                }
-                for (const javascript::Property& prop : (*record)->properties) {
-                    append_banner(opts.Banner[PropertyKeyText(prop)],
-                                  *internal::GetString(prop.value_or_nil));
-                }
-                return true;
-            };
-
-            bool applied = false;
-            bool ignored = false;
-            if (auto* arr =
-                    std::get_if<std::shared_ptr<javascript::EArray>>(&plugins->first.data)) {
-                for (const javascript::Expr& item : (*arr)->items) {
-                    if (apply_banner_descriptor(item)) applied = true;
-                    else                                ignored = true;
-                }
-            } else if (auto* object =
-                           std::get_if<std::shared_ptr<javascript::EObject>>(
-                               &plugins->first.data)) {
-                if (!(*object)->properties.empty()) {
-                    if (apply_banner_descriptor(plugins->first)) applied = true;
-                    else                                         ignored = true;
-                }
-            }
-            if (ignored) {
-                if (applied) {
-                    log.AddID(logger::MsgID::kGuchhoConfig_UnsupportedPluginEntry,
+            if (auto* arr = std::get_if<std::shared_ptr<javascript::EArray>>(&plugins->first.data)) {
+                if (!(*arr)->items.empty()) {
+                    log.AddID(logger::MsgID::kGuchhoConfig_PluginsIgnored,
                               logger::MsgKind::kWarning, &tracker,
                               source.RangeOfString(plugins->second),
-                              logger::FormatMsg(
-                                  logger::MsgCat::kGuchhoConfig_UnsupportedPluginEntry));
-                } else {
+                              "Guchho plugins are not implemented yet; the \"plugins\" field "
+                              "will be ignored");
+                }
+            } else if (auto* object =
+                           std::get_if<std::shared_ptr<javascript::EObject>>(&plugins->first.data)) {
+                if (!(*object)->properties.empty()) {
                     log.AddID(logger::MsgID::kGuchhoConfig_PluginsIgnored,
                               logger::MsgKind::kWarning, &tracker,
                               source.RangeOfString(plugins->second),

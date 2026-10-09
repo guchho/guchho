@@ -170,8 +170,6 @@ namespace guchho::logger {
         kGuchhoConfig_ConflictingOutputFile,
         kGuchhoConfig_PlatformMismatchForHTML,
         kGuchhoConfig_OutfileIgnoredForHTML,
-        kGuchhoConfig_InvalidPluginBanner,
-        kGuchhoConfig_UnsupportedPluginEntry,
         kGuchhoConfig_LAST,
 
         // api
@@ -1409,8 +1407,6 @@ namespace guchho::logger {
         kGuchhoConfig_ConflictingOutputFile,
         kGuchhoConfig_PlatformMismatchForHTML,
         kGuchhoConfig_OutfileIgnoredForHTML,
-        kGuchhoConfig_InvalidPluginBanner,
-        kGuchhoConfig_UnsupportedPluginEntry,
 
         // -------------------------------------------------------------------
         // Yarn PnP (yarnpnp.cpp)

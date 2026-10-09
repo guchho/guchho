@@ -581,8 +581,6 @@ namespace guchho::logger {
         case MsgCat::kGuchhoConfig_ConflictingOutputFile: return "{} and {} write to the same file \"{}\"; the later one would overwrite the earlier one";
         case MsgCat::kGuchhoConfig_PlatformMismatchForHTML: return "\"platform: {}\" may not be appropriate for an HTML entry.";
         case MsgCat::kGuchhoConfig_OutfileIgnoredForHTML: return "\"outfile\" is not used for HTML entry output.";
-        case MsgCat::kGuchhoConfig_InvalidPluginBanner: return "Invalid plugin \"banner\" in the \"plugins\" field: expected a string, or an object with \"js\" and/or \"css\" string fields";
-        case MsgCat::kGuchhoConfig_UnsupportedPluginEntry: return "Plugin entries without a \"banner\" record are not supported yet and will be ignored";
 
         // -------------------------------------------------------------------
         // Yarn PnP (yarnpnp.cpp)

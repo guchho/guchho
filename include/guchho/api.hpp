@@ -1137,6 +1137,16 @@ struct ServeOptions {
     std::string certfile;  // must be set together with keyfile
     std::string fallback;  // served when nothing else matches
 
+    // Turns the server into a live-reload host. While it is on, every HTML
+    // response is given a script tag pointing at the reserved "/guchho.js"
+    // path, and that script keeps an event stream open to the server; when a
+    // rebuild changes the output, the page reloads itself. Off by default:
+    // "serve" is also used for looking at a build without a browser attached,
+    // and injecting into responses is only wanted when a person is watching
+    // one. A caller that rebuilds out of band — a watch session driving the
+    // server — tells it a rebuild happened through ServeResult::notify.
+    bool live_reload{};
+
     CORSOptions cors;
 
     // Invoked once per request, after the response has been produced, with the
@@ -1166,6 +1176,16 @@ struct ServeResult {
     std::vector<std::string> hosts; // URLs to print, one per reachable address
 
     std::function<void()> stop;
+
+    // Tells the connected live-reload clients that a rebuild just finished,
+    // diffing this result against the previous one and pushing a "change"
+    // event only when the output actually differs. This is how a rebuild that
+    // the server itself did not run — a watch session, most importantly —
+    // reaches the browser: the server rebuilds on demand for each request, so
+    // anything that builds off the request path has to knock. Calling it is
+    // always safe and does nothing useful when live_reload is off or no
+    // client is connected. The handler it names outlives stop().
+    std::function<void(const BuildResult&)> notify;
 };
 
 // How long to wait after a change is noticed before rebuilding. The delay
@@ -1220,15 +1240,18 @@ public:
     // Starts an HTTP server over the build's output and returns as soon as it
     // is accepting connections. Anything the server serves from the build
     // triggers a rebuild first, so editing a file and reloading the page is
-    // enough to see the change.
+    // enough to see the change. This combines with Watch(): rebuilds the
+    // watcher runs on its own then reach open browsers through
+    // ServeResult::notify, which the context calls for every pass that
+    // finishes — that combination is what "guchho dev" is.
     //
     // Input:  ServeOptions{ servedir = "dist", port = 0 }
     // Output: ServeResult with the bound "port", the "hosts" to print, and a
     //         "stop" function that must be called to shut the server down.
     //
     // Throws "std::runtime_error" on a bad configuration (a port already in
-    // use, a half-specified TLS pair, a malformed CORS origin), on a disposed
-    // context, or when the context is already watching.
+    // use, a half-specified TLS pair, a malformed CORS origin) or on a
+    // disposed context.
     virtual ServeResult Serve(const ServeOptions& options) = 0;
 
     // Asks the build that is running right now to stop at the next convenient

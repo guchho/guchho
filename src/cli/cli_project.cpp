@@ -138,7 +138,7 @@ int runClean(const std::vector<std::string>& args) {
     clean_args.erase(std::remove(clean_args.begin(), clean_args.end(), "--dry-run"),
                      clean_args.end());
     auto [clean_build, clean_transform, build_opts, transform_opts, clean_extras, clean_err] =
-        parseOptionsForRun(clean_args, {});
+        parseOptionsForRun(clean_args, {}, true);
     (void)clean_build;
     (void)clean_transform;
     (void)transform_opts;

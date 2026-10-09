@@ -10,6 +10,7 @@
 #include "guchho/api.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <ctime>
 #include <filesystem>
@@ -18,6 +19,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 using namespace guchho;
@@ -1067,6 +1069,77 @@ TEST(Api, ContextBuildsAndRebuilds) {
     EXPECT_TRUE(contains(to_string(first.output_files[0].contents), "1"));
 }
 
+// Polls the context's written output until it contains "needle" or "timeout"
+// passes. A watcher reports its rebuilds only through progress lines on the
+// log stream, which tests do not capture, so the output the rebuild wrote is
+// the thing a test can see from outside.
+bool WaitForWrittenOutput(const TempDir& dir, const std::string& needle,
+                          std::chrono::milliseconds timeout) {
+    const std::chrono::steady_clock::time_point deadline =
+        std::chrono::steady_clock::now() + timeout;
+    while (std::chrono::steady_clock::now() < deadline) {
+        if (dir.Exists("out.js") && contains(dir.Read("out.js"), needle)) {
+            return true;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    return false;
+}
+
+// A watch session keeps detecting changes after its first rebuild. The watch
+// set is made of closures built during a pass and called after it has ended —
+// the watcher polls them on later ticks — so a closure that captured
+// something the pass owned would stop working (or worse) the moment the first
+// rebuild installed the set. The extensionless import is deliberate: finding
+// "./dep" without an extension lists the project directory, so the watch set
+// contains a directory and not only files.
+//
+// The second change is the one that matters. The first is detected from the
+// set the initial pass produced; the rebuild that follows installs a fresh
+// set built during that rebuild, and the second change is detected from
+// that one — the exact tick that used to call into a destroyed filesystem.
+TEST(Api, ContextWatchKeepsDetectingChangesAfterARebuild) {
+    using namespace std::chrono_literals;
+    TempDir dir("watch-second-change");
+    dir.Write("entry.js", "import { value } from \"./dep\";\nconsole.log(value);\n");
+    dir.Write("dep.js", "export const value = 111;\n");
+
+    api::BuildOptions opts;
+    opts.entry_points = {dir.At("entry.js")};
+    opts.bundle = true;
+    opts.write = true;
+    opts.outfile = "out.js";
+    opts.abs_working_dir = dir.path();
+    opts.log_level = quiet();
+
+    std::vector<api::Message> errors;
+    std::unique_ptr<api::BuildContext> ctx = api::Context(opts, errors);
+    ASSERT_TRUE(ctx != nullptr);
+    EXPECT_TRUE(errors.empty());
+
+    // Watch mode on before the first pass, so every pass collects the data
+    // the watcher polls.
+    ctx->Watch(api::WatchOptions{.delay = 0});
+
+    // The first pass. In a dev session this is the rebuild the server runs
+    // when a page is first requested; it is what hands the watcher its first
+    // watch set.
+    const api::BuildResult first = ctx->Rebuild();
+    ASSERT_TRUE(first.errors.empty());
+
+    // Change one, detected and rebuilt by the watcher.
+    dir.Write("dep.js", "export const value = 222;\n");
+    ASSERT_TRUE(WaitForWrittenOutput(dir, "222", 6000ms))
+        << "the watcher never rebuilt after the first change";
+
+    // Change two, detected from the set the rebuild above produced.
+    dir.Write("entry.js", "import { value } from \"./dep\";\nconsole.log(value, 333);\n");
+    ASSERT_TRUE(WaitForWrittenOutput(dir, "333", 6000ms))
+        << "the watcher went quiet after its first rebuild";
+
+    ctx->Dispose();
+}
+
 TEST(Api, ContextReturnsNullWithErrorsOnBadOptions) {
     api::BuildOptions opts;
     opts.entry_points = {"a.js"};
@@ -1246,4 +1319,71 @@ TEST(Api, PluginWithEmptyNameIsRejectedByContext) {
     EXPECT_TRUE(ctx == nullptr);
     ASSERT_FALSE(errors.empty());
     EXPECT_TRUE(contains(errors[0].text, "name"));
+}
+
+// ===========================================================================
+// Build: a config file's "define" reaching the build
+// ===========================================================================
+
+// The substitutions a project sets in its config file are part of what the
+// resolution answers with. They used to be parsed by the config loader and
+// then dropped on the way to the build, so a define written in
+// guchho.config.js never reached the output while the same define written
+// "--define:" did.
+TEST(Api, ResolvedBuildCarriesConfigDefines) {
+    TempDir dir("config-defines");
+    dir.Write("guchho.config.json",
+              R"({"build":{"entry":"entry.js","define":{"__DEV__":"false"}}})");
+
+    api::BuildOptions opts;
+    opts.abs_working_dir = dir.path();
+    opts.log_level = quiet();
+
+    api::EffectiveBuildConfigs effective = api::ResolveEffectiveBuildConfigs(opts, dir.path());
+    ASSERT_FALSE(effective.builds.empty());
+    EXPECT_EQ(effective.builds[0].define.count("__DEV__"), 1u);
+    EXPECT_EQ(effective.builds[0].define.at("__DEV__"), std::string("false"));
+}
+
+// Merging is per key, not per map: a flag the caller passed owns its own key
+// and nothing else, so "--define:DEBUG=true" does not erase what the config
+// file said about NODE_ENV.
+TEST(Api, ExplicitDefineWinsAndConfigDefinesSurvive) {
+    TempDir dir("config-defines-merge");
+    dir.Write("guchho.config.json",
+              R"({"build":{"entry":"entry.js","define":{"__DEV__":"false","NODE_ENV":"\"c\""}}})");
+
+    api::BuildOptions opts;
+    opts.define["__DEV__"] = "true"; // the caller's answer for this one key
+    opts.abs_working_dir = dir.path();
+    opts.log_level = quiet();
+
+    api::EffectiveBuildConfigs effective = api::ResolveEffectiveBuildConfigs(opts, dir.path());
+    ASSERT_FALSE(effective.builds.empty());
+    const auto& defines = effective.builds[0].define;
+    EXPECT_EQ(defines.at("__DEV__"), std::string("true"));
+    EXPECT_EQ(defines.at("NODE_ENV"), std::string("\"c\""));
+}
+
+// The whole path, from a config file on disk to substituted bytes: the value
+// the config set is what appears in the output, and nothing else is asked.
+TEST(Api, BuildInlinesDefineFromConfigFile) {
+    TempDir dir("config-define-e2e");
+    dir.Write("guchho.config.json",
+              R"({"build":{"entry":"entry.js","define":{"__FLAG__":"\"from-config\""}}})");
+    dir.Write("entry.js", "export const value = __FLAG__;\n");
+
+    api::BuildOptions opts;
+    opts.abs_working_dir = dir.path();
+    opts.log_level = quiet();
+    opts.bundle = true;
+    opts.outfile = "out.js";
+    opts.write = true;
+
+    api::EffectiveBuildConfigs effective = api::ResolveEffectiveBuildConfigs(opts, dir.path());
+    ASSERT_FALSE(effective.builds.empty());
+    api::BuildResult r = api::Build(effective.builds[0]);
+    EXPECT_TRUE(r.errors.empty());
+    EXPECT_TRUE(dir.Exists("out.js"));
+    EXPECT_TRUE(contains(dir.Read("out.js"), "\"from-config\""));
 }

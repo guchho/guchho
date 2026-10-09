@@ -129,12 +129,55 @@ describe("pack() validates what it is given", () => {
         const base = { inputs: ["dist"], outFile: "a.zip" };
         await assert.rejects(() => guchho.pack({ ...base, format: 9 }), TypeError);
         await assert.rejects(() => guchho.pack({ ...base, format: "" }), RangeError);
-        await assert.rejects(() => guchho.pack({ ...base, format: "tar" }), RangeError);
+        await assert.rejects(() => guchho.pack({ ...base, format: "7z" }), RangeError);
 
         // Exact spelling, as the engine compares it: "ZIP" is a different
         // answer rather than a near miss, and a caller told now has not paid
         // for a service start to hear it.
         await assert.rejects(() => guchho.pack({ ...base, format: "ZIP" }), RangeError);
+    });
+
+    it("does not refuse a format it says it supports", async () => {
+        // The client-side list is what decides, so a format that is on it is
+        // never turned away at the door. What comes next — a missing binary,
+        // a written archive, an engine refusal — is not a RangeError about
+        // the spelling, and that answer needs no binary to be the same.
+        //
+        // The tree is a real one in a temporary directory rather than a path
+        // relative to wherever the test was started: a test that leaves an
+        // archive in the repository it is testing is a test that breaks the
+        // next run, because the next run finds the file already there and
+        // reads a refusal as if it were the answer being checked for.
+        const root = makeTempDir("formats-client");
+        fs.mkdirSync(path.join(root, "dist"), { recursive: true });
+        fs.writeFileSync(path.join(root, "dist", "app.js"), "let a = 1;\n");
+
+        for (const format of ["zip", "tar", "tar.gz"]) {
+            const outFile = path.join(root, `checked.${format}`);
+            let threw = null;
+            try {
+                await guchho.pack({ inputs: [path.join(root, "dist")], outFile, format });
+            } catch (error) {
+                threw = error;
+            }
+            assert.ok(
+                threw === null || !(threw instanceof RangeError),
+                `${format} was refused at the door: ${threw}`
+            );
+        }
+    });
+
+    it("refuses a level paired with a format that does not compress", async () => {
+        const base = { inputs: ["dist"], outFile: "out.tar" };
+        // Spelled correctly, in range, and still not something the format can
+        // do — so the mistake is the pairing, and the caller hears it without
+        // a service start rather than with one.
+        for (const level of [0, 6, 9]) {
+            await assert.rejects(
+                () => guchho.pack({ ...base, format: "tar", level }),
+                RangeError
+            );
+        }
     });
 
     it("returns a Promise, even when it is about to reject", async () => {
@@ -193,6 +236,44 @@ describe("pack()", () => {
         const tail = fs.readFileSync(outFile).toString("latin1");
         assert.ok(tail.includes("dist/app.js"), "dist/app.js should be an entry");
         assert.ok(tail.includes("dist/assets/logo.svg"), "the nested file should be too");
+    });
+
+    it("writes each format it says it supports", needsBinary, async () => {
+        const root = makeTree();
+
+        // Each format is checked by its first bytes rather than by reading it
+        // back: what is inside them is the C++ tests' subject, and what is
+        // checked here is that the name the caller typed reached the writer
+        // and came out as the kind of file that name says.
+        const expected = {
+            "zip": (head) => head.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04])),
+            "tar": (head) => {
+                // A tar block starts with the entry's name, and a tar file is
+                // a whole number of 512-byte blocks.
+                if (!head.subarray(0, 5).equals(Buffer.from("dist/"))) return false;
+                return fs.statSync(path.join(root, "out.tar")).size % 512 === 0;
+            },
+            "tar.gz": (head) => head.subarray(0, 3).equals(Buffer.from([0x1f, 0x8b, 0x08])),
+        };
+
+        for (const [format, looksRight] of Object.entries(expected)) {
+            const outFile = path.join(root, `out.${format}`);
+            const result = await guchho.pack({
+                inputs: [path.join(root, "dist")],
+                outFile,
+                format,
+            });
+
+            assert.equal(result.path, outFile, `${format} should report the path it wrote`);
+            const head = Buffer.alloc(8);
+            const fd = fs.openSync(outFile, "r");
+            try {
+                fs.readSync(fd, head, 0, 8, 0);
+            } finally {
+                fs.closeSync(fd);
+            }
+            assert.ok(looksRight(head), `${outFile} should look like a ${format} file`);
+        }
     });
 
     it("refuses an existing archive, and replaces it when asked", needsBinary, async () => {

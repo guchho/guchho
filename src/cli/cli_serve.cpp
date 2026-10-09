@@ -384,19 +384,16 @@ int runDev(const std::vector<std::string>& args,
     // directory, but only when there is one: a build given a single output file
     // has already said where its result goes, and the server's own default is a
     // better answer than a directory the person never named.
+    //
+    // Live reload is on: this command exists for a person watching a browser,
+    // and the whole point of the watcher below is that the page keeps up with
+    // their edits.
     api::ServeOptions serve_opts;
     serve_opts.port = port;
     serve_opts.host = host;
+    serve_opts.live_reload = true;
     if (!build_opts.outdir.empty() && build_opts.outfile.empty()) {
         serve_opts.servedir = build_opts.outdir;
-    }
-
-    filesystem::RealFsOptions fs_opts;
-    std::string fs_err;
-    auto fs = filesystem::MakeRealFS(fs_opts, fs_err);
-    if (!fs) {
-        logger::PrintErrorToStderr(build_args, "Failed to initialize filesystem: " + fs_err);
-        return static_cast<int>(ExitCode::kBuildFailure);
     }
 
     // Create context for rebuild. The build that stays alive, holding the
@@ -413,27 +410,17 @@ int runDev(const std::vector<std::string>& args,
         return static_cast<int>(ExitCode::kBuildFailure);
     }
 
-    // What the server calls when a request needs output that is not there yet.
-    // Captured by reference because the context outlives this call and is
-    // released explicitly at the bottom of the function; a rebuild after that
-    // would find an inert context and return nothing, which is why the disposal
-    // is ordered before the server is stopped.
-    api::RebuildFn rebuild = [&ctx]() -> api::BuildResult {
-        return ctx->Rebuild();
-    };
-
-    // The standalone server rather than the context's own, because the context
-    // is wanted for its rebuild and its watcher and not for the socket. The log
-    // level is fixed rather than taken from the build's, so a quiet run silences
-    // the build and the two progress lines but not the lines the server prints
-    // about requests it is answering.
-    std::string error;
-    auto serve_result = api::Serve(*fs, rebuild, serve_opts,
-                                    logger::LogLevel::kInfo, logger::UseColor::kColorIfTerminal,
-                                    error);
-
-    if (!error.empty()) {
-        logger::PrintErrorToStderr(build_args, "Server error: " + error);
+    // The context's own server rather than the standalone one, because the
+    // watcher below has to be able to knock it: a pass the watcher runs on
+    // its own calls ServeResult::notify, which pushes a reload at every open
+    // browser. The standalone server has no such door, and a page that only
+    // refreshed when someone happened to reload it by hand is exactly what
+    // this command exists to avoid.
+    api::ServeResult serve_result;
+    try {
+        serve_result = ctx->Serve(serve_opts);
+    } catch (const std::exception& e) {
+        logger::PrintErrorToStderr(build_args, "Server error: " + std::string(e.what()));
         return static_cast<int>(ExitCode::kBuildFailure);
     }
 

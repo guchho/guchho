@@ -28,6 +28,8 @@
 #include <chrono>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -1142,4 +1144,225 @@ TEST(ApiServe, StopClosesAnOpenStream) {
         }
     }
     EXPECT_TRUE(Contains(received, "retry: 500"));
+}
+
+// ===========================================================================
+// Live reload
+// ===========================================================================
+
+// A directory that exists for the length of one test and is removed with it.
+// The live-reload tests that drive a real context need real files, because the
+// watcher polls through a real filesystem; everything else in this file runs
+// on the mock.
+class LiveReloadTempDir {
+public:
+    explicit LiveReloadTempDir(const std::string& label) {
+        static int counter = 0;
+        path_ = (std::filesystem::temp_directory_path() /
+                 ("guchho-serve-test-" + label + "-" + std::to_string(counter++)))
+                    .string();
+        std::error_code ec;
+        std::filesystem::remove_all(path_, ec);
+        std::filesystem::create_directories(path_, ec);
+    }
+
+    ~LiveReloadTempDir() {
+        std::error_code ec;
+        std::filesystem::remove_all(path_, ec);
+    }
+
+    LiveReloadTempDir(const LiveReloadTempDir&) = delete;
+    LiveReloadTempDir& operator=(const LiveReloadTempDir&) = delete;
+
+    const std::string& path() const { return path_; }
+
+    std::string At(const std::string& relative) const {
+        return (std::filesystem::path(path_) / std::filesystem::path(relative)).string();
+    }
+
+    std::string Write(const std::string& relative, const std::string& contents) const {
+        const std::string full = At(relative);
+        std::error_code ec;
+        std::filesystem::create_directories(std::filesystem::path(full).parent_path(), ec);
+        std::ofstream out(full, std::ios::binary | std::ios::trunc);
+        out << contents;
+        out.close();
+        return full;
+    }
+
+private:
+    std::string path_;
+};
+
+// The client script, at the path its injected tag names.
+//
+// The reservation is the whole point: the script is the server's own, not a
+// file anyone builds, so it must answer the same on every project — and it
+// must not answer at all when live reload is off, because then nothing injects
+// a tag pointing at it and a stray route would only be a lie about what the
+// server can do.
+TEST(ApiServe, LiveReloadClientIsServedOnlyWhenLiveReloadIsOn) {
+    api::ServeOptions on = DefaultOptions();
+    on.live_reload        = true;
+    std::unique_ptr<RunningServer> server = StartServer(on);
+    ASSERT_TRUE(server->result.stop);
+
+    const Response response = Get(server->Port(), "/guchho.js");
+    EXPECT_EQ(response.status, 200);
+    EXPECT_EQ(response.Get("content-type"), "application/javascript; charset=utf-8");
+    EXPECT_EQ(response.Get("content-length"), std::to_string(response.body.size()));
+    EXPECT_TRUE(Contains(response.body, "EventSource"));
+    EXPECT_TRUE(Contains(response.body, "/guchho"));
+
+    std::unique_ptr<RunningServer> off = StartServer();
+    ASSERT_TRUE(off->result.stop);
+    EXPECT_EQ(Get(off->Port(), "/guchho.js").status, 404);
+}
+
+// A tree of HTML pages for the injection tests: one closes its body in a
+// different case than everyone writes it, one has no body close at all, one
+// closes only the html element, and one is a script that must never be
+// touched.
+std::unique_ptr<filesystem::Fs> MakeLiveReloadFs() {
+    return guchho::test::MakeMockFS({
+        {"/www/page.html", "<!doctype html>\n<html><body>hello</BODY></html>\n"},
+        {"/www/no-close.html", "<!doctype html><title>x</title>"},
+        {"/www/only-html-close.html", "<!doctype html><title>x</title></html>"},
+        {"/www/app.js", "export const x = 1;\n"},
+    },
+                                    filesystem::MockKind::kUnix, "/");
+}
+
+// The client is injected into HTML pages and nothing else, at the place the
+// document says its body ends — found without regard to case, because HTML
+// does not care about it either. The header reports the bytes that are
+// actually sent, which are more than the file on disk holds.
+TEST(ApiServe, LiveReloadClientIsInjectedIntoHtmlPages) {
+    api::ServeOptions options = DefaultOptions();
+    options.live_reload        = true;
+    std::unique_ptr<RunningServer> server =
+        StartServer(options, [] { return api::BuildResult{}; }, MakeLiveReloadFs());
+    ASSERT_TRUE(server->result.stop);
+
+    const std::string tag = "<script src=\"/guchho.js\"></script>";
+
+    const Response page = Get(server->Port(), "/page.html");
+    ASSERT_EQ(page.status, 200);
+    const size_t tag_at = page.body.find(tag);
+    ASSERT_NE(tag_at, std::string::npos);
+    // Just before the body close, which here is written in another case.
+    EXPECT_LT(tag_at, page.body.find("</BODY>"));
+    EXPECT_EQ(page.Get("content-length"), std::to_string(page.body.size()));
+
+    // A page with no body close still gets the client, at the end.
+    const Response no_close = Get(server->Port(), "/no-close.html");
+    ASSERT_EQ(no_close.status, 200);
+    ASSERT_NE(no_close.body.find(tag), std::string::npos);
+    EXPECT_EQ(no_close.body.find(tag) + tag.size(), no_close.body.size());
+
+    // A page that closes only its html element gets it before that close.
+    const Response only_html = Get(server->Port(), "/only-html-close.html");
+    ASSERT_EQ(only_html.status, 200);
+    const size_t html_tag_at = only_html.body.find(tag);
+    ASSERT_NE(html_tag_at, std::string::npos);
+    EXPECT_LT(html_tag_at, only_html.body.find("</html>"));
+
+    // A script is not a document.
+    const Response js = Get(server->Port(), "/app.js");
+    ASSERT_EQ(js.status, 200);
+    EXPECT_EQ(js.body.find(tag), std::string::npos);
+
+    // And with live reload off, nothing is touched at all.
+    std::unique_ptr<RunningServer> off =
+        StartServer(DefaultOptions(), [] { return api::BuildResult{}; }, MakeLiveReloadFs());
+    ASSERT_TRUE(off->result.stop);
+    EXPECT_EQ(Get(off->Port(), "/page.html").body.find(tag), std::string::npos);
+}
+
+// The door a rebuild the server did not run knocks on. Notifying with a new
+// result pushes a change, notifying with the same bytes again pushes nothing,
+// and notifying with changed bytes pushes again — the same diff the request
+// path runs, reached from outside it.
+TEST(ApiServe, NotifyPushesAChangeToConnectedClients) {
+    std::unique_ptr<RunningServer> server = StartServer();
+    ASSERT_TRUE(server->result.stop);
+    ASSERT_TRUE(server->result.notify);
+
+    std::string received;
+    Socket       stream = OpenStream(server->Port(), received);
+    ASSERT_TRUE(stream.valid());
+
+    auto build = [](std::string text) {
+        api::BuildResult result;
+        result.output_files.push_back(MakeOutputFile("/out/app.js", std::move(text)));
+        return result;
+    };
+
+    server->result.notify(build("version 1"));
+    ASSERT_TRUE(ReadUntil(stream.get(), "event: change", received, 10s));
+    EXPECT_TRUE(Contains(received, "app.js"));
+
+    // The same bytes again are not a change, and a browser reloading for them
+    // would only flicker.
+    received.clear();
+    server->result.notify(build("version 1"));
+    EXPECT_FALSE(WaitForData(stream.get(), 500ms));
+
+    server->result.notify(build("version 2"));
+    ASSERT_TRUE(ReadUntil(stream.get(), "event: change", received, 10s));
+    EXPECT_TRUE(Contains(received, "\"updated\""));
+}
+
+// The whole loop a developer sees: a file is saved, the watcher rebuilds, and
+// the connected browser is told to reload — with no request in between. This
+// is the combination "guchho dev" is made of: watching and serving on one
+// context, and the context knocking the server after every pass it runs.
+TEST(ApiServe, AWatcherRebuildReachesTheBrowserThroughTheServer) {
+    LiveReloadTempDir dir("watcher-notify");
+    dir.Write("entry.js", "import { value } from \"./dep\";\nconsole.log(value);\n");
+    dir.Write("dep.js", "export const value = 111;\n");
+
+    api::BuildOptions build_opts;
+    build_opts.entry_points    = {dir.At("entry.js")};
+    build_opts.bundle          = true;
+    build_opts.write           = true;
+    build_opts.outfile         = "out.js";
+    build_opts.abs_working_dir = dir.path();
+    build_opts.log_level       = api::LogLevel::kSilent;
+
+    std::vector<api::Message> errors;
+    std::unique_ptr<api::BuildContext> ctx = api::Context(build_opts, errors);
+    ASSERT_TRUE(ctx != nullptr);
+    ASSERT_TRUE(errors.empty());
+
+    api::ServeOptions serve_opts;
+    serve_opts.port       = PickFreePort();
+    serve_opts.host       = "127.0.0.1";
+    serve_opts.live_reload = true;
+
+    // Watch and serve on the same context: the combination the server used to
+    // refuse, and the only one in which a watcher's rebuild can reach a page.
+    ctx->Watch(api::WatchOptions{.delay = 0});
+    api::ServeResult serve_result = ctx->Serve(serve_opts);
+    ASSERT_TRUE(serve_result.stop);
+    ASSERT_TRUE(serve_result.notify);
+
+    // The pass that gives the watcher its first set, exactly as the first
+    // page load does in a dev session.
+    ASSERT_TRUE(ctx->Rebuild().errors.empty());
+
+    std::string received;
+    Socket       stream = OpenStream(serve_result.port, received);
+    ASSERT_TRUE(stream.valid());
+
+    // The save. No request follows it: what reaches the stream has to come
+    // from the watcher's own rebuild, through the context's notify hook.
+    dir.Write("dep.js", "export const value = 222;\n");
+
+    ASSERT_TRUE(ReadUntil(stream.get(), "event: change", received, 10s))
+        << "a watcher rebuild never reached the connected client";
+    EXPECT_TRUE(Contains(received, "change"));
+
+    ctx->Dispose();
+    serve_result.stop();
 }

@@ -204,13 +204,9 @@ namespace guchho::linker {
         auto prev_offset = sourcemap::LineColumnOffset{};
         bool newline_before_comment = false;
 
-        if (!options->CSSBanner.empty()) {
-            prev_offset.AdvanceString(options->CSSBanner);
-            j.AddString(options->CSSBanner);
-            prev_offset.AdvanceString("\n");
-            j.AddString("\n");
-        }
-
+        // "@charset" is only honored when it is the first bytes of a
+        // stylesheet, so the prefix goes out before any banner rather than
+        // after it.
         auto json_metadata_imports = std::vector<std::string>();
         {
             css::AST tree;
@@ -238,6 +234,13 @@ namespace guchho::linker {
                     newline_before_comment = true;
                 }
             }
+        }
+
+        if (!options->CSSBanner.empty()) {
+            prev_offset.AdvanceString(options->CSSBanner);
+            j.AddString(options->CSSBanner);
+            prev_offset.AdvanceString("\n");
+            j.AddString("\n");
         }
 
         helpers::Joiner j_meta;

@@ -359,6 +359,7 @@ module.exports = {
     npmPackDryRun,
     npmPack,
     hasTar,
+    toTarPath,
     extractTarball,
     fakeBinary,
     REQUIRE_BINARY,

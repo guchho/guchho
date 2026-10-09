@@ -1056,7 +1056,8 @@ public:
           certfile_to_lower_(helpers::ToLowerASCII(options.certfile)),
           fallback_(std::move(options.fallback)),
           on_request_(std::move(options.on_request)),
-          cors_origin_(std::move(options.cors.origin)) {
+          cors_origin_(std::move(options.cors.origin)),
+          live_reload_(options.live_reload) {
     }
 
     void SetHosts(std::vector<std::string> hosts) {
@@ -1162,6 +1163,14 @@ public:
         if (req.method == "GET" && req.path == "/guchho" &&
             req.GetHeader("Accept") == "text/event-stream") {
             serve_event_stream(start, req, resp);
+            return;
+        }
+
+        // The live-reload client, reserved like the stream it connects to and
+        // answered before any rebuild: it is the server's own script, not a
+        // file anyone builds, and fetching it must not start a pass.
+        if (live_reload_ && req.method == "GET" && req.path == "/guchho.js") {
+            serve_live_reload_client(start, req, resp);
             return;
         }
 
@@ -1397,6 +1406,18 @@ public:
                 } else {
                     resp->SetHeader("Content-Type", "application/octet-stream");
                 }
+
+                // A live-reload session injects its client into every HTML
+                // page, so the browser reloads itself when a rebuild changes
+                // the output. The bytes are modified before Content-Length is
+                // written, so the header always reports what is actually sent.
+                // A byte range is left alone: a partial page is not a
+                // document, and a browser never asks for one.
+                if (live_reload_ && !is_head && !is_range && status == 200 &&
+                    mime.rfind("text/html", 0) == 0) {
+                    InjectLiveReloadClient(&file_bytes);
+                }
+
                 // The range end is inclusive on the wire and exclusive
                 // here, so the header reports one byte past the last byte
                 // that was actually sent.
@@ -1991,6 +2012,65 @@ private:
         }
     }
 
+    // Serves the live-reload client script.
+    //
+    // Input : the request for "/guchho.js" and the response to write into.
+    // Output: a 200 carrying the script as JavaScript, so a page may load it
+    //         with a plain script tag.
+    void serve_live_reload_client(std::chrono::steady_clock::time_point start,
+                                  const Request& req, Response* resp) {
+        resp->SetHeader("Content-Type", "application/javascript; charset=utf-8");
+        resp->SetHeader("Content-Length", std::to_string(kLiveReloadJs.size()));
+        notify_request_duration(start, req, 200);
+        resp->WriteHeader(200);
+        resp->Write(kLiveReloadJs);
+    }
+
+    // Inserts the live-reload script tag into an HTML document.
+    //
+    // Input : the bytes of a document about to be served.
+    // Output: the same document with a script tag for "/guchho.js" placed just
+    //         before the closing "</body>" — the position a browser has not
+    //         finished with yet, and the one every page is expected to have.
+    //         A document without a body close gets the tag before "</html>"
+    //         instead, and one with neither gets it appended.
+    //
+    // The tag search ignores ASCII case, because HTML does: a page that closes
+    // its body as "</Body>" is still closed.
+    static void InjectLiveReloadClient(std::string* html) {
+        auto find_last_tag = [](const std::string& text, std::string_view tag)
+            -> std::optional<size_t> {
+            if (text.size() < tag.size()) {
+                return std::nullopt;
+            }
+            for (size_t pos = text.size() - tag.size() + 1; pos-- > 0;) {
+                bool match = true;
+                for (size_t i = 0; i < tag.size(); ++i) {
+                    char a = text[pos + i];
+                    char b = tag[i];
+                    if (a >= 'A' && a <= 'Z') a = char(a + 32);
+                    if (b >= 'A' && b <= 'Z') b = char(b + 32);
+                    if (a != b) {
+                        match = false;
+                        break;
+                    }
+                }
+                if (match) {
+                    return pos;
+                }
+            }
+            return std::nullopt;
+        };
+
+        if (std::optional<size_t> body = find_last_tag(*html, "</body>")) {
+            html->insert(*body, kLiveReloadScriptTag);
+        } else if (std::optional<size_t> end = find_last_tag(*html, "</html>")) {
+            html->insert(*end, kLiveReloadScriptTag);
+        } else {
+            *html += kLiveReloadScriptTag;
+        }
+    }
+
     // Renders build errors as the plain text of a response body.
     //
     // Input : a list of messages.
@@ -2079,6 +2159,25 @@ private:
     // or a compression step to the request path.
     static const std::string kFaviconIcoGz;
 
+    // The live-reload client, served at "/guchho.js" while live reload is on.
+    //
+    // Input : none; the payload is a constant byte string.
+    // Output: the script a browser runs to turn the server's "change" events
+    //         into page reloads.
+    //
+    // Version one reloads the whole page rather than swapping files in place:
+    // every page is re-requested from the server, which rebuilds if it must,
+    // so what appears is always the output of one consistent pass. Hot
+    // replacement can come later without touching this file's callers — the
+    // event already names what changed; the client simply does not read the
+    // names yet.
+    static const std::string kLiveReloadJs;
+
+    // The script tag the handler injects into HTML pages, pointing at the
+    // client above. It is a separate constant because the same bytes go into
+    // every injected document and into no response body of their own.
+    static const std::string kLiveReloadScriptTag;
+
     filesystem::Fs& fs_;
     RebuildFn                         rebuild_;
     std::string                       outdir_path_prefix_;
@@ -2090,6 +2189,7 @@ private:
     std::string                       fallback_;
     std::function<void(const ServeOnRequestArgs&)> on_request_;
     std::vector<std::string>          cors_origin_;
+    bool                              live_reload_;
     std::vector<std::string>          hosts_;
 
     std::mutex                        mutex_;
@@ -2100,6 +2200,15 @@ private:
 const std::string ApiHandler::kFaviconIcoGz =
     "\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\x03"
     "\x63\x60\x60\x7e\xc2\x00\x00\x80\x0c\x02\x01\xd3\xb8\xba\x00\x00\x00";
+
+const std::string ApiHandler::kLiveReloadJs =
+    "const source = new EventSource(\"/guchho\");\n"
+    "source.addEventListener(\"change\", () => {\n"
+    "  window.location.reload();\n"
+    "});\n";
+
+const std::string ApiHandler::kLiveReloadScriptTag =
+    "<script src=\"/guchho.js\"></script>";
 
 } // namespace: the request handler and the live-reload plumbing
 
@@ -2366,6 +2475,14 @@ ServeResult Serve(
             CloseSocket(shared->Get());
         }
         handler_shared->CloseAllStreams();
+    };
+
+    // The way a rebuild the server did not run reaches the browser. Calling
+    // this is the same diff the request path runs, so a watch session that
+    // knocks after its own pass produces the same events a request-triggered
+    // rebuild would, and a second diff of the same result is a no-op.
+    result.notify = [handler_shared](const BuildResult& rebuild_result) {
+        handler_shared->NotifyRebuild(rebuild_result);
     };
 
     // The accept loop. It runs until the listener is closed, and hands every

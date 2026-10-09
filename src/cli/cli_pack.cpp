@@ -208,8 +208,7 @@ int runPack(const std::vector<std::string>& args)
             }
             if (!pack::IsSupportedFormat(*format)) {
                 return usageError("Unsupported archive format: " + Quoted(*format),
-                                  std::format("Only \"{}\" is supported today.",
-                                              pack::kDefaultFormat));
+                                  pack::SupportedFormatsNote());
             }
             options.format = *format;
             continue;
@@ -238,6 +237,25 @@ int runPack(const std::vector<std::string>& args)
                           "Name at least one file or directory to archive.");
     }
 
+    // The format this request writes, whether or not it named one. Every
+    // question below is about a request that has a format, so it is settled
+    // once here rather than answered three times further down.
+    const std::string format =
+        options.format.empty() ? std::string(pack::kDefaultFormat) : options.format;
+
+    // Refused before anything is read, for the same reason the format is: a
+    // level on a format that does not compress is a spelling mistake, and the
+    // fix is in what was typed rather than in anything on disk. The wording is
+    // the core layer's, so that the same request refused here and refused by
+    // the library answers alike.
+    if (options.level && !pack::LevelAppliesTo(format)) {
+        return usageError(
+            std::format("Compression level {} does not apply to the \"{}\" format",
+                        *options.level, format),
+            "Tar stores its entries uncompressed. Leave the level off, or write "
+            "zip or tar.gz.");
+    }
+
     if (!has_outfile) {
         if (options.inputs.size() > 1) {
             return usageError(
@@ -245,7 +263,7 @@ int runPack(const std::vector<std::string>& args)
                 "Name the archive with -o/--outfile, or give one input and let "
                 "its own name be used.");
         }
-        options.outFile = pack::DefaultOutFile(options.inputs.front());
+        options.outFile = pack::DefaultOutFile(options.inputs.front(), format);
     }
 
     const pack::PackResult result = pack::CreatePack(options);

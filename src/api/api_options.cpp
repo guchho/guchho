@@ -443,6 +443,16 @@ void ResolveOneBuild(BuildOptions& out,
     if (!WasSet(out, kOptBanner) && out.banner.empty()) {
         out.banner = cfg.Banner;
     }
+    // The project's substitutions, merged one key at a time rather than
+    // guarded as a whole: a define is a name bound to a value, and a name the
+    // caller wrote is the caller's answer to that name alone — passing
+    // "--define:DEBUG=true" is not a request to forget what the config file
+    // said about NODE_ENV. So every key the caller did not name arrives from
+    // the config, and every key they did keeps its own value. "emplace" is
+    // exactly that rule: it never overwrites what is already here.
+    for (const auto& [key, value] : cfg.DefineTexts) {
+        out.define.emplace(key, value);
+    }
 
     // ---- 3. The built-in defaults -----------------------------------------
     // Reached only by whatever neither the caller nor the config mentioned.

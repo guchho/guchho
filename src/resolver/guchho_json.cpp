@@ -578,12 +578,51 @@ namespace guchho::resolver {
             }
         };
 
+        // A "define" value is read once, whichever of the two spellings it
+        // arrived under: each property's value is the replacement expression
+        // in text form, recorded raw for the API to validate through the same
+        // pass a "--define:" flag goes through, and also parsed here so that a
+        // reader consuming the configuration directly — without the API in
+        // between — has a table to point at. A value either spelling cannot
+        // represent is reported where it was written and left out of both.
+        auto append_defines = [&](const javascript::Expr& value) {
+            auto* object = std::get_if<std::shared_ptr<javascript::EObject>>(&value.data);
+            if (object == nullptr) return;
+            for (const auto& p : (*object)->properties) {
+                std::string key = PropertyKeyText(p);
+                if (key.empty()) continue;
+                auto value_text = DefineValueText(p.value_or_nil);
+                if (!value_text) {
+                    log.AddID(logger::MsgID::kGuchhoJSON_InvalidFormat,
+                              logger::MsgKind::kWarning, &tracker,
+                              source.RangeOfString(p.value_or_nil.loc),
+                              logger::FormatMsg(logger::MsgCat::kGuchhoJSON_UnsupportedDefineValue,
+                                                Q(key)));
+                    continue;
+                }
+                auto [expr, injected] = javascript::ParseDefineExpr(*value_text);
+                if (injected != nullptr) {
+                    log.AddID(logger::MsgID::kGuchhoJSON_InvalidFormat,
+                              logger::MsgKind::kWarning, &tracker,
+                              source.RangeOfString(p.value_or_nil.loc),
+                              logger::FormatMsg(logger::MsgCat::kGuchhoJSON_UnsupportedCompoundDefineValue,
+                                                Q(key)));
+                    continue;
+                }
+                config::DefineData data;
+                data.KeyParts       = SplitDefineKey(key);
+                data.DefineExprData = std::make_shared<config::DefineExpr>(std::move(expr));
+                user_defines.push_back(std::move(data));
+                opts.DefineTexts[key] = *value_text;
+            }
+        };
+
         // ---- "build" -----------------------------------------------------
         static const char* kKnownBuildFields[] = {
             "entry", "outdir", "outfile", "format", "platform", "target",
             "minify", "sourcemap", "splitting", "clean", "treeShaking",
             "pretty", "minifyHtml", "bundle", "name", "globalName", "exports",
-            "banner",
+            "banner", "define",
         };
         if (auto build_prop = internal::GetProperty(json, "build")) {
             const javascript::Expr& build = build_prop->first;
@@ -750,6 +789,14 @@ namespace guchho::resolver {
                     }
                 }
             }
+            // The canonical home for a project's substitutions: every other
+            // build option lives under "build", and "--define:" is a flag, so
+            // the flag's name belongs here too. The top-level "define" below
+            // is the alias, handled when it is read so that the two can be
+            // told apart rather than merged.
+            if (auto define = internal::GetProperty(build, "define")) {
+                append_defines(define->first);
+            }
             // "build.clean" is handled by the CLI/build runner, not "opts".
 
             WarnUnknownFields(log, build, source, tracker, "build.", kKnownBuildFields,
@@ -850,36 +897,21 @@ namespace guchho::resolver {
                               sizeof(kKnownAssetsFields) / sizeof(kKnownAssetsFields[0]));
         }
 
-        // ---- "define" ----------------------------------------------------
+        // ---- "define" (top-level alias for "build.define") ----------------
+        // Read after the "build" block so the canonical field is known to have
+        // been seen; when both are present the canonical one wins and the alias
+        // is reported rather than appended, which would double every key.
         if (auto define_prop = internal::GetProperty(json, "define")) {
-            if (auto* object =
-                    std::get_if<std::shared_ptr<javascript::EObject>>(&define_prop->first.data)) {
-                for (const auto& p : (*object)->properties) {
-                    std::string key = PropertyKeyText(p);
-                    if (key.empty()) continue;
-                    auto value_text = DefineValueText(p.value_or_nil);
-                    if (!value_text) {
-                        log.AddID(logger::MsgID::kGuchhoJSON_InvalidFormat,
-                                  logger::MsgKind::kWarning, &tracker,
-                                  source.RangeOfString(p.value_or_nil.loc),
-                                  logger::FormatMsg(logger::MsgCat::kGuchhoJSON_UnsupportedDefineValue,
-                                                    Q(key)));
-                        continue;
-                    }
-                    auto [expr, injected] = javascript::ParseDefineExpr(*value_text);
-                    if (injected != nullptr) {
-                        log.AddID(logger::MsgID::kGuchhoJSON_InvalidFormat,
-                                  logger::MsgKind::kWarning, &tracker,
-                                  source.RangeOfString(p.value_or_nil.loc),
-                                  logger::FormatMsg(logger::MsgCat::kGuchhoJSON_UnsupportedCompoundDefineValue,
-                                                    Q(key)));
-                        continue;
-                    }
-                    config::DefineData data;
-                    data.KeyParts       = SplitDefineKey(key);
-                    data.DefineExprData = std::make_shared<config::DefineExpr>(std::move(expr));
-                    user_defines.push_back(std::move(data));
-                }
+            bool canonical_present = false;
+            if (auto build_prop = internal::GetProperty(json, "build")) {
+                canonical_present =
+                    internal::GetProperty(build_prop->first, "define").has_value();
+            }
+            if (canonical_present) {
+                WarnConflictingAlias(log, source, tracker, *define_prop, "define",
+                                     "build.define");
+            } else {
+                append_defines(define_prop->first);
             }
         }
 

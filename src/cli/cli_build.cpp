@@ -208,14 +208,17 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
         // The size reporting flags are taken out of the argument list here and
         // become a plugin instead, so the grammar never has to know they exist
         // and the build stays the same build whichever way they were asked for.
-        auto analyze = filterAnalyzeFlags(args_copy);
+        auto analyze = filterAnalyzeFlags(args_copy, true);
 
-        // Reading the flags fills in either a build or a transform, whichever
-        // this run turned out to be, plus the settings that describe the run
-        // rather than the build. At most one of the two options is set, and both
-        // are returned by value so this holds on to no frame that is gone.
+        // Reading the flags fills in the build for this run, plus the settings
+        // that describe the run rather than the build. The third argument says
+        // the run is already known to be a build — only a command line the
+        // dispatcher recognised as one reaches here — so no flag on a line
+        // without a path can turn it into a transform whose options are then
+        // thrown away. Both structures are returned by value so this holds on
+        // to no frame that is gone.
         auto [build_ptr, transform_ptr, build_opts, transform_opts, extras, err] =
-            parseOptionsForRun(args_copy, plugins);
+            parseOptionsForRun(args_copy, plugins, true);
 
         if (err) {
             logger::PrintErrorWithNoteToStderr(args_copy, err->text, err->note);

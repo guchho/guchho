@@ -195,9 +195,9 @@ const { path, size, warnings } = await pack({
 })
 ```
 
-Options, all optional but the two above: `format` (the archive format — `zip` is the only one supported today, it is the default, and any other value throws a `RangeError` before the engine is asked), `level` (0–9, 0 stores instead of compressing, the default is 6), `overwrite` (without it an existing `outFile` is an error), `date` (a `Date` — the timestamp every entry gets), and `mode` (Unix permission bits such as `0o755`, recorded for every entry).
+Options, all optional but the two above: `format` (`zip`, the default; `tar`; or `tar.gz` — any other value throws a `RangeError` before the engine is asked), `level` (0–9, 0 stores instead of compressing, the default is 6 — and refused with `tar`, which stores its entries uncompressed), `overwrite` (without it an existing `outFile` is an error), `date` (a `Date` — the timestamp every entry gets), and `mode` (Unix permission bits such as `0o755`, recorded for every entry).
 
-`date` and `mode` are **recorded, not applied**: they are metadata the archive carries for whoever extracts it. Extracting on Windows does not make a file executable because a mode was written into it, and a timestamp is only as precise as the format holds — ZIP stores it in two-second steps, and its calendar starts in 1980.
+`date` and `mode` are **recorded, not applied**: they are metadata the archive carries for whoever extracts it. Extracting on Windows does not make a file executable because a mode was written into it, and a timestamp is only as precise as the format holds — ZIP stores it in two-second steps and its calendar starts in 1980, while tar stores whole seconds without either limit.
 
 Each input arrives under its own last path component, so `dist` and `site/build` land at `dist/…` and `site/build/…`. The archive is written to a temporary file and moved into place, so a call that fails leaves nothing behind rather than half of it.
 

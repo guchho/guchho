@@ -1,6 +1,6 @@
 {
   "name": "@guchho/linux-arm64",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "The Linux ARM64 binary for guchho, a fast build system for web applications.",
   "repository": {
     "type": "git",

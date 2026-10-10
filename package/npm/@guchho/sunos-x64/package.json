@@ -1,6 +1,6 @@
 {
   "name": "@guchho/sunos-x64",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "The SunOS 64-bit binary for guchho, a fast build system for web applications.",
   "repository": {
     "type": "git",

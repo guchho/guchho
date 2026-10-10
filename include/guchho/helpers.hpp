@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <cmath>
 
+#include <functional>
+#include <memory>
 #include <utility>
 #include <tuple>
 #include <string_view>
@@ -770,5 +772,60 @@ namespace guchho::helpers {
     // threads so a chatty child can not deadlock the caller. Returns when the
     // child has exited.
     ProcessResult RunProcess(const std::vector<std::string>& argv, const std::string& cwd);
+
+
+    //---------------------------------------
+    // ------------- thread.cpp -------------
+    //---------------------------------------
+    // Worker threads that can recurse deeply need more stack than some
+    // platforms hand out by default. The JavaScript parser is recursive
+    // descent, so parseStmt takes a new frame per nesting level (the ~333
+    // nested labels in "TestMinifyNestedLabelsNoBundle" are one frame
+    // each), and the printer walks the same tree again when it prints it.
+    //
+    // Windows solves this process-wide: every thread inherits the image
+    // stack reserve named in cmake/StandardProjectSettings.cmake. POSIX
+    // has no such switch, and a std::thread there is a pthread whose
+    // default stack is only 512 KB on macOS, so the same input dies on
+    // the guard page with a SIGBUS. Ask for kWorkerStackSize bytes when
+    // the thread is created instead.
+    //
+    // The size is a reservation, not a commitment: pages are only
+    // touched if the thread really walks that deep, so nothing is
+    // wasted on the shallow threads that share this helper.
+    constexpr size_t kWorkerStackSize = 16 * 1024 * 1024;
+
+    // A joinable thread with a caller-chosen stack size. Mirrors
+    // std::thread's interface (move-only, joinable(), join(), and
+    // std::terminate() if destroyed while still joinable) so call sites
+    // can switch over by changing the type and passing a stack size.
+    class Thread {
+        public:
+            // Creates a non-joinable thread.
+            Thread() = default;
+
+            // Runs "fn" on a new thread whose stack is at least
+            // "stack_size" bytes. Throws std::system_error if the
+            // thread cannot be created.
+            Thread(size_t stack_size, std::function<void()> fn);
+
+            Thread(Thread&& other) noexcept;
+            Thread& operator=(Thread&& other) noexcept;
+            Thread(const Thread&) = delete;
+            Thread& operator=(const Thread&) = delete;
+
+            ~Thread();
+
+            // True when this thread has not yet been joined.
+            bool joinable() const;
+
+            // Waits for the thread to finish. Throws std::system_error
+            // when this thread is not joinable.
+            void join();
+
+        private:
+            struct Impl;
+            std::unique_ptr<Impl> impl_;
+    };
 
 }

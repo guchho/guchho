@@ -25,6 +25,12 @@ on:
         default: true
         type: boolean
 
+      test_run:
+        description: "Run the automated test suite after each native build"
+        required: false
+        default: true
+        type: boolean
+
 permissions:
   contents: read
   id-token: write
@@ -50,6 +56,7 @@ jobs:
       type: ${{ steps.select.outputs.type }}
       version: ${{ steps.select.outputs.version }}
       dry_run: ${{ steps.select.outputs.dry_run }}
+      test_run: ${{ steps.select.outputs.test_run }}
       publish_main: ${{ steps.select.outputs.publish_main }}
     steps:
       - name: Checkout
@@ -61,6 +68,7 @@ jobs:
         env:
           INPUT_TYPE: ${{ inputs.type }}
           INPUT_DRY_RUN: ${{ inputs.dry_run }}
+          INPUT_TEST_RUN: ${{ inputs.test_run }}
         run: |
           set -euo pipefail
 
@@ -71,6 +79,14 @@ jobs:
           case "${INPUT_DRY_RUN:-}" in
             false) DRY_RUN="false" ;;
             *)     DRY_RUN="true" ;;
+          esac
+
+          # Tests run the same way round: only an explicit false skips
+          # them, so a missing or unrecognized value can never silently
+          # drop the test gate before a publish.
+          case "${INPUT_TEST_RUN:-}" in
+            false) TEST_RUN="false" ;;
+            *)     TEST_RUN="true" ;;
           esac
 
           case "$TYPE" in
@@ -121,6 +137,7 @@ jobs:
 
           echo "Type:    ${TYPE}"
           echo "Mode:    $([ "$DRY_RUN" = "true" ] && echo 'DRY RUN' || echo 'PUBLISH')"
+          echo "Tests:   $([ "$TEST_RUN" = "true" ] && echo 'RUN' || echo 'SKIP')"
           echo "Platform set: ${PLATFORMS:-<none>}"
           echo "Version: ${VERSION}"
           echo "Publish main: ${PUBLISH_MAIN}"
@@ -130,6 +147,7 @@ jobs:
           echo "type=${TYPE}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "dry_run=${DRY_RUN}" >> "$GITHUB_OUTPUT"
+          echo "test_run=${TEST_RUN}" >> "$GITHUB_OUTPUT"
           echo "publish_main=${PUBLISH_MAIN}" >> "$GITHUB_OUTPUT"
 
   # ============================================
@@ -275,6 +293,18 @@ jobs:
         run: |
           cmake --preset ${{ matrix.preset }} --fresh
           cmake --build --preset ${{ matrix.preset }} --parallel
+        shell: bash
+
+      # Run the suite on the machine that just built it. Only a native
+      # build can execute what it compiled; cross/docker/MSVC/Android
+      # builds pass -DBUILD_TESTING=OFF. Gated on the test_run input
+      # (resolved by the plan job, default true). When it runs, a test
+      # failure fails this job, and the validate gate
+      # (needs.build.result == 'success') then skips both publish jobs,
+      # so nothing ships.
+      - name: Test (native)
+        if: matrix.method == 'native' && needs.plan.outputs.test_run == 'true'
+        run: ctest --preset ${{ matrix.preset }} --output-on-failure --no-tests=error
         shell: bash
 
       - name: Find binary (native)

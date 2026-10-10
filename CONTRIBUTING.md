@@ -602,6 +602,10 @@ gh workflow run npm-publish.yml -f type=win32-x64 -f dry_run=true
 ```
 
 ```bash
+gh workflow run npm-publish.yml -f type=win32-arm64 -f dry_run=true
+```
+
+```bash
 gh workflow run npm-publish.yml -f type=darwin-arm64 -f dry_run=true
 ```
 
@@ -630,6 +634,10 @@ gh workflow run npm-publish.yml -f type=win32-x64 -f dry_run=false
 ```
 
 ```bash
+gh workflow run npm-publish.yml -f type=win32-arm64 -f dry_run=false
+```
+
+```bash
 gh workflow run npm-publish.yml -f type=darwin-arm64 -f dry_run=false
 ```
 
@@ -651,6 +659,7 @@ gh workflow run npm-publish.yml -f type=all -f dry_run=false
 | -------------- | -------------------------------- |
 | `linux-x64`    | `@guchho/linux-x64`              |
 | `win32-x64`    | `@guchho/win32-x64`              |
+| `win32-arm64`  | `@guchho/win32-arm64`            |
 | `darwin-arm64` | `@guchho/darwin-arm64`           |
 | `guchho`       | `guchho`                         |
 | `all`          | All platform packages + `guchho` |

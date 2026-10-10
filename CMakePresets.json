@@ -605,6 +605,18 @@
       }
     },
     {
+      "name": "release-linux-arm64",
+      "displayName": "Test Linux ARM64 Release",
+      "configurePreset": "release-linux-arm64",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true
+      }
+    },
+    {
       "name": "relwithdebinfo-linux-x64",
       "displayName": "Test Linux x64 RelWithDebInfo",
       "configurePreset": "relwithdebinfo-linux-x64",

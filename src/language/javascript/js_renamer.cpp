@@ -700,13 +700,13 @@ namespace guchho::javascript {
     //   Effect: scope_a and scope_b are renamed in parallel
     void NumberRenamer::AssignNamesByScope(const std::unordered_map<uint32_t, std::vector<Scope*>>& nested_scopes) {
         // Rename nested scopes from separate files in parallel
-        std::vector<std::thread> threads;
+        std::vector<helpers::Thread> threads;
         std::vector<std::exception_ptr> exceptions(nested_scopes.size());
         threads.reserve(nested_scopes.size());
         size_t thread_index = 0;
         for (const auto& [source_index, scopes] : nested_scopes) {
             size_t this_index = thread_index++;
-            threads.emplace_back([this, source_index, &scopes, this_index, &exceptions]() {
+            threads.emplace_back(helpers::kWorkerStackSize, [this, source_index, &scopes, this_index, &exceptions]() {
                 try {
                 std::vector<uint32_t> sorted;
                 for (Scope* scope : scopes) {
@@ -717,7 +717,7 @@ namespace guchho::javascript {
                 }
             });
         }
-        for (std::thread& t : threads) {
+        for (helpers::Thread& t : threads) {
             t.join();
         }
         // Rethrow on the calling thread so a panic inside a worker thread

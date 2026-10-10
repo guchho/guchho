@@ -28,6 +28,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -978,10 +979,13 @@ TEST(PackCreateTest, ExistingOutputIsLeftAloneWithoutOverwrite)
         << result.error;
     EXPECT_FALSE(result.note.empty());
 
-    std::ifstream in(PathFromUTF8(dir.At("out.zip")), std::ios::binary);
-    std::string   untouched((std::istreambuf_iterator<char>(in)),
-                          std::istreambuf_iterator<char>());
-    EXPECT_EQ(untouched, "an old archive, or anything else");
+    // Read back through rdbuf() rather than an istreambuf_iterator: the
+    // iterator form inlines GCC's null-dereference pass into libstdc++'s
+    // string constructor and reports a false positive there.
+    std::ifstream   in(PathFromUTF8(dir.At("out.zip")), std::ios::binary);
+    std::ostringstream buffer;
+    buffer << in.rdbuf();
+    EXPECT_EQ(buffer.str(), "an old archive, or anything else");
 }
 
 TEST(PackCreateTest, ExistingOutputIsReplacedWithOverwrite)

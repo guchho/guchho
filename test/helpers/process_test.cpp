@@ -108,6 +108,27 @@ TEST(ProcessTest, RejectsEmptyFirstArg)
 }
 
 // ---------------------------------------------------------------------------
+// Failure to start
+// ---------------------------------------------------------------------------
+
+// A program that exists nowhere on PATH is a failure to start, not a failure
+// to run, and the two are told apart by the flag on every platform: the child
+// that was forked never became the requested program, so there is no exit
+// code to report and the streams stay empty. This is the same contract the
+// cli suite pins against the real executable, checked here where it needs no
+// build definition — and it is the failure the callers that guard on
+// .started (the node checks, the guchho.config.js loader) depend on.
+TEST(ProcessTest, ReportsAMissingExecutableAsNeverStarted)
+{
+    ProcessResult run = RunProcess({"guchho-definitely-not-an-executable"}, "");
+
+    EXPECT_FALSE(run.started);
+    EXPECT_EQ(run.exit_code, -1);
+    EXPECT_EQ(run.stdout_data, "");
+    EXPECT_EQ(run.stderr_data, "");
+}
+
+// ---------------------------------------------------------------------------
 // Standard output / standard error capture
 // ---------------------------------------------------------------------------
 

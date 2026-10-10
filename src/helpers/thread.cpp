@@ -43,11 +43,13 @@ namespace guchho::helpers {
         }
 
         // The trampoline takes ownership of the callable so the new thread
-        // cannot outlive it even if this Thread is never joined.
+        // cannot outlive it even if this Thread is never joined. The local
+        // is named apart from the constructor's "fn" so the two never
+        // shadow each other (-Wshadow).
         auto* owned = new std::function<void()>(std::move(fn));
         err = pthread_create(&impl_->handle, &attr, [](void* arg) -> void* {
-            std::unique_ptr<std::function<void()>> fn(static_cast<std::function<void()>*>(arg));
-            (*fn)();
+            std::unique_ptr<std::function<void()>> held(static_cast<std::function<void()>*>(arg));
+            (*held)();
             return nullptr;
         }, owned);
         pthread_attr_destroy(&attr);

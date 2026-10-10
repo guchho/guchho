@@ -281,18 +281,22 @@ jobs:
       # compile there while it builds fine on macos-26-arm64 (Xcode 26,
       # image default). Both images ship several Xcode versions side by side,
       # so select the newest one available and leave the default untouched
-      # when there is nothing to pick. `sort -t. -kN,Nn` is used instead of
-      # `sort -V` because BSD sort on macOS has no -V.
+      # when there is nothing to pick.
+      #
+      # Keep this script simple: macOS runners execute run: steps with
+      # /bin/bash 3.2, which rejects a `case ... in ''|*[!0-9.]* )` pattern
+      # ("syntax error near unexpected token `;;'"), so the version filter
+      # is done with grep. `sort -t. -kN,Nn` is used instead of `sort -V`
+      # because BSD sort has no -V. The pipeline ends in `|| true` so an
+      # empty /Applications (or a grep with no matches) does not trip `set -e`.
       - name: Select Xcode (native macOS)
         if: matrix.method == 'native' && runner.os == 'macOS'
         run: |
           versions=$(for app in /Applications/Xcode_[0-9]*.app; do
             [ -d "$app" ] || continue
             ver="${app##*/Xcode_}"
-            ver="${ver%.app}"
-            case "$ver" in ''|*[!0-9.]* ) continue ;; esac
-            printf '%s\n' "$ver"
-          done | sort -t. -k1,1n -k2,2n -k3,3n -k4,4n)
+            printf '%s\n' "${ver%.app}"
+          done | grep -E '^[0-9]+(\.[0-9]+)*$' | sort -t. -k1,1n -k2,2n -k3,3n -k4,4n) || true
 
           echo "Available Xcode versions:"
           printf '%s\n' "$versions" | sed 's/^/  /'

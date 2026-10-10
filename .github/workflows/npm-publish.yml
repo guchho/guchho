@@ -15,6 +15,7 @@ on:
         options:
           - linux-x64
           - win32-x64
+          - win32-arm64
           - darwin-arm64
           - guchho
           - all
@@ -90,7 +91,7 @@ jobs:
           esac
 
           case "$TYPE" in
-            linux-x64|win32-x64|darwin-arm64)
+            linux-x64|win32-x64|win32-arm64|darwin-arm64)
               PLATFORMS="$TYPE"
               PUBLISH_MAIN="false"
               ;;
@@ -117,7 +118,8 @@ jobs:
           MATRIX='[
             {"platform":"linux-x64","runner":"ubuntu-latest","method":"native","preset":"release-linux-x64"},
             {"platform":"darwin-arm64","runner":"macos-latest","method":"native","preset":"release-darwin-arm64"},
-            {"platform":"win32-x64","runner":"windows-latest","method":"native","preset":"release-win32-x64-ninja"}
+            {"platform":"win32-x64","runner":"windows-latest","method":"native","preset":"release-win32-x64-ninja"},
+            {"platform":"win32-arm64","runner":"windows-latest","method":"msvc_cross","arch":"ARM64"}
           ]'
 
           SELECTED="$(
@@ -235,11 +237,6 @@ jobs:
       #   runner: windows-latest
       #   method: msvc_cross
       #   arch: Win32
-      #
-      # - platform: win32-arm64
-      #   runner: windows-latest
-      #   method: msvc_cross
-      #   arch: ARM64
       #
       # ---- Android NDK cross-compilation ----
       # - platform: android-arm

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(bash scripts/build.sh:*)",
+      "Bash(bash scripts/test.sh:*)",
+      "Bash(cmake:*)",
+      "Bash(ctest:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(gh workflow run npm-publish.yml:*)",
+      "Bash(node -p:*)",
+      "Read"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(npm publish:*)"
+    ]
+  }
+}

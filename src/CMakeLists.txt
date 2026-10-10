@@ -15,6 +15,7 @@ set(GUCHHO_COMMON_SOURCES
     helpers/quote.cpp
     helpers/sha.cpp
     helpers/strings.cpp
+    helpers/thread.cpp
     helpers/timer.cpp
     helpers/typo.cpp
     helpers/url.cpp

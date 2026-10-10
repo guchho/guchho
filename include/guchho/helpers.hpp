@@ -754,7 +754,12 @@ namespace guchho::helpers {
     //---------------------------------------
     // The result of running a child process.
     struct ProcessResult {
-        // True when the executable was successfully spawned.
+        // True when the requested program actually started: the process
+        // image was created (CreateProcessW) on Windows, execvp took over
+        // the child on POSIX. A child that came into being and then died
+        // before becoming the program — no such executable, unreachable
+        // working directory — is not a start, and is reported with the
+        // exit code still at its -1 default.
         bool started = false;
 
         // The child's exit code, or -1 when it could not be determined.

@@ -70,7 +70,7 @@ guchho build src/index.html --outdir=dist --format=esm --minify --sourcemap
 ## Configuration file
 
 Guchho walks up from the working directory and stops at the first directory
-that holds a config file — the nearest one wins, and the directories above
+that holds a config file - the nearest one wins, and the directories above
 it are never consulted. Within one directory, the first of these is used:
 
 1. `guchho.config.js`
@@ -145,12 +145,12 @@ console.log(`${result.outputFiles?.length ?? 0} files written`)
 
 ### Choosing which entry export is published
 
-`exports` selects the value the bundle exposes. It is a Guchho option in the Rollup tradition of export selection — not an esbuild option — and the same four values may be spelled in the API, in a config file under `build.exports`, or on the command line as `--exports=<value>`:
+`exports` selects the value the bundle exposes. It is a Guchho option in the Rollup tradition of export selection - not an esbuild option - and the same four values may be spelled in the API, in a config file under `build.exports`, or on the command line as `--exports=<value>`:
 
-- `exports: 'named'` — a namespace object whose properties are the export names. This is the default and what a build without the option always does.
-- `exports: 'default'` — the entry point's default export *is* the value: `require()` hands it straight back, and `new Exprify()` works on the UMD global because the global *is* the class. The entry must have a default export (a CommonJS entry's `module.exports` counts) or the build fails; named exports alongside the default are not exposed in this mode.
-- `exports: 'none'` — publish nothing. Valid only when no entry point exports anything; a UMD or IIFE global name is not required, because there is no value to publish under one.
-- `exports: 'auto'` — infer from the entry's actual exports, exactly as Rollup's `auto` does: no exports means `none`, a lone default export means `default`, anything else means `named`.
+- `exports: 'named'` - a namespace object whose properties are the export names. This is the default and what a build without the option always does.
+- `exports: 'default'` - the entry point's default export *is* the value: `require()` hands it straight back, and `new Exprify()` works on the UMD global because the global *is* the class. The entry must have a default export (a CommonJS entry's `module.exports` counts) or the build fails; named exports alongside the default are not exposed in this mode.
+- `exports: 'none'` - publish nothing. Valid only when no entry point exports anything; a UMD or IIFE global name is not required, because there is no value to publish under one.
+- `exports: 'auto'` - infer from the entry's actual exports, exactly as Rollup's `auto` does: no exports means `none`, a lone default export means `default`, anything else means `named`.
 
 All four are read for every output format.
 
@@ -195,13 +195,13 @@ const { path, size, warnings } = await pack({
 })
 ```
 
-Options, all optional but the two above: `format` (`zip`, the default; `tar`; or `tar.gz` — any other value throws a `RangeError` before the engine is asked), `level` (0–9, 0 stores instead of compressing, the default is 6 — and refused with `tar`, which stores its entries uncompressed), `overwrite` (without it an existing `outFile` is an error), `date` (a `Date` — the timestamp every entry gets), and `mode` (Unix permission bits such as `0o755`, recorded for every entry).
+Options, all optional but the two above: `format` (`zip`, the default; `tar`; or `tar.gz` - any other value throws a `RangeError` before the engine is asked), `level` (0–9, 0 stores instead of compressing, the default is 6 - and refused with `tar`, which stores its entries uncompressed), `overwrite` (without it an existing `outFile` is an error), `date` (a `Date` - the timestamp every entry gets), and `mode` (Unix permission bits such as `0o755`, recorded for every entry).
 
-`date` and `mode` are **recorded, not applied**: they are metadata the archive carries for whoever extracts it. Extracting on Windows does not make a file executable because a mode was written into it, and a timestamp is only as precise as the format holds — ZIP stores it in two-second steps and its calendar starts in 1980, while tar stores whole seconds without either limit.
+`date` and `mode` are **recorded, not applied**: they are metadata the archive carries for whoever extracts it. Extracting on Windows does not make a file executable because a mode was written into it, and a timestamp is only as precise as the format holds - ZIP stores it in two-second steps and its calendar starts in 1980, while tar stores whole seconds without either limit.
 
 Each input arrives under its own last path component, so `dist` and `site/build` land at `dist/…` and `site/build/…`. The archive is written to a temporary file and moved into place, so a call that fails leaves nothing behind rather than half of it.
 
-`warnings` is what was deliberately left out — a symlink the walk would not follow (a symlink named as an input is followed once; one found inside a tree is skipped), a cycle it would not go round, the archive itself when it sits inside one of its own inputs. It is empty when nothing was, which is not the same as "nothing to report".
+`warnings` is what was deliberately left out - a symlink the walk would not follow (a symlink named as an input is followed once; one found inside a tree is skipped), a cycle it would not go round, the archive itself when it sits inside one of its own inputs. It is empty when nothing was, which is not the same as "nothing to report".
 
 A failure throws a `BuildFailure` with the engine's own message in it, the same one `guchho pack` would have printed.
 

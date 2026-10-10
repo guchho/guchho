@@ -18,6 +18,7 @@ on:
           - win32-x64
           - win32-arm64
           - darwin-arm64
+          - darwin-x64
           - guchho
           - all
 
@@ -92,7 +93,7 @@ jobs:
           esac
 
           case "$TYPE" in
-            linux-x64|linux-arm64|win32-x64|win32-arm64|darwin-arm64)
+            linux-x64|linux-arm64|win32-x64|win32-arm64|darwin-arm64|darwin-x64)
               PLATFORMS="$TYPE"
               PUBLISH_MAIN="false"
               ;;
@@ -120,6 +121,7 @@ jobs:
             {"platform":"linux-x64","runner":"ubuntu-latest","method":"native","preset":"release-linux-x64"},
             {"platform":"linux-arm64","runner":"ubuntu-24.04-arm","method":"native","preset":"release-linux-arm64"},
             {"platform":"darwin-arm64","runner":"macos-latest","method":"native","preset":"release-darwin-arm64"},
+            {"platform":"darwin-x64","runner":"macos-15-intel","method":"native","preset":"release-darwin-x64"},
             {"platform":"win32-x64","runner":"windows-latest","method":"native","preset":"release-win32-x64-ninja"},
             {"platform":"win32-arm64","runner":"windows-latest","method":"msvc_cross","arch":"ARM64"}
           ]'
@@ -172,12 +174,6 @@ jobs:
       #
       # To add a platform: add it to MATRIX in the plan job, to the `type`
       # input options, and (for a publish target) to package/npm/@guchho/.
-      #
-      # ---- Native builds (optional) ----
-      # - platform: darwin-x64
-      #   runner: macos-15-intel
-      #   method: native
-      #   preset: release-darwin-x64
       #
       # ---- GCC cross-compilers ----
       # - platform: linux-arm

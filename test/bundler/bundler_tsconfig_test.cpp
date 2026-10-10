@@ -2804,8 +2804,4 @@ TEST(BundlerTSConfig, TsconfigDecoratorsUseDefineForClassFieldsFalse) {
     });
 }
 
-
-#if defined(__GNUC__) && !defined(_MSC_VER)
-#pragma GCC diagnostic pop
-#endif
 } // namespace bundler::test

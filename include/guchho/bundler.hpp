@@ -775,7 +775,7 @@ std::string GenerateHTMLOutput(const HTMLOutputContext& context);
         size_t remaining{};
 
         // All producer threads spawned during scanning are joined here
-        std::vector<std::thread> threads;
+        std::vector<helpers::Thread> threads;
 
         // For each HTML entry point (by source index), the virtual JS/CSS entry
         // points generated from its inline content. Filled while draining the

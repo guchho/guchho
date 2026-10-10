@@ -576,6 +576,19 @@ If the toolchain check fails, run `bash scripts/build.sh --help` and verify `cma
 
 The `npm-publish.yml` workflow is **manual-only**.
 
+Inputs:
+
+| Input      | Default | Meaning                                                   |
+| ---------- | ------- | --------------------------------------------------------- |
+| `type`     | `all`   | What to publish: one platform, `guchho`, or `all`.        |
+| `dry_run`  | `true`  | Build and validate without publishing to npm.             |
+| `test_run` | `true`  | Run the CTest suite after each native build.              |
+
+Both flags only publish/skip when set to an explicit `false`/`true`; a missing
+or unrecognized value falls back to the safe default (`dry_run` stays on,
+`test_run` stays on). A test failure fails the build job, which skips every
+publishing job — nothing ships with failing tests unless `test_run=false`.
+
 ### Dry run
 
 Test each platform without publishing to npm:
@@ -643,3 +656,5 @@ gh workflow run npm-publish.yml -f type=all -f dry_run=false
 | `all`          | All platform packages + `guchho` |
 
 `dry_run=true` builds and validates packages without publishing. `dry_run=false` performs the actual npm publish.
+
+`test_run=true` (the default) runs `ctest --preset <preset> --output-on-failure --no-tests=error` on each selected native platform after the build; a failure blocks all publishing jobs. `test_run=false` skips the suite — use it only when the tests were already run on the same commit.

@@ -932,12 +932,12 @@ namespace guchho::linker {
     // and "dist/b.js.map" when linked with external source maps.
     LinkResult LinkerContext::GenerateChunksInParallel(std::vector<graph::OutputFile> additional_files) {
         timer->Begin("Generate chunks");
-        std::vector<std::thread> generate_threads;
+        std::vector<helpers::Thread> generate_threads;
         std::vector<std::exception_ptr> generate_exceptions(chunks.size());
         generate_threads.reserve(chunks.size());
         for (size_t chunk_index = 0; chunk_index < chunks.size(); chunk_index++) {
             if (std::holds_alternative<ChunkReprJS>(chunks[chunk_index].chunk_repr)) {
-                generate_threads.emplace_back([this, chunk_index, &generate_exceptions]() {
+                generate_threads.emplace_back(helpers::kWorkerStackSize, [this, chunk_index, &generate_exceptions]() {
                     try {
                         this->GenerateChunkJS(static_cast<int>(chunk_index));
                     } catch (...) {
@@ -945,7 +945,7 @@ namespace guchho::linker {
                     }
                 });
             } else if (std::holds_alternative<ChunkReprCSS>(chunks[chunk_index].chunk_repr)) {
-                generate_threads.emplace_back([this, chunk_index, &generate_exceptions]() {
+                generate_threads.emplace_back(helpers::kWorkerStackSize, [this, chunk_index, &generate_exceptions]() {
                     try {
                         this->GenerateChunkCSS(static_cast<int>(chunk_index));
                     } catch (...) {

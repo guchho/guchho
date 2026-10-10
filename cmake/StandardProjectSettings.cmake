@@ -171,7 +171,7 @@ if(WIN32)
 
     set(
         GUCHHO_WINDOWS_STACK_RESERVE
-        8388608
+        16777216
     )
 
     if(MINGW)

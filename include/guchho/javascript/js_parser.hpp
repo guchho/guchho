@@ -818,7 +818,7 @@ namespace guchho::javascript {
         std::shared_ptr<TSNamespaceMemberNamespace> tsNamespaceMemberDataFresh;
         std::unordered_map<compiler::Ref, std::unordered_map<std::string, TSEnumValue>, RefHash> tsEnums;
         std::unordered_map<compiler::Ref, ConstValue, RefHash> constValues;
-        E *propDerivedCtorValue;
+        E propDerivedCtorValue;
         Scope *propMethodDecoratorScope;
 
         compiler::Ref *enclosingNamespaceArgRef;

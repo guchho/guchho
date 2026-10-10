@@ -2,8 +2,6 @@
 #include "guchho/css/css_lexer.hpp"
 #include "guchho/helpers.hpp"
 
-
-#include <charconv>
 #include <unordered_set>
 
 namespace guchho::css {
@@ -252,10 +250,10 @@ namespace guchho::css {
         // ParseFloat
         // ----------
         // Attempts to convert a string view into a double-precision floating
-        // point number using the highly efficient std::from_chars routine,
-        // which avoids locale dependency and heap allocation. The entire input
-        // must be consumed; a partial parse (where the pointer does not reach
-        // the end of the string) is treated as failure.
+        // point number using helpers::ParseDouble, which avoids locale
+        // dependency. The entire input must be consumed; a partial parse
+        // (where the pointer does not reach the end of the string) is
+        // treated as failure.
         //
         // Input:  text = "3.14"
         // Output: 3.14
@@ -270,8 +268,7 @@ namespace guchho::css {
         // Output: std::nullopt  (partial consumption is failure)
         std::optional<double> ParseFloat(std::string_view text) {
             double value;
-            auto [ptr, ec] = std::from_chars(text.data(), text.data() + text.size(), value);
-            if (ec == std::errc{} && ptr == text.data() + text.size()) {
+            if (helpers::ParseDouble(text, &value)) {
                 return value;
             }
             return std::nullopt;

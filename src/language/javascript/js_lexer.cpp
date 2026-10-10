@@ -174,19 +174,17 @@ namespace guchho::javascript {
 
 
 
-        // Parses a decimal or hexadecimal floating-point number from a string.
-        // Uses std::from_chars for fast, locale-independent parsing. Returns 0.0
-        // on failure (the caller is responsible for validating input before calling).
+        // Parses a decimal floating-point number from a string.
+        // Uses helpers::ParseDouble for fast, locale-independent parsing.
+        // Returns 0.0 on failure (the caller is responsible for validating
+        // input before calling).
         //
         // Input:  "3.14"     =>  3.14
         // Input:  "1e10"     =>  10000000000.0
-        // Input:  "0xff"     =>  255.0
         // Input:  ""         =>  0.0
         double ParseFloat(std::string_view text) {
             double value = 0;
-            auto [ptr, ec] = std::from_chars(text.data(), text.data() + text.size(), value);
-            (void)ptr;
-            (void)ec;
+            helpers::ParseDouble(text, &value);
             return value;
         }
 

@@ -5,6 +5,7 @@ add_library(guchho_helpers_test_objects OBJECT
     base64_test.cpp
     xxhash_test.cpp
     strings_test.cpp
+    charconv_test.cpp
     url_test.cpp
     joiner_test.cpp
     typo_test.cpp

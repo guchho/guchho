@@ -7,7 +7,6 @@
 
 
 #include <algorithm>
-#include <charconv>
 #include <cmath>
 #include <cstdio>
 
@@ -58,7 +57,7 @@ namespace guchho::css {
             return true;
         }
 
-        // Parses a string view into a double value using std::from_chars.
+        // Parses a string view into a double value using helpers::ParseDouble.
         // Returns true if the entire string was consumed and parsing succeeded.
         //
         // Input:  text = "3.14", out = &d
@@ -71,10 +70,7 @@ namespace guchho::css {
         // Output: false (not a number)
         //
         bool ParseFloat(std::string_view text, double* out) {
-            const char* begin = text.data();
-            const char* end = text.data() + text.size();
-            auto result = std::from_chars(begin, end, *out);
-            return result.ec == std::errc() && result.ptr == end;
+            return helpers::ParseDouble(text, out);
         }
 
         // Formats a 32-bit unsigned integer as a hexadecimal string with

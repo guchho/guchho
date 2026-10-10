@@ -2,10 +2,15 @@
 
 #include <array>
 #include <chrono>
+#include <cctype>
+#include <cerrno>
 #include <cstdint>
 #include <cmath>
+#include <cstdlib>
+#include <cstring>
 
 #include <functional>
+#include <locale.h>
 #include <memory>
 #include <utility>
 #include <tuple>
@@ -15,6 +20,10 @@
 #include <optional>
 #include <unordered_map>
 #include <vector>
+
+#if defined(__APPLE__)
+#  include <xlocale.h>  // strtod_l
+#endif
 
 
 namespace guchho::helpers {
@@ -333,6 +342,97 @@ namespace guchho::helpers {
             uint32_t                  length_   = 0;
             uint8_t                   lastByte_ = 0;
     };
+
+
+    //---------------------------------------
+    // --------------- charconv -------------
+    //---------------------------------------
+    namespace detail {
+
+        // Parses a NUL-terminated string as a double using an explicit C
+        // locale, so the result never depends on the process locale. Used by
+        // ParseDouble below; not part of the public API.
+        inline double StrtodInCLocale(const char* text, char** end) {
+#if defined(_WIN32)
+            static _locale_t locale = _create_locale(LC_ALL, "C");
+            return locale ? _strtod_l(text, end, locale) : std::strtod(text, end);
+#else
+            // glibc, musl, bionic and the BSDs all expose strtod_l through
+            // <stdlib.h>/<locale.h>; libstdc++ and libc++ define _GNU_SOURCE
+            // for us on those platforms.
+            static locale_t locale = newlocale(LC_ALL_MASK, "C", (locale_t)0);
+            return locale ? strtod_l(text, end, locale) : std::strtod(text, end);
+#endif
+        }
+
+    }
+
+    // Parses `text` as a double in the C locale and stores the result in
+    // `*out`. The entire input must be a valid number: leading whitespace,
+    // trailing characters, and values outside the representable range are
+    // rejected. The semantics match std::from_chars with the default
+    // chars_format ("inf"/"nan" are accepted, a leading "+" is accepted).
+    //
+    // This exists instead of std::from_chars(double) because Apple's libc++
+    // only provides the floating-point std::from_chars overload on macOS 26+,
+    // and using it would require that deployment target for every binary --
+    // which is impossible for x86_64, since macOS 26 never ships for Intel.
+    // strtod_l is correctly rounded on every platform we support and has
+    // been available since macOS 10.x, glibc 2.3 and Windows Vista.
+    //
+    // Input:  "3.14"     => true, *out = 3.14
+    // Input:  "-50"      => true, *out = -50.0
+    // Input:  "1e3"      => true, *out = 1000.0
+    // Input:  "1.5px"    => false (trailing characters)
+    // Input:  " 1.5"     => false (leading whitespace)
+    // Input:  ""         => false
+    inline bool ParseDouble(std::string_view text, double* out) {
+        if (out == nullptr || text.empty()) {
+            return false;
+        }
+        // std::from_chars rejects leading whitespace; strtod skips it.
+        if (std::isspace(static_cast<unsigned char>(text.front())) != 0) {
+            return false;
+        }
+        // std::from_chars has no hex-float support, so "0x10" fails there
+        // (only "0" is consumed); strtod would accept it as 16.0.
+        {
+            size_t i = (text[0] == '+' || text[0] == '-') ? 1 : 0;
+            if (text.size() >= i + 2 && text[i] == '0' &&
+                (text[i + 1] == 'x' || text[i + 1] == 'X')) {
+                return false;
+            }
+        }
+
+        // strtod needs a NUL-terminated buffer. Numbers in source code are
+        // short, so keep them on the stack and only allocate for long ones.
+        char stack_buffer[32];
+        std::string heap_buffer;
+        const char* begin;
+        if (text.size() < sizeof(stack_buffer)) {
+            std::memcpy(stack_buffer, text.data(), text.size());
+            stack_buffer[text.size()] = '\0';
+            begin = stack_buffer;
+        } else {
+            heap_buffer.assign(text.data(), text.size());
+            begin = heap_buffer.c_str();
+        }
+
+        errno = 0;
+        char* end = nullptr;
+        const double value = detail::StrtodInCLocale(begin, &end);
+        if (end != begin + text.size()) {
+            return false;
+        }
+        // strtod reports gradual underflow (subnormal results) through
+        // ERANGE too; only reject the cases std::from_chars rejects:
+        // underflow all the way to zero, and overflow to infinity.
+        if (errno == ERANGE && (value == 0.0 || !std::isfinite(value))) {
+            return false;
+        }
+        *out = value;
+        return true;
+    }
 
 
 

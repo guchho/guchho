@@ -3,7 +3,6 @@
 #include "guchho/helpers.hpp"
 
 #include <algorithm>
-#include <charconv>
 
 #include <cstdio>
 
@@ -62,10 +61,7 @@ namespace guchho::css {
         // Input:  "12px"   =>  false  (trailing "px")
         // Input:  ""       =>  false
         bool ParseFloat(std::string_view text, double* out) {
-            const char* begin = text.data();
-            const char* end = text.data() + text.size();
-            auto result = std::from_chars(begin, end, *out);
-            return result.ec == std::errc() && result.ptr == end;
+            return helpers::ParseDouble(text, out);
         }
 
         // Formats a 32-bit integer as a lowercase hexadecimal string padded to

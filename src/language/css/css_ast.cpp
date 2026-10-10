@@ -2,8 +2,6 @@
 #include "guchho/css/css_ast.hpp"
 #include "guchho/css/css_properties.hpp"
 
-#include <charconv>
-
 // =============================================================================
 // CSS Abstract Syntax Tree (AST) Operations
 //
@@ -67,7 +65,7 @@ namespace guchho::css {
         // std::nullopt if the entire string is not a valid number (partial
         // matches are rejected).
         //
-        // Uses std::from_chars for efficient, locale-independent parsing.
+        // Uses helpers::ParseDouble for efficient, locale-independent parsing.
         // This is used when evaluating numeric CSS values such as percentages
         // and dimensions.
         //
@@ -79,8 +77,7 @@ namespace guchho::css {
         // -------------------------------------------------------------------------
         std::optional<double> ParseFloat(std::string_view text) {
             double value;
-            auto [ptr, ec] = std::from_chars(text.data(), text.data() + text.size(), value);
-            if (ec == std::errc{} && ptr == text.data() + text.size()) {
+            if (helpers::ParseDouble(text, &value)) {
                 return value;
             }
             return std::nullopt;

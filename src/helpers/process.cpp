@@ -11,6 +11,8 @@
     #endif
     #include <windows.h>
 #else
+    #include <cerrno>
+    #include <fcntl.h>
     #include <sys/wait.h>
     #include <unistd.h>
 #endif
@@ -43,6 +45,23 @@ namespace guchho::helpers {
             }
         }
 
+        // Tells the parent that this child will never become the requested
+        // program. The whole message is one byte: the parent is not asking
+        // why, only whether execvp ever ran. The write is the last thing the
+        // child does before its _exit, so the byte lands while the parent is
+        // still reading the status pipe and cannot be mistaken for a program
+        // that started and later failed.
+        //
+        // Input: the write descriptor of the status pipe.
+        // Output: one byte is queued for the parent, or the pipe refused it
+        //         (the parent has already stopped listening — nothing to do).
+        void MarkNeverStarted(int status_fd)
+        {
+            const char  marker = 1;
+            const ssize_t ignored = write(status_fd, &marker, sizeof(marker));
+            (void)ignored;
+        }
+
     } // namespace
 
 #endif
@@ -59,7 +78,10 @@ namespace guchho::helpers {
     // that produces a lot of output cannot fill its pipe buffer and stall the
     // whole call. An empty argv (or an argv whose first entry is empty) is
     // rejected up front, and a failure to even start the child leaves the
-    // started flag off and the exit code at its -1 default.
+    // started flag off and the exit code at its -1 default — and "start"
+    // means the requested program ran, not that a child merely came into
+    // being: an executable that cannot be found leaves the flag off here
+    // too, on POSIX just as on Windows.
     //
     // Input: {"git", "rev-parse", "--abbrev-ref", "HEAD"}, "" ->
     // Output: ProcessResult{ started = true, exit_code = 0,
@@ -285,18 +307,56 @@ namespace guchho::helpers {
         // Create the two pipes the child will write to. Both are initialized
         // to -1 so the cleanup code can tell which ends were never created:
         // when the second pipe fails after the first succeeded, the first
-        // pipe's ends still have to be closed before giving up.
+        // pipe's ends still have to be closed before giving up. The same
+        // helper closes both ends of a pair and puts the -1 placeholders
+        // back, so every failure path below can call it without having to
+        // remember which ends exist.
+        //
+        // Input: two uncreated pipe pairs ->
+        // Output: the pairs that were created are closed again.
+        auto close_pair = [](int (&fds)[2]) {
+            if (fds[0] != -1) {
+                close(fds[0]);
+                fds[0] = -1;
+            }
+            if (fds[1] != -1) {
+                close(fds[1]);
+                fds[1] = -1;
+            }
+        };
+
         int stdout_pipe[2] = {-1, -1};
         int stderr_pipe[2] = {-1, -1};
         if (pipe(stdout_pipe) != 0 || pipe(stderr_pipe) != 0) {
-            if (stdout_pipe[0] != -1) {
-                close(stdout_pipe[0]);
-                close(stdout_pipe[1]);
-            }
-            if (stderr_pipe[0] != -1) {
-                close(stderr_pipe[0]);
-                close(stderr_pipe[1]);
-            }
+            close_pair(stdout_pipe);
+            close_pair(stderr_pipe);
+            return result;
+        }
+
+        // The third pipe is how the parent learns whether execvp actually
+        // took over the child. fork() succeeding only proves a child exists:
+        // it may still die before becoming the requested program, because the
+        // working directory cannot be entered or because no file by that name
+        // is on PATH — and the started flag has to say no in exactly those
+        // cases, the same way CreateProcessW failing says no on Windows. Both
+        // ends are marked close-on-exec, so a child that reaches execvp loses
+        // the write end as part of the exec itself, before a single
+        // instruction of the new program runs: the parent sees EOF with
+        // nothing read, and that empty read is the whole answer. A child that
+        // never reaches execvp writes one byte first (MarkNeverStarted), so
+        // "did not start" arrives as data instead of as silence that would
+        // otherwise be indistinguishable from success.
+        int status_pipe[2] = {-1, -1};
+        if (pipe(status_pipe) != 0) {
+            close_pair(stdout_pipe);
+            close_pair(stderr_pipe);
+            return result;
+        }
+        if (fcntl(status_pipe[0], F_SETFD, FD_CLOEXEC) != 0 ||
+            fcntl(status_pipe[1], F_SETFD, FD_CLOEXEC) != 0) {
+            close_pair(stdout_pipe);
+            close_pair(stderr_pipe);
+            close_pair(status_pipe);
             return result;
         }
 
@@ -305,21 +365,26 @@ namespace guchho::helpers {
             // Child process. The write ends are spliced over the standard
             // descriptor numbers so everything the child prints flows into
             // the pipes, and the read ends are closed because the child must
-            // never hold them. The working directory is switched next, and
-            // then execvp replaces this process wholesale with the requested
-            // program, searching PATH just as a human typing the command
-            // would. A failed chdir or an unlaunchable program still ends
-            // with a distinct exit code the parent can recognize: 126 when
+            // never hold them — that includes the status pipe's read end,
+            // which belongs to the parent alone. The working directory is
+            // switched next, and then execvp replaces this process wholesale
+            // with the requested program, searching PATH just as a human
+            // typing the command would. A failed chdir or an unlaunchable
+            // program still ends with the conventional code for it — 126 when
             // the directory could not be reached, 127 when the executable
-            // could not be found.
+            // could not be found — but that code is only the child's own
+            // exit status: the byte written to the status pipe first is what
+            // tells the parent the program never started at all.
             dup2(stdout_pipe[1], STDOUT_FILENO);
             dup2(stderr_pipe[1], STDERR_FILENO);
             close(stdout_pipe[0]);
             close(stdout_pipe[1]);
             close(stderr_pipe[0]);
             close(stderr_pipe[1]);
+            close(status_pipe[0]);
             if (!cwd.empty()) {
                 if (chdir(cwd.c_str()) != 0) {
+                    MarkNeverStarted(status_pipe[1]);
                     _exit(126);
                 }
             }
@@ -330,25 +395,50 @@ namespace guchho::helpers {
             }
             argvp.push_back(nullptr);
             execvp(argvp[0], argvp.data());
+            MarkNeverStarted(status_pipe[1]);
             _exit(127);
         }
         if (pid < 0) {
             // The fork never produced a child, so there is nothing to wait
             // on; the pipes are torn down and the call ends in failure.
-            close(stdout_pipe[0]);
-            close(stdout_pipe[1]);
-            close(stderr_pipe[0]);
-            close(stderr_pipe[1]);
+            close_pair(stdout_pipe);
+            close_pair(stderr_pipe);
+            close_pair(status_pipe);
             return result;
         }
 
-        result.started = true;
-
         // The child owns the write ends now, so our copies are closed at
         // once. This is what guarantees the read ends see EOF the moment the
-        // child exits.
+        // child exits. The status pipe's write end has to go here as well:
+        // with the parent's copy still open its read end could never see
+        // EOF, and the read below would hang forever.
         close(stdout_pipe[1]);
         close(stderr_pipe[1]);
+        close(status_pipe[1]);
+
+        // Read the status pipe to EOF. Nothing read means execvp closed the
+        // write end itself, so the child became the requested program; any
+        // byte at all means it did not, and the flag stays off with the exit
+        // code at its -1 default — a failure to start, reported like the
+        // early returns above report it. A signal interrupting the read is
+        // not the end of the message, so EINTR starts the read over.
+        size_t status_bytes = 0;
+        while (true) {
+            char         scratch[16];
+            const ssize_t count = read(status_pipe[0], scratch, sizeof(scratch));
+            if (count > 0) {
+                status_bytes += static_cast<size_t>(count);
+                continue;
+            }
+            if (count < 0 && errno == EINTR) {
+                continue;
+            }
+            break;
+        }
+        close(status_pipe[0]);
+
+        // fork() on its own is not a start; execvp is.
+        result.started = (status_bytes == 0);
 
         // Drain both pipes on separate threads while the main thread waits on
         // the child. The threads keep a chatty child from filling a pipe
@@ -358,12 +448,13 @@ namespace guchho::helpers {
         std::thread stderr_thread([&]() { DrainPipe(stderr_pipe[0], result.stderr_data); });
 
         // Block until the child dies, then translate the raw wait status into
-        // a plain exit code. Only children that exited on their own
-        // contribute a real code; anything else leaves the -1 default in
-        // place.
+        // a plain exit code. Only a child that became the requested program
+        // has an exit code worth reporting — one that never reached execvp
+        // keeps the -1 default, and anything else killed off on the way out
+        // leaves that default in place too.
         int status = 0;
         waitpid(pid, &status, 0);
-        if (WIFEXITED(status)) {
+        if (result.started && WIFEXITED(status)) {
             result.exit_code = WEXITSTATUS(status);
         }
 

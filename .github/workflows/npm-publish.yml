@@ -303,8 +303,68 @@ jobs:
       # (needs.build.result == 'success') then skips both publish jobs,
       # so nothing ships.
       - name: Test (native)
-        if: matrix.method == 'native' && needs.plan.outputs.test_run == 'true'
+        if: matrix.method == 'native' && needs.plan.outputs.test_run == 'true' && matrix.platform != 'darwin-arm64'
         run: ctest --preset ${{ matrix.preset }} --output-on-failure --no-tests=error
+        shell: bash
+
+      # TEMPORARY DIAGNOSTIC (branch diag/async-segfault): captures a
+      # symbolized backtrace and an ASan/UBSan report for the darwin-arm64
+      # segfault in bundler.BundlerLower.LowerAsync2016NoBundle. Not for
+      # merging into main.
+      - name: Diagnose async segfault (darwin-arm64)
+        if: matrix.method == 'native' && needs.plan.outputs.test_run == 'true' && matrix.platform == 'darwin-arm64'
+        run: |
+          set -uo pipefail
+
+          echo "=============================================="
+          echo "1. Toolchain"
+          echo "=============================================="
+          clang --version
+          uname -a
+
+          echo "=============================================="
+          echo "2. Reproduce under ctest"
+          echo "=============================================="
+          ctest --preset ${{ matrix.preset }} \
+            -R 'bundler.BundlerLower.LowerAsync2016NoBundle' \
+            --output-on-failure --no-tests=error || echo "ctest exit=$? (expected nonzero on crash)"
+
+          echo "=============================================="
+          echo "3. lldb backtrace (release binary)"
+          echo "=============================================="
+          (
+            cd test/bundler
+            lldb --batch \
+              -o run \
+              -o "bt all" \
+              -o quit \
+              -- "../../build/${{ matrix.preset }}/bin/guchho_bundler_tests" \
+              --run=BundlerLower.LowerAsync2016NoBundle
+          ) || echo "lldb exit=$?"
+
+          echo "=============================================="
+          echo "4. ASan+UBSan rebuild and run"
+          echo "=============================================="
+          cmake --preset ${{ matrix.preset }} --fresh \
+            -DGUCHHO_ENABLE_ASAN=ON \
+            -DGUCHHO_ENABLE_UBSAN=ON \
+            "-DCMAKE_CXX_FLAGS=-fno-sanitize-recover=all -fno-omit-frame-pointer -g" || exit 1
+          cmake --build --preset ${{ matrix.preset }} --parallel \
+            --target guchho_bundler_tests || exit 1
+          (
+            cd test/bundler
+            ASAN_OPTIONS="detect_leaks=0:abort_on_error=0" \
+            UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1" \
+              "../../build/${{ matrix.preset }}/bin/guchho_bundler_tests" \
+              --run=BundlerLower.LowerAsync2016NoBundle
+          ) || echo "sanitized run exit=$?"
+
+          echo "=============================================="
+          echo "5. macOS crash reports (if any)"
+          echo "=============================================="
+          ls -la ~/Library/Logs/DiagnosticReports/ 2>/dev/null || true
+          latest=$(ls -t ~/Library/Logs/DiagnosticReports/*.ips 2>/dev/null | head -1 || true)
+          if [ -n "$latest" ]; then echo "--- $latest ---"; cat "$latest"; fi
         shell: bash
 
       - name: Find binary (native)

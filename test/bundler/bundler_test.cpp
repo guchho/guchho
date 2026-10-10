@@ -12,6 +12,7 @@
 #include <fstream>
 #include <optional>
 #include <sstream>
+#include <string_view>
 
 namespace bundler::test {
 
@@ -58,6 +59,32 @@ std::string FormatLog(const std::vector<guchho::logger::Msg>& msgs,
         text << msg.String(opts, ti);
     }
     return text.str();
+}
+
+// ---------------------------------------------------------------------------
+// NormalizeDiagnosticIcons
+// ---------------------------------------------------------------------------
+
+// The diagnostic glyph prefix depends on the terminal: on Windows Command
+// Prompt (no WT_SESSION) the logger swaps the Unicode set for a reduced
+// one that cmd.exe can render (logger.cpp MsgKindToIcon). Expected logs
+// in tests are written with one spelling or the other depending on which
+// machine generated them, so fold both onto the reduced set before
+// comparing. That way "✘ [ERROR]" and "X [ERROR]" both match on every
+// platform.
+static std::string NormalizeDiagnosticIcons(std::string text) {
+    auto replace_all = [](std::string& s, std::string_view from, std::string_view to) {
+        size_t pos = 0;
+        while ((pos = s.find(from, pos)) != std::string::npos) {
+            s.replace(pos, from.size(), to);
+            pos += to.size();
+        }
+    };
+    replace_all(text, "\xE2\x9C\x98", "X");  // ✘ -> X  (error)
+    replace_all(text, "\xE2\x96\xB6", "\xE2\x96\xBA");  // ▶ -> ►  (info)
+    replace_all(text, "\xE2\xAC\xA5", "\xE2\x99\xA6");  // ⬥ -> ♦  (verbose)
+    replace_all(text, "\xE2\x9C\x93", "+");  // ✓ -> +  (success)
+    return text;
 }
 
 // ---------------------------------------------------------------------------
@@ -274,8 +301,9 @@ void Suite::ExpectBundledImpl(Bundled args,
 
     auto scan_msgs = log.done();
     {
-        std::string actual = FormatLog(scan_msgs, args.source_logs);
-        if (actual != strip_leading_newline(args.expected_scan_log)) {
+        std::string actual = NormalizeDiagnosticIcons(FormatLog(scan_msgs, args.source_logs));
+        std::string expected = NormalizeDiagnosticIcons(strip_leading_newline(args.expected_scan_log));
+        if (actual != expected) {
             std::printf(
                 "Scan log mismatch for %s\n"
                 "  Expected:\n%s\n  Actual:\n%s\n",
@@ -298,8 +326,9 @@ void Suite::ExpectBundledImpl(Bundled args,
         compile_log, timer, mangle_cache);
     auto compile_msgs = compile_log.done();
     {
-        std::string actual = FormatLog(compile_msgs, args.source_logs);
-        if (actual != strip_leading_newline(args.expected_compile_log)) {
+        std::string actual = NormalizeDiagnosticIcons(FormatLog(compile_msgs, args.source_logs));
+        std::string expected = NormalizeDiagnosticIcons(strip_leading_newline(args.expected_compile_log));
+        if (actual != expected) {
             std::printf(
                 "Compile log mismatch for %s\n"
                 "  Expected:\n%s\n  Actual:\n%s\n",

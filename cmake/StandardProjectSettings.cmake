@@ -162,9 +162,11 @@ endif()
 # nests around 350 labeled statements and overflowed that, dying on
 # the guard page with a SIGSEGV part way through the parse.
 #
-# Raise it to 16 MB. The reservation is virtual - SizeOfStackCommit
-# still asks for one page - so nothing is touched until a thread
-# actually walks deep enough to need it.
+# Raise it to 16 MB - the same size helpers::kWorkerStackSize asks
+# for per-thread on POSIX, where there is no image-wide switch (see
+# src/helpers/thread.cpp). The reservation is virtual -
+# SizeOfStackCommit still asks for one page - so nothing is touched
+# until a thread actually walks deep enough to need it.
 # ------------------------------------------------------------
 
 if(WIN32)

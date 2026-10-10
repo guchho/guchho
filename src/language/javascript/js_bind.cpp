@@ -2774,7 +2774,7 @@ namespace guchho::javascript {
                 if (!IsNil(cls->extends_or_nil.data) && !Has(property.flags, PropertyFlags::kIsComputed)) {
                     if (auto str = Get<EString>(property.key.data)) {
                         if (helpers::UTF16EqualsString(str->value, "constructor")) {
-                            this->propDerivedCtorValue = &property.value_or_nil.data;
+                            this->propDerivedCtorValue = property.value_or_nil.data;
                         }
                     }
                 }
@@ -7623,7 +7623,7 @@ namespace guchho::javascript {
                 nameToKeepLocal = this->nameToKeep;
             }
 
-            this->visitFn(&eFn->fn, expr.loc, visitFnOpts{/*isMethod=*/in.isMethod, /*isDerivedClassCtor=*/this->propDerivedCtorValue != nullptr && IsSameNodeAs(*this->propDerivedCtorValue, expr.data), /*isLoweredPrivateMethod=*/in.isLoweredPrivateMethod});
+            this->visitFn(&eFn->fn, expr.loc, visitFnOpts{/*isMethod=*/in.isMethod, /*isDerivedClassCtor=*/this->propDerivedCtorValue != E{} && IsSameNodeAs(this->propDerivedCtorValue, expr.data), /*isLoweredPrivateMethod=*/in.isLoweredPrivateMethod});
             std::shared_ptr<compiler::LocRef> &name = eFn->fn.name;
 
             // Remove unused function names when minifying

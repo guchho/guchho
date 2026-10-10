@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <unordered_map>
 #include <utility>
@@ -3410,7 +3411,10 @@ namespace guchho::javascript {
             if (!std::get<2>(result)) {
                 char buf[8];
                 snprintf(buf, sizeof(buf), "%X", static_cast<unsigned>(std::get<1>(result)));
-                this->log.AddError(&this->tracker, r, logger::FormatMsg(logger::MsgCat::kJS_AliasInvalidSurrogate, kind, buf));
+                // Pass an explicit string_view: Apple's libc++ formats a raw
+                // char[] format argument with its full array extent, including
+                // the NUL terminator, which would embed a NUL in the message.
+                this->log.AddError(&this->tracker, r, logger::FormatMsg(logger::MsgCat::kJS_AliasInvalidSurrogate, kind, std::string_view(buf)));
             }
             return MaybeSubstring{alias};
         }

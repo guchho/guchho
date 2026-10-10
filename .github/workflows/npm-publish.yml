@@ -278,6 +278,36 @@ jobs:
           fi
         shell: bash
 
+      # The default Xcode on the macos-15-intel image is 16.4, whose libc++
+      # predates std::from_chars/std::to_chars for floating point (those
+      # arrived in libc++ v20), so the CSS/JS number-parsing code does not
+      # compile there while it builds fine on macos-26-arm64 (Xcode 26,
+      # image default). Both images ship several Xcode versions side by side,
+      # so select the newest one available and leave the default untouched
+      # when there is nothing to pick. `sort -t. -kN,Nn` is used instead of
+      # `sort -V` because BSD sort on macOS has no -V.
+      - name: Select Xcode (native macOS)
+        if: matrix.method == 'native' && runner.os == 'macOS'
+        run: |
+          versions=$(for app in /Applications/Xcode_[0-9]*.app; do
+            [ -d "$app" ] || continue
+            ver="${app##*/Xcode_}"
+            ver="${ver%.app}"
+            case "$ver" in ''|*[!0-9.]* ) continue ;; esac
+            printf '%s\n' "$ver"
+          done | sort -t. -k1,1n -k2,2n -k3,3n -k4,4n)
+
+          echo "Available Xcode versions:"
+          printf '%s\n' "$versions" | sed 's/^/  /'
+          echo "Current developer dir: $(xcode-select -p)"
+
+          if [ -n "$versions" ]; then
+            best=$(printf '%s\n' "$versions" | tail -n 1)
+            sudo xcode-select -s "/Applications/Xcode_${best}.app"
+          fi
+          xcodebuild -version
+        shell: bash
+
       - name: Build (native)
         if: matrix.method == 'native'
         run: |

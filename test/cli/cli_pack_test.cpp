@@ -36,7 +36,7 @@
 #include <ctime>
 #include <filesystem>
 #include <fstream>
-#include <iterator>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -130,8 +130,13 @@ bool Contains(const std::vector<std::string>& items, const std::string& value)
 // bytes are the only thing this file needs to say about them.
 std::string ReadBytes(const std::string& path)
 {
-    std::ifstream in(CliWorkspace::Native(path), std::ios::binary);
-    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    // Read back through rdbuf() rather than an istreambuf_iterator: the
+    // iterator form inlines GCC's null-dereference pass into libstdc++'s
+    // string constructor and reports a false positive there.
+    std::ifstream     in(CliWorkspace::Native(path), std::ios::binary);
+    std::ostringstream buffer;
+    buffer << in.rdbuf();
+    return buffer.str();
 }
 
 // A workspace with one file in it, which is what most of these tests ask for.

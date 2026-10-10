@@ -208,7 +208,7 @@ namespace guchho::bundler {
 // Input:  a callable doing one unit of scan work (usually ParseFile).
 // Output: nothing; the thread handle is appended to this->threads.
 void Scanner::Spawn(std::function<void()> fn) {
-            threads.emplace_back([this, fn = std::move(fn)]() {
+            threads.emplace_back(helpers::kWorkerStackSize, [this, fn = std::move(fn)]() {
                 try {
                     fn();
                 } catch (...) {
@@ -2324,12 +2324,13 @@ TlaCheck Scanner::ValidateTLA(uint32_t source_index) {
 
         TimerScope start_scope(timer, "On-start callbacks");
         WaitGroup on_start_wait_group;
-        std::vector<std::thread> on_start_threads;
+        std::vector<helpers::Thread> on_start_threads;
         std::vector<std::exception_ptr> on_start_exceptions;
         for (const config::Plugin& plugin : options.Plugins) {
             for (const config::OnStart& on_start : plugin.OnStartList) {
                 on_start_wait_group.Add(1);
                 on_start_threads.emplace_back(
+                    helpers::kWorkerStackSize,
                     [plugin, on_start, &log, &fs, &on_start_wait_group, &on_start_exceptions]() {
                         try {
                         config::OnStartResult result = on_start.Callback();

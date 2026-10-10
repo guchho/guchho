@@ -32,6 +32,7 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <sstream>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -113,9 +114,13 @@ guchho::pack::PackOptions OptionsFor(const std::string& input, const std::string
 
 std::string ReadWholeFile(const std::string& path)
 {
-    std::ifstream in(PathFromUTF8(path), std::ios::binary);
-    return std::string((std::istreambuf_iterator<char>(in)),
-                       std::istreambuf_iterator<char>());
+    // Read back through rdbuf() rather than an istreambuf_iterator: the
+    // iterator form inlines GCC's null-dereference pass into libstdc++'s
+    // string constructor and reports a false positive there.
+    std::ifstream     in(PathFromUTF8(path), std::ios::binary);
+    std::ostringstream buffer;
+    buffer << in.rdbuf();
+    return buffer.str();
 }
 
 bool AllZeros(const std::uint8_t* data, std::size_t count)

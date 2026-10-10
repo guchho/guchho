@@ -197,6 +197,8 @@ struct FileSink {
     std::ofstream& out;
     std::string    error;
 
+    explicit FileSink(std::ofstream& file) : out(file) {}
+
     bool Write(const void* data, std::size_t count)
     {
         if (count == 0) return true;

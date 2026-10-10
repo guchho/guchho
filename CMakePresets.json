@@ -689,6 +689,18 @@
         "stopOnFailure": true
       }
     },
+    {
+      "name": "release-darwin-x64",
+      "displayName": "Test macOS x64 Release",
+      "configurePreset": "release-darwin-x64",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true
+      }
+    },
 
     {
       "name": "asan-linux-x64",

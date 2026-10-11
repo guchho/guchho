@@ -34,6 +34,7 @@ const { getService } = require("./service");
 const { toFlags, toEntryPoints } = require("./flags");
 const { toBuildResult } = require("./convert");
 const { normalize } = require("./options");
+const { makePluginHost, callWithPlugins } = require("./plugins");
 
 /** A build that is set up once and built as many times as asked. */
 class BuildContext {
@@ -42,11 +43,15 @@ class BuildContext {
    * @param {number} key The service's name for this context.
    * @param {object} request The request that made it, kept for rebuilds.
    * @param {object} service
+   * @param {object|null} [host] The plugin host, when the context was made with
+   *   plugins. Held for the context's life because a rebuild runs the same
+   *   plugin hooks the opening build registered.
    */
-  constructor(key, request, service) {
+  constructor(key, request, service, host = null) {
     this.key = key;
     this._request = request;
     this._service = service;
+    this._host = host;
     this._disposed = false;
     // Null rather than undefined, so that "not watching" is one thing to check
     // rather than two.
@@ -67,7 +72,12 @@ class BuildContext {
   async rebuild() {
     this._assertLive();
     const started = Date.now();
-    const response = await this._service.request({ command: "rebuild", ...this._identity });
+    const response = await callWithPlugins(
+      this._service,
+      this._host,
+      { command: "rebuild", ...this._identity },
+      true
+    );
     response.duration = Date.now() - started;
     return this._deliver(response);
   }
@@ -83,7 +93,7 @@ class BuildContext {
    */
   async watch(options = {}) {
     this._assertLive();
-    await this._service.call({
+    await callWithPlugins(this._service, this._host, {
       command: "watch",
       ...this._identity,
       delay: options.delay,
@@ -102,7 +112,7 @@ class BuildContext {
    */
   async cancel() {
     this._assertLive();
-    await this._service.call({ command: "cancel", ...this._identity });
+    await callWithPlugins(this._service, this._host, { command: "cancel", ...this._identity });
     this._onRebuild = null;
   }
 
@@ -113,7 +123,7 @@ class BuildContext {
    */
   async serve(options = {}) {
     this._assertLive();
-    const response = await this._service.call({
+    const response = await callWithPlugins(this._service, this._host, {
       command: "serve",
       ...this._identity,
       servedir: options.servedir,
@@ -153,7 +163,7 @@ class BuildContext {
     if (this._disposed) return;
     this._disposed = true;
     try {
-      await this._service.call({ command: "dispose", ...this._identity });
+      await callWithPlugins(this._service, this._host, { command: "dispose", ...this._identity });
     } catch {
       // The service may already be gone, in which case the context went with it
       // and there is nothing left to release. A dispose that throws because the
@@ -189,7 +199,7 @@ class BuildContext {
  * @returns {Promise<BuildContext>}
  */
 async function context(options = {}) {
-  const { build: normalized } = normalize(options);
+  const { build: normalized, plugins } = normalize(options);
 
   const service = await getService();
   const request = {
@@ -199,7 +209,12 @@ async function context(options = {}) {
     ...answerFields(normalized),
   };
 
-  const response = await service.call(request);
+  // The descriptors travel with the request that registers them, and the host
+  // that answers them is kept for the context's life: the opening build and
+  // every rebuild run the same plugin hooks, and the engine holds the plugin
+  // closures it built from these descriptors until the context is disposed.
+  const host = makePluginHost(plugins);
+  const response = await callWithPlugins(service, host, request);
 
   // A context with no key is a context that was not made. The service refuses
   // that case, so reaching here means the shape changed underneath this, and
@@ -208,7 +223,7 @@ async function context(options = {}) {
     throw new Error("the Guchho service accepted a context request but sent back no key for it");
   }
 
-  return new BuildContext(response.key, request, service);
+  return new BuildContext(response.key, request, service, host);
 }
 
 // The request fields that are not flags: the ones the service reads itself.

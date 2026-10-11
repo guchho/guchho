@@ -361,6 +361,22 @@ TEST(CliInit, TheGeneratedPackageJsonSaysOnlyWhatItKnows) {
     EXPECT_FALSE(OutputContains(pkg, "\"main\""));
 }
 
+// A plugin's manifest carries the two facts that make the package usable where a
+// library's does not need them: the build writes ES modules, so the package must
+// say so, and its entry is the file the build writes, so the package must point
+// at it. Without both, the plugin builds and cannot be imported.
+TEST(CliInit, ThePluginPackageJsonPointsAtItsOutput) {
+    CliWorkspace ws("pluginpkg");
+
+    ASSERT_EQ(RunCli({"init", "--type=plugin", "--yes"}).exit_code, kSuccess);
+
+    const std::string pkg = ws.Read("package.json");
+    EXPECT_TRUE(OutputContains(pkg, "\"type\"")) << pkg;
+    EXPECT_TRUE(OutputContains(pkg, "\"module\"")) << pkg;
+    EXPECT_TRUE(OutputContains(pkg, "\"exports\"")) << pkg;
+    EXPECT_TRUE(OutputContains(pkg, "./dist/index.js")) << pkg;
+}
+
 // The name in package.json is the directory the project was made in, because that
 // is the only name the command is ever told. Somebody who publishes a library
 // will see the directory name wherever it is published, so that is what the
@@ -382,15 +398,23 @@ TEST(CliInit, ThePackageNameIsTheDirectoryName) {
     EXPECT_TRUE(OutputContains(ws.Read("package.json"), "\"" + *name + "\""));
 }
 
-// The plugin scaffold is a placeholder, and it says so in the file itself rather
-// than only in a README nobody reads before assuming it works.
-TEST(CliInit, ThePluginSaysItIsNotLoadableYet) {
+// A generated plugin is a plugin: an object with a name and a hook, exported,
+// rather than the empty object the scaffold wrote before there was an API for
+// one to implement.
+TEST(CliInit, ThePluginScaffoldExportsARealPlugin) {
     CliWorkspace ws("plugin");
 
     ASSERT_EQ(RunCli({"init", "--type=plugin", "--yes"}).exit_code, kSuccess);
 
-    EXPECT_TRUE(OutputContains(ws.Read("README.md"), "does not load plugins written in JavaScript"));
-    EXPECT_TRUE(OutputContains(ws.Read("src/index.js"), "no JavaScript plugin API"));
+    const std::string src = ws.Read("src/index.js");
+    EXPECT_TRUE(OutputContains(src, "name: '")) << src;
+    EXPECT_TRUE(OutputContains(src, "generateBundle")) << src;
+    EXPECT_TRUE(OutputContains(src, "export default plugin")) << src;
+    EXPECT_FALSE(OutputContains(src, "no JavaScript plugin API")) << src;
+
+    const std::string readme = ws.Read("README.md");
+    EXPECT_TRUE(OutputContains(readme, "plugins: [plugin]")) << readme;
+    EXPECT_FALSE(OutputContains(readme, "does not load plugins")) << readme;
 }
 
 // ---------------------------------------------------------------------------

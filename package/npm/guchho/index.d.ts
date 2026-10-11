@@ -13,8 +13,10 @@
 //     protocol cannot do without a second process to ask. Declaring them would
 //     be a promise this package does not keep.
 //
-//   - the plugin system. There is no plugin API yet, and declaring the hooks
-//     would be a promise that nothing implements.
+//   - plugin hooks that reach past what the engine implements. Every hook and
+//     every PluginContext method below has a runtime implementation behind it;
+//     a hook the engine could not run is left out rather than declared and
+//     silently ignored. See the plugin API further down.
 //
 // The version is a string, not a function: it is read once from the manifest
 // the package was installed as, so comparing it against the runtime's
@@ -243,37 +245,298 @@ interface BuildConfigSections {
   plugins: object
 }
 
-/** A hook the engine calls while a build runs. */
-export interface Plugin {
-  name: string
-  /** Called once, before anything is built. */
-  onStart?: (build: PluginBuild) => void | Promise<void>
-  /** Asked where a specifier resolves to. */
-  onResolve?: (
-    specifier: string,
-    context: { importer?: string; kind?: string }
-  ) => { path: string; external?: boolean } | null | undefined | Promise<
-    { path: string; external?: boolean } | null | undefined
-  >
-  /** Asked for a file's contents, instead of the loader reading it. */
-  onLoad?: (
-    path: string,
-    context: { importer?: string; kind?: string }
-  ) => { contents: string | Uint8Array; loader?: Loader } | null | undefined | Promise<
-    { contents: string | Uint8Array; loader?: Loader } | null | undefined
-  >
-  /** Called after each build, with its result. */
-  onEnd?: (build: PluginBuild) => void | Promise<void>
-  /** Called when the build is torn down. */
-  onDispose?: (build: PluginBuild) => void | Promise<void>
+// ---------------------------------------------------------------------------
+// Plugin API
+// ---------------------------------------------------------------------------
+//
+// A plugin is an object with a `name` and any of the hooks below. The hooks are
+// shaped after Rollup's, because Rollup's are the vocabulary plugin authors
+// already have, but the semantics are Guchho's: this is an architectural
+// reference, not a compatibility layer, and a plugin written for Rollup is not
+// promised to run here unchanged.
+//
+// Hooks may be async. The engine runs them in the host process, one at a time,
+// while the build waits; a hook that resolves is a hook the engine continues
+// from. Every hook that can decline does so by returning `null` (or leaving the
+// return undefined), which is how a plugin says "not mine" rather than "stop".
+
+/**
+ * The order a plugin runs in relative to the rest.
+ *
+ * `"pre"` plugins run before the default order, `"post"` after it, and the
+ * relative order of plugins with the same `order` is the order they appear in
+ * `plugins`. This is Rollup's `order`, and it is honoured per hook.
+ */
+export type PluginOrder = 'pre' | 'post'
+
+/** Where a plugin's `resolveId` was asked from. */
+export interface ResolveIdOptions {
+  /** The file or module that contains the import. Absent for an entry point. */
+  importer?: string
+  /** The namespace the importer lives in. Absent means "file". */
+  namespace?: string
+  /**
+   * The kind of import: an entry point, a static or dynamic import, a
+   * `require`, and so on. Left out when the caller does not know.
+   */
+  kind?: string
+  /**
+   * Values passed by the import's attributes or `with` clause, if any. A plugin
+   * that does not care can ignore this.
+   */
+  with?: Record<string, string>
+  /**
+   * True when this question came from a plugin calling `this.resolve` rather
+   * than from the engine walking an import. A plugin that rewrites imports but
+   * must not answer its own questions checks this.
+   */
+  custom?: boolean
 }
 
-/** What a plugin is handed when a hook fires. */
-export interface PluginBuild {
-  /** The options this build was made with. */
-  options: BuildOptions
-  /** The build's result, once there is one. */
-  readonly result?: BuildResult
+/**
+ * A `resolveId` answer.
+ *
+ * Returning a `ResolvedId` (or its path as a bare string) claims the import and
+ * stops the search. Returning `false` marks the import external and leaves the
+ * specifier as written in the output. Returning `null` declines.
+ */
+export interface ResolvedId {
+  /** The resolved path. A path in the "file" namespace must be absolute. */
+  id: string
+  /** True to leave the import in the output rather than bundle it. */
+  external?: boolean
+  /**
+   * True to promise the module has no side effects, so it can be dropped when
+   * nothing imports from it. Only meaningful as `true`.
+   */
+  moduleSideEffects?: boolean
+  /** A virtual filesystem the id belongs to. "file" by default. */
+  namespace?: string
+  /** A value carried to this module's `load`, so the two halves can pass state. */
+  meta?: unknown
+}
+
+/** A `load` answer that supplies a module's contents. */
+export interface LoadResult {
+  /** The module's source, instead of what the file system holds. */
+  code: string | Uint8Array
+  /** How to interpret `code`. Defaults to `"js"`. */
+  loader?: Loader
+  /**
+   * The directory this module's own relative imports resolve against. Left out,
+   * the directory the id is in.
+   */
+  resolveDir?: string
+  /** A value carried from the matching `resolveId`. */
+  meta?: unknown
+  /** Extra paths this answer depends on, so a change triggers a rebuild. */
+  watchFiles?: string[]
+  /** Extra directories this answer depends on. */
+  watchDirs?: string[]
+}
+
+/** What a `transform` hook returns. */
+export interface SourceDescription {
+  /** The transformed source. */
+  code: string
+  /**
+   * A sourcemap for the transform, as JSON text. Optional; without one the
+   * engine maps positions back to the original where it can.
+   */
+  map?: string | null
+  /** Extra paths this transform depends on. */
+  watchFiles?: string[]
+  watchDirs?: string[]
+}
+
+/** One output file, as a `generateBundle`/`writeBundle` hook sees it. */
+export interface OutputChunk {
+  type: 'chunk'
+  /** The path the file is written to, relative to the output directory. */
+  fileName: string
+  /** The generated source. Mutating this changes what is written. */
+  code: string
+  /** True when this chunk is an entry point. */
+  isEntry: boolean
+  /** The exports this chunk publishes. */
+  exports: string[]
+  /** The module ids this chunk was built from. */
+  modules: string[]
+}
+
+/** A non-code output, as a `generateBundle`/`writeBundle` hook sees it. */
+export interface OutputAsset {
+  type: 'asset'
+  /** The path the file is written to, relative to the output directory. */
+  fileName: string
+  /** The asset's bytes. Mutating this changes what is written. */
+  source: string | Uint8Array
+}
+
+/** Every output, keyed by file name. */
+export interface OutputBundle {
+  [fileName: string]: OutputChunk | OutputAsset
+}
+
+/** The output options a `generateBundle`/`writeBundle` hook is handed. */
+export interface NormalizedOutputOptions {
+  /** The output format. */
+  format: Format
+  /** The output directory, when one was given. */
+  dir?: string
+  /** The single output file, when one was given. */
+  file?: string
+  /** Whether the outputs are being written to disk. */
+  write: boolean
+}
+
+/** A file a plugin asks the build to emit with `this.emitFile`. */
+export type EmittedFile =
+  | { type: 'asset'; name?: string; fileName?: string; source: string | Uint8Array }
+  | { type: 'chunk'; id: string; name?: string; fileName?: string }
+
+/** A diagnostic a plugin reports through `this.warn` or `this.error`. */
+export interface GuchhoLog {
+  message: string
+  /** The file the message blames. */
+  id?: string
+  /** A code for the message, for a caller filtering them. */
+  code?: string
+  /** A 1-based line. */
+  line?: number
+  /** A 0-based column. */
+  column?: number
+}
+
+/**
+ * What every hook is called with as `this`.
+ *
+ * The context is the plugin's interface to the build: it can resolve a path
+ * with the build's own rules, report a warning, fail the build, and emit a file
+ * of its own.
+ */
+export interface PluginContext {
+  /** This plugin's name, as declared. */
+  readonly pluginName: string
+  /**
+   * Facts about the running build that do not come from the plugin itself.
+   *
+   * `guchhoVersion` is reported rather than omitted, because a plugin that
+   * switches on it is otherwise reading undefined and taking the wrong branch
+   * silently. `watchMode` is true when the build is a watch rebuild.
+   */
+  readonly meta: {
+    readonly guchhoVersion: string
+    readonly watchMode: boolean
+  }
+  /**
+   * Resolves a path with the build's own rules and the same chain of plugins,
+   * then hands back the answer. This is how a plugin asks where an import
+   * points without claiming it. Returns `null` when nothing resolves it.
+   *
+   * `custom: true` is set on the question so a plugin that answers resolution
+   * can tell its own question from the engine's and decline it.
+   */
+  resolve(
+    source: string,
+    importer?: string,
+    options?: ResolveIdOptions
+  ): Promise<ResolvedId | null>
+  /**
+   * Adds a file to the build's output. Returns a reference id that names the
+   * file for `getFileName`, and that can be handed to another `emitFile`.
+   */
+  emitFile(file: EmittedFile): string
+  /** The output path a reference id from `emitFile` resolves to. */
+  getFileName(referenceId: string): string
+  /** Reports a warning against this plugin. Does not fail the build. */
+  warn(message: string | GuchhoLog): void
+  /** Fails the build with this message. Never returns. */
+  error(message: string | GuchhoLog): never
+}
+
+/**
+ * A hook the engine calls while a build runs.
+ *
+ * Every hook is optional, and every hook that can decline does so by returning
+ * `null` or leaving the return undefined.
+ */
+export interface Plugin {
+  /** This plugin's name. Not optional: it appears in the diagnostics it causes. */
+  name: string
+  /** When this plugin runs relative to the others. */
+  order?: PluginOrder
+  /** Called once per build, before any file is read. */
+  buildStart?(
+    this: PluginContext,
+    options: BuildOptions
+  ): void | Promise<void>
+  /**
+   * Asked where a specifier resolves to, for every import and entry point.
+   *
+   * Return a `ResolvedId` or a path string to claim it, `false` to mark it
+   * external, or `null` to decline.
+   */
+  resolveId?(
+    this: PluginContext,
+    source: string,
+    importer: string | undefined,
+    options: ResolveIdOptions
+  ): ResolvedId | string | false | null | undefined | Promise<
+    ResolvedId | string | false | null | undefined
+  >
+  /**
+   * Asked for a module's contents, before the loader would read them.
+   *
+   * Return `LoadResult` or a source string to claim the module, or `null` to
+   * let the next plugin and then the loader have it.
+   */
+  load?(
+    this: PluginContext,
+    id: string
+  ): LoadResult | string | null | undefined | Promise<
+    LoadResult | string | null | undefined
+  >
+  /**
+   * Transforms a module's source after it has been loaded and before it is
+   * parsed. `code` is the text the previous step produced.
+   */
+  transform?(
+    this: PluginContext,
+    code: string,
+    id: string
+  ): SourceDescription | string | null | undefined | Promise<
+    SourceDescription | string | null | undefined
+  >
+  /**
+   * Called at the end of the build, after every module is read. `error` is set
+   * when the build failed, which makes this the place to clean up either way.
+   */
+  buildEnd?(
+    this: PluginContext,
+    error?: Error
+  ): void | Promise<void>
+  /**
+   * Called after the output has been produced but before it is written, with a
+   * bundle the hook may mutate, add to, or delete from. This is where a plugin
+   * rewrites generated code or emits a sibling file.
+   */
+  generateBundle?(
+    this: PluginContext,
+    options: NormalizedOutputOptions,
+    bundle: OutputBundle
+  ): void | Promise<void>
+  /**
+   * Called after the output has been written, with the same bundle. This is
+   * where a plugin reports on, or reads back, what was written.
+   */
+  writeBundle?(
+    this: PluginContext,
+    options: NormalizedOutputOptions,
+    bundle: OutputBundle
+  ): void | Promise<void>
+  /** Called when the context is torn down — the last hook a plugin sees. */
+  closeBundle?(this: PluginContext): void | Promise<void>
 }
 
 export interface BuildOptions extends CommonOptions {

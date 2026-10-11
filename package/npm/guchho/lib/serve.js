@@ -167,7 +167,7 @@ if (typeof Symbol.asyncDispose === "symbol") {
  *   option the server does not have.
  */
 async function serve(config = {}) {
-    const { build, server: serverOptions } = normalize(config);
+    const { build, server: serverOptions, plugins } = normalize(config);
     const server = serverOptions === null ? {} : serverOptions;
 
     // "open" is accepted in the server section because a caller reading a config
@@ -183,7 +183,7 @@ async function serve(config = {}) {
         );
     }
 
-    const ctx = await context({ build });
+    const ctx = await context({ build, plugins });
     try {
         // Build before listening, not after.
         //

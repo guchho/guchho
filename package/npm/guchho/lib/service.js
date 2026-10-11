@@ -1,6 +1,6 @@
 "use strict";
 
-// The connection to "guchho --service=1".
+// The connection to "guchho --service=<version>".
 //
 // One process, started on demand, answering as many requests as are sent to it.
 // The alternative — a process per build — is what the command line already is,
@@ -35,7 +35,7 @@ const {
 // and it is the one thing that decides whether a host and a binary can talk at
 // all — so it is the first thing said, before either side decodes anything from
 // the other.
-const PROTOCOL_VERSION = "1";
+const PROTOCOL_VERSION = "2";
 
 /** The service process died with a pending request outstanding. */
 class ServiceError extends Error {
@@ -78,6 +78,12 @@ class Service extends EventEmitter {
     this.stopped = false;
     this.exited = false;
     this.stopping = null;
+
+    // The host that answers plugin callbacks, installed for the duration of a
+    // call that named plugins and put back afterwards. Empty means the build
+    // was started without any, and a callback that arrives anyway is answered
+    // with an error rather than ignored, because the engine is blocked on it.
+    this.pluginHost = null;
   }
 
   /**
@@ -281,23 +287,27 @@ class Service extends EventEmitter {
     }
 
     for (const frame of frames) {
+      let raw;
       let id;
       let value;
       try {
         if (frame.length < 4) throw new DecodeError("a frame had no room for a request id");
-        const raw = frame.readUInt32LE(0);
+        raw = frame.readUInt32LE(0);
         id = raw >>> 1;
-        // The direction bit is the service's to set and not the host's to send.
-        // A frame with the wrong bit is not a response to anything, so it is
-        // reported rather than dispatched to a waiting caller.
-        if ((raw & 1) === 0) {
-          throw new DecodeError("the service sent a request, but this host has no callbacks to answer it with");
-        }
         [value] = readValue(frame, 4);
       } catch (error) {
         this.stop();
         this._failAll(error);
         return;
+      }
+
+      // The low bit is the direction: a set bit is a response to something this
+      // host asked, a clear bit is the service asking — a build paused mid-flight
+      // so a plugin hook can run here. A callback is answered on its own time,
+      // because the hook may await, so this loop does not wait on it.
+      if ((raw & 1) === 0) {
+        this._onCallback(id, value);
+        continue;
       }
 
       const waiting = this.pending.get(id);
@@ -311,6 +321,61 @@ class Service extends EventEmitter {
       this.pending.delete(id);
       waiting.resolve(value);
     }
+  }
+
+  // One response frame, back to the engine that is blocked waiting for it. The
+  // id is echoed and the direction bit set, so the service finds the callback it
+  // paused in rather than a request it never made.
+  _reply(id, value) {
+    if (this.child === null || this.stopped) return;
+    let frame;
+    try {
+      frame = encodePacket(id, false, value);
+    } catch (error) {
+      // The hook's answer itself could not be encoded — it holds a value the
+      // protocol has no representation for, like a fractional number. An error
+      // frame is the only honest reply: the engine is waiting, and going quiet
+      // would hang the build rather than fail it.
+      this._reply(id, {
+        errors: [{ id: "plugin-host-encode", text: error && error.message ? error.message : String(error) }],
+      });
+      return;
+    }
+    this.child.stdin.write(frame, () => {});
+  }
+
+  // A callback the service sent: run the named plugin hook and send its answer
+  // back. Neither branch here rejects outward — a rejection with no reply would
+  // leave the engine waiting forever — so a hook that throws its own error still
+  // gets a frame, and the build stops with that error rather than hanging.
+  _onCallback(id, request) {
+    const host = this.pluginHost;
+    if (host === null) {
+      this._reply(id, {
+        errors: [
+          {
+            id: "no-plugin-host",
+            text: "a plugin hook was reached in a build with no plugin host attached",
+          },
+        ],
+      });
+      return;
+    }
+
+    Promise.resolve()
+      .then(() => host.handle(request))
+      .then(
+        (response) => this._reply(id, response),
+        (error) =>
+          this._reply(id, {
+            errors: [
+              {
+                id: "plugin-host-error",
+                text: error && error.message ? error.message : String(error),
+              },
+            ],
+          })
+      );
   }
 
   _onStderr(chunk) {

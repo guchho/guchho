@@ -254,10 +254,13 @@ function normalizeInterval(given) {
  *   the watcher does not have, or gives an interval that is not a number.
  */
 async function watch(config = {}) {
-    const { build, watch: watchOptions } = normalize(config);
+    const { build, watch: watchOptions, plugins } = normalize(config);
     const settings = watchOptions === null ? {} : watchOptions;
 
-    const ctx = await context({ build });
+    // The plugins go with the context rather than being re-read per rebuild: the
+    // engine registers them once, from the descriptors on the context request,
+    // and every rebuild this watcher drives runs the same hooks.
+    const ctx = await context({ build, plugins });
     try {
         await ctx.watch({ delay: settings.delay });
 

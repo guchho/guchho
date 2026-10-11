@@ -1519,6 +1519,35 @@ struct PluginBuild {
     //         callbacks added.
     std::function<void(std::function<OnEndResult(BuildResult&)> callback)> on_end;
 
+    // Registers a callback that runs after the output files have been produced
+    // but before they are written. This is the hook a plugin uses to change what
+    // is written: the BuildResult it is handed holds "output_files", and the
+    // callback may rewrite a file's contents, drop one, or append one of its
+    // own. Callbacks run in registration order, each seeing what the earlier
+    // ones changed, and the files as they stand after the last one are what the
+    // write step puts on disk.
+    //
+    // This is deliberately not "on_end". End callbacks run after the write, when
+    // a change to a file is a change to a result that is already on disk and no
+    // longer reachable from the files. Generate callbacks run before it, which
+    // is the only place a hook can affect the bytes.
+    //
+    // Input:  build.on_generate_bundle([&](BuildResult& r) {
+    //             for (auto& f : r.output_files) f.contents.push_back('\n');
+    //             return OnEndResult{};
+    //         });
+    // Output: nothing; the bundle the build writes carries the change.
+    std::function<void(std::function<OnEndResult(BuildResult&)> callback)> on_generate_bundle;
+
+    // Registers a callback that runs after the output files have been written,
+    // with the same bundle the write step used. It is the mirror of
+    // on_generate_bundle and exists so that a plugin can report on, or read
+    // back, what was written without having to write it itself.
+    //
+    // Input:  build.on_write_bundle([&](BuildResult& r) { return OnEndResult{}; });
+    // Output: nothing.
+    std::function<void(std::function<OnEndResult(BuildResult&)> callback)> on_write_bundle;
+
     // Registers a resolve callback for import paths matching "filter" — a
     // pattern such as "*.png", a path prefix, or "" for everything — within an
     // optional namespace. Every matching callback is tried in the order the

@@ -1991,7 +1991,7 @@ struct PluginImpl {
         if (filter == nullptr) return;
 
         std::string ns = options.namespace_;
-        auto on_load_cb = [this, cb = std::move(callback), ns_str = ns](
+        auto on_load_cb = [this, cb = std::move(callback), plugin_name = plugin.Name, ns_str = ns](
                 config::OnLoadArgs args) -> config::OnLoadResult {
                 config::OnLoadResult result;
                 api::OnLoadArgs public_args;
@@ -2020,7 +2020,7 @@ struct PluginImpl {
                 result.ResultLoader = validate_loader(response.loader);
                 result.PluginData = std::move(response.plugin_data);
 
-                std::string path_kind = "resolve directory path for plugin " + quoted_for_log(plugin.Name);
+                std::string path_kind = "resolve directory path for plugin " + quoted_for_log(plugin_name);
                 std::string abs_path = validate_path(log, fs, response.resolve_dir, path_kind);
                 if (!abs_path.empty()) result.AbsResolveDir = abs_path;
 
@@ -2073,6 +2073,8 @@ static void load_plugins(
     logger::Log& log,
     cache::CacheSet& caches,
     std::vector<OnEndCallback>& on_end_callbacks,
+    std::vector<OnEndCallback>& on_generate_bundle_callbacks,
+    std::vector<OnEndCallback>& on_write_bundle_callbacks,
     std::vector<std::function<void()>>& on_dispose_callbacks,
     std::vector<std::shared_ptr<PluginImpl>>& plugin_impls,
     std::function<void(config::Options&)>& finalize_build_options) {
@@ -2216,6 +2218,14 @@ static void load_plugins(
             on_end_callbacks.push_back(OnEndCallback{item.name, std::move(fn)});
         };
 
+        auto on_generate_bundle_fn = [&on_generate_bundle_callbacks, &item](std::function<api::OnEndResult(api::BuildResult&)> fn) {
+            on_generate_bundle_callbacks.push_back(OnEndCallback{item.name, std::move(fn)});
+        };
+
+        auto on_write_bundle_fn = [&on_write_bundle_callbacks, &item](std::function<api::OnEndResult(api::BuildResult&)> fn) {
+            on_write_bundle_callbacks.push_back(OnEndCallback{item.name, std::move(fn)});
+        };
+
         auto on_dispose_fn = [&on_dispose_callbacks](std::function<void()> fn) {
             on_dispose_callbacks.push_back(std::move(fn));
         };
@@ -2225,6 +2235,8 @@ static void load_plugins(
             .resolve = std::move(resolve_fn),
             .on_start = [impl](std::function<api::OnStartResult()> cb) { impl->on_start(std::move(cb)); },
             .on_end = std::move(on_end_fn),
+            .on_generate_bundle = std::move(on_generate_bundle_fn),
+            .on_write_bundle = std::move(on_write_bundle_fn),
             .on_resolve = [impl](const api::OnResolveOptions& opts, std::function<api::OnResolveResult(const api::OnResolveArgs&)> cb) { impl->on_resolve(opts, std::move(cb)); },
             .on_load = [impl](const api::OnLoadOptions& opts, std::function<api::OnLoadResult(const api::OnLoadArgs&)> cb) { impl->on_load(opts, std::move(cb)); },
             .on_dispose = std::move(on_dispose_fn),
@@ -2267,7 +2279,16 @@ validate_build_options(api::BuildOptions& build_opts, logger::Log& log, filesyst
 struct RebuildArgs {
     std::shared_ptr<cache::CacheSet> caches;
     std::vector<OnEndCallback> on_end_callbacks;
+    std::vector<OnEndCallback> on_generate_bundle_callbacks;
+    std::vector<OnEndCallback> on_write_bundle_callbacks;
     std::vector<std::function<void()>> on_dispose_callbacks;
+    // Keeps every plugin's registration state alive for as long as the session
+    // does. The internal callbacks copied into "options.Plugins" capture a raw
+    // pointer to their PluginImpl, which also owns the message-detail arena and
+    // the log and file system those callbacks reach for; letting this vector die
+    // with the context-building function turns every later callback into a
+    // use-after-free.
+    std::shared_ptr<std::vector<std::shared_ptr<PluginImpl>>> plugin_impls;
     logger::OutputOptions log_options;
     std::vector<logger::Msg> log_warnings;
     std::vector<config::EntryPoint> entry_points;
@@ -2355,6 +2376,13 @@ static RebuildState rebuild_impl(const RebuildArgs& args,
     filesystem::WatchData watch_data;
     std::unordered_map<std::string, std::string> new_hashes = old_hashes;
 
+    // The arenas for the three output-stage callback families. Declared here
+    // rather than inside the loops because a message added to the log holds
+    // views into its arena, and an arena destroyed before the log is drained
+    // leaves the message pointing at freed memory.
+    DetailArena generate_bundle_arena;
+    DetailArena write_bundle_arena;
+
     helpers::Timer timer{"build"};
 
     auto bundle = bundler::ScanBundle(
@@ -2386,7 +2414,62 @@ static RebuildState rebuild_impl(const RebuildArgs& args,
         }
     }
 
-    if (args.write) {
+    // Generate-bundle callbacks, which run before the write. This is the one
+    // moment a plugin can change what gets written: the files are assembled but
+    // have not reached the disk, and the hook is handed the result they live in.
+    //
+    // A generate callback that reports an error stops the chain and stops the
+    // write, because writing a bundle a plugin has already rejected would put a
+    // build on disk that the build reports as failed.
+    bool generate_failed = false;
+    if (!log.has_errors()) {
+        timer.Begin("Generate-bundle callbacks");
+        for (const auto& callback : args.on_generate_bundle_callbacks) {
+            api::OnEndResult from_plugin;
+            try {
+                from_plugin = callback.fn(result);
+            } catch (const std::exception& e) {
+                from_plugin.errors.push_back(api::Message{
+                    .id = {},
+                    .plugin_name = callback.plugin_name,
+                    .text = e.what(),
+                    .location = std::nullopt,
+                    .notes = {},
+                    .detail = {},
+                });
+            }
+
+            for (auto& m : from_plugin.errors) {
+                if (m.plugin_name.empty()) m.plugin_name = callback.plugin_name;
+            }
+            for (auto& m : from_plugin.warnings) {
+                if (m.plugin_name.empty()) m.plugin_name = callback.plugin_name;
+            }
+
+            for (auto& msg : convert_errors_and_warnings_to_internal(
+                     from_plugin.errors, from_plugin.warnings, generate_bundle_arena)) {
+                log.add_msg(msg);
+            }
+
+            if (!from_plugin.errors.empty()) {
+                generate_failed = true;
+                break;
+            }
+        }
+        timer.End("Generate-bundle callbacks");
+
+        // The bundle may have changed — a file rewritten, dropped or added — so
+        // the hashes the write step compares against the previous pass are
+        // recomputed from what is actually about to be written. Without this the
+        // incremental writer would compare a stale hash and either rewrite a file
+        // that did not change or skip one that did.
+        new_hashes.clear();
+        for (const auto& file : result.output_files) {
+            new_hashes[file.path] = hash_for_build_mangling_hash(file.contents);
+        }
+    }
+
+    if (args.write && !generate_failed) {
         timer.Begin("Write output files");
         if (args.options.WriteToStdout) {
             if (!log.has_errors()) {
@@ -2456,6 +2539,41 @@ static RebuildState rebuild_impl(const RebuildArgs& args,
     auto msgs = log.peek();
     result.errors = convert_messages_to_public(logger::MsgKind::kError, msgs, args.options.LogPathStyle);
     result.warnings = convert_messages_to_public(logger::MsgKind::kWarning, msgs, args.options.LogPathStyle);
+
+    timer.Begin("Write-bundle callbacks");
+    for (const auto& callback : args.on_write_bundle_callbacks) {
+        api::OnEndResult from_plugin;
+        try {
+            from_plugin = callback.fn(result);
+        } catch (const std::exception& e) {
+            from_plugin.errors.push_back(api::Message{
+                .id = {},
+                .plugin_name = callback.plugin_name,
+                .text = e.what(),
+                .location = std::nullopt,
+                .notes = {},
+                .detail = {},
+            });
+        }
+
+        for (auto& m : from_plugin.errors) {
+            if (m.plugin_name.empty()) m.plugin_name = callback.plugin_name;
+        }
+        for (auto& m : from_plugin.warnings) {
+            if (m.plugin_name.empty()) m.plugin_name = callback.plugin_name;
+        }
+
+        for (auto& msg : convert_errors_and_warnings_to_internal(
+                 from_plugin.errors, from_plugin.warnings, write_bundle_arena)) {
+            log.add_msg(msg);
+        }
+
+        result.errors.insert(result.errors.end(), from_plugin.errors.begin(), from_plugin.errors.end());
+        result.warnings.insert(result.warnings.end(), from_plugin.warnings.begin(), from_plugin.warnings.end());
+
+        if (!from_plugin.errors.empty()) break;
+    }
+    timer.End("Write-bundle callbacks");
 
     timer.Begin("On-end callbacks");
     DetailArena on_end_arena;
@@ -2877,12 +2995,16 @@ context_impl(api::BuildOptions build_options) {
     }
 
     std::vector<OnEndCallback> on_end_callbacks;
+    std::vector<OnEndCallback> on_generate_bundle_callbacks;
+    std::vector<OnEndCallback> on_write_bundle_callbacks;
     std::vector<std::function<void()>> on_dispose_callbacks;
-    std::vector<std::shared_ptr<PluginImpl>> plugin_impls;
+    auto plugin_impls = std::make_shared<std::vector<std::shared_ptr<PluginImpl>>>();
     std::function<void(config::Options&)> finalize_build_options;
 
     load_plugins(&build_options, *real_fs, log, *caches_ptr,
-                 on_end_callbacks, on_dispose_callbacks, plugin_impls, finalize_build_options);
+                 on_end_callbacks, on_generate_bundle_callbacks,
+                 on_write_bundle_callbacks, on_dispose_callbacks,
+                 *plugin_impls, finalize_build_options);
 
     auto [options_pair, extras_pair] =
         validate_build_options(build_options, log, *real_fs);
@@ -2909,7 +3031,10 @@ context_impl(api::BuildOptions build_options) {
     ctx->abs_working_dir = abs_working_dir;
     ctx->args.caches = std::move(caches_ptr);
     ctx->args.on_end_callbacks = std::move(on_end_callbacks);
+    ctx->args.on_generate_bundle_callbacks = std::move(on_generate_bundle_callbacks);
+    ctx->args.on_write_bundle_callbacks = std::move(on_write_bundle_callbacks);
     ctx->args.on_dispose_callbacks = std::move(on_dispose_callbacks);
+    ctx->args.plugin_impls = std::move(plugin_impls);
     ctx->args.log_options = log_options;
     ctx->args.log_warnings = std::move(msgs);
     ctx->args.entry_points = std::move(entry_points);

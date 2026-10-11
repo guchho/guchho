@@ -32,12 +32,15 @@
 // layer directly for a second reason too: runBuild forces write on, and prints
 // while it does it.
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdint>
 #include <exception>
 #include <functional>
 #include <limits>
 #include <memory>
+#include <mutex>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -305,6 +308,8 @@ namespace guchho::cli {
         // arguments before anything is parsed. A request does not have to put its
         // entry points in any particular place, because the grammar reads a bare
         // path as a positional argument wherever it appears.
+        void PluginsFromRequest(const service::Value& request, api::BuildOptions& options);
+
         bool BuildOptionsFromRequest(const service::Value& request,
                                      api::BuildOptions& options,
                                      service::Value& error) {
@@ -380,7 +385,458 @@ namespace guchho::cli {
             }
 
             StdinDataFromRequest(request, options);
+            PluginsFromRequest(request, options);
             return true;
+        }
+
+        // ===================================================================
+        // The JavaScript plugin bridge.
+        // ===================================================================
+        //
+        // A plugin written in JavaScript does not run in this process. It runs
+        // in the host that spawned this one, and reaching it means sending a
+        // request back up the pipe and waiting for the answer. That is the one
+        // thing the service protocol did not previously do: until now every
+        // frame travelled host to service, and the service never spoke first.
+        //
+        // Everything below exists to make that direction look ordinary to the
+        // rest of the engine. A plugin built here is an api::Plugin like any
+        // other: it registers the same callbacks, and those callbacks are what
+        // the engine calls. The only difference is that the callback's body is
+        // a round trip to the host instead of a local function call, and the
+        // engine neither knows nor needs to know that.
+        //
+        // The contract with the host is deliberately shaped like the hooks in
+        // the TypeScript types rather than like the engine's internal structs,
+        // because the host is where the Rollup-shaped hook lives. A resolve
+        // request carries a source, an importer and a kind; an answer carries an
+        // id or nothing. The translation between that and api::OnResolveResult
+        // happens here, at the one seam, and nowhere else.
+
+        // The kind of a resolve request, as the name the host's hook expects.
+        // The names are the ones in the TypeScript types; an unknown kind comes
+        // back as "none" rather than as an empty string, so the host can always
+        // switch on it.
+        std::string ResolveKindName(api::ResolveKind kind) {
+            switch (kind) {
+                case api::ResolveKind::kEntryPoint: return "entry";
+                case api::ResolveKind::kJSImportStatement: return "import-statement";
+                case api::ResolveKind::kJSRequireCall: return "require-call";
+                case api::ResolveKind::kJSDynamicImport: return "dynamic-import";
+                case api::ResolveKind::kJSRequireResolve: return "require-resolve";
+                case api::ResolveKind::kCSSImportRule: return "import-rule";
+                case api::ResolveKind::kCSSComposesFrom: return "composes-from";
+                case api::ResolveKind::kCSSURLToken: return "url-token";
+                case api::ResolveKind::kNone: return "none";
+            }
+            return "none";
+        }
+
+        // The name of a loader, back again. The wire carries the name rather
+        // than the number because the numbers are this build's enum and would
+        // become part of the protocol the moment a host stored one.
+        api::Loader LoaderFromName(const std::string& name) {
+            static const std::unordered_map<std::string, api::Loader> kLoaders = {
+                {"base64", api::Loader::kBase64},   {"binary", api::Loader::kBinary},
+                {"copy", api::Loader::kCopy},       {"css", api::Loader::kCSS},
+                {"dataurl", api::Loader::kDataURL}, {"default", api::Loader::kDefault},
+                {"empty", api::Loader::kEmpty},     {"file", api::Loader::kFile},
+                {"global-css", api::Loader::kGlobalCSS}, {"js", api::Loader::kJS},
+                {"json", api::Loader::kJSON},       {"jsx", api::Loader::kJSX},
+                {"local-css", api::Loader::kLocalCSS}, {"text", api::Loader::kText},
+                {"ts", api::Loader::kTS},           {"tsx", api::Loader::kTSX},
+            };
+            const auto found = kLoaders.find(name);
+            return found == kLoaders.end() ? api::Loader::kNone : found->second;
+        }
+
+        // The plugin-to-plugin payload, riding as a value.
+        //
+        // The engine passes a std::any from a resolve hook to the matching load
+        // hook, and a JavaScript plugin puts a plain value there. Rather than
+        // invent a serialisation for arbitrary C++, the bridge stashes the value
+        // it came back with inside a shared_ptr and hands that through as the
+        // any. The only code that ever looks inside is this bridge, so the fact
+        // that it holds a service::Value rather than whatever the plugin meant
+        // by it costs nothing and keeps the value intact across the round trip.
+        service::Value PluginMetaValue(const std::any& data) {
+            if (!data.has_value()) return service::Value::Null();
+            const auto* held = std::any_cast<std::shared_ptr<service::Value>>(&data);
+            if (held == nullptr || !*held) return service::Value::Null();
+            return **held;
+        }
+
+        std::any StoredPluginMeta(service::Value value) {
+            return std::any(std::make_shared<service::Value>(std::move(value)));
+        }
+
+        // The messages a hook reported, in the shape the engine expects.
+        //
+        // A host sends "errors" and "warnings" as arrays whose entries are
+        // either a plain string — the common case, and all a one-line refusal
+        // needs — or an object with "text" and an optional "id". The plugin's
+        // name is stamped on every message, so a diagnostic from a JavaScript
+        // plugin reads the same as one from a C++ plugin.
+        std::vector<api::Message> PluginMessages(const service::Value& response,
+                                                 const char* key,
+                                                 const std::string& plugin_name) {
+            std::vector<api::Message> messages;
+            const service::Value* list = response.Find(key);
+            if (list == nullptr || !list->IsArray()) return messages;
+
+            for (const service::Value& entry : list->AsArray()) {
+                api::Message message;
+                message.plugin_name = plugin_name;
+                message.id = plugin_name + "-plugin";
+                if (entry.IsString()) {
+                    message.text = entry.AsString();
+                } else if (entry.IsObject()) {
+                    if (const service::Value* text = entry.Find("text")) {
+                        if (text->IsString()) message.text = text->AsString();
+                    }
+                    if (const service::Value* id = entry.Find("id")) {
+                        if (id->IsString()) message.id = id->AsString();
+                    }
+                } else {
+                    continue;
+                }
+                messages.push_back(std::move(message));
+            }
+            return messages;
+        }
+
+        // One callback, one round trip.
+        //
+        // The plugin name, the hook name and the arguments go up; the hook's
+        // answer comes back. The engine's own plugin ordering is preserved by
+        // the host, which runs its hooks in the order the plugins were listed,
+        // so the bridge does not sort anything itself.
+        service::Value PluginCall(const std::string& plugin,
+                                  const std::string& hook,
+                                  service::Value args) {
+            return service::InvokeCallback(service::Value::Object({
+                {"plugin", service::Value::String(plugin)},
+                {"hook", service::Value::String(hook)},
+                {"args", std::move(args)},
+            }));
+        }
+
+        // The hooks, one function each, each a translation rather than a rule.
+        //
+        // Every one of them begins the same way: a process with no host — a
+        // command-line build — has no callback transport, and the correct answer
+        // there is to decline rather than to block waiting for a host that will
+        // never arrive. That check is why a plugin list attached only over the
+        // service stays inert on the command line instead of hanging it.
+
+        api::OnStartResult RunJsStart(const std::string& plugin) {
+            api::OnStartResult result;
+            if (!service::HasCallbackTransport()) return result;
+
+            const service::Value response = PluginCall(plugin, "buildStart", service::Value::Null());
+            result.errors = PluginMessages(response, "errors", plugin);
+            result.warnings = PluginMessages(response, "warnings", plugin);
+            return result;
+        }
+
+        api::OnResolveResult RunJsResolve(const std::string& plugin, const api::OnResolveArgs& args) {
+            api::OnResolveResult result;
+            result.plugin_name = plugin;
+            if (!service::HasCallbackTransport()) return result;
+
+            std::vector<service::Value> with;
+            for (const auto& [key, value] : args.with) {
+                with.push_back(service::Value::Array(
+                    {service::Value::String(key), service::Value::String(value)}));
+            }
+
+            const service::Value response = PluginCall(plugin, "resolveId", service::Value::Object({
+                {"source", service::Value::String(args.path)},
+                {"importer", args.importer.empty() ? service::Value::Null()
+                                                   : service::Value::String(args.importer)},
+                {"namespace", service::Value::String(args.namespace_)},
+                {"resolveDir", service::Value::String(args.resolve_dir)},
+                {"kind", service::Value::String(ResolveKindName(args.kind))},
+                {"with", service::Value::Array(std::move(with))},
+                {"meta", PluginMetaValue(args.plugin_data)},
+            }));
+
+            result.errors = PluginMessages(response, "errors", plugin);
+            result.warnings = PluginMessages(response, "warnings", plugin);
+            if (!result.errors.empty()) return result;
+
+            if (const service::Value* external = response.Find("external")) {
+                if (external->IsBool() && external->AsBool()) result.external = true;
+            }
+
+            const service::Value* id = response.Find("id");
+            if (id != nullptr && id->IsString() && !id->AsString().empty()) {
+                result.path = id->AsString();
+            } else if (!result.external) {
+                // Neither a path nor an external claim: the hook declined, and
+                // the next plugin — and finally the built-in rules — get a turn.
+                return result;
+            }
+
+            if (const service::Value* ns = response.Find("namespace")) {
+                if (ns->IsString()) result.namespace_ = ns->AsString();
+            }
+            if (const service::Value* suffix = response.Find("suffix")) {
+                if (suffix->IsString()) result.suffix = suffix->AsString();
+            }
+            if (const service::Value* side = response.Find("moduleSideEffects")) {
+                if (side->IsBool()) {
+                    result.side_effects = side->AsBool() ? api::SideEffects::kTrue
+                                                         : api::SideEffects::kFalse;
+                }
+            }
+            if (const service::Value* meta = response.Find("meta")) {
+                if (!meta->IsNull()) result.plugin_data = StoredPluginMeta(*meta);
+            }
+            if (const service::Value* files = response.Find("watchFiles")) {
+                if (files->IsArray()) {
+                    for (const service::Value& file : files->AsArray()) {
+                        if (file.IsString()) result.watch_files.push_back(file.AsString());
+                    }
+                }
+            }
+            if (const service::Value* dirs = response.Find("watchDirs")) {
+                if (dirs->IsArray()) {
+                    for (const service::Value& dir : dirs->AsArray()) {
+                        if (dir.IsString()) result.watch_dirs.push_back(dir.AsString());
+                    }
+                }
+            }
+            return result;
+        }
+
+        api::OnLoadResult RunJsLoad(const std::string& plugin, const api::OnLoadArgs& args) {
+            api::OnLoadResult result;
+            result.plugin_name = plugin;
+            if (!service::HasCallbackTransport()) return result;
+
+            std::vector<service::Value> with;
+            for (const auto& [key, value] : args.with) {
+                with.push_back(service::Value::Array(
+                    {service::Value::String(key), service::Value::String(value)}));
+            }
+
+            const service::Value response = PluginCall(plugin, "load", service::Value::Object({
+                {"id", service::Value::String(args.path)},
+                {"namespace", service::Value::String(args.namespace_)},
+                {"suffix", service::Value::String(args.suffix)},
+                {"with", service::Value::Array(std::move(with))},
+                {"meta", PluginMetaValue(args.plugin_data)},
+            }));
+
+            result.errors = PluginMessages(response, "errors", plugin);
+            result.warnings = PluginMessages(response, "warnings", plugin);
+            if (!result.errors.empty()) return result;
+
+            const service::Value* code = response.Find("code");
+            if (code == nullptr) return result; // declined; the file system gets a turn
+            if (code->IsString()) {
+                result.contents = code->AsString();
+            } else if (code->IsBytes()) {
+                const std::vector<uint8_t>& bytes = code->AsBytes();
+                result.contents = std::string(
+                    reinterpret_cast<const char*>(bytes.data()), bytes.size());
+            } else {
+                return result;
+            }
+
+            if (const service::Value* dir = response.Find("resolveDir")) {
+                if (dir->IsString()) result.resolve_dir = dir->AsString();
+            }
+            if (const service::Value* loader = response.Find("loader")) {
+                if (loader->IsString()) result.loader = LoaderFromName(loader->AsString());
+            }
+            if (const service::Value* meta = response.Find("meta")) {
+                if (!meta->IsNull()) result.plugin_data = StoredPluginMeta(*meta);
+            }
+            if (const service::Value* files = response.Find("watchFiles")) {
+                if (files->IsArray()) {
+                    for (const service::Value& file : files->AsArray()) {
+                        if (file.IsString()) result.watch_files.push_back(file.AsString());
+                    }
+                }
+            }
+            if (const service::Value* dirs = response.Find("watchDirs")) {
+                if (dirs->IsArray()) {
+                    for (const service::Value& dir : dirs->AsArray()) {
+                        if (dir.IsString()) result.watch_dirs.push_back(dir.AsString());
+                    }
+                }
+            }
+            return result;
+        }
+
+        // A bundle hook: buildEnd, generateBundle or writeBundle.
+        //
+        // The three share a body because they share a shape — the finished files
+        // go up, messages come back — and differ in one thing only: whether the
+        // host is allowed to hand a replacement set of files back. Only
+        // generateBundle may, because it is the one that runs before the write.
+        // A writeBundle that returned files would be handing them to a write
+        // that has already happened, and buildEnd is deliberately given the same
+        // restriction so that "which hook can change the output" stays one clear
+        // answer.
+        api::OnEndResult RunJsBundle(const std::string& plugin,
+                                     const std::string& hook,
+                                     bool may_replace_files,
+                                     api::BuildResult& result) {
+            api::OnEndResult outcome;
+            if (!service::HasCallbackTransport()) return outcome;
+
+            std::vector<service::Value> files;
+            files.reserve(result.output_files.size());
+            for (const api::OutputFile& file : result.output_files) {
+                files.push_back(service::Value::Object({
+                    {"path", service::Value::String(file.path)},
+                    {"contents", service::Value::Bytes(file.contents)},
+                }));
+            }
+
+            const service::Value response = PluginCall(plugin, hook, service::Value::Object({
+                {"outputFiles", service::Value::Array(std::move(files))},
+            }));
+
+            outcome.errors = PluginMessages(response, "errors", plugin);
+            outcome.warnings = PluginMessages(response, "warnings", plugin);
+            if (!outcome.errors.empty()) return outcome;
+
+            const service::Value* replacement = response.Find("files");
+            if (may_replace_files && replacement != nullptr && replacement->IsArray()) {
+                std::vector<api::OutputFile> rebuilt;
+                for (const service::Value& entry : replacement->AsArray()) {
+                    if (!entry.IsObject()) continue;
+                    const service::Value* path = entry.Find("path");
+                    if (path == nullptr || !path->IsString()) continue;
+
+                    api::OutputFile file;
+                    file.path = path->AsString();
+                    if (const service::Value* contents = entry.Find("contents")) {
+                        if (contents->IsString()) {
+                            const std::string& text = contents->AsString();
+                            file.contents.assign(text.begin(), text.end());
+                        } else if (contents->IsBytes()) {
+                            file.contents = contents->AsBytes();
+                        }
+                    }
+                    rebuilt.push_back(std::move(file));
+                }
+                result.output_files = std::move(rebuilt);
+            }
+            return outcome;
+        }
+
+        // closeBundle, which is the engine's dispose.
+        //
+        // A dispose has no result to report into and no failure to raise, so the
+        // answer is discarded: a host's closeBundle that throws has already had
+        // its say in the host's own process, and there is nothing here for the
+        // engine to do about it.
+        void RunJsDispose(const std::string& plugin) {
+            if (!service::HasCallbackTransport()) return;
+            PluginCall(plugin, "closeBundle", service::Value::Null());
+        }
+
+        // A whole plugin, built from the descriptor the host sent.
+        //
+        // Only the hooks the host says it implements are registered. That is not
+        // an optimisation but a correctness point: registering resolveId for a
+        // plugin that does not have one would send a round trip per import for
+        // every plugin in the list, and the engine treats the first resolving
+        // plugin as the answer, so a hook that always declines is not free — it
+        // is noise on the wire for every module in the graph.
+        api::Plugin MakeJsPlugin(const std::string& name, const std::vector<std::string>& hooks) {
+            auto implements = [hooks](const char* hook) {
+                return std::find(hooks.begin(), hooks.end(), std::string(hook)) != hooks.end();
+            };
+
+            api::Plugin plugin;
+            plugin.name = name;
+            plugin.setup = [name, implements](api::PluginBuild& build) {
+                if (implements("buildStart")) {
+                    build.on_start([name]() { return RunJsStart(name); });
+                }
+                if (implements("resolveId")) {
+                    build.on_resolve(
+                        api::OnResolveOptions{.filter = ".*", .namespace_ = ""},
+                        [name](const api::OnResolveArgs& args) { return RunJsResolve(name, args); });
+                }
+                if (implements("load")) {
+                    build.on_load(
+                        api::OnLoadOptions{.filter = ".*", .namespace_ = ""},
+                        [name](const api::OnLoadArgs& args) { return RunJsLoad(name, args); });
+                }
+                if (implements("buildEnd") || implements("generateBundle")) {
+                    build.on_generate_bundle([name, implements](api::BuildResult& result) {
+                        // buildEnd runs first and may refuse; if it does, the
+                        // bundle is not offered to generateBundle at all.
+                        api::OnEndResult outcome;
+                        if (implements("buildEnd")) {
+                            api::OnEndResult ended =
+                                RunJsBundle(name, "buildEnd", false, result);
+                            outcome.errors.insert(outcome.errors.end(),
+                                                  ended.errors.begin(), ended.errors.end());
+                            outcome.warnings.insert(outcome.warnings.end(),
+                                                    ended.warnings.begin(), ended.warnings.end());
+                            if (!outcome.errors.empty()) return outcome;
+                        }
+                        if (implements("generateBundle")) {
+                            api::OnEndResult generated =
+                                RunJsBundle(name, "generateBundle", true, result);
+                            outcome.errors.insert(outcome.errors.end(),
+                                                  generated.errors.begin(), generated.errors.end());
+                            outcome.warnings.insert(outcome.warnings.end(),
+                                                    generated.warnings.begin(), generated.warnings.end());
+                        }
+                        return outcome;
+                    });
+                }
+                if (implements("writeBundle")) {
+                    build.on_write_bundle([name](api::BuildResult& result) {
+                        return RunJsBundle(name, "writeBundle", false, result);
+                    });
+                }
+                if (implements("closeBundle")) {
+                    build.on_dispose([name]() { RunJsDispose(name); });
+                }
+            };
+            return plugin;
+        }
+
+        // The plugin list from a request, appended to the options.
+        //
+        // The host sends descriptors rather than functions, because a function
+        // cannot cross a pipe: a descriptor is a name and the names of the hooks
+        // the plugin implements, and the bridge turns each one into the
+        // Rollup-shaped callbacks above. A descriptor with no name, or one that
+        // is not an object, is skipped rather than refused — a malformed plugin
+        // is the host's problem, and failing the whole build for one bad entry
+        // would be a worse answer than building without it.
+        void PluginsFromRequest(const service::Value& request, api::BuildOptions& options) {
+            const service::Value* plugins = request.Find("plugins");
+            if (plugins == nullptr || !plugins->IsArray()) return;
+
+            for (const service::Value& entry : plugins->AsArray()) {
+                if (!entry.IsObject()) continue;
+
+                const service::Value* name = entry.Find("name");
+                if (name == nullptr || !name->IsString() || name->AsString().empty()) continue;
+
+                std::vector<std::string> hooks;
+                if (const service::Value* list = entry.Find("hooks")) {
+                    if (list->IsArray()) {
+                        for (const service::Value& hook : list->AsArray()) {
+                            if (hook.IsString()) hooks.push_back(hook.AsString());
+                        }
+                    }
+                }
+
+                options.plugins.push_back(MakeJsPlugin(name->AsString(), hooks));
+            }
         }
 
         // Runs one build and returns the response.
@@ -1062,6 +1518,59 @@ namespace guchho::cli {
 
     } // namespace
 
+} // namespace guchho::cli
+
+// The callback transport, as the rest of the engine sees it.
+//
+// This is a single global rather than a parameter threaded through every
+// plugin, and that is deliberate: a plugin hook is registered once and then
+// called by whichever worker thread reaches it, deep inside the build, with
+// nothing in its signature that could carry a transport. The transport is a
+// property of the process having a host, not of any one build, so a global
+// is the honest shape for it. The mutex is what makes it safe to read from
+// several worker threads at once and to replace at the start and end of the
+// service loop; the transport itself serialises the requests sent through
+// it.
+namespace guchho::service {
+
+    namespace {
+
+        std::mutex g_callback_mutex;
+        CallbackTransport g_callback_transport;
+
+    } // namespace
+
+    void SetCallbackTransport(CallbackTransport transport) {
+        std::lock_guard<std::mutex> lock(g_callback_mutex);
+        g_callback_transport = std::move(transport);
+    }
+
+    bool HasCallbackTransport() {
+        std::lock_guard<std::mutex> lock(g_callback_mutex);
+        return static_cast<bool>(g_callback_transport);
+    }
+
+    Value InvokeCallback(const Value& request) {
+        // The transport is copied out under the lock and called outside it,
+        // because the call blocks for a whole round trip and holding the lock
+        // across that would stop every other hook in the build from even
+        // reaching the point where the transport serialises them.
+        CallbackTransport transport;
+        {
+            std::lock_guard<std::mutex> lock(g_callback_mutex);
+            transport = g_callback_transport;
+        }
+        if (!transport) {
+            throw std::runtime_error(
+                "a plugin hook was reached in a process with no plugin host");
+        }
+        return transport(request);
+    }
+
+} // namespace guchho::service
+
+namespace guchho::cli {
+
     int RunService() {
         // Before the greeting, and before anything is read, because every byte
         // this process exchanges from now on is a frame.
@@ -1086,6 +1595,84 @@ namespace guchho::cli {
         // printed the greeting, which made it look like the protocol was broken
         // rather than like an allocation was in the wrong place.
         std::vector<uint8_t> chunk(kReadChunk);
+
+        // The state the callback direction needs, and why each piece is here.
+        //
+        // A plugin hook is answered by an extra exchange in the middle of a
+        // request: the service sends a request of its own and waits. The reader
+        // is shared with the main loop rather than duplicated, because a frame
+        // can arrive split across reads either way and there is only one stream.
+        //
+        // Requests that arrive while a callback is in flight — a host that sent
+        // two builds back to back would do this — cannot be dispatched from
+        // inside the callback without recursing a whole request deep, so they go
+        // onto a queue and are drained by the main loop once the answer is in.
+        //
+        // The id counter is the service's own. The host's requests use its ids;
+        // this one's callbacks use a separate space, and the direction bit is
+        // what keeps the two from ever being confused.
+        std::vector<service::Packet> deferred;
+        std::mutex callback_mutex;
+        uint32_t next_callback_id = 0;
+
+        service::SetCallbackTransport(
+            [&](const service::Value& request) -> service::Value {
+                // One callback at a time. Two hooks that fired on different
+                // worker threads would otherwise interleave their frames and
+                // each read the other's answer; the build's plugin order is a
+                // sequence, so serialising here is also what makes it real.
+                std::lock_guard<std::mutex> lock(callback_mutex);
+
+                const uint32_t id = next_callback_id++;
+
+                service::Packet ask;
+                ask.is_request = true;
+                ask.id = id;
+                ask.value = request;
+                const std::vector<uint8_t> encoded = service::EncodePacket(ask);
+                std::fwrite(encoded.data(), 1, encoded.size(), stdout);
+                std::fflush(stdout);
+
+                while (true) {
+                    const long read = ReadSome(chunk.data(), chunk.size());
+                    if (read <= 0) {
+                        throw std::runtime_error(
+                            "the plugin host closed while a plugin hook was running");
+                    }
+
+                    std::vector<service::Packet> arrived =
+                        reader.Feed(chunk.data(), static_cast<size_t>(read));
+
+                    if (reader.IsBroken()) {
+                        throw std::runtime_error(reader.Error());
+                    }
+
+                    for (service::Packet& packet : arrived) {
+                        // The answer, and only the answer, ends the wait. It is
+                        // matched by id as well as by direction, so an answer to
+                        // some other callback — which cannot happen while this
+                        // lock is held, but which a future protocol might allow —
+                        // would not be mistaken for this one.
+                        if (!packet.is_request && packet.id == id) {
+                            return std::move(packet.value);
+                        }
+                        deferred.push_back(std::move(packet));
+                    }
+                }
+            });
+
+        // The one place a request is answered, so the main loop and the drain of
+        // the deferred queue cannot format a reply differently.
+        auto answer = [&](const service::Packet& packet) {
+            service::Packet reply;
+            reply.is_request = false;
+            reply.id = packet.id;
+            reply.value = Dispatch(packet.value);
+
+            const std::vector<uint8_t> encoded = service::EncodePacket(reply);
+            std::fwrite(encoded.data(), 1, encoded.size(), stdout);
+            std::fflush(stdout);
+        };
 
         while (true) {
             const long read = ReadSome(chunk.data(), chunk.size());
@@ -1115,27 +1702,31 @@ namespace guchho::cli {
                 const std::vector<uint8_t> encoded = service::EncodePacket(reply);
                 std::fwrite(encoded.data(), 1, encoded.size(), stdout);
                 std::fflush(stdout);
+                service::SetCallbackTransport(nullptr);
                 return 1;
             }
 
             for (const service::Packet& packet : packets) {
-                // A response to a request this service never made. There is
-                // nothing to answer, and answering a response is how a protocol
-                // ends up talking to itself. The callback direction is not in use
-                // yet, so this is the only way one arrives.
+                // A response to a request this service never made — with the
+                // callback direction in use, this is a stray answer, not a
+                // request to answer. Answering a response is how a protocol ends
+                // up talking to itself.
                 if (!packet.is_request) continue;
+                answer(packet);
+            }
 
-                service::Packet reply;
-                reply.is_request = false;
-                reply.id = packet.id;
-                reply.value = Dispatch(packet.value);
-
-                const std::vector<uint8_t> encoded = service::EncodePacket(reply);
-                std::fwrite(encoded.data(), 1, encoded.size(), stdout);
-                std::fflush(stdout);
+            // Whatever arrived while a callback was being answered, now that no
+            // request is in flight and the queue is complete.
+            while (!deferred.empty()) {
+                service::Packet packet = std::move(deferred.front());
+                deferred.erase(deferred.begin());
+                if (packet.is_request) answer(packet);
             }
         }
 
+        // The host is gone, so a plugin hook reached later — during a dispose
+        // that outlives the loop, say — must not try to reach it.
+        service::SetCallbackTransport(nullptr);
         return 0;
     }
 

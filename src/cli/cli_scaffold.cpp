@@ -459,34 +459,76 @@ std::string LibrarySource(ProjectTemplate tmpl)
         "}\n";
 }
 
-// A plugin is a package that extends the build, and the extension point is not
-// reachable from JavaScript yet: the config file's "plugins" field is accepted
-// and then ignored, with a warning, because nothing reads it. So this is a
-// placeholder that builds and says what it is, rather than a scaffold
-// describing hooks that would fail to compile or silently do nothing.
+// The one source file of a plugin: a plugin object, exported, with a hook that
+// does something visible.
 //
-// It is the same source for all four templates, which is a deliberate choice
-// rather than an oversight: a placeholder has nothing to type, and giving the
-// TypeScript templates a type that only exists to be a type would make the file
-// look like it were doing something.
+// A plugin is a package that extends the build, and the extension point is a
+// plain object with a name and any of the hooks a build calls. The starter
+// implements exactly one of them — generateBundle, which is handed the finished
+// output before it is written — and uses it to put a banner on every chunk. It
+// is the shortest example that has an effect a person can see in dist/, which is
+// what makes it a starting point rather than a description of one.
 //
-// The export is an empty object and stays that way until there is an API for it
-// to export. A name or a version or a setup function written here would be a
-// guess at a shape nobody has agreed on, and a wrong guess is worse than
-// nothing because it reads as a decision.
-std::string PluginSource()
+// The name in the object is the package name, because that is the name that
+// appears in the diagnostics the plugin causes. Everything the plugin does not
+// implement is simply absent: a hook that is not a function is not called, so
+// there is nothing to leave empty.
+//
+// The typed templates say what the object is with an import, and the same
+// import is a type-only one, so a build erases it and a plugin needs nothing
+// installed to build. The JavaScript templates say the same thing in a comment,
+// because a .jsx file is not TypeScript and "import type" is not syntax there.
+std::string PluginSource(std::string_view name, ProjectTemplate tmpl)
 {
-    return
-        "// Starter only. Guchho has no JavaScript plugin API yet, so nothing\n"
-        "// here is called by a build. See README.md.\n"
-        "export default {};\n";
+    const bool typed =
+        tmpl == ProjectTemplate::kTypeScript || tmpl == ProjectTemplate::kTSX;
+
+    std::string out;
+    if (typed) {
+        out += "import type { Plugin } from 'guchho';\n\n";
+    } else {
+        out += "// A Guchho build plugin: a plain object with a name and the hooks it needs.\n"
+               "/** @type {import('guchho').Plugin} */\n";
+    }
+    out += std::format(
+        "const plugin{} = {{\n"
+        "  name: '{}',\n"
+        "  generateBundle(_options, bundle) {{\n"
+        "    for (const file of Object.values(bundle)) {{\n"
+        "      if (file.type === 'chunk') {{\n"
+        "        file.code = `/* {} */\\n${{file.code}}`;\n"
+        "      }}\n"
+        "    }}\n"
+        "  }},\n"
+        "}};\n"
+        "\n"
+        "export default plugin;\n",
+        typed ? ": Plugin" : "",
+        name,
+        name);
+    return out;
 }
 
-// The manifest. Three fields and nothing else, because every one of them is a
-// fact about the package rather than a setting somebody has to understand, and
-// anything invented here would be a claim about Guchho rather than about npm.
-std::string PackageJson(std::string_view package_name)
+// The manifest. The library keeps the three fields it needs and nothing else,
+// because every one of them is a fact about the package rather than a setting
+// somebody has to understand. A plugin carries two more, and both are facts
+// about output the config file already describes: the build writes ES modules
+// into dist/index.js, so the package must say it is a module and must point at
+// that file, or the plugin it just built could not be imported by the project
+// that wants to use it.
+std::string PackageJson(std::string_view package_name, bool plugin)
 {
+    if (plugin) {
+        return std::format(
+            "{{\n"
+            "  \"name\": \"{}\",\n"
+            "  \"version\": \"0.1.0\",\n"
+            "  \"private\": false,\n"
+            "  \"type\": \"module\",\n"
+            "  \"exports\": \"./dist/index.js\"\n"
+            "}}\n",
+            package_name);
+    }
     return std::format(
         "{{\n"
         "  \"name\": \"{}\",\n"
@@ -511,26 +553,49 @@ std::string LibraryReadme(std::string_view display_name)
         display_name);
 }
 
-// The plugin readme says the useful thing first, which is that there is nothing
-// to do here yet. A starter that hid that behind a paragraph of instructions
-// would be worse than no starter.
+// The plugin readme says what the package is and how to use it. A plugin is not
+// loaded by building it; it is loaded by the project that wants it, so the usage
+// line is the first thing after the title rather than a footnote, and the hook
+// list is there because the one hook the source shows is not the only one there
+// is.
 std::string PluginReadme(std::string_view display_name)
 {
     return std::format(
         "# {}\n"
         "\n"
-        "A Guchho build plugin.\n"
+        "A [Guchho](https://github.com/guchho) build plugin.\n"
         "\n"
-        "Guchho does not load plugins written in JavaScript yet — the `plugins`\n"
-        "field in a config file is accepted and ignored. This package builds and\n"
-        "is a starting point; there are no hooks to implement until that changes.\n"
+        "## Usage\n"
+        "\n"
+        "```js\n"
+        "import {{ build }} from 'guchho';\n"
+        "import plugin from '{}';\n"
+        "\n"
+        "await build({{\n"
+        "  entrypoints: ['src/index.js'],\n"
+        "  plugins: [plugin],\n"
+        "}});\n"
+        "```\n"
+        "\n"
+        "## Hooks\n"
+        "\n"
+        "A plugin is an object with a `name` and any of these hooks:\n"
+        "\n"
+        "- `buildStart` / `buildEnd` — once per build, before and after.\n"
+        "- `resolveId` — where a specifier points.\n"
+        "- `load` — a module's contents.\n"
+        "- `generateBundle` / `writeBundle` — the finished output, before and after it is written.\n"
+        "- `closeBundle` — when the context is torn down.\n"
+        "\n"
+        "A hook that declines returns `null`. See the plugin docs for the full\n"
+        "signatures.\n"
         "\n"
         "## Build\n"
         "\n"
         "    guchho build\n"
         "\n"
         "The bundle is written to `dist/`.\n",
-        display_name);
+        display_name, display_name);
 }
 
 // The first path segment of a generated path, which is the name the scaffold
@@ -587,14 +652,14 @@ FileList BuildFileList(const ScaffoldRequest& req)
         case ProjectType::kLibrary:
             list.files.push_back({source_path, LibrarySource(req.tmpl)});
             list.files.push_back({config_name, config_text});
-            list.files.push_back({"package.json", PackageJson(package_name)});
+            list.files.push_back({"package.json", PackageJson(package_name, false)});
             list.files.push_back({"README.md", LibraryReadme(package_name)});
             break;
 
         case ProjectType::kPlugin:
-            list.files.push_back({source_path, PluginSource()});
+            list.files.push_back({source_path, PluginSource(package_name, req.tmpl)});
             list.files.push_back({config_name, config_text});
-            list.files.push_back({"package.json", PackageJson(package_name)});
+            list.files.push_back({"package.json", PackageJson(package_name, true)});
             list.files.push_back({"README.md", PluginReadme(package_name)});
             break;
     }

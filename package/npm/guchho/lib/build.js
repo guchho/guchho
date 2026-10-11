@@ -17,6 +17,7 @@ const { toFlags, toEntryPoints } = require("./flags");
 const { toBuildResult, toText } = require("./convert");
 const { answerFields } = require("./context");
 const { normalize } = require("./options");
+const { makePluginHost, callWithPlugins } = require("./plugins");
 
 /**
  * Runs a build.
@@ -73,7 +74,7 @@ async function build(options = {}) {
     return Promise.all(options.map(build));
   }
 
-  const { build: normalized } = normalize(options);
+  const { build: normalized, plugins } = normalize(options);
 
   const service = await getService();
 
@@ -97,7 +98,7 @@ async function build(options = {}) {
   };
 
   const started = Date.now();
-  const response = await service.call(request);
+  const response = await callWithPlugins(service, makePluginHost(plugins), request);
   response.duration = Date.now() - started;
 
   return toBuildResult(response);

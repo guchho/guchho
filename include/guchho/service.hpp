@@ -43,6 +43,7 @@
 // is sent rather than to how it is sent.
 
 #include <cstdint>
+#include <functional>
 #include <initializer_list>
 #include <optional>
 #include <string>
@@ -62,7 +63,7 @@ namespace guchho::service {
     // answers with the same string as its first frame, so a binary that does not
     // speak this protocol says so by returning a version that does not match
     // rather than by failing to parse something.
-    inline constexpr const char* kVersion = "1";
+    inline constexpr const char* kVersion = "2";
 
     // A value in the tagged union that crosses the wire.
     //
@@ -277,5 +278,29 @@ namespace guchho::service {
     // The version handshake, exposed for a test that wants to check that a
     // reader and a writer agree without starting a process.
     std::vector<uint8_t> EncodeVersionFrame(const char* version);
+
+    // The callback direction, as the service side sees it.
+    //
+    // A plugin runs in the host, so when the engine reaches a hook it has to
+    // stop and ask the host what to do. That question travels the opposite way
+    // down the same pipe: the binary writes a request and blocks for the answer,
+    // exactly as the host does for a build. The transport below is how the
+    // service loop offers that round trip to whoever needs it — the plugin
+    // bridge — without the bridge having to know about stdin, stdout or the
+    // reader that reassembles frames.
+    //
+    // RunService installs a transport for the duration of a request and clears
+    // it afterwards. A caller that gets false from HasCallbackTransport is in a
+    // process with no host to ask — a command-line build — and a plugin hook
+    // must then be treated as absent rather than blocking forever.
+    using CallbackTransport = std::function<Value(const Value&)>;
+
+    void SetCallbackTransport(CallbackTransport transport);
+    bool HasCallbackTransport();
+
+    // Sends one callback request and returns the host's answer. Throws when no
+    // transport is installed or the host goes away mid-callback; the bridge
+    // turns that into a build error rather than a hang.
+    Value InvokeCallback(const Value& request);
 
 } // namespace guchho::service

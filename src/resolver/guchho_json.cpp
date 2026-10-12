@@ -1053,26 +1053,31 @@ namespace guchho::resolver {
         }
 
         // ---- "plugins" ---------------------------------------------------
-        // The plugin system is not implemented yet, and JS functions cannot be
-        // transported through JSON anyway. Warn so configs do not silently
-        // lose behavior.
-        if (auto plugins = internal::GetProperty(json, "plugins")) {
-            if (auto* arr = std::get_if<std::shared_ptr<javascript::EArray>>(&plugins->first.data)) {
-                if (!(*arr)->items.empty()) {
-                    log.AddID(logger::MsgID::kGuchhoConfig_PluginsIgnored,
-                              logger::MsgKind::kWarning, &tracker,
-                              source.RangeOfString(plugins->second),
-                              "Guchho plugins are not implemented yet; the \"plugins\" field "
-                              "will be ignored");
-                }
-            } else if (auto* object =
-                           std::get_if<std::shared_ptr<javascript::EObject>>(&plugins->first.data)) {
-                if (!(*object)->properties.empty()) {
-                    log.AddID(logger::MsgID::kGuchhoConfig_PluginsIgnored,
-                              logger::MsgKind::kWarning, &tracker,
-                              source.RangeOfString(plugins->second),
-                              "Guchho plugins are not implemented yet; the \"plugins\" field "
-                              "will be ignored");
+        // The plugin system is not implemented in the engine itself, and JS
+        // functions cannot be transported through JSON anyway. The JavaScript
+        // service host reads the config in its own process and hands the live
+        // plugins to the bridge, so when it says it has handled them the field
+        // is not ignored and there is nothing to warn about. Otherwise warn so
+        // configs do not silently lose behavior.
+        if (!opts.HostHandlesPlugins) {
+            if (auto plugins = internal::GetProperty(json, "plugins")) {
+                if (auto* arr = std::get_if<std::shared_ptr<javascript::EArray>>(&plugins->first.data)) {
+                    if (!(*arr)->items.empty()) {
+                        log.AddID(logger::MsgID::kGuchhoConfig_PluginsIgnored,
+                                  logger::MsgKind::kWarning, &tracker,
+                                  source.RangeOfString(plugins->second),
+                                  "Guchho plugins are not implemented yet; the \"plugins\" field "
+                                  "will be ignored");
+                    }
+                } else if (auto* object =
+                               std::get_if<std::shared_ptr<javascript::EObject>>(&plugins->first.data)) {
+                    if (!(*object)->properties.empty()) {
+                        log.AddID(logger::MsgID::kGuchhoConfig_PluginsIgnored,
+                                  logger::MsgKind::kWarning, &tracker,
+                                  source.RangeOfString(plugins->second),
+                                  "Guchho plugins are not implemented yet; the \"plugins\" field "
+                                  "will be ignored");
+                    }
                 }
             }
         }
@@ -1278,6 +1283,9 @@ namespace guchho::resolver {
             build.opts.CodePathStyle      = opts.CodePathStyle;
             build.opts.MetafilePathStyle  = opts.MetafilePathStyle;
             build.opts.SourcemapPathStyle = opts.SourcemapPathStyle;
+            // Carried onto the defaults so it reaches the per-build options the
+            // parser maps onto, which is where the "plugins" warning is gated.
+            build.opts.HostHandlesPlugins = opts.HostHandlesPlugins;
         }
 
         std::string dir = start_dir;

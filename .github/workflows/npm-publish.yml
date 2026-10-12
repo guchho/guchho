@@ -609,6 +609,64 @@ jobs:
           path: package/npm/@guchho/${{ matrix.platform }}/
           retention-days: 1
 
+      # ============================================
+      # Windows x64 release archive
+      # ============================================
+      #
+      # CPack, not the build, is what turns the compiled install tree into the
+      # portable release archive the docs promise: guchho-<version>-win32-x64.zip.
+      # It is generated here, for the Windows x64 platform only, so the same
+      # workflow run that compiles the binary also publishes a downloadable
+      # archive. The generator is forced to ZIP because the configured default
+      # is "ZIP;NSIS" and NSIS is not installed on the runner.
+      - name: Package release archive (win32-x64)
+        if: matrix.platform == 'win32-x64'
+        id: release_archive
+        shell: bash
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          PRESET="${{ matrix.preset }}"
+          STAGE="release-artifacts"
+          mkdir -p "${STAGE}"
+
+          cpack -G ZIP -B "${STAGE}" --config "build/${PRESET}/CPackConfig.cmake"
+
+          ARCHIVE="${STAGE}/guchho-${VERSION}-win32-x64.zip"
+
+          # CPack names the archive from the CMake project version. That is
+          # the same number as the package metadata, but the two are written
+          # by hand, so if they ever drift the produced file is moved to the
+          # name this workflow promises rather than failing on a mismatch.
+          if [[ ! -f "${ARCHIVE}" ]]; then
+            GENERATED="$(ls "${STAGE}"/guchho-*-win32-x64.zip 2>/dev/null | head -n 1 || true)"
+            if [[ -n "${GENERATED}" ]]; then
+              mv "${GENERATED}" "${ARCHIVE}"
+            fi
+          fi
+
+          # An absent or empty archive must fail the job: uploading nothing
+          # would let the workflow report success with no downloadable file.
+          if [[ ! -s "${ARCHIVE}" ]]; then
+            echo "::error::Windows release archive ${ARCHIVE} was not generated"
+            ls -la "${STAGE}" || true
+            exit 1
+          fi
+
+          echo "archive_path=${ARCHIVE}" >> "$GITHUB_OUTPUT"
+          echo "Built release archive: ${ARCHIVE}"
+
+      - name: Upload Windows release archive
+        if: matrix.platform == 'win32-x64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: guchho-win32-x64
+          path: ${{ steps.release_archive.outputs.archive_path }}
+          if-no-files-found: error
+          retention-days: 1
+
   # ============================================
   # Job 2: Validate artifacts, versions and packages
   # ============================================

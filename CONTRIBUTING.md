@@ -658,3 +658,27 @@ gh workflow run npm-publish.yml -f type=all -f dry_run=false
 `dry_run=true` builds and validates packages without publishing. `dry_run=false` performs the actual npm publish.
 
 `test_run=true` (the default) runs `ctest --preset <preset> --output-on-failure --no-tests=error` on each selected native platform after the build; a failure blocks all publishing jobs. `test_run=false` skips the suite — use it only when the tests were already run on the same commit.
+
+### Downloadable Windows x64 release archive
+
+For any run whose `type` includes `win32-x64` — that is `type=win32-x64` or
+`type=all`, in either dry-run or publish mode — the workflow also assembles the
+portable release archive with CPack and uploads it as the `guchho-win32-x64`
+workflow artifact. It contains a single file named
+`guchho-<version>-win32-x64.zip` (the version from
+`package/npm/guchho/package.json`), built from the same `guchho.exe` the
+platform package uses. This is the archive the Chocolatey verification links
+to at
+`https://github.com/guchho/guchho/releases/download/v<version>/guchho-<version>-win32-x64.zip`.
+
+Download it from the workflow run that produced it:
+
+```bash
+gh run list --workflow npm-publish.yml -L 1
+gh run download <RUN_ID> --name guchho-win32-x64 -D ./dist
+# → ./dist/guchho-win32-x64/guchho-<version>-win32-x64.zip
+```
+
+Only the `win32-x64` platform uploads this archive; the other platforms put
+only their `package-<platform>` staging directory on the run. The artifact is
+kept for one day, like the package staging artifacts.

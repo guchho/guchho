@@ -18,6 +18,7 @@ const { toBuildResult, toText } = require("./convert");
 const { answerFields } = require("./context");
 const { normalize } = require("./options");
 const { makePluginHost, callWithPlugins } = require("./plugins");
+const { withConfigPlugins } = require("./config");
 
 /**
  * Runs a build.
@@ -74,7 +75,13 @@ async function build(options = {}) {
     return Promise.all(options.map(build));
   }
 
-  const { build: normalized, plugins } = normalize(options);
+  const { build: normalized, plugins: callerPlugins } = normalize(options);
+
+  // The config's plugins first, then the caller's. The engine reads the same
+  // config for its options but cannot run its plugins, so the "plugins" field is
+  // claimed here — and the request says so, which is what stops the engine
+  // warning that the field was ignored.
+  const plugins = await withConfigPlugins(normalized.absWorkingDir, callerPlugins);
 
   const service = await getService();
 
@@ -94,6 +101,7 @@ async function build(options = {}) {
     command: "build",
     flags: toFlags(normalized),
     entries,
+    configPluginsHandled: true,
     ...answerFields(normalized),
   };
 

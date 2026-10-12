@@ -147,6 +147,52 @@ if(MINGW)
         -Wa,-mbig-obj
     )
 
+
+    # --------------------------------------------------------
+    # Stage the GCC runtime DLLs beside the executables.
+    #
+    # A MinGW build is not self-contained: libstdc++, libgcc and
+    # libwinpthread live in the toolchain's bin directory, and Windows
+    # only searches an executable's own directory and PATH. Without a
+    # copy next to the binary a freshly linked executable cannot load
+    # its runtime, which surfaces as STATUS_ENTRYPOINT_NOT_FOUND
+    # (0xC0000139) when an unrelated DLL of the same name is found
+    # first, or STATUS_DLL_NOT_FOUND (0xC0000135) when none is. The
+    # former makes CTest discovery fall back to a bogus
+    # "<module>.discovery_failed" test; the latter makes an npm package
+    # built with MinGW unrunnable off the build machine.
+    #
+    # The patterns cover the 32-bit (libgcc_s_dw2) and 64-bit
+    # (libgcc_s_seh) runtimes. This also puts the DLLs where
+    # scripts/build-npm.sh looks when it packs the npm binary, so its
+    # existing runtime-copying step keeps working unchanged.
+    # --------------------------------------------------------
+
+    get_filename_component(
+        GUCHHO_MINGW_RUNTIME_DIR
+        "${CMAKE_CXX_COMPILER}"
+        DIRECTORY
+    )
+
+    file(
+        GLOB
+        GUCHHO_MINGW_RUNTIME_DLLS
+        "${GUCHHO_MINGW_RUNTIME_DIR}/libstdc++-*.dll"
+        "${GUCHHO_MINGW_RUNTIME_DIR}/libgcc_s_*.dll"
+        "${GUCHHO_MINGW_RUNTIME_DIR}/libwinpthread-*.dll"
+    )
+
+    if(GUCHHO_MINGW_RUNTIME_DLLS)
+
+        file(
+            COPY
+            ${GUCHHO_MINGW_RUNTIME_DLLS}
+            DESTINATION
+            "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+        )
+
+    endif()
+
 endif()
 
 

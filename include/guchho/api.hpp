@@ -877,6 +877,12 @@ struct BuildOptions {
     bool         allow_overwrite{};
     std::vector<Plugin> plugins;
 
+    // Whether the host that sent this request runs the config file's "plugins"
+    // itself, because it has a JavaScript process in which the plugin functions
+    // are live. The service host does; the command line does not. When true, the
+    // config parser does not warn that the "plugins" field is ignored.
+    bool config_plugins_handled{};
+
     // Which of the above somebody actually said out loud. Filled in by the
     // command-line parser and consumed by ResolveEffectiveBuildConfigs; null
     // means the struct was assembled by hand and every value in it is

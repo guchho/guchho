@@ -180,6 +180,46 @@ const { code, map, errors, warnings } = await transform('const add = (a, b) => a
 
 Loaders: `js`, `jsx`, `ts`, `tsx`, `json`, `text`, `css`, `html`, `base64`, `dataurl`, `file`, `binary`, `copy`, `empty`. A `transform` takes a single loader name; a `build` takes a loader **map** keyed by extension.
 
+### Plugins
+
+A plugin is a plain object with a `name` and any of the hooks below, run in your process while the service builds. Pass one plugin or an array through `plugins` - a virtual module, resolved and loaded in the host:
+
+```js
+import { build } from 'guchho'
+
+const virtual = {
+  name: 'virtual',
+  resolveId(source) {
+    if (source === 'virtual:greeting') return { id: '\0virtual:greeting', namespace: 'virtual' }
+    return null
+  },
+  load(id) {
+    if (id === '\0virtual:greeting') return 'export const greeting = "hello from a plugin"'
+    return null
+  },
+}
+
+await build({ entrypoints: ['src/main.js'], plugins: [virtual] })
+```
+
+A config file nests them under a top-level `plugins` key, where an entry may be an object, a factory function, or a path or module specifier to import. The config's plugins run first and the caller's after.
+
+| Hook | When it runs |
+| --- | --- |
+| `buildStart` | Once per build, before any file is read. |
+| `resolveId(source, importer, options)` | Where a specifier points, for every import and entry point. Return an id to claim it, `false` for external, or `null` to decline. |
+| `load(id)` | A module's contents, before the loader would read them. |
+| `buildEnd` | After every module is read. |
+| `generateBundle(outputOptions, bundle)` | With the finished output, before it is written. Edit `bundle` in place to rewrite or drop files. |
+| `writeBundle(outputOptions, bundle)` | After the output is written. |
+| `closeBundle` | When the context is torn down. |
+
+`order: 'pre'` or `order: 'post'` places a plugin around the default order, and plugins with the same order run in the order they were listed. Every hook is optional and may be `async`; a hook that can decline does so by returning `null` (or nothing).
+
+Inside a hook, `this` carries `meta`, `warn(message)`, `error(message)` - which throws and ends the build - and, during `generateBundle`, `emitFile({ type: 'asset', fileName, source })`. A `transform` hook, `this.resolve` and watching plugin-declared files are declared but not yet run by the engine.
+
+The full reference - every hook, the plugin context, and the generated types - is at [guchho.js.org/plugins](https://guchho.js.org/plugins/).
+
 ### Pack
 
 Files and directories already on disk, in one archive.

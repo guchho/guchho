@@ -35,7 +35,7 @@ const {
 // and it is the one thing that decides whether a host and a binary can talk at
 // all — so it is the first thing said, before either side decodes anything from
 // the other.
-const PROTOCOL_VERSION = "2";
+const PROTOCOL_VERSION = "3";
 
 /** The service process died with a pending request outstanding. */
 class ServiceError extends Error {
@@ -305,7 +305,16 @@ class Service extends EventEmitter {
       // host asked, a clear bit is the service asking — a build paused mid-flight
       // so a plugin hook can run here. A callback is answered on its own time,
       // because the hook may await, so this loop does not wait on it.
+      //
+      // One clear-bit frame is not a callback: a "run" command's output, sent
+      // while the command runs so a watch or a server is not silent until it
+      // ends. It is recognised by its "notice" field, printed, and left
+      // unanswered — replying would tell the service a hook had run that had not.
       if ((raw & 1) === 0) {
+        if (value !== null && typeof value === "object" && value.notice === "output") {
+          this._onOutput(value);
+          continue;
+        }
         this._onCallback(id, value);
         continue;
       }
@@ -342,6 +351,19 @@ class Service extends EventEmitter {
       return;
     }
     this.child.stdin.write(frame, () => {});
+  }
+
+  // A "run" command's output, forwarded from the service while it runs. This is
+  // not a callback: nothing is waiting on it and there is no reply. The stream
+  // is named so it lands on the descriptor a person is reading.
+  _onOutput(notice) {
+    const text = notice.text;
+    const bytes =
+      text instanceof Uint8Array
+        ? Buffer.from(text.buffer, text.byteOffset, text.byteLength)
+        : Buffer.from(text === undefined || text === null ? "" : String(text), "utf8");
+    const stream = notice.stream === "stderr" ? process.stderr : process.stdout;
+    stream.write(bytes);
   }
 
   // A callback the service sent: run the named plugin hook and send its answer

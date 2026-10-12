@@ -35,6 +35,7 @@ const { toFlags, toEntryPoints } = require("./flags");
 const { toBuildResult } = require("./convert");
 const { normalize } = require("./options");
 const { makePluginHost, callWithPlugins } = require("./plugins");
+const { withConfigPlugins } = require("./config");
 
 /** A build that is set up once and built as many times as asked. */
 class BuildContext {
@@ -199,13 +200,19 @@ class BuildContext {
  * @returns {Promise<BuildContext>}
  */
 async function context(options = {}) {
-  const { build: normalized, plugins } = normalize(options);
+  const { build: normalized, plugins: callerPlugins } = normalize(options);
+
+  // The config's plugins first, then the caller's — the same merge build() does,
+  // and the reason watch() and serve(), which go through here, get a project's
+  // config plugins for free.
+  const plugins = await withConfigPlugins(normalized.absWorkingDir, callerPlugins);
 
   const service = await getService();
   const request = {
     command: "context",
     flags: toFlags(normalized),
     entries: toEntryPoints(normalized),
+    configPluginsHandled: true,
     ...answerFields(normalized),
   };
 

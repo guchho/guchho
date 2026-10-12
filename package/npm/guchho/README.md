@@ -204,6 +204,16 @@ await build({ entrypoints: ['src/main.js'], plugins: [virtual] })
 
 A config file nests them under a top-level `plugins` key, where an entry may be an object, a factory function, or a path or module specifier to import. The config's plugins run first and the caller's after.
 
+```js
+// guchho.config.js
+import virtual from './plugins/virtual.js'
+
+export default {
+  build: { entry: 'src/index.html', outdir: 'dist' },
+  plugins: [virtual, 'guchho-plugin-analyze'],
+}
+```
+
 | Hook | When it runs |
 | --- | --- |
 | `buildStart` | Once per build, before any file is read. |

@@ -682,3 +682,40 @@ gh run download <RUN_ID> --name guchho-win32-x64 -D ./dist
 Only the `win32-x64` platform uploads this archive; the other platforms put
 only their `package-<platform>` staging directory on the run. The artifact is
 kept for one day, like the package staging artifacts.
+
+
+# Downloadable Windows x64 Release Archive
+
+## 1. Run the workflow
+
+```bash
+gh workflow run npm-publish.yml -f type=win32-x64 -f dry_run=false test_run=true
+```
+
+## 2. Find the run ID
+
+```bash
+gh run list --workflow npm-publish.yml -L 1
+```
+
+## 3. Download the ZIP
+
+Replace `<RUN_ID>` with the actual GitHub Actions run ID:
+
+```bash
+gh run download <RUN_ID> --name guchho-win32-x64 -D ./dist
+```
+
+## Download location
+
+After the download completes, the archive should be located at:
+
+```text
+dist/
+└── guchho-win32-x64/
+    └── guchho-<version>-win32-x64.zip
+```
+
+Replace `<version>` with the project's actual version number.
+
+**Note:** `dry_run=false` may publish the package to npm according to the workflow's existing behavior. To test the workflow without publishing, use `-f dry_run=true` instead.

@@ -42,6 +42,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -337,6 +338,14 @@ namespace guchho::cli {
             }
             if (const service::Value* metafile = request.Find("metafile")) {
                 if (metafile->IsBool() && metafile->AsBool()) options.metafile = true;
+            }
+
+            // The host says whether it runs the config file's "plugins" in its
+            // own JavaScript process. It does for every request it makes, which
+            // is what keeps the engine from warning that a field the host has
+            // already claimed was ignored.
+            if (const service::Value* handled = request.Find("configPluginsHandled")) {
+                if (handled->IsBool()) options.config_plugins_handled = handled->AsBool();
             }
 
             // The working directory, as the engine's own override rather than as
@@ -853,6 +862,90 @@ namespace guchho::cli {
 
             const api::BuildResult result = api::Build(options);
             return BuildResponse(result);
+        }
+
+        // One of a "run" command's output streams, forwarded to the host. Defined
+        // after the descriptor plumbing below; declared here so the handler can
+        // name it.
+        void ForwardOutput(int fd, const char* stream);
+
+        // The descriptor plumbing below is defined after the handlers that use
+        // it, so the pieces a handler names are declared here.
+        int DuplicateFd(int fd);
+        bool PointFdAt(int source, int target);
+        void CloseFd(int fd);
+        bool MakePipe(int fds[2]);
+
+        // Runs a command line in this process, with a JavaScript host behind it.
+        //
+        // This is how the npm launcher runs "guchho build" and friends for a
+        // project whose config names plugins: the command line is the same one
+        // the binary would run, but it runs here, in the service that can reach
+        // the host's plugin functions. The command's own output is forwarded to
+        // the host as it is produced — a watch or a server prints for as long as
+        // it runs, so holding the output until the end would be a command that
+        // looked hung.
+        service::Value HandleRun(const service::Value& request) {
+            const service::Value* argv_value = request.Find("argv");
+            if (argv_value == nullptr || !argv_value->IsArray()) {
+                return ErrorResponse(ProtocolError("\"argv\" must be an array of strings"));
+            }
+            std::vector<std::string> argv;
+            for (const service::Value& entry : argv_value->AsArray()) {
+                if (!entry.IsString()) {
+                    return ErrorResponse(ProtocolError("\"argv\" must be an array of strings"));
+                }
+                argv.push_back(entry.AsString());
+            }
+
+            // The plugins the host will answer hooks for, in the same descriptor
+            // shape the build commands use.
+            api::BuildOptions options = newBuildOptions();
+            PluginsFromRequest(request, options);
+
+            // Point the command's output at pipes so it can be forwarded. The
+            // real descriptors are saved and put back before this returns, and
+            // the protocol stream is a descriptor of its own, so none of this
+            // touches the frames the host is reading.
+            const int saved_out = DuplicateFd(1);
+            const int saved_err = DuplicateFd(2);
+            int out_pipe[2] = {-1, -1};
+            int err_pipe[2] = {-1, -1};
+
+            const bool redirected = saved_out >= 0 && saved_err >= 0 &&
+                MakePipe(out_pipe) && MakePipe(err_pipe) &&
+                PointFdAt(out_pipe[1], 1) && PointFdAt(err_pipe[1], 2);
+
+            std::thread out_forwarder;
+            std::thread err_forwarder;
+            if (redirected) {
+                CloseFd(out_pipe[1]);
+                CloseFd(err_pipe[1]);
+                out_forwarder = std::thread(ForwardOutput, out_pipe[0], "stdout");
+                err_forwarder = std::thread(ForwardOutput, err_pipe[0], "stderr");
+            }
+
+            const int code = RunWithPlugins(argv, options.plugins);
+
+            if (redirected) {
+                // Everything the command buffered goes out first, then the
+                // descriptors go back to where they were. Pointing them back is
+                // also what closes each pipe's write end, so the forwarders see
+                // end-of-input and finish.
+                std::fflush(nullptr);
+                PointFdAt(saved_out, 1);
+                PointFdAt(saved_err, 2);
+                if (out_forwarder.joinable()) out_forwarder.join();
+                if (err_forwarder.joinable()) err_forwarder.join();
+                CloseFd(out_pipe[0]);
+                CloseFd(err_pipe[0]);
+            }
+            CloseFd(saved_out);
+            CloseFd(saved_err);
+
+            return service::Value::Object({
+                {"code", service::Value::Number(code)},
+            });
         }
 
         // Runs one transform and returns the response.
@@ -1437,6 +1530,7 @@ namespace guchho::cli {
 
         service::Value DispatchCommand(const std::string& name, const service::Value& request) {
             if (name == "build") return HandleBuild(request);
+            if (name == "run") return HandleRun(request);
             if (name == "context") return HandleContext(request);
             if (name == "rebuild") return HandleRebuild(request);
             if (name == "watch") return HandleWatch(request);
@@ -1463,6 +1557,120 @@ namespace guchho::cli {
     } // namespace
 
     namespace {
+
+        // ===================================================================
+        // The protocol stream, and the descriptor it is written to.
+        // ===================================================================
+        //
+        // Frames are written to a descriptor saved at startup rather than to
+        // "stdout" itself, because the "run" command below borrows stdout and
+        // stderr for the command line it drives: it points them at pipes so the
+        // command's own output can be forwarded to the host as it is produced.
+        // If the protocol were written through "stdout" it would land in that
+        // pipe and corrupt the very stream the host is reading a notice from.
+        //
+        // The lock is what lets a forwarding thread and the request loop write
+        // frames without interleaving their bytes. Every frame is one call.
+        std::mutex g_protocol_write_mutex;
+        int        g_protocol_fd = -1;
+
+        void WriteProtocolBytes(const uint8_t* data, size_t size) {
+            std::lock_guard<std::mutex> lock(g_protocol_write_mutex);
+            if (g_protocol_fd < 0) return;
+            size_t written = 0;
+            while (written < size) {
+            #ifdef _WIN32
+                const int n = _write(g_protocol_fd, data + written,
+                    static_cast<unsigned>(size - written));
+            #else
+                const ssize_t n = ::write(g_protocol_fd, data + written, size - written);
+            #endif
+                if (n <= 0) break;
+                written += static_cast<size_t>(n);
+            }
+        }
+
+        void WriteProtocolFrame(const std::vector<uint8_t>& bytes) {
+            WriteProtocolBytes(bytes.data(), bytes.size());
+        }
+
+        void SetProtocolFd(int fd) {
+            std::lock_guard<std::mutex> lock(g_protocol_write_mutex);
+            g_protocol_fd = fd;
+        }
+
+        // ---- Descriptor plumbing for the "run" command --------------------
+        //
+        // The operations are spelled differently on Windows ("_dup", "_pipe")
+        // and elsewhere, and the differences are the whole reason these exist.
+        int DuplicateFd(int fd) {
+        #ifdef _WIN32
+            return _dup(fd);
+        #else
+            return ::dup(fd);
+        #endif
+        }
+
+        bool PointFdAt(int source, int target) {
+        #ifdef _WIN32
+            return _dup2(source, target) == 0;
+        #else
+            return ::dup2(source, target) >= 0;
+        #endif
+        }
+
+        void CloseFd(int fd) {
+            if (fd < 0) return;
+        #ifdef _WIN32
+            _close(fd);
+        #else
+            ::close(fd);
+        #endif
+        }
+
+        // A pipe whose buffered end is binary on Windows, so a command's output
+        // is forwarded byte for byte rather than with newlines doubled.
+        bool MakePipe(int fds[2]) {
+        #ifdef _WIN32
+            return _pipe(fds, 65536, _O_BINARY) == 0;
+        #else
+            return ::pipe(fds) == 0;
+        #endif
+        }
+
+        long ReadFd(int fd, uint8_t* into, size_t capacity) {
+        #ifdef _WIN32
+            return static_cast<long>(_read(fd, into, static_cast<unsigned>(capacity)));
+        #else
+            return static_cast<long>(::read(fd, into, capacity));
+        #endif
+        }
+
+        // One of a "run" command's output streams, forwarded to the host a frame
+        // at a time. A frame is a notice rather than a plugin callback: it names
+        // no plugin and the host answers it with nothing, which is what the
+        // "notice" field tells it. The stream is named so the host can send it
+        // back to the descriptor a person is reading.
+        void ForwardOutput(int fd, const char* stream) {
+            std::vector<uint8_t> buffer(65536);
+            while (true) {
+                const long n = ReadFd(fd, buffer.data(), buffer.size());
+                if (n <= 0) break;
+
+                service::Packet notice;
+                notice.is_request = true;
+                notice.id = 0;
+                notice.value = service::Value::Object({
+                    {"notice", service::Value::String("output")},
+                    {"stream", service::Value::String(stream)},
+                    {"text", service::Value::Bytes(std::vector<uint8_t>(
+                        buffer.begin(),
+                        buffer.begin() +
+                            static_cast<std::vector<uint8_t>::difference_type>(n)))},
+                });
+                WriteProtocolFrame(service::EncodePacket(notice));
+            }
+        }
 
         // Reads whatever has arrived, and returns it.
         //
@@ -1576,6 +1784,15 @@ namespace guchho::cli {
         // this process exchanges from now on is a frame.
         UseBinaryStreams();
 
+        // The descriptor every frame is written to. A duplicate of stdout taken
+        // now, before the "run" command ever points stdout at a pipe for a child
+        // command: from here on, "stdout" belongs to whatever command line is
+        // running, and this is the one path back to the host.
+        SetProtocolFd(DuplicateFd(1));
+    #ifdef _WIN32
+        if (g_protocol_fd >= 0) _setmode(g_protocol_fd, _O_BINARY);
+    #endif
+
         // The version goes out before anything is read, and it goes out as a
         // frame rather than as a packet: a host has to be able to tell whether
         // the process it started is one it can talk to before it decodes
@@ -1584,8 +1801,7 @@ namespace guchho::cli {
         // Written once, into a buffer, and then written out. Calling the encoder
         // twice would work and would be two chances to differ.
         const std::vector<uint8_t> greeting = service::EncodeVersionFrame(service::kVersion);
-        std::fwrite(greeting.data(), 1, greeting.size(), stdout);
-        std::fflush(stdout);
+        WriteProtocolFrame(greeting);
 
         service::PacketReader reader;
 
@@ -1630,8 +1846,7 @@ namespace guchho::cli {
                 ask.id = id;
                 ask.value = request;
                 const std::vector<uint8_t> encoded = service::EncodePacket(ask);
-                std::fwrite(encoded.data(), 1, encoded.size(), stdout);
-                std::fflush(stdout);
+                WriteProtocolFrame(encoded);
 
                 while (true) {
                     const long read = ReadSome(chunk.data(), chunk.size());
@@ -1670,8 +1885,7 @@ namespace guchho::cli {
             reply.value = Dispatch(packet.value);
 
             const std::vector<uint8_t> encoded = service::EncodePacket(reply);
-            std::fwrite(encoded.data(), 1, encoded.size(), stdout);
-            std::fflush(stdout);
+            WriteProtocolFrame(encoded);
         };
 
         while (true) {
@@ -1700,8 +1914,7 @@ namespace guchho::cli {
                     {"error", service::Value::String(reader.Error())},
                 });
                 const std::vector<uint8_t> encoded = service::EncodePacket(reply);
-                std::fwrite(encoded.data(), 1, encoded.size(), stdout);
-                std::fflush(stdout);
+                WriteProtocolFrame(encoded);
                 service::SetCallbackTransport(nullptr);
                 return 1;
             }

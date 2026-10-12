@@ -1175,6 +1175,14 @@ namespace guchho::config {
         logger::PathStyle MetafilePathStyle{logger::PathStyle::kRelPath};
         logger::PathStyle SourcemapPathStyle{logger::PathStyle::kRelPath};
 
+        // Whether the host that asked for this configuration runs the config
+        // file's "plugins" itself. The JavaScript service host does: it reads
+        // the config in its own process, where plugin functions are live, and
+        // hands them to the plugin bridge. When set, the config parser does not
+        // warn that the field is ignored, because it is not. Left false for the
+        // command line, which has no JavaScript host to run them in.
+        bool HostHandlesPlugins{};
+
         // DefineMap holds `%KEY%` replacement values for the HTML output
         // pass.  Keys are the names without the `%` delimiters; every
         // `%KEY%` in HTML text nodes and attribute values is replaced

@@ -524,6 +524,10 @@ EffectiveBuildConfigs ResolveEffectiveBuildConfigs(const BuildOptions& explicit_
 
     // ---- The config file ---------------------------------------------------
     config::Options base;
+    // Told to the parser so a config whose "plugins" the host runs itself does
+    // not also draw a warning that the field was ignored. The service host sets
+    // this; the command line leaves it false.
+    base.HostHandlesPlugins = explicit_options.config_plugins_handled;
     std::unique_ptr<cache::CacheSet> caches = cache::MakeCacheSet();
     logger::Log log = logger::NewStderrLog({});
     resolver::GuchhoConfig config = resolver::LoadGuchhoConfig(

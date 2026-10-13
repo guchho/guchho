@@ -102,7 +102,7 @@ export interface CompileSourceFileOptions {
 ## CompileOptions
 
 The options every stage needs.
-"language" is required on all three. There is no default, because inferring one from the source text is guessing — and a guess that is right 95% of the time is a guess that silently mis-lexes the other 5%.
+"language" is required on all three. There is no default, because inferring one from the source text is guessing - and a guess that is right 95% of the time is a guess that silently mis-lexes the other 5%.
 
 ```ts
 export interface CompileOptions extends CompileSourceFileOptions {
@@ -206,7 +206,7 @@ export interface JsToken extends SourcePosition {
 
 ## HtmlNode
 
-One node of the flattened tree an HTML parse returns. An element carries its tag name and the names of its attributes — not their values, which belong in the printed form. "depth" is how the flat list is a tree again.
+One node of the flattened tree an HTML parse returns. An element carries its tag name and the names of its attributes - not their values, which belong in the printed form. "depth" is how the flat list is a tree again.
 
 ```ts
 export interface HtmlNode {
@@ -266,7 +266,7 @@ export interface LexResult extends CompileResult {
 ## ParseResult
 
 What parse answers with.
-The summary fields are the language's — nodes for HTML, rules for CSS, parts and symbols for JS — and are all optional, because which ones are present depends on which language was parsed. A caller reading result.rules has already said which language it asked for, and narrowing on language narrows these.
+The summary fields are the language's - nodes for HTML, rules for CSS, parts and symbols for JS - and are all optional, because which ones are present depends on which language was parsed. A caller reading result.rules has already said which language it asked for, and narrowing on language narrows these.
 
 ```ts
 export interface ParseResult extends CompileResult {

@@ -33,21 +33,21 @@ then produces the whole output directory. You describe the page; the tool works
 out the graph.
 
 This is also why bundling can turn itself on. An HTML entry cannot be served as
-one copied file — it names its scripts and styles — so when a document is the
+one copied file - it names its scripts and styles - so when a document is the
 entry and you did not say either way, Guchho enables bundling. A request that
 could only have meant one thing is not refused; it is answered.
 
 ## Failure is data
 
-When something goes wrong in a build — a missing file, a syntax error, an
-unresolved specifier — the problem comes back as a diagnostic in the result,
+When something goes wrong in a build - a missing file, a syntax error, an
+unresolved specifier - the problem comes back as a diagnostic in the result,
 with a location, not as a thrown exception unwinding your stack. That matters
 most for the callers that are tools themselves: an editor that runs a build on
 every keystroke wants to *collect* the diagnostics, render them its own way,
 and keep going.
 
 Exceptions still exist, but they are reserved for programming mistakes and for
-the handful of operations that genuinely cannot return a value — asking a
+the handful of operations that genuinely cannot return a value - asking a
 disposed context to serve, for instance.
 
 ## The same engine from C++ and from JavaScript
@@ -55,7 +55,7 @@ disposed context to serve, for instance.
 The command line is a thin shim. The real surface is a library: `guchho/api.hpp`
 in C++, and the `guchho` npm package over a framed service protocol on stdin and
 stdout. Everything `guchho build` does is callable from code, down to the
-compiler stages — [`lexer`](../api/README.md), `parse`, `print` — so the parts
+compiler stages - [`lexer`](../api/README.md), `parse`, `print` - so the parts
 can be embedded on their own.
 
 If you want to see that surface, the

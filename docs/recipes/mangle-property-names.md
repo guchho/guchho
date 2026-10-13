@@ -28,7 +28,7 @@ guchho build src/index.js --bundle \
 
 Shortening is only safe if a given property keeps the **same** short name in
 every build. If a name moved between two builds, every cached copy of the
-previous file — a browser cache, a service worker, an incremental client —
+previous file - a browser cache, a service worker, an incremental client -
 would be invalidated and the whole application would reload for a change that
 touched one property. The cache file holds the mapping and is the unit of
 consistency; write it to a path you keep under version control or persist in CI.

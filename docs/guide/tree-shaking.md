@@ -31,8 +31,8 @@ guchho build src/app.js --bundle --tree-shaking
 Tree shaking can only drop a module when loading it has no observable effect.
 An `onResolve` hook can answer that question with a `sideEffects` value:
 
-- `true` (default) — keep the module even if unused.
-- `false` — it is side-effect free; drop it when nothing uses it.
+- `true` (default) - keep the module even if unused.
+- `false` - it is side-effect free; drop it when nothing uses it.
 
 Only mark a module side-effect free when loading it genuinely has no observable
 effect, because getting it wrong deletes code that was doing work.

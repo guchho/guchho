@@ -6,7 +6,7 @@ description: Longer writing about how Guchho is designed and why.
 # Blog
 
 The guide explains how to use Guchho; the blog is for the longer arguments
-behind it — why a choice was made, what it costs, and what it buys. If you want
+behind it - why a choice was made, what it costs, and what it buys. If you want
 a task solved, start with the [recipes](../recipes/README.md) or the
 [guide](../guide/README.md) instead.
 
@@ -15,9 +15,9 @@ and the [reference](../reference/README.md) disagree, the reference is right.
 
 ## Posts
 
-- [Introducing Guchho](introducing-guchho.md) — what it is and the choices
+- [Introducing Guchho](introducing-guchho.md) - what it is and the choices
   that shape it.
-- [Shipping a distribution with `guchho pack`](packaging-with-guchho-pack.md) —
+- [Shipping a distribution with `guchho pack`](packaging-with-guchho-pack.md) -
   turning a build into one archive.
 
 ## Writing one

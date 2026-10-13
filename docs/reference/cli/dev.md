@@ -20,11 +20,11 @@ Start a development server with file watching and automatic rebuilds.
 | `--open` | off | Open a browser on start. |
 | `--outdir=<dir>` | `dist` | Output directory. |
 | `--minify` | off | Minify output. |
-| `--minify-whitespace` | — | Minify whitespace only. |
-| `--minify-identifiers` | — | Mangle identifiers only. |
-| `--minify-syntax` | — | Optimize syntax only. |
-| `--sourcemap` | — | Enable source maps. |
-| `--target=<target>` | — | Target environment. |
+| `--minify-whitespace` | - | Minify whitespace only. |
+| `--minify-identifiers` | - | Mangle identifiers only. |
+| `--minify-syntax` | - | Optimize syntax only. |
+| `--sourcemap` | - | Enable source maps. |
+| `--target=<target>` | - | Target environment. |
 | `--log-level=<level>` | `info` | Log level. |
 | `--color` / `--no-color` | auto | Force colour on or off. |
 | `--quiet` | off | Minimal output. |

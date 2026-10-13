@@ -8,7 +8,7 @@ description: The C++ surface, produced from api.hpp and cli.hpp.
 # Generated embedding reference
 
 This section is produced from `include/guchho/api.hpp` and
-`include/guchho/cli.hpp` by `scripts/gen-docs-embedding.mjs` — the public
+`include/guchho/cli.hpp` by `scripts/gen-docs-embedding.mjs` - the public
 C++ surface, transcribed exactly and automatically kept in step. Edit the
 generator or the headers, not these pages.
 

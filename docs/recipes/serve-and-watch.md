@@ -24,7 +24,7 @@ guchho dev --host=0.0.0.0        # reachable from another machine
 
 `dev` is build plus watch plus server: it builds, serves the output, watches
 every file the build read, and rebuilds when one changes. The server also
-rebuilds before answering a request, so a stale page is not possible — and
+rebuilds before answering a request, so a stale page is not possible - and
 rebuilds that finish push a reload to any open browser.
 
 ## Watch without a server
@@ -50,7 +50,7 @@ has no build flags at all: if you want a rebuild, you want `dev`.
 
 ## Doing it from a program
 
-The three map onto the API — [`context()`](../api/README.md#context) for the
+The three map onto the API - [`context()`](../api/README.md#context) for the
 incremental build, [`watch()`](../api/README.md#watch) and
 [`serve()`](../api/README.md#serve) to drive it, and
 [`stop()`](../api/README.md#stop) to shut it down. See the

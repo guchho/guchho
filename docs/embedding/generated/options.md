@@ -71,7 +71,7 @@ struct BuildOptions {
     std::unordered_map<std::string, bool> mangle_cache;
     DropFlags    drop{DropFlags::kNone};
     // Names of statement labels whose labelled statement should be deleted
-    // outright — the classic way of fencing off development-only code:
+    // outright - the classic way of fencing off development-only code:
     //   drop_labels = {"DEBUG"};  while (DEBUG) { ... }   // the loop is gone
     std::vector<std::string> drop_labels;
     bool         minify_whitespace{};
@@ -170,8 +170,8 @@ struct BuildOptions {
     //
     // Output location: exactly one of "outfile", "outdir" or neither. With
     // neither, the result is a single unnamed file meant to be written to
-    // stdout by the caller, and options that need a directory — external source
-    // maps, linked legal-comment files, the file and copy loaders — are
+    // stdout by the caller, and options that need a directory - external source
+    // maps, linked legal-comment files, the file and copy loaders - are
     // rejected. With more than one input, or an input containing "*", "outdir"
     // is required; setting both "outfile" and "outdir" is an error. "outbase"
     // chooses which directory the output tree is measured from when computing
@@ -250,8 +250,8 @@ struct BuildOptions {
 ## TransformOptions
 
 The per-file subset of BuildOptions. Options that only make sense for a
-graph — entry points, outdir, splitting, external, plugin hooks, and the
-module-resolution fields — are absent by construction, so a transform can
+graph - entry points, outdir, splitting, external, plugin hooks, and the
+module-resolution fields - are absent by construction, so a transform can
 never accidentally depend on them.
 
 ```cpp
@@ -343,7 +343,7 @@ Every GET or HEAD request produces the current build first, so a reload
 always shows the latest output. The requested path is then looked for in
 three places, in order: inside the build's output directory (served straight
 from memory, whether or not the build wrote anything to disk), then inside
-"servedir", and finally in the file named by "fallback" — which is how a
+"servedir", and finally in the file named by "fallback" - which is how a
 single-page app gets its own index document back for any unknown route. A
 build that produced errors answers with status 503 and the error text as the
 body, so a mistake shows up in the browser instead of silently serving the
@@ -365,8 +365,8 @@ struct ServeOptions {
     // rebuild changes the output, the page reloads itself. Off by default:
     // "serve" is also used for looking at a build without a browser attached,
     // and injecting into responses is only wanted when a person is watching
-    // one. A caller that rebuilds out of band — a watch session driving the
-    // server — tells it a rebuild happened through ServeResult::notify.
+    // one. A caller that rebuilds out of band - a watch session driving the
+    // server - tells it a rebuild happened through ServeResult::notify.
     bool live_reload{};
 
     CORSOptions cors;
@@ -470,7 +470,7 @@ struct MangleCacheResult {
         // Original property name -> the short name chosen for it. An empty
         // optional is a property that is deliberately left alone: the file
         // recorded "false" for it, and shortening it would break whatever
-        // outside the bundle reads it by name — a template, a configuration
+        // outside the bundle reads it by name - a template, a configuration
         // payload, a test that reflects over the result.
         std::unordered_map<std::string, std::optional<std::string>> cache;
 

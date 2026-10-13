@@ -14,8 +14,8 @@ guchho build index.html --outdir=dist --minify
 
 ## Why you did not have to say "bundle"
 
-An HTML entry point cannot be served as one copied file — it refers to its
-scripts and styles — so when any entry point ends in `.html` and bundling has
+An HTML entry point cannot be served as one copied file - it refers to its
+scripts and styles - so when any entry point ends in `.html` and bundling has
 not been asked for either way, it is switched on automatically. A build that
 left it off would hand back a directory of untouched assets instead of the
 single file a browser needs. An explicit `--bundle` or `--bundle=false` on the

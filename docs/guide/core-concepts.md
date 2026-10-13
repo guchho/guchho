@@ -46,11 +46,11 @@ and the output fields stay empty.
 
 Guchho ranks settings in a fixed order:
 
-1. **Explicit** — a flag on the command line, or a field assigned in C++.
-2. **Config file** — `guchho.config.js`, `guchho.config.json`, then
+1. **Explicit** - a flag on the command line, or a field assigned in C++.
+2. **Config file** - `guchho.config.js`, `guchho.config.json`, then
    `guchho.json`.
 3. **Built-in defaults.**
-4. **Derived values** — an output file implies its directory; a bundle implies a
+4. **Derived values** - an output file implies its directory; a bundle implies a
    format.
 
 Every command and embedding goes through the same resolution, so a project sees

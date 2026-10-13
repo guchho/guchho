@@ -30,14 +30,14 @@ When the config root is an array of configurations, each element may carry its
 own `plugins`. The host runs one list for the whole run, so the plugins from
 every element are collected in order into a single list, and a plugin named by
 more than one element is attached once. A plugin is not scoped to the element
-that named it — it sees every build in the run.
+that named it - it sees every build in the run.
 
 ## The shape
 
-- `name` — required, and it appears in every diagnostic the plugin causes.
-- `order` — `'pre'` or `'post'`, where the plugin runs relative to the default
+- `name` - required, and it appears in every diagnostic the plugin causes.
+- `order` - `'pre'` or `'post'`, where the plugin runs relative to the default
   order. Plugins with the same `order` run in the order they appear.
-- Hooks — every hook is optional, and every hook that can decline does so by
+- Hooks - every hook is optional, and every hook that can decline does so by
   returning `null` (or leaving the return `undefined`), which says "not mine"
   rather than "stop".
 
@@ -46,23 +46,23 @@ a hook that resolves is a hook the engine continues from.
 
 ## The lifecycle
 
-1. `buildStart` — once per build, before any file is read.
-2. `resolveId` — asked where a specifier points, for every import and entry
+1. `buildStart` - once per build, before any file is read.
+2. `resolveId` - asked where a specifier points, for every import and entry
    point.
-3. `load` — asked for a module's contents, before the loader would read them.
-4. `transform` — rewrites a module's source after it was loaded and before it
+3. `load` - asked for a module's contents, before the loader would read them.
+4. `transform` - rewrites a module's source after it was loaded and before it
    is parsed.
-5. `buildEnd` — after every module is read; `error` is set when the build
+5. `buildEnd` - after every module is read; `error` is set when the build
    failed.
-6. `generateBundle` / `writeBundle` — with the finished output, before and
+6. `generateBundle` / `writeBundle` - with the finished output, before and
    after it is written.
-7. `closeBundle` — when the context is torn down. The last hook a plugin sees.
+7. `closeBundle` - when the context is torn down. The last hook a plugin sees.
 
 ## Hooks and context
 
-- [Hooks](hooks.md) — each hook in detail: signature, when it runs, what it
+- [Hooks](hooks.md) - each hook in detail: signature, when it runs, what it
   answers with.
-- [Context](context.md) — what `this` is inside a hook, and what a plugin can
+- [Context](context.md) - what `this` is inside a hook, and what a plugin can
   ask the build to do.
 
 ## Types
@@ -90,7 +90,7 @@ The exact type declarations live in the
 
 The engine is a native service; a plugin cannot hook into its internals, only
 into the calls listed above. There is no plugin that runs on the compiler's
-side of the wire, and no hook past what the engine implements is declared —
+side of the wire, and no hook past what the engine implements is declared -
 every hook in the type has a runtime implementation behind it.
 
 ## See also

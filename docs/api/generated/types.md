@@ -97,7 +97,7 @@ export interface Metafile {
   /**
    * The entry points, and only the entry points.
    *
-   * The transitive set is the contribution map on each output — the `inputs` under
+   * The transitive set is the contribution map on each output - the `inputs` under
    * `outputs`, below. This top-level map is not a record of everything the build
    * read; reading it as one reports a single file for a build that read fifty.
    */
@@ -115,7 +115,7 @@ export interface Metafile {
        * transitive set lives. */
       inputs: { path: string; bytesInOutput: number }
       /**
-       * What this output still imports at runtime — anything not inlined.
+       * What this output still imports at runtime - anything not inlined.
        *
        * `bundle` defaults to false, so under it a relative sibling import is
        * listed here and left alone on purpose.
@@ -201,7 +201,7 @@ export interface BuildResult<Provided extends BuildOptions = BuildOptions> {
    * Every file the build read.
    *
    * Only when metafile is true. This is the bundler's own transitive graph, read
-   * from each output's contribution map — the metafile's top-level `inputs` names
+   * from each output's contribution map - the metafile's top-level `inputs` names
    * the entry points and nothing else, so reading that instead would report one
    * file and be confident about it.
    */
@@ -259,7 +259,7 @@ export type EntryPoint = string | { out?: string; in: string } | [string | null,
 ## DevServer
 
 A running dev server, from serve().
-The engine's own HTTP server — the one `guchho serve` gets — not a second implementation. Close it when finished; it holds a listening socket and the project's output files open.
+The engine's own HTTP server - the one `guchho serve` gets - not a second implementation. Close it when finished; it holds a listening socket and the project's output files open.
 
 ```ts
 export interface DevServer {
@@ -293,7 +293,7 @@ export interface DevServer {
 ## Watcher
 
 A running watcher, from watch().
-Every `buildEnd` is a rebuild *this handle performed* — the engine's service answers requests and never sends one of its own, so a changed file is not reported until something asks for a rebuild. See the note on watch().
+Every `buildEnd` is a rebuild *this handle performed* - the engine's service answers requests and never sends one of its own, so a changed file is not reported until something asks for a rebuild. See the note on watch().
 
 ```ts
 export interface Watcher {

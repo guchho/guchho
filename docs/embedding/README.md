@@ -8,7 +8,7 @@ description: The guchho/api.hpp and guchho/cli.hpp surfaces, from linking to lif
 Guchho is a C++ program with two public headers. The one most embedders want
 is `guchho/api.hpp`: it is the whole engine as a library, and the shipped
 `guchho` executable is just a small argument parser on top of it. The other,
-`guchho/cli.hpp`, is the command line as a library — a way to run, or to
+`guchho/cli.hpp`, is the command line as a library - a way to run, or to
 inspect, a complete command line without forking a process.
 
 This page is the reasoning; the exact spelling of every declaration is
@@ -17,14 +17,14 @@ generated from the headers themselves in the
 
 ## The three surfaces, and which one to use
 
-- **`guchho::api`** — build, transform, watch, serve. This is `--outdir`, the
+- **`guchho::api`** - build, transform, watch, serve. This is `--outdir`, the
   incremental context, the dev server, all of it, reachable from your
   process. If your program wants to bundle, this is the surface.
-- **`guchho::cli`** — the command line as a library. `Run(argc, argv)` prints
+- **`guchho::cli`** - the command line as a library. `Run(argc, argv)` prints
   usage and diagnostics like the program would and returns the exit code; the
   `Parse*Options` functions share the flag grammar but do no I/O, so you can
   find out what a command line would mean without running it.
-- **The service** — what the npm package actually runs. The binary speaks a
+- **The service** - what the npm package actually runs. The binary speaks a
   framed protocol on stdin/stdout, and Node turns each build request into a
   response that carries outputs and diagnostics as data. You do not need this
   unless you are a host process that cannot link the library; it is spelled
@@ -55,7 +55,7 @@ target_link_libraries(my_tool PRIVATE guchho_api)
 The API is unusually declarative in a way that makes embedding it small:
 
 - **Vocabulary is scoped enums.** `Loader`, `Format`, `Platform`, `SourceMap`,
-  `TreeShaking`, `LogLevel` — every decision a build can make is an
+  `TreeShaking`, `LogLevel` - every decision a build can make is an
   enumerator, and option structs reference them by name, so a build described
   in code reads like a build described on the command line.
 - **Configuration is input-only plain structs.** Every member of
@@ -98,24 +98,24 @@ That is the whole one-shot path: resolve, walk the graph, compile, print. It
 tears the session down again afterwards. When a caller intends to build more
 than once, `Context()`, `BuildContext::Rebuild()` and `BuildContext::Dispose()`
 do the same work while keeping the caches alive and letting a watcher or a
-server own the rebuilds — which is also the shape that can be cancelled. See
+server own the rebuilds - which is also the shape that can be cancelled. See
 [`BuildContext`](generated/context.md) in the generated reference.
 
 ## Lifetime rules
 
 The surface has a small set of rules that hold everywhere:
 
-- Nothing is started implicitly. A watcher, a server, a context — you create
+- Nothing is started implicitly. A watcher, a server, a context - you create
   it, you destroy it. `Watcher::Start()` and `Watcher::Stop()` are explicit.
 - A disposed `BuildContext` is inert, not dangerous: its methods return empty
   results or a `std::runtime_error` rather than crashing a late caller from
   another thread.
-- Concurrent `Rebuild()` calls are fine — the second caller waits and receives
+- Concurrent `Rebuild()` calls are fine - the second caller waits and receives
   the same result instead of starting a competing build.
 - Work is synchronous unless an object owns it. There is no hidden thread pool
   doing jobs you did not ask for.
 
 Read the full declarations in the
-[Generated embedding reference](generated/README.md) — every type and function
+[Generated embedding reference](generated/README.md) - every type and function
 is transcribed from `include/guchho/api.hpp` and `include/guchho/cli.hpp`, so
 what you look up is what the headers say.

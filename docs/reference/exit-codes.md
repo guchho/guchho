@@ -7,7 +7,7 @@ description: What a Guchho run returns to the shell.
 
 | Code | Name | Meaning |
 | --- | --- | --- |
-| `0` | success | The command did what it was asked. Also returned when a run asked nothing — an empty command line, or a lone `--help` / `--version`. |
+| `0` | success | The command did what it was asked. Also returned when a run asked nothing - an empty command line, or a lone `--help` / `--version`. |
 | `1` | build failure | A build did not succeed. |
 | `2` | CLI usage error | The command line was malformed, or asked for something the binary cannot do (for example a service protocol version it does not speak). |
 | `130` | interrupted | The run was interrupted (SIGINT). |

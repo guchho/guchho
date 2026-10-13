@@ -26,7 +26,7 @@ protocol.
 
 npm ships prebuilt binaries for the major desktop platforms (Linux, macOS,
 Windows), plus `android-x64` since 1.0.4. If your platform has no prebuilt
-binary, build from source — see
+binary, build from source - see
 [CONTRIBUTING.md](https://github.com/guchho/guchho/blob/main/CONTRIBUTING.md).
 
 ## Building
@@ -35,7 +35,7 @@ binary, build from source — see
 
 An HTML entry point cannot be served as one copied file, so when a document is
 the entry and `bundle` was not set either way, Guchho enables bundling. An
-explicit setting — a flag or a config field — always wins.
+explicit setting - a flag or a config field - always wins.
 
 **How do I stop something being bundled?**
 
@@ -63,7 +63,7 @@ serving; `serve` serves an already-built directory without rebuilding. See
 
 **Can I use Guchho from JavaScript instead of the CLI?**
 
-Yes — the package exposes `build`, `transform`, `pack`, `context`, `watch`,
+Yes - the package exposes `build`, `transform`, `pack`, `context`, `watch`,
 `serve` and the compiler stages. See the
 [JavaScript API](../api/README.md).
 
@@ -76,7 +76,7 @@ it. See the [embedding guide](../embedding/README.md).
 
 **What does exit code 2 mean?**
 
-The command line itself was rejected — a bad flag or value — as opposed to a
+The command line itself was rejected - a bad flag or value - as opposed to a
 build that ran and failed (1). The full list is in the
 [exit codes reference](../reference/exit-codes.md).
 

@@ -21,8 +21,8 @@ A live build. Create one with Context(), use it as much as you like, and
 Dispose() it last.
 
 The interface is abstract so a test can substitute a context that serves
-canned results, and so the implementation details — the file system
-instance, the caches, the watcher thread — can change without touching
+canned results, and so the implementation details - the file system
+instance, the caches, the watcher thread - can change without touching
 callers.
 
 ```cpp
@@ -37,7 +37,7 @@ public:
     // requested.
     //
     // Input:  a context created with bundle = true and one entry point
-    // Output: a BuildResult describing this run in full — every output file
+    // Output: a BuildResult describing this run in full - every output file
     //         the build produced, plus any errors and warnings. Rebuilding
     //         reuses the validated options and the caches, which is what makes
     //         it cheaper than calling Build() again.
@@ -67,7 +67,7 @@ public:
     // enough to see the change. This combines with Watch(): rebuilds the
     // watcher runs on its own then reach open browsers through
     // ServeResult::notify, which the context calls for every pass that
-    // finishes — that combination is what "guchho dev" is.
+    // finishes - that combination is what "guchho dev" is.
     //
     // Input:  ServeOptions{ servedir = "dist", port = 0 }
     // Output: ServeResult with the bound "port", the "hosts" to print, and a
@@ -152,7 +152,7 @@ public:
 
     // Asks the thread to finish and waits for it. The current tick completes
     // first, so a change noticed during the final pass can still trigger one
-    // last rebuild — stopping a watcher is a request to wrap up, not an
+    // last rebuild - stopping a watcher is a request to wrap up, not an
     // abort. The wait covers the settle delay and the rebuild as well, so a
     // build already under way is never abandoned half-finished. Safe to call
     // when the thread was never started, and safe to call twice.

@@ -37,7 +37,7 @@ Supported engine names: `chrome`, `deno`, `edge`, `firefox`, `hermes`, `ie`,
 
 A version is read as `major[.minor[.patch]]` with an optional pre-release suffix
 and compared component by component, so `100.0.0` is newer than `90.0.0`. A
-version that does not parse — `latest`, for instance — becomes an error rather
+version that does not parse - `latest`, for instance - becomes an error rather
 than a silent guess.
 
 ## The escape hatch

@@ -5,7 +5,7 @@ description: What this is inside a plugin hook, and what a plugin can ask the bu
 
 # The plugin context
 
-Every hook is called with a `PluginContext` as `this` — the plugin's interface
+Every hook is called with a `PluginContext` as `this` - the plugin's interface
 to the build. Through it a plugin finds out where an import points, reports a
 message, fails the build, and emits files of its own.
 
@@ -61,8 +61,8 @@ resolve(
 ): Promise<ResolvedId | null>
 ```
 
-Resolves a path with the build's own rules — resolve extensions, tsconfig
-paths, package exports — **and the same chain of plugins**. This is how a
+Resolves a path with the build's own rules - resolve extensions, tsconfig
+paths, package exports - **and the same chain of plugins**. This is how a
 plugin asks where an import points without claiming it. Returns `null` when
 nothing resolves it.
 

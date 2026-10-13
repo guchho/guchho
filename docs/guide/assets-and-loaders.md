@@ -43,12 +43,12 @@ extension, nearest package metadata, and any per-path overrides.
 
 ## Choosing a loader
 
-- **`copy`** — the file is emitted verbatim and referenced by URL. Use it for
+- **`copy`** - the file is emitted verbatim and referenced by URL. Use it for
   anything the browser loads directly (fonts, large images).
-- **`file`** — the module wraps the file and exposes its bytes and path.
-- **`binary`** — the bytes arrive as an array you can pass to an API.
-- **`text`** — the contents are an inert string.
-- **`empty`** — a stub, useful for swapping a module out.
+- **`file`** - the module wraps the file and exposes its bytes and path.
+- **`binary`** - the bytes arrive as an array you can pass to an API.
+- **`text`** - the contents are an inert string.
+- **`empty`** - a stub, useful for swapping a module out.
 
 The full option is documented in the
 [configuration reference](../reference/config/build.md) and the

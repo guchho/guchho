@@ -74,7 +74,7 @@ function pack(options: PackOptions): Promise<PackResult>
 ```
 
 Everything the command line's `guchho pack` does, reached as a function: the
-same entry naming, symlink policy and collision refusal — but a path and a size
+same entry naming, symlink policy and collision refusal - but a path and a size
 come back as data rather than a line on a terminal.
 
 ## context
@@ -119,7 +119,7 @@ function serve(options?: BuildOptions): Promise<DevServer>
 ```
 
 Resolves once the server is listening over a finished build. Uses the engine's
-own HTTP server — the one `guchho serve` gets.
+own HTTP server - the one `guchho serve` gets.
 
 ## stop
 

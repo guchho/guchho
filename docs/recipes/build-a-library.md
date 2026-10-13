@@ -25,7 +25,7 @@ may be repeated: one flag per package you do not want to bundle.
 - `--platform=neutral` when the library runs both in browsers and in Node and
   must not assume either's globals.
 - `--target=es2020` (or similar) to keep from emitting syntax an old runtime
-  cannot parse — see [targets and browsers](../guide/targets-and-browsers.md).
+  cannot parse - see [targets and browsers](../guide/targets-and-browsers.md).
 
 ## Keep the output tree-shakeable
 

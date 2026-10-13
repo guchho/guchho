@@ -23,9 +23,9 @@ Guchho follows, among others:
 HTML is re-emitted from the parsed tree, so the printer options describe the
 output rather than the file:
 
-- `pretty` (default **on**) — indent the tree so the result is readable and
+- `pretty` (default **on**) - indent the tree so the result is readable and
   editable.
-- `minifyHtml` (default **off**) — collapse the markup.
+- `minifyHtml` (default **off**) - collapse the markup.
 
 Neither touches content where whitespace is significant, so turning either on
 is always safe.

@@ -23,9 +23,9 @@ guchho build src/app.js --sourcemap --outdir=dist
 
 `sourcesContent` decides whether the pre-transform source text is embedded:
 
-- `include` (default) — write a `sourcesContent` array, making the map
+- `include` (default) - write a `sourcesContent` array, making the map
   self-contained.
-- `exclude` — omit it, for much smaller maps when the sources are already
+- `exclude` - omit it, for much smaller maps when the sources are already
   reachable from wherever the debugger runs.
 
 ## Source root

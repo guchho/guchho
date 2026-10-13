@@ -46,7 +46,7 @@ simply leave it alone.
 struct PluginBuild {
 
     // The options the caller passed to Build() or Context(). Reading them lets
-    // a plugin adapt to the build it is part of — to honour the outdir, to see
+    // a plugin adapt to the build it is part of - to honour the outdir, to see
     // which loaders the caller configured, or to know whether the caller
     // wanted files written at all. The pointer is valid for as long as the
     // build lives; it is const, because a plugin changes what a build does
@@ -129,8 +129,8 @@ struct PluginBuild {
     // Output: nothing.
     std::function<void(std::function<OnEndResult(BuildResult&)> callback)> on_write_bundle;
 
-    // Registers a resolve callback for import paths matching "filter" — a
-    // pattern such as "*.png", a path prefix, or "" for everything — within an
+    // Registers a resolve callback for import paths matching "filter" - a
+    // pattern such as "*.png", a path prefix, or "" for everything - within an
     // optional namespace. Every matching callback is tried in the order the
     // plugins were registered, before any built-in resolution rule, and the
     // first one that returns a path settles the question for that import. The
@@ -170,7 +170,7 @@ struct PluginBuild {
     //         against the file's own directory.
     std::function<void(const OnLoadOptions& options, std::function<OnLoadResult(const OnLoadArgs&)> callback)> on_load;
 
-    // Registers a callback for when the build is torn down — the plugin's
+    // Registers a callback for when the build is torn down - the plugin's
     // chance to close files, flush caches or join helper threads. It runs
     // during Dispose(), which is the last thing that happens to a context, so
     // no build is in flight and no other hook can follow.
@@ -184,7 +184,7 @@ struct PluginBuild {
 ## ResolveResult
 
 The answer to a resolve request. Leaving "path" empty declines the request,
-which lets the next plugin — and finally the built-in rules — have a go;
+which lets the next plugin - and finally the built-in rules - have a go;
 filling in "errors" instead fails the build with those messages. Setting
 "external" ends the search and leaves the specifier as written in the output,
 which is how a plugin says "this import is somebody else's problem".
@@ -258,8 +258,8 @@ A few combinations are worth spelling out. "suffix" must start with "?" or
 so "img.png?v=2" can be a different module from "img.png?v=1" that resolves
 to the same file. "side_effects" only has an effect when it is kFalse, which
 promises that nothing is lost by dropping the module when no export of it is
-used. And anything returned alongside an empty path — namespace, suffix,
-plugin data, watch paths — is reported as a warning, because a claim about a
+used. And anything returned alongside an empty path - namespace, suffix,
+plugin data, watch paths - is reported as a warning, because a claim about a
 path that was never claimed cannot be honoured.
 
 ```cpp

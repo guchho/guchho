@@ -47,7 +47,7 @@ interface ParseOptions extends CompileOptions, CssMinifyOptions {
 ```
 
 The result carries a handle to hand to `print()`, plus language-specific
-summaries — `nodes` for HTML, `rules` for CSS, `symbols` for JS.
+summaries - `nodes` for HTML, `rules` for CSS, `symbols` for JS.
 
 ## print
 

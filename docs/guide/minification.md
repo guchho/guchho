@@ -29,9 +29,9 @@ guchho build src/app.js --minify-whitespace   # only one
 
 ## Dropping code
 
-- `drop` — `drop: ['console', 'debugger']` removes `console.*` calls and
+- `drop` - `drop: ['console', 'debugger']` removes `console.*` calls and
   `debugger` statements.
-- `dropLabels` — remove a labelled statement outright, the classic way of
+- `dropLabels` - remove a labelled statement outright, the classic way of
   fencing off development-only code:
 
   ```js

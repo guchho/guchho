@@ -22,7 +22,7 @@ machine you are on; there is no compile step.
 | AIX | `ppc64` |
 | SunOS | `x64` |
 
-The npm packages are named `@guchho/<os>-<arch>` — for example
+The npm packages are named `@guchho/<os>-<arch>` - for example
 `@guchho/linux-x64` or `@guchho/darwin-arm64`. All of them are versioned in lock
 step with the main package.
 

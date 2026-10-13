@@ -31,9 +31,9 @@ or APIs above the target are lowered automatically. See
 
 The `jsx` option selects the runtime:
 
-- `transform` (default) — classic calls through `jsxFactory` / `jsxFragment`.
-- `automatic` — imports helpers from `jsxImportSource`.
-- `preserve` — leave the markup untouched.
+- `transform` (default) - classic calls through `jsxFactory` / `jsxFragment`.
+- `automatic` - imports helpers from `jsxImportSource`.
+- `preserve` - leave the markup untouched.
 
 ## Compile-time substitution
 

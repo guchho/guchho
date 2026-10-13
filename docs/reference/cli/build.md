@@ -20,30 +20,30 @@ config file, and the config file wins over the built-in defaults.
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `--outdir=<dir>` | `dist` | Output directory. |
-| `--outfile=<file>` | — | Output file. |
+| `--outfile=<file>` | - | Output file. |
 | `--minify` | off | Minify all output. |
-| `--minify-whitespace` | — | Minify whitespace only. |
-| `--minify-identifiers` | — | Mangle identifiers only. |
-| `--minify-syntax` | — | Optimize syntax only. |
+| `--minify-whitespace` | - | Minify whitespace only. |
+| `--minify-identifiers` | - | Mangle identifiers only. |
+| `--minify-syntax` | - | Optimize syntax only. |
 | `--minify-html` | off | Minify the markup. |
 | `--pretty` | on | Indent the markup. |
-| `--sourcemap` | — | Enable source maps. |
-| `--target=<target>` | — | Target (`es2020`, `chrome80`, `node16`, …). |
-| `--format=<format>` | — | `iife`, `cjs`, `esm`, `umd`, `amd`, `system`. |
-| `--name=<name>` | — | Global namespace for `umd` and `iife` output. |
-| `--exports=<value>` | — | Entry exports: `named`, `default`, `none`, `auto`. |
-| `--platform=<p>` | — | Platform: `browser`, `node`, `neutral`. |
+| `--sourcemap` | - | Enable source maps. |
+| `--target=<target>` | - | Target (`es2020`, `chrome80`, `node16`, …). |
+| `--format=<format>` | - | `iife`, `cjs`, `esm`, `umd`, `amd`, `system`. |
+| `--name=<name>` | - | Global namespace for `umd` and `iife` output. |
+| `--exports=<value>` | - | Entry exports: `named`, `default`, `none`, `auto`. |
+| `--platform=<p>` | - | Platform: `browser`, `node`, `neutral`. |
 | `--splitting` | off | Enable code splitting. |
 | `--tree-shaking` | off | Enable tree shaking. |
 | `--bundle` | off | Bundle all imports. |
-| `--external:<pkg>` | — | Mark a package as external. Repeatable. |
-| `--define:<k>=<v>` | — | Replace an identifier with a value. Repeatable. |
-| `--loader:<ext>=<l>` | — | Loader for a file extension. Repeatable. |
+| `--external:<pkg>` | - | Mark a package as external. Repeatable. |
+| `--define:<k>=<v>` | - | Replace an identifier with a value. Repeatable. |
+| `--loader:<ext>=<l>` | - | Loader for a file extension. Repeatable. |
 | `--watch` | off | Watch for changes. |
 | `--metafile` | off | Write metafile JSON. |
 | `--analyze` | off | Analyze bundle size. |
-| `--jsx=<mode>` | — | `transform`, `preserve`, `automatic`. |
-| `--tsconfig=<file>` | — | Path to `tsconfig.json`. |
+| `--jsx=<mode>` | - | `transform`, `preserve`, `automatic`. |
+| `--tsconfig=<file>` | - | Path to `tsconfig.json`. |
 | `--log-level=<level>` | `info` | `verbose`, `debug`, `info`, `warning`, `error`, `silent`. |
 | `--color` / `--no-color` | auto | Force colour on or off. |
 | `--quiet` | off | Minimal output. |

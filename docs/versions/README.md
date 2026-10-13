@@ -5,7 +5,7 @@ description: How Guchho's documentation is versioned and where frozen snapshots 
 
 # Versions
 
-The documentation you are reading describes the **current** line of Guchho —
+The documentation you are reading describes the **current** line of Guchho -
 the next release, kept in step with `main`. When a version is released, a frozen
 snapshot of the whole docs tree is taken and never edited again.
 
@@ -17,10 +17,10 @@ version changed.
 
 ## How snapshots work
 
-- The top-level sections — [guide](../guide/README.md),
+- The top-level sections - [guide](../guide/README.md),
   [reference](../reference/README.md), [api](../api/README.md),
   [plugins](../plugins/README.md), [embedding](../embedding/README.md),
-  [recipes](../recipes/README.md) — are the living documentation.
+  [recipes](../recipes/README.md) - are the living documentation.
 - On a release, that tree is copied under `versions/v<major>.<minor>/` and
   becomes read-only. A reader who needs the docs for an older version reads the
   snapshot, not a tag they have to check out.

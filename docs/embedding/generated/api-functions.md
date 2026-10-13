@@ -26,8 +26,8 @@ In this page:
 
 ## ParseTargetSpec
 
-Reads a target string — "es2020", "esnext", "firefox115", or a comma-separated
-list mixing both kinds — the same way the "--target" command-line flag does.
+Reads a target string - "es2020", "esnext", "firefox115", or a comma-separated
+list mixing both kinds - the same way the "--target" command-line flag does.
 
 This lives beside the enums rather than in the command line because a config
 file names a target as a string too, and the two spellings have to mean the
@@ -47,7 +47,7 @@ TargetParse ParseTargetSpec(std::string_view text, TargetSpec& out,
 
 The engine names a target string may use, paired with their enum values. The
 keys are lowercase and the version is whatever follows the name, so a caller
-that has to render the list of valid targets — a diagnostic, a completion —
+that has to render the list of valid targets - a diagnostic, a completion -
 builds it from here rather than from a second copy that could disagree.
 
 ```cpp
@@ -91,8 +91,8 @@ Every configuration is resolved against the same explicit options and the
 same defaults: an explicit CLI option overrides that field in all of them,
 and nothing one configuration says can leak into another.
 
-Messages about a config file that exists but cannot be used — it could not be
-parsed, or two configurations write the same output — are returned in
+Messages about a config file that exists but cannot be used - it could not be
+parsed, or two configurations write the same output - are returned in
 "config_invalid" rather than raised here, so a caller decides for itself
 whether that is an error or a warning. "builds" is empty when the config file
 could not be parsed; a collision leaves "builds" populated, so a caller that
@@ -157,7 +157,7 @@ std::unique_ptr<BuildContext> Context(const BuildOptions& options, std::vector<M
 
 Renders diagnostics as text. The engine's own printing is optimised for a
 terminal it owns; this is the same rendering, returned as strings so another
-program can decide where they go — an editor's problems panel, a JSON
+program can decide where they go - an editor's problems panel, a JSON
 response, a test's expected output.
 
 One string comes back per message, in the order given, so the mapping back
@@ -194,7 +194,7 @@ grow" without writing a metafile parser of its own.
 
 The report is a two-level table, largest output first: each output file is
 one row, and the inputs that contributed bytes to it are listed underneath
-it with their share of that output. Source maps are left out — the ".map"
+it with their share of that output. Source maps are left out - the ".map"
 entries in the metafile describe the maps, not the program, and they would
 otherwise dominate the numbers.
 
@@ -208,7 +208,7 @@ Output: a table shaped like this (sizes are abbreviated, shares rounded):
           which reads as "almost all of dist/app.js is one dependency".
 
 Input:  text that is not a metafile, or a metafile with no usable outputs
-Output: an empty string — a bad document is not worth an exception, because
+Output: an empty string - a bad document is not worth an exception, because
         the metafile is data the caller may have truncated or rewritten.
 
 ```cpp
@@ -251,7 +251,7 @@ up front, so the hot path is a sequence of cheap appends instead of repeated
 pattern matching.
 
 Each resulting segment is "the literal text that came before a placeholder,
-together with the placeholder that follows it" — the placeholder is glued to
+together with the placeholder that follows it" - the placeholder is glued to
 the text it is appended after, and a trailing run of literal text with no
 placeholder after it becomes one final segment. The template is read as if
 it were written relative to "./", so the leading directory segment is always
@@ -282,7 +282,7 @@ std::vector<config::PathTemplate> validate_path_template(std::string_view value)
 Starts the development server and returns as soon as it is accepting
 connections. This is the primitive that BuildContext::Serve is built on, and
 it can be used directly when the caller wants the server without a build
-context — a proxy in front of another bundler, for instance, or a test that
+context - a proxy in front of another bundler, for instance, or a test that
 needs a real socket.
 
 The socket is bound before this returns, so the port in the result is final

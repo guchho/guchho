@@ -21,13 +21,13 @@ JavaScript layer that talks to it.
 
 ## In this documentation
 
-- [Getting started](../guide/getting-started.md) — install and first build.
-- [Guide](../guide/README.md) — the concepts and the pipeline.
-- [Reference](../reference/README.md) — every command, option and field.
-- [Recipes](../recipes/README.md) — complete patterns for common tasks.
-- [Glossary](glossary.md) — the vocabulary the rest of the docs uses.
-- [Platform support](platform-support.md) — the OSes and architectures with a prebuilt binary.
-- [FAQ](faq.md) — questions that come up before the manual helps.
+- [Getting started](../guide/getting-started.md) - install and first build.
+- [Guide](../guide/README.md) - the concepts and the pipeline.
+- [Reference](../reference/README.md) - every command, option and field.
+- [Recipes](../recipes/README.md) - complete patterns for common tasks.
+- [Glossary](glossary.md) - the vocabulary the rest of the docs uses.
+- [Platform support](platform-support.md) - the OSes and architectures with a prebuilt binary.
+- [FAQ](faq.md) - questions that come up before the manual helps.
 
 ## Getting help
 

@@ -20,7 +20,7 @@ positional argument: it writes into the working directory.
 | `--type=<type>` | `app` | Project type. |
 | `-y`, `--yes` | off | Use default options without prompting. |
 | `-f`, `--force` | off | Overwrite existing scaffold files. |
-| `-h`, `--help` | — | Show help. |
+| `-h`, `--help` | - | Show help. |
 
 ## Project types
 

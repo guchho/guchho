@@ -32,7 +32,7 @@ See [Platform support](../resources/platform-support.md) for the full list.
 npx guchho init -y
 ```
 
-This writes a starter project — `src/index.html`, `src/main.js`, `src/style.css`
+This writes a starter project - `src/index.html`, `src/main.js`, `src/style.css`
 and `guchho.config.js`. Choose a different shape with `--type` and `--template`:
 
 ```bash
@@ -83,6 +83,6 @@ npx guchho pack dist -o release.zip
 
 ## Next
 
-- [Configuration](configuration.md) — configure a build once.
-- [CLI overview](cli-overview.md) — every command.
-- [JavaScript API](../api/README.md) — use the engine from Node.
+- [Configuration](configuration.md) - configure a build once.
+- [CLI overview](cli-overview.md) - every command.
+- [JavaScript API](../api/README.md) - use the engine from Node.

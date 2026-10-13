@@ -36,8 +36,8 @@ newer than "9.9.9".
 Input:  engines = { { kFirefox, "115" }, { kSafari, "16.4" } }
 Output: the build is only allowed to use what both versions support, and
         the pair is reported back in the summary as a target string such as
-        "firefox115,safari16.4". A version that does not parse — "latest",
-        for instance — becomes a message in result.errors rather than a
+        "firefox115,safari16.4". A version that does not parse - "latest",
+        for instance - becomes a message in result.errors rather than a
         silent guess.
 
 ```cpp
@@ -168,7 +168,7 @@ The names of the build options that somebody actually asked for.
 Most option defaults are the value a field holds when nobody has an opinion
 ("false" for minify, "" for outdir), so an unset field and a field explicitly
 set to that same value look identical. Where a default is the other way round
-— pretty printing is on unless you ask for it not to be — that difference
+- pretty printing is on unless you ask for it not to be - that difference
 decides whether a config file or a command line still gets a say, so the parser
 records what it saw and the resolution consults this instead of guessing.
 
@@ -276,7 +276,7 @@ struct ServeResult {
     // Tells the connected live-reload clients that a rebuild just finished,
     // diffing this result against the previous one and pushing a "change"
     // event only when the output actually differs. This is how a rebuild that
-    // the server itself did not run — a watch session, most importantly —
+    // the server itself did not run - a watch session, most importantly -
     // reaches the browser: the server rebuilds on demand for each request, so
     // anything that builds off the request path has to knock. Calling it is
     // always safe and does nothing useful when live_reload is off or no

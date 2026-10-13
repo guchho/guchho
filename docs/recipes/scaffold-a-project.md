@@ -5,8 +5,8 @@ description: Start from a working tree with guchho init.
 
 # Scaffold a project
 
-`guchho init` writes a small but complete project — a config file, an entry
-point, and a package manifest — into the current directory. It takes no
+`guchho init` writes a small but complete project - a config file, an entry
+point, and a package manifest - into the current directory. It takes no
 directory argument: make the directory first.
 
 ```bash

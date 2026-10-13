@@ -21,7 +21,7 @@ Guchho installs the whole pipeline.
 
 A web application is a document, not a module. Guchho can start at an HTML
 entry point, follow every `<script>`, `<link>`, `import` and asset reference it
-finds, and emit a complete output directory — hashed file names, rewritten URLs,
+finds, and emit a complete output directory - hashed file names, rewritten URLs,
 minified, ready to upload.
 
 Bundling is a choice, not a requirement. Pointing Guchho at a single `.js` or
@@ -30,9 +30,9 @@ application behind it.
 
 ## Two ways to drive it
 
-- **The CLI** — `guchho build`, `dev`, `serve`, `watch`, `init`, `clean`,
+- **The CLI** - `guchho build`, `dev`, `serve`, `watch`, `init`, `clean`,
   `info`, `transform`, `pack`.
-- **The JavaScript API** — the same engine, callable from Node with full
+- **The JavaScript API** - the same engine, callable from Node with full
   TypeScript declarations. See the [API reference](../api/README.md).
 
 Both go through the same option resolution, so a project behaves the same way
@@ -40,5 +40,5 @@ whichever one runs it.
 
 ## Next
 
-- [Getting started](getting-started.md) — build something.
-- [Core concepts](core-concepts.md) — the vocabulary used throughout these docs.
+- [Getting started](getting-started.md) - build something.
+- [Core concepts](core-concepts.md) - the vocabulary used throughout these docs.

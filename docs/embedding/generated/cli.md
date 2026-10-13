@@ -38,8 +38,8 @@ behind the caller's back.
 
 With no plugins attached a run is self contained: it reads what it needs,
 writes what was asked for, and prints a summary. Anything that only
-makes sense to a host program — reading a flag before the arguments are
-parsed, or reacting to the finished run — is done by passing plugins
+makes sense to a host program - reading a flag before the arguments are
+parsed, or reacting to the finished run - is done by passing plugins
 instead.
 
 The exit code is the useful output: 0 for success and for the forms of
@@ -98,7 +98,7 @@ Node would be a second copy of it on the machine.
 
 Input:  the version frame, then length-prefixed requests, on stdin
 Output: the version frame, then one response per request, on stdout, and
-        nothing else — a print here would land inside a frame
+        nothing else - a print here would land inside a frame
 
 The protocol is guchho/service.hpp. Nothing here reaches the console, and
 no plugin callback crosses the wire, which is why RunWithPlugins has no
@@ -140,7 +140,7 @@ A build is finished when it answers; a parse leaves an AST behind for a
 print to come back for, which means the handler owns state that outlives
 the call. Keeping that state in one file keeps it in one place.
 
-The twelve names are "<stage>-<language>" — lex-html, parse-html,
+The twelve names are "<stage>-<language>" - lex-html, parse-html,
 print-html, transform-html, and the same four for css and js. A tree does
 not cross the wire: a parse answers with a number, and a print or a
 transform answers with that number.
@@ -267,9 +267,9 @@ settings as the rest of the run.
 
 The interesting case is the one that is not a failure. A file that is not
 there is normal on a first build, so it produces an empty result and no
-message, and the build simply starts a fresh cache. Everything else — a
+message, and the build simply starts a fresh cache. Everything else - a
 file that cannot be read, a syntax error, a top level that is not an
-object, a value that is neither a string nor "false" — is reported
+object, a value that is neither a string nor "false" - is reported
 through that log and also produces an empty result, because a mapping
 that is only half understood is worse than none: continuing with it
 would silently shorten a different set of properties than the previous
@@ -298,7 +298,7 @@ MangleCacheResult parseMangleCache(
 ## printMangleCache
 
 Formats a mapping back into the cache file's text form. Nothing is
-written here — the caller decides where the text goes, which is what
+written here - the caller decides where the text goes, which is what
 lets a build keep the file next to its configuration and lets a test
 compare the string.
 
@@ -338,7 +338,7 @@ std::string printMangleCache(
 
 Switches bundling on when a document is being built.
 
-A document entry point — an ".html" file — cannot be served as one copied
+A document entry point - an ".html" file - cannot be served as one copied
 file: it refers to its scripts and styles, so a build that left bundling
 off would hand back a directory of untouched assets instead of the single
 file a browser needs. So when any entry point ends in ".html" and

@@ -10,17 +10,17 @@ spelled; the [Guide](../guide/README.md) is where the reasoning lives.
 
 ## Command line
 
-- [CLI reference](cli/README.md) — every command and its flags.
+- [CLI reference](cli/README.md) - every command and its flags.
 
 ## Configuration
 
-- [Configuration reference](config/README.md) — every option in `guchho.config.js` and friends.
+- [Configuration reference](config/README.md) - every option in `guchho.config.js` and friends.
 
 ## Tables
 
-- [Loaders](loaders.md) — the `--loader:<ext>=<l>` map.
-- [Formats](formats.md) — `iife`, `cjs`, `esm`, `umd`, `amd`, `system`.
-- [Platforms](platforms.md) — `browser`, `node`, `neutral`.
-- [Metafile](metafile.md) — the shape of the build graph.
-- [Errors & warnings](errors-and-warnings.md) — diagnostic shape.
-- [Exit codes](exit-codes.md) — what a run returns to the shell.
+- [Loaders](loaders.md) - the `--loader:<ext>=<l>` map.
+- [Formats](formats.md) - `iife`, `cjs`, `esm`, `umd`, `amd`, `system`.
+- [Platforms](platforms.md) - `browser`, `node`, `neutral`.
+- [Metafile](metafile.md) - the shape of the build graph.
+- [Errors & warnings](errors-and-warnings.md) - diagnostic shape.
+- [Exit codes](exit-codes.md) - what a run returns to the shell.

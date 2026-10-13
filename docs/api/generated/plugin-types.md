@@ -344,7 +344,7 @@ export interface Plugin {
     options: NormalizedOutputOptions,
     bundle: OutputBundle
   ): void | Promise<void>
-  /** Called when the context is torn down — the last hook a plugin sees. */
+  /** Called when the context is torn down - the last hook a plugin sees. */
   closeBundle?(this: PluginContext): void | Promise<void>
 }
 ```

@@ -49,8 +49,8 @@ clause, and whether the question came from a plugin's own `this.resolve`.
 A plugin that rewrites imports but must not answer its own questions checks
 `options.custom` and declines when it is `true`, because `this.resolve` sets it.
 
-To claim a module has no side effects — so it can be dropped when nothing
-imports from it — return it with `moduleSideEffects: true`. This is the hook
+To claim a module has no side effects - so it can be dropped when nothing
+imports from it - return it with `moduleSideEffects: true`. This is the hook
 that [tree shaking](../guide/tree-shaking.md) points at.
 
 ## load
@@ -94,7 +94,7 @@ buildEnd?(this: PluginContext, error?: Error): void | Promise<void>
 ```
 
 Called at the end of the build, after every module is read. `error` is set when
-the build failed, which makes this the place to clean up either way — a plugin
+the build failed, which makes this the place to clean up either way - a plugin
 that opened something in `buildStart` closes it here.
 
 ## generateBundle
@@ -123,7 +123,7 @@ writeBundle?(
 ```
 
 Called after the output has been written, with the same bundle. This is where a
-plugin reports on — or reads back — what actually landed on disk.
+plugin reports on - or reads back - what actually landed on disk.
 
 ## closeBundle
 

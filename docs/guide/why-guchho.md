@@ -26,8 +26,8 @@ and no separate CSS toolchain to configure.
 ## A real API
 
 The CLI is a thin shim over a long-lived service protocol. Everything
-`guchho build` does is also callable from JavaScript — including the compiler
-stages (`lexer`, `parse`, `print`) — so the engine embeds in your own tools.
+`guchho build` does is also callable from JavaScript - including the compiler
+stages (`lexer`, `parse`, `print`) - so the engine embeds in your own tools.
 
 ## Failure is data
 

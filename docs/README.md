@@ -14,13 +14,13 @@ its index, so the whole tree is readable directly on GitHub.
 
 ## Start here
 
-- [Introduction](guide/introduction.md) — what Guchho is and how it thinks.
-- [Getting started](guide/getting-started.md) — install and run a first build.
-- [Core concepts](guide/core-concepts.md) — entries, the graph, loaders, bundles.
+- [Introduction](guide/introduction.md) - what Guchho is and how it thinks.
+- [Getting started](guide/getting-started.md) - install and run a first build.
+- [Core concepts](guide/core-concepts.md) - entries, the graph, loaders, bundles.
 
 ## Contents
 
-### Guide — learning-oriented
+### Guide - learning-oriented
 
 | Page | What it covers |
 | --- | --- |
@@ -44,14 +44,14 @@ its index, so the whole tree is readable directly on GitHub.
 | [Packaging](guide/packaging.md) | `guchho pack` |
 | [Deployment](guide/deployment.md) | Shipping the output |
 
-### Reference — look-up material
+### Reference - look-up material
 
 - [CLI reference](reference/cli/README.md)
 - [Configuration reference](reference/config/README.md)
 - [Loaders](reference/loaders.md), [Formats](reference/formats.md), [Platforms](reference/platforms.md)
 - [Metafile](reference/metafile.md), [Errors & warnings](reference/errors-and-warnings.md), [Exit codes](reference/exit-codes.md)
 
-### API — programmatic surface
+### API - programmatic surface
 
 - [JavaScript / TypeScript API](api/README.md)
 - [Generated option types](api/generated/README.md)

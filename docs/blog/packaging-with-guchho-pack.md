@@ -7,7 +7,7 @@ description: Turning a build directory into one archive, and why the details mat
 
 Version 1.0.4 added a command that had been the last missing piece of a build
 pipeline: `guchho pack`. After a build you usually want to hand the output to
-someone — an artifact store, a release page, a colleague — as a single file.
+someone - an artifact store, a release page, a colleague - as a single file.
 `pack` does that, and getting the small details right is most of the work.
 
 ```bash
@@ -19,7 +19,7 @@ guchho pack dist/ -o release.zip
 
 Every input is stored under its own last path component. `guchho pack dist/`
 stores the tree under `dist/`; `guchho pack src/app.js` stores the file as
-`app.js`. That rule is what makes several inputs behave predictably — you get
+`app.js`. That rule is what makes several inputs behave predictably - you get
 one top-level entry per input, named the way you named it, rather than an
 archive whose contents depend on where you ran the command.
 
@@ -28,7 +28,7 @@ archive whose contents depend on where you ran the command.
 `--format` picks `zip`, `tar` or `tar.gz`. `--level` (0 through 9) is the
 compression effort, and it only means something where there is compression to
 do: `tar` stores its entries uncompressed and ignores the flag. Keeping them
-separate is why `--level` is not silently accepted and ignored for `tar` — the
+separate is why `--level` is not silently accepted and ignored for `tar` - the
 [reference](../reference/cli/pack.md) says so, and the implementation agrees.
 
 ## It will not surprise you with an overwrite

@@ -79,7 +79,7 @@ interface Watcher {
 
 Every `buildEnd` is a rebuild this handle performed. Asking for a rebuild runs a
 build pass whether or not anything changed, which is why `interval` is opt-in
-and has a real price — set it to `0` and drive it yourself.
+and has a real price - set it to `0` and drive it yourself.
 
 ## DevServer
 

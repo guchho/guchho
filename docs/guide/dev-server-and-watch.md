@@ -46,8 +46,8 @@ Options are the same as `guchho build`.
 
 ## Watch behaviour
 
-- **`watch` in a config** — `true` means "build and keep watching".
-- **`server` in a config** — the dev server reads its options from the
+- **`watch` in a config** - `true` means "build and keep watching".
+- **`server` in a config** - the dev server reads its options from the
   configuration's `server` section.
 
 The [JavaScript API](../api/README.md#watch) exposes the same watcher and dev server as

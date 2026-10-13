@@ -114,7 +114,7 @@ export interface CommonOptions {
    * at both levels is refused rather than resolved, because picking one is a
    * guess about where the output goes.
    *
-   * "entry" is the one spelling that moves — to entrypoints — so the nested form
+   * "entry" is the one spelling that moves - to entrypoints - so the nested form
    * accepts it.
    */
     build?: BuildOptionsNested
@@ -133,7 +133,7 @@ export interface CommonOptions {
 export interface BuildOptions extends CommonOptions {
   /**
    * What to build. Optional because `stdin` is an alternative, not because a
-   * build without one is fine — a configuration with neither throws rather than
+   * build without one is fine - a configuration with neither throws rather than
    * falling back to a glob, finding nothing and reporting success.
    */
   entrypoints?: EntryPoint[] | EntryPoint
@@ -155,15 +155,15 @@ export interface BuildOptions extends CommonOptions {
   /**
    * Which entry export the bundle publishes as its public value.
    *
-   * - `"named"` — a namespace object whose properties are the export names
+   * - `"named"` - a namespace object whose properties are the export names
    *   (the default, and what a build without the option always does).
-   * - `"default"` — the entry point's default export *is* the value: a
+   * - `"default"` - the entry point's default export *is* the value: a
    *   CommonJS `require()` hands it straight back, and a UMD or IIFE global
    *   is it. The entry must have a default export (a CommonJS entry's
    *   `module.exports` counts); named exports alongside it are not exposed.
-   * - `"none"` — publish nothing. Valid only when no entry point exports
+   * - `"none"` - publish nothing. Valid only when no entry point exports
    *   anything.
-   * - `"auto"` — infer from the entry's actual exports, style: no
+   * - `"auto"` - infer from the entry's actual exports, style: no
    *   exports means `"none"`, a lone default means `"default"`, anything
    *   else means `"named"`.
    *
@@ -249,7 +249,7 @@ Every path is a path on disk. Each entry of inputs becomes a top-level name take
 export interface PackOptions {
   /**
    * Where to write the archive. The parent directory is created if it is
-   * missing, and the archive itself is moved into place at the end — so a
+   * missing, and the archive itself is moved into place at the end - so a
    * caller reading this path after a failure is reading nothing rather than a
    * half-written archive.
    */
@@ -302,7 +302,7 @@ Declared once and referenced by CommonOptions, so the section a caller may write
 ```ts
 export interface ServeOptions {
   /**
-   * The port to bind. Zero — or leaving it out — asks the engine to try 8000
+   * The port to bind. Zero - or leaving it out - asks the engine to try 8000
    * upwards and take the first that is free, which is why the port that was
    * actually bound is on the handle rather than assumed to be this one.
    */

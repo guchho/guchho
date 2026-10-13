@@ -24,7 +24,7 @@ followed.
 | `-o`, `--outfile=<path>` | `<input>.<ext>` | Write the archive to this path. |
 | `--level=<0-9>` | `6` | Compression level for `zip` and `tar.gz`. |
 | `--allow-overwrite` | off | Replace the output if it already exists. |
-| `-h`, `--help` | — | Show help. |
+| `-h`, `--help` | - | Show help. |
 
 `--level` does not apply to `tar`, which stores its entries uncompressed.
 

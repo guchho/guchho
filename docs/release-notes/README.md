@@ -38,5 +38,5 @@ Tags live at
 
 ## See also
 
-- [Versions](../versions/README.md) — frozen documentation snapshots.
+- [Versions](../versions/README.md) - frozen documentation snapshots.
 - [Changelog on GitHub](https://github.com/guchho/guchho/commits/main).

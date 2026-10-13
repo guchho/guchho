@@ -64,6 +64,12 @@ async function resolveEntry(entry, configDir) {
 /**
  * The plugins a project's config file names, in the order it names them.
  *
+ * The root may be one configuration object with a "plugins" key, or an array of
+ * them, each with its own "plugins". Both are collected, in element order. A
+ * plugin named more than once is kept only the first time, because the host
+ * dispatches a hook by plugin name and so cannot tell two same-named plugins
+ * apart anyway.
+ *
  * @param {string} [startDir] Where discovery starts. Defaults to the process
  *   working directory, matching the engine's own starting point.
  * @returns {Promise<Array<object>>} Live plugin objects, or an empty list.
@@ -82,13 +88,36 @@ async function loadConfigPlugins(startDir) {
     root = mod && "default" in mod ? mod.default : mod;
   }
 
-  const listed = root === null || typeof root !== "object" ? undefined : root.plugins;
-  if (listed === undefined || listed === null) return [];
+  // The root is either one configuration object, with a "plugins" key, or an
+  // array of them, each with its own. The engine builds one configuration per
+  // element (src/resolver/guchho_json.cpp), so the plugins are gathered from
+  // every element in order. The host runs one flat list for the whole run, so a
+  // plugin named by several elements is attached once.
+  const roots = Array.isArray(root) ? root : [root];
 
-  const entries = Array.isArray(listed) ? listed : [listed];
   const plugins = [];
-  for (const entry of entries) {
-    plugins.push(await resolveEntry(entry, configDir));
+  const seen = new Set();
+  for (const element of roots) {
+    const listed =
+      element === null || typeof element !== "object" ? undefined : element.plugins;
+    if (listed === undefined || listed === null) continue;
+
+    const entries = Array.isArray(listed) ? listed : [listed];
+    for (const entry of entries) {
+      const plugin = await resolveEntry(entry, configDir);
+      if (plugin === null || plugin === undefined) continue;
+      // Prefer the name as the key: the host answers a hook by name, so a
+      // second plugin of the same name would never be reached. Fall back to
+      // identity for an entry that carries no name, which the host rejects
+      // later with a clear error.
+      const key =
+        typeof plugin === "object" && typeof plugin.name === "string" && plugin.name !== ""
+          ? `name:${plugin.name}`
+          : plugin;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      plugins.push(plugin);
+    }
   }
   return plugins;
 }

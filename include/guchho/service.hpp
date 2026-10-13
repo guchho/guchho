@@ -63,7 +63,7 @@ namespace guchho::service {
     // answers with the same string as its first frame, so a binary that does not
     // speak this protocol says so by returning a version that does not match
     // rather than by failing to parse something.
-    inline constexpr const char* kVersion = "3";
+    inline constexpr const char* kVersion = "4";
 
     // A value in the tagged union that crosses the wire.
     //

@@ -636,7 +636,7 @@ gh workflow run npm-publish.yml -f type=darwin-arm64 -f dry_run=false test_run=t
 Publish only the main `guchho` package:
 
 ```bash
-gh workflow run npm-publish.yml -f type=guchho -f dry_run=false
+gh workflow run npm-publish.yml -f type=guchho -f dry_run=false dry_run=true
 ```
 
 Publish all platform packages and the main `guchho` package:

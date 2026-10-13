@@ -286,6 +286,17 @@ namespace guchho::cli {
     int RunWithPlugins(const std::vector<std::string>& os_args,
                        const std::vector<api::Plugin>& plugins);
 
+    // The same thing again, with the plugins grouped by the config-file element
+    // that named them. One group per element, positionally aligned with the
+    // config root's elements, so that each resolved build runs only the plugins
+    // its own element named. A plugin named by two elements is reached as two
+    // separate instances, one per build, which a single flat list cannot do.
+    //
+    // An empty group list is the same as RunWithPlugins with no plugins. A host
+    // that has a single flat list should keep using RunWithPlugins.
+    int RunWithPluginGroups(const std::vector<std::string>& os_args,
+                            const std::vector<std::vector<api::Plugin>>& plugin_groups);
+
     // =========================================================================
     // The service
     // =========================================================================
@@ -679,6 +690,13 @@ namespace guchho::cli {
     void attachPlugins(api::BuildOptions& build_options,
                        const std::vector<api::Plugin>& plugins);
 
+    // The plugins a host grouped by config-file element, attached so that each
+    // resolved build gets only its own element's group. An empty list leaves the
+    // build's "plugins" (the flat list) as the answer for every build.
+
+    void attachPluginGroups(api::BuildOptions& build_options,
+                            const std::vector<std::vector<api::Plugin>>& plugin_groups);
+
     // -------------------------------------------------------------------------
     // The HTML-first default entry point
     // -------------------------------------------------------------------------
@@ -698,7 +716,8 @@ namespace guchho::cli {
     // answers --help itself, and returns one of the ExitCode values above.
 
     int runBuild(const std::vector<std::string>& args, bool quiet,
-                 const std::vector<api::Plugin>& plugins);
+                 const std::vector<api::Plugin>& plugins,
+                 const std::vector<std::vector<api::Plugin>>& plugin_groups);
     int runTransform(const std::vector<std::string>& args);
     int runWatch(const std::vector<std::string>& args, bool quiet,
                  const std::vector<api::Plugin>& plugins);

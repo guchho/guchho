@@ -1364,9 +1364,18 @@ void addAnalyzePlugin(api::BuildOptions& build_options) {
 //
 // Input:  a build with no plugins and a list of one plugin
 // Output: the same build with that plugin at the end of its plugin list.
+//
+// Attaching a plugin also records that the host has claimed the config file's
+// "plugins" field. The two always go together: a plugin reaches this function
+// only from RunWithPlugins(), and a host passes a plugin only after it has read
+// the project's config in its own process — the engine cannot run a JavaScript
+// plugin and would otherwise warn that the field was ignored. The service's
+// build and context requests set the same flag explicitly; run does not carry
+// it, and this is that missing half.
 void attachPlugins(api::BuildOptions& build_options,
                           const std::vector<api::Plugin>& plugins) {
     if (plugins.empty()) return;
+    build_options.config_plugins_handled = true;
     build_options.plugins.insert(build_options.plugins.end(), plugins.begin(), plugins.end());
 }
 

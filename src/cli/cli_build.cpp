@@ -181,7 +181,8 @@ void writeFileContent(const std::string& path, const std::string& content,
     //         is an answer, not a failure, so a script that asks for it is not
     //         sent down an error path.
 int runBuild(const std::vector<std::string>& args, bool quiet,
-                    const std::vector<api::Plugin>& plugins) {
+                    const std::vector<api::Plugin>& plugins,
+                    const std::vector<std::vector<api::Plugin>>& plugin_groups) {
         // A build is long enough to be interrupted, and being interrupted in the
         // middle of writing is how an output file ends up truncated. The
         // handler only records that an interrupt happened; the commands that
@@ -224,6 +225,13 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
             logger::PrintErrorWithNoteToStderr(args_copy, err->text, err->note);
             return static_cast<int>(ExitCode::kCLIUsageError);
         }
+
+        // A host that grouped its plugins by config-file element overrides the
+        // flat list here, before the resolution runs, so each resolved build
+        // receives only its own element's plugins. The flag is set with the
+        // groups, which is also what stops the config parser warning that the
+        // "plugins" field was ignored.
+        attachPluginGroups(build_opts, plugin_groups);
 
         // Everything the flags did not settle is settled here, once: the
         // project's own config file, and then the defaults behind it.

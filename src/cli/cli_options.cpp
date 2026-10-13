@@ -1379,6 +1379,21 @@ void attachPlugins(api::BuildOptions& build_options,
     build_options.plugins.insert(build_options.plugins.end(), plugins.begin(), plugins.end());
 }
 
+// The same claim, for a host that grouped its plugins by config-file element.
+// One group per element, aligned with the config root's elements; the resolution
+// step hands the i-th build only the i-th group. The flat "plugins" list is left
+// alone, because a grouped host does not use it, and the grouping field is what
+// the resolution reads.
+//
+// Input:  a build with no plugins and two groups
+// Output: the same build carrying the two groups, to be split across builds.
+void attachPluginGroups(api::BuildOptions& build_options,
+                        const std::vector<std::vector<api::Plugin>>& plugin_groups) {
+    if (plugin_groups.empty()) return;
+    build_options.config_plugins_handled = true;
+    build_options.config_plugins = plugin_groups;
+}
+
 // =============================================================================
 // The options for a run
 // =============================================================================

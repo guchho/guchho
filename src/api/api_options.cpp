@@ -516,6 +516,7 @@ EffectiveBuildConfigs ResolveEffectiveBuildConfigs(const BuildOptions& explicit_
         // the problem rather than the failure to look for it.
         BuildOptions out = explicit_options;
         out.explicit_set = nullptr;
+        out.config_plugins.clear();
         result.builds.push_back(std::move(out));
         return result;
     }

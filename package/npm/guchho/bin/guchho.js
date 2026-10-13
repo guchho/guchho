@@ -26,19 +26,20 @@ function runBinary(args) {
   }
 }
 
-// The config's plugins, or none. A config that cannot be read here is left for
-// the engine to report in its own words — the fallback is the plain binary, not
-// a second opinion about what is wrong with the file.
-async function configPlugins() {
+// The config's plugins, grouped by configuration element, or none. A config that
+// cannot be read here is left for the engine to report in its own words — the
+// fallback is the plain binary, not a second opinion about what is wrong with
+// the file.
+async function configPluginGroups() {
   try {
-    const { loadConfigPlugins } = require("../lib/config");
-    return await loadConfigPlugins(process.cwd());
+    const { loadConfigPluginGroups } = require("../lib/config");
+    return await loadConfigPluginGroups(process.cwd());
   } catch {
     return [];
   }
 }
 
-async function runWithPlugins(args, plugins) {
+async function runWithPlugins(args, pluginGroups) {
   const { Service } = require("../lib/service");
   const { makePluginHost, callWithPlugins } = require("../lib/plugins");
 
@@ -63,7 +64,7 @@ async function runWithPlugins(args, plugins) {
   process.on("SIGTERM", stop);
 
   try {
-    const response = await callWithPlugins(service, makePluginHost(plugins), {
+    const response = await callWithPlugins(service, makePluginHost(pluginGroups), {
       command: "run",
       argv: args,
       configPluginsHandled: true,
@@ -86,13 +87,13 @@ async function main() {
     return;
   }
 
-  const plugins = await configPlugins();
-  if (plugins.length === 0) {
+  const pluginGroups = await configPluginGroups();
+  if (!pluginGroups.some((group) => group.length > 0)) {
     runBinary(args);
     return;
   }
 
-  await runWithPlugins(args, plugins);
+  await runWithPlugins(args, pluginGroups);
 }
 
 main().catch((error) => {

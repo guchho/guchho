@@ -72,6 +72,11 @@ A config file whose root is an object produces one build. A root as an array
 produces one build per element, each resolved independently from the same
 explicit options and defaults.
 
+Plugins may sit beside `build` on each element. The host collects the `plugins`
+of every element into one list for the run, so a plugin is shared by all the
+builds rather than scoped to the element that named it; listing the same plugin
+on several elements attaches it once.
+
 ## Full reference
 
 See the [configuration reference](../reference/config/README.md) for every

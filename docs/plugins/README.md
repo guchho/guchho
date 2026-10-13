@@ -26,6 +26,12 @@ await build({ entrypoints: ['app.js'], plugins: [env] })
 Pass a single plugin or an array through the `plugins` option; the
 configuration file nests it under a top-level `plugins` key.
 
+When the config root is an array of configurations, each element may carry its
+own `plugins`. The host runs one list for the whole run, so the plugins from
+every element are collected in order into a single list, and a plugin named by
+more than one element is attached once. A plugin is not scoped to the element
+that named it — it sees every build in the run.
+
 ## The shape
 
 - `name` — required, and it appears in every diagnostic the plugin causes.

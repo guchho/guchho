@@ -14,7 +14,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { after, describe, it } = require("node:test");
 
-const { loadConfigPlugins } = require("../guchho/lib/config.js");
+const { loadConfigPlugins, loadConfigPluginGroups } = require("../guchho/lib/config.js");
 
 const { makeTempDir, cleanup } = require("./helpers/workspace");
 
@@ -77,5 +77,77 @@ describe("loadConfigPlugins", () => {
     const root = projectWithConfig(`export default { build: { entry: "src/main.js" } };\n`);
 
     assert.deepEqual(await loadConfigPlugins(root), []);
+  });
+});
+
+describe("loadConfigPluginGroups", () => {
+  it("gives one group per element, in element order", async () => {
+    const root = projectWithConfig(
+      `export default [\n` +
+        `  { build: { outfile: "a.js" }, plugins: [{ name: "alpha" }] },\n` +
+        `  { build: { outfile: "b.js" }, plugins: [{ name: "beta" }] },\n` +
+        `];\n`
+    );
+
+    const groups = await loadConfigPluginGroups(root);
+
+    assert.deepEqual(
+      groups.map((group) => group.map((plugin) => plugin.name)),
+      [["alpha"], ["beta"]]
+    );
+  });
+
+  it("keeps an element with no plugins as an empty group, so positions line up", async () => {
+    const root = projectWithConfig(
+      `export default [\n` +
+        `  { build: { outfile: "a.js" } },\n` +
+        `  { build: { outfile: "b.js" }, plugins: [{ name: "beta" }] },\n` +
+        `];\n`
+    );
+
+    const groups = await loadConfigPluginGroups(root);
+
+    assert.deepEqual(
+      groups.map((group) => group.map((plugin) => plugin.name)),
+      [[], ["beta"]]
+    );
+  });
+
+  it("keeps a same-named plugin once per element, not once overall", async () => {
+    const root = projectWithConfig(
+      `export default [\n` +
+        `  { build: { outfile: "a.js" }, plugins: [{ name: "banner", style: "long" }] },\n` +
+        `  { build: { outfile: "b.js" }, plugins: [{ name: "banner", style: "minimal" }] },\n` +
+        `];\n`
+    );
+
+    const groups = await loadConfigPluginGroups(root);
+
+    assert.equal(groups.length, 2);
+    assert.equal(groups[0].length, 1);
+    assert.equal(groups[1].length, 1);
+    assert.equal(groups[0][0].style, "long");
+    assert.equal(groups[1][0].style, "minimal");
+    assert.notEqual(groups[0][0], groups[1][0]);
+  });
+
+  it("wraps a single object root as one group", async () => {
+    const root = projectWithConfig(
+      `const alpha = { name: "alpha" };\n` +
+        `export default { build: { entry: "src/main.js" }, plugins: [alpha] };\n`
+    );
+
+    const groups = await loadConfigPluginGroups(root);
+
+    assert.deepEqual(
+      groups.map((group) => group.map((plugin) => plugin.name)),
+      [["alpha"]]
+    );
+  });
+
+  it("returns nothing when there is no config file", async () => {
+    const root = makeTempDir("config-plugins-none");
+
+    assert.deepEqual(await loadConfigPluginGroups(root), []);
   });
 });

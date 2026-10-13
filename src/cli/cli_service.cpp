@@ -522,12 +522,21 @@ namespace guchho::cli {
         // so the bridge does not sort anything itself.
         service::Value PluginCall(const std::string& plugin,
                                   const std::string& hook,
-                                  service::Value args) {
-            return service::InvokeCallback(service::Value::Object({
+                                  service::Value args,
+                                  int config_index) {
+            std::vector<std::pair<std::string, service::Value>> fields = {
                 {"plugin", service::Value::String(plugin)},
                 {"hook", service::Value::String(hook)},
                 {"args", std::move(args)},
-            }));
+            };
+            // A grouped host is given the build's index so a name that appears
+            // in more than one config element reaches the right instance. A
+            // negative index means "no grouping" — a flat host — and the field
+            // is omitted so that request is byte-for-byte what it always was.
+            if (config_index >= 0) {
+                fields.emplace_back("configIndex", service::Value::Number(config_index));
+            }
+            return service::InvokeCallback(service::Value::Object(std::move(fields)));
         }
 
         // The hooks, one function each, each a translation rather than a rule.
@@ -538,17 +547,19 @@ namespace guchho::cli {
         // never arrive. That check is why a plugin list attached only over the
         // service stays inert on the command line instead of hanging it.
 
-        api::OnStartResult RunJsStart(const std::string& plugin) {
+        api::OnStartResult RunJsStart(const std::string& plugin, int config_index) {
             api::OnStartResult result;
             if (!service::HasCallbackTransport()) return result;
 
-            const service::Value response = PluginCall(plugin, "buildStart", service::Value::Null());
+            const service::Value response =
+                PluginCall(plugin, "buildStart", service::Value::Null(), config_index);
             result.errors = PluginMessages(response, "errors", plugin);
             result.warnings = PluginMessages(response, "warnings", plugin);
             return result;
         }
 
-        api::OnResolveResult RunJsResolve(const std::string& plugin, const api::OnResolveArgs& args) {
+        api::OnResolveResult RunJsResolve(const std::string& plugin, int config_index,
+                                          const api::OnResolveArgs& args) {
             api::OnResolveResult result;
             result.plugin_name = plugin;
             if (!service::HasCallbackTransport()) return result;
@@ -568,7 +579,7 @@ namespace guchho::cli {
                 {"kind", service::Value::String(ResolveKindName(args.kind))},
                 {"with", service::Value::Array(std::move(with))},
                 {"meta", PluginMetaValue(args.plugin_data)},
-            }));
+            }), config_index);
 
             result.errors = PluginMessages(response, "errors", plugin);
             result.warnings = PluginMessages(response, "warnings", plugin);
@@ -619,7 +630,8 @@ namespace guchho::cli {
             return result;
         }
 
-        api::OnLoadResult RunJsLoad(const std::string& plugin, const api::OnLoadArgs& args) {
+        api::OnLoadResult RunJsLoad(const std::string& plugin, int config_index,
+                                    const api::OnLoadArgs& args) {
             api::OnLoadResult result;
             result.plugin_name = plugin;
             if (!service::HasCallbackTransport()) return result;
@@ -636,7 +648,7 @@ namespace guchho::cli {
                 {"suffix", service::Value::String(args.suffix)},
                 {"with", service::Value::Array(std::move(with))},
                 {"meta", PluginMetaValue(args.plugin_data)},
-            }));
+            }), config_index);
 
             result.errors = PluginMessages(response, "errors", plugin);
             result.warnings = PluginMessages(response, "warnings", plugin);
@@ -691,6 +703,7 @@ namespace guchho::cli {
         // restriction so that "which hook can change the output" stays one clear
         // answer.
         api::OnEndResult RunJsBundle(const std::string& plugin,
+                                     int config_index,
                                      const std::string& hook,
                                      bool may_replace_files,
                                      api::BuildResult& result) {
@@ -708,7 +721,7 @@ namespace guchho::cli {
 
             const service::Value response = PluginCall(plugin, hook, service::Value::Object({
                 {"outputFiles", service::Value::Array(std::move(files))},
-            }));
+            }), config_index);
 
             outcome.errors = PluginMessages(response, "errors", plugin);
             outcome.warnings = PluginMessages(response, "warnings", plugin);
@@ -745,9 +758,9 @@ namespace guchho::cli {
         // answer is discarded: a host's closeBundle that throws has already had
         // its say in the host's own process, and there is nothing here for the
         // engine to do about it.
-        void RunJsDispose(const std::string& plugin) {
+        void RunJsDispose(const std::string& plugin, int config_index) {
             if (!service::HasCallbackTransport()) return;
-            PluginCall(plugin, "closeBundle", service::Value::Null());
+            PluginCall(plugin, "closeBundle", service::Value::Null(), config_index);
         }
 
         // A whole plugin, built from the descriptor the host sent.
@@ -758,35 +771,40 @@ namespace guchho::cli {
         // every plugin in the list, and the engine treats the first resolving
         // plugin as the answer, so a hook that always declines is not free — it
         // is noise on the wire for every module in the graph.
-        api::Plugin MakeJsPlugin(const std::string& name, const std::vector<std::string>& hooks) {
+        api::Plugin MakeJsPlugin(const std::string& name, const std::vector<std::string>& hooks,
+                                 int config_index) {
             auto implements = [hooks](const char* hook) {
                 return std::find(hooks.begin(), hooks.end(), std::string(hook)) != hooks.end();
             };
 
             api::Plugin plugin;
             plugin.name = name;
-            plugin.setup = [name, implements](api::PluginBuild& build) {
+            plugin.setup = [name, implements, config_index](api::PluginBuild& build) {
                 if (implements("buildStart")) {
-                    build.on_start([name]() { return RunJsStart(name); });
+                    build.on_start([name, config_index]() { return RunJsStart(name, config_index); });
                 }
                 if (implements("resolveId")) {
                     build.on_resolve(
                         api::OnResolveOptions{.filter = ".*", .namespace_ = ""},
-                        [name](const api::OnResolveArgs& args) { return RunJsResolve(name, args); });
+                        [name, config_index](const api::OnResolveArgs& args) {
+                            return RunJsResolve(name, config_index, args);
+                        });
                 }
                 if (implements("load")) {
                     build.on_load(
                         api::OnLoadOptions{.filter = ".*", .namespace_ = ""},
-                        [name](const api::OnLoadArgs& args) { return RunJsLoad(name, args); });
+                        [name, config_index](const api::OnLoadArgs& args) {
+                            return RunJsLoad(name, config_index, args);
+                        });
                 }
                 if (implements("buildEnd") || implements("generateBundle")) {
-                    build.on_generate_bundle([name, implements](api::BuildResult& result) {
+                    build.on_generate_bundle([name, implements, config_index](api::BuildResult& result) {
                         // buildEnd runs first and may refuse; if it does, the
                         // bundle is not offered to generateBundle at all.
                         api::OnEndResult outcome;
                         if (implements("buildEnd")) {
                             api::OnEndResult ended =
-                                RunJsBundle(name, "buildEnd", false, result);
+                                RunJsBundle(name, config_index, "buildEnd", false, result);
                             outcome.errors.insert(outcome.errors.end(),
                                                   ended.errors.begin(), ended.errors.end());
                             outcome.warnings.insert(outcome.warnings.end(),
@@ -795,7 +813,7 @@ namespace guchho::cli {
                         }
                         if (implements("generateBundle")) {
                             api::OnEndResult generated =
-                                RunJsBundle(name, "generateBundle", true, result);
+                                RunJsBundle(name, config_index, "generateBundle", true, result);
                             outcome.errors.insert(outcome.errors.end(),
                                                   generated.errors.begin(), generated.errors.end());
                             outcome.warnings.insert(outcome.warnings.end(),
@@ -805,15 +823,40 @@ namespace guchho::cli {
                     });
                 }
                 if (implements("writeBundle")) {
-                    build.on_write_bundle([name](api::BuildResult& result) {
-                        return RunJsBundle(name, "writeBundle", false, result);
+                    build.on_write_bundle([name, config_index](api::BuildResult& result) {
+                        return RunJsBundle(name, config_index, "writeBundle", false, result);
                     });
                 }
                 if (implements("closeBundle")) {
-                    build.on_dispose([name]() { RunJsDispose(name); });
+                    build.on_dispose([name, config_index]() { RunJsDispose(name, config_index); });
                 }
             };
             return plugin;
+        }
+
+        // One descriptor — a name and the names of the hooks it implements — as a
+        // plugin. Returns false for an entry that carries no usable name, which
+        // the caller skips rather than refuses: a malformed plugin is the host's
+        // problem, and failing the whole build for one bad entry would be a worse
+        // answer than building without it.
+        bool DescriptorToPlugin(const service::Value& entry, int config_index,
+                                api::Plugin& out) {
+            if (!entry.IsObject()) return false;
+
+            const service::Value* name = entry.Find("name");
+            if (name == nullptr || !name->IsString() || name->AsString().empty()) return false;
+
+            std::vector<std::string> hooks;
+            if (const service::Value* list = entry.Find("hooks")) {
+                if (list->IsArray()) {
+                    for (const service::Value& hook : list->AsArray()) {
+                        if (hook.IsString()) hooks.push_back(hook.AsString());
+                    }
+                }
+            }
+
+            out = MakeJsPlugin(name->AsString(), hooks, config_index);
+            return true;
         }
 
         // The plugin list from a request, appended to the options.
@@ -825,26 +868,41 @@ namespace guchho::cli {
         // is not an object, is skipped rather than refused — a malformed plugin
         // is the host's problem, and failing the whole build for one bad entry
         // would be a worse answer than building without it.
+        //
+        // Two shapes are understood. "pluginGroups" is one array per config-file
+        // element, positionally aligned with the config root's elements, and is
+        // filled into "config_plugins" so the resolution can hand each build only
+        // its own element's plugins. "plugins" is the older single flat list,
+        // applied to every build. The grouped form wins when both are present.
         void PluginsFromRequest(const service::Value& request, api::BuildOptions& options) {
+            if (const service::Value* groups = request.Find("pluginGroups")) {
+                if (groups->IsArray()) {
+                    int index = 0;
+                    for (const service::Value& group : groups->AsArray()) {
+                        std::vector<api::Plugin> plugins;
+                        if (group.IsArray()) {
+                            for (const service::Value& entry : group.AsArray()) {
+                                api::Plugin plugin;
+                                if (DescriptorToPlugin(entry, index, plugin)) {
+                                    plugins.push_back(std::move(plugin));
+                                }
+                            }
+                        }
+                        options.config_plugins.push_back(std::move(plugins));
+                        ++index;
+                    }
+                    return;
+                }
+            }
+
             const service::Value* plugins = request.Find("plugins");
             if (plugins == nullptr || !plugins->IsArray()) return;
 
             for (const service::Value& entry : plugins->AsArray()) {
-                if (!entry.IsObject()) continue;
-
-                const service::Value* name = entry.Find("name");
-                if (name == nullptr || !name->IsString() || name->AsString().empty()) continue;
-
-                std::vector<std::string> hooks;
-                if (const service::Value* list = entry.Find("hooks")) {
-                    if (list->IsArray()) {
-                        for (const service::Value& hook : list->AsArray()) {
-                            if (hook.IsString()) hooks.push_back(hook.AsString());
-                        }
-                    }
+                api::Plugin plugin;
+                if (DescriptorToPlugin(entry, -1, plugin)) {
+                    options.plugins.push_back(std::move(plugin));
                 }
-
-                options.plugins.push_back(MakeJsPlugin(name->AsString(), hooks));
             }
         }
 
@@ -925,7 +983,9 @@ namespace guchho::cli {
                 err_forwarder = std::thread(ForwardOutput, err_pipe[0], "stderr");
             }
 
-            const int code = RunWithPlugins(argv, options.plugins);
+            const int code = options.config_plugins.empty()
+                                 ? RunWithPlugins(argv, options.plugins)
+                                 : RunWithPluginGroups(argv, options.config_plugins);
 
             if (redirected) {
                 // Everything the command buffered goes out first, then the

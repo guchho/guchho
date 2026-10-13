@@ -61,22 +61,44 @@ async function resolveEntry(entry, configDir) {
   return entry;
 }
 
-/**
- * The plugins a project's config file names, in the order it names them.
- *
- * The root may be one configuration object with a "plugins" key, or an array of
- * them, each with its own "plugins". Both are collected, in element order. A
- * plugin named more than once is kept only the first time, because the host
- * dispatches a hook by plugin name and so cannot tell two same-named plugins
- * apart anyway.
- *
- * @param {string} [startDir] Where discovery starts. Defaults to the process
- *   working directory, matching the engine's own starting point.
- * @returns {Promise<Array<object>>} Live plugin objects, or an empty list.
- */
-async function loadConfigPlugins(startDir) {
+// The name a host uses to answer one plugin's hooks. Two plugins sharing a name
+// cannot be told apart, so a name is the unit of identity within a group; an
+// entry that carries none falls back to its own identity and is rejected with a
+// clear error when the host is built.
+function pluginKey(plugin) {
+  return typeof plugin === "object" && typeof plugin.name === "string" && plugin.name !== ""
+    ? `name:${plugin.name}`
+    : plugin;
+}
+
+// One element's "plugins", as live plugin objects. Entries resolve in order and
+// a plugin named more than once within the one element is kept only the first
+// time. The same name may appear in a different element: those are different
+// builds, and each keeps its own.
+async function pluginsOfElement(element, configDir) {
+  const listed =
+    element === null || typeof element !== "object" ? undefined : element.plugins;
+  if (listed === undefined || listed === null) return [];
+
+  const entries = Array.isArray(listed) ? listed : [listed];
+  const plugins = [];
+  const seen = new Set();
+  for (const entry of entries) {
+    const plugin = await resolveEntry(entry, configDir);
+    if (plugin === null || plugin === undefined) continue;
+    const key = pluginKey(plugin);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    plugins.push(plugin);
+  }
+  return plugins;
+}
+
+// Reads the config file governing "startDir" and returns its root elements and
+// their directory, or null when there is no config file.
+async function readConfigRoots(startDir) {
   const configPath = findConfigFile(startDir);
-  if (configPath === null) return [];
+  if (configPath === null) return null;
 
   const configDir = path.dirname(configPath);
 
@@ -88,32 +110,55 @@ async function loadConfigPlugins(startDir) {
     root = mod && "default" in mod ? mod.default : mod;
   }
 
-  // The root is either one configuration object, with a "plugins" key, or an
-  // array of them, each with its own. The engine builds one configuration per
-  // element (src/resolver/guchho_json.cpp), so the plugins are gathered from
-  // every element in order. The host runs one flat list for the whole run, so a
-  // plugin named by several elements is attached once.
-  const roots = Array.isArray(root) ? root : [root];
+  return { configDir, roots: Array.isArray(root) ? root : [root] };
+}
+
+/**
+ * The plugins a project's config file names, grouped by configuration element.
+ *
+ * The root may be one configuration object with a "plugins" key, or an array of
+ * them, each with its own. The engine builds one configuration per element, so
+ * the result is one group per element, in element order and positionally
+ * aligned with the builds. A plugin named by several elements is attached once
+ * to each: the elements are separate builds, and the host keeps them apart by
+ * the build's index.
+ *
+ * @param {string} [startDir] Where discovery starts. Defaults to the process
+ *   working directory, matching the engine's own starting point.
+ * @returns {Promise<Array<Array<object>>>} One group of live plugin objects per
+ *   element, or an empty list when there is no config file.
+ */
+async function loadConfigPluginGroups(startDir) {
+  const read = await readConfigRoots(startDir);
+  if (read === null) return [];
+
+  const groups = [];
+  for (const element of read.roots) {
+    groups.push(await pluginsOfElement(element, read.configDir));
+  }
+  return groups;
+}
+
+/**
+ * The plugins a project's config file names, in the order it names them.
+ *
+ * A single flat list for a host that runs one configuration: the groups are
+ * concatenated and a plugin named by more than one element is kept only the
+ * first time. A host whose config root is an array should use
+ * loadConfigPluginGroups instead, so each element's plugins stay with its build.
+ *
+ * @param {string} [startDir] Where discovery starts. Defaults to the process
+ *   working directory, matching the engine's own starting point.
+ * @returns {Promise<Array<object>>} Live plugin objects, or an empty list.
+ */
+async function loadConfigPlugins(startDir) {
+  const groups = await loadConfigPluginGroups(startDir);
 
   const plugins = [];
   const seen = new Set();
-  for (const element of roots) {
-    const listed =
-      element === null || typeof element !== "object" ? undefined : element.plugins;
-    if (listed === undefined || listed === null) continue;
-
-    const entries = Array.isArray(listed) ? listed : [listed];
-    for (const entry of entries) {
-      const plugin = await resolveEntry(entry, configDir);
-      if (plugin === null || plugin === undefined) continue;
-      // Prefer the name as the key: the host answers a hook by name, so a
-      // second plugin of the same name would never be reached. Fall back to
-      // identity for an entry that carries no name, which the host rejects
-      // later with a clear error.
-      const key =
-        typeof plugin === "object" && typeof plugin.name === "string" && plugin.name !== ""
-          ? `name:${plugin.name}`
-          : plugin;
+  for (const group of groups) {
+    for (const plugin of group) {
+      const key = pluginKey(plugin);
       if (seen.has(key)) continue;
       seen.add(key);
       plugins.push(plugin);
@@ -145,4 +190,10 @@ async function withConfigPlugins(startDir, callerPlugins) {
   return all.length === 0 ? null : all;
 }
 
-module.exports = { CONFIG_NAMES, findConfigFile, loadConfigPlugins, withConfigPlugins };
+module.exports = {
+  CONFIG_NAMES,
+  findConfigFile,
+  loadConfigPlugins,
+  loadConfigPluginGroups,
+  withConfigPlugins,
+};

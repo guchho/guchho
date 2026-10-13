@@ -37,6 +37,7 @@ using guchho::test::kSuccess;
 using guchho::test::OutputContains;
 using guchho::test::RunCli;
 using guchho::test::RunCliWithPlugins;
+using guchho::test::RunCliWithPluginGroups;
 using guchho::api::Message;
 using guchho::api::Plugin;
 
@@ -212,6 +213,77 @@ TEST(CliPlugins, EveryPluginInTheListIsCalled) {
     EXPECT_EQ(result.exit_code, kSuccess);
     EXPECT_EQ(first.load(), 1);
     EXPECT_EQ(second.load(), 1);
+}
+
+// ---------------------------------------------------------------------------
+// Plugins grouped by configuration element
+// ---------------------------------------------------------------------------
+
+// A two-configuration project, where each element names a plugin. The two
+// plugins share a name on purpose, because that is the case a single flat list
+// cannot express: a host with a plugin per output names the same plugin on each
+// element and needs each build to reach its own instance.
+//
+// Grouped, each group reaches exactly one build, so each setup runs once. A
+// flat list would have run both plugins on both builds — the counters would be
+// 2 and 2 — which is precisely the failure this grouping exists to prevent.
+TEST(CliPlugins, EachConfigElementRunsOnlyItsOwnPluginGroup) {
+    CliWorkspace ws("groups");
+    ws.Write("a.js", "console.log(1);\n");
+    ws.Write("b.js", "console.log(2);\n");
+    ws.Write("guchho.config.json",
+             "[{\"build\":{\"entry\":\"a.js\",\"outdir\":\"one\"}},"
+             " {\"build\":{\"entry\":\"b.js\",\"outdir\":\"two\"}}]");
+    std::atomic<int> first{0};
+    std::atomic<int> second{0};
+
+    const guchho::test::CliResult result =
+        RunCliWithPluginGroups({"build"},
+                               {{CountingPlugin(first)}, {CountingPlugin(second)}});
+
+    EXPECT_EQ(result.exit_code, kSuccess);
+    EXPECT_TRUE(ws.Exists("one/a.js")) << ws.Tree();
+    EXPECT_TRUE(ws.Exists("two/b.js")) << ws.Tree();
+    EXPECT_EQ(first.load(), 1);
+    EXPECT_EQ(second.load(), 1);
+}
+
+// An element that names no plugin contributes an empty group, and the build for
+// it runs with none. The plugin in the first group must not leak onto the
+// second build, which is what makes the positional alignment meaningful.
+TEST(CliPlugins, AnEmptyGroupLeavesItsBuildWithoutPlugins) {
+    CliWorkspace ws("groups-empty");
+    ws.Write("a.js", "console.log(1);\n");
+    ws.Write("b.js", "console.log(2);\n");
+    ws.Write("guchho.config.json",
+             "[{\"build\":{\"entry\":\"a.js\",\"outdir\":\"one\"}},"
+             " {\"build\":{\"entry\":\"b.js\",\"outdir\":\"two\"}}]");
+    std::atomic<int> first{0};
+
+    const guchho::test::CliResult result =
+        RunCliWithPluginGroups({"build"}, {{CountingPlugin(first)}, {}});
+
+    EXPECT_EQ(result.exit_code, kSuccess);
+    EXPECT_TRUE(ws.Exists("one/a.js")) << ws.Tree();
+    EXPECT_TRUE(ws.Exists("two/b.js")) << ws.Tree();
+    EXPECT_EQ(first.load(), 1);
+}
+
+// A build with a single configuration is one group, and the plugin in it runs
+// exactly as the flat list would have run it — the grouping does not change the
+// ordinary case.
+TEST(CliPlugins, ASingleConfigurationUsesItsOneGroup) {
+    CliWorkspace ws("groups-single");
+    ws.Write("entry.js", "console.log(1);\n");
+    ws.Write("guchho.config.json", "{\"build\":{\"entry\":\"entry.js\",\"outdir\":\"dist\"}}");
+    std::atomic<int> setups{0};
+
+    const guchho::test::CliResult result =
+        RunCliWithPluginGroups({"build"}, {{CountingPlugin(setups)}});
+
+    EXPECT_EQ(result.exit_code, kSuccess);
+    EXPECT_TRUE(ws.Exists("dist/entry.js")) << ws.Tree();
+    EXPECT_EQ(setups.load(), 1);
 }
 
 } // namespace cli::test

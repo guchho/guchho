@@ -236,7 +236,8 @@ Command detectCommand(const std::vector<std::string>& args, bool& has_entry) {
 // Output: the banner and the usage text, and 0: a flag with no path is
 //         nothing to do, and saying so is more use than a complaint would be.
 static int runImpl(const std::vector<std::string>& os_args,
-                   const std::vector<api::Plugin>& plugins)
+                   const std::vector<api::Plugin>& plugins,
+                   const std::vector<std::vector<api::Plugin>>& plugin_groups)
 {
     // -------------------------------------------------------------------------
     // Make the console and the process agree on UTF-8, before anything is
@@ -428,22 +429,34 @@ static int runImpl(const std::vector<std::string>& os_args,
     // exists so that a command added to the enumeration without a case here
     // shows a person their usage text rather than falling out of the function.
 
+    // watch and dev resolve a single configuration, so a grouped host's plugins
+    // are flattened back to the one list those commands take. The build command
+    // keeps the groups themselves, and its resolution hands each build only its
+    // own element's plugins. The flat list wins when both are present, which is
+    // what a host that used RunWithPlugins gets.
+    std::vector<api::Plugin> flat_plugins = plugins;
+    if (flat_plugins.empty() && !plugin_groups.empty()) {
+        for (const auto& group : plugin_groups) {
+            flat_plugins.insert(flat_plugins.end(), group.begin(), group.end());
+        }
+    }
+
     switch (cmd) {
     case Command::kBuild: {
         if (!quiet) printBanner(std::cout);
-        int result = runBuild(os_args, quiet, plugins);
+        int result = runBuild(os_args, quiet, plugins, plugin_groups);
         return result;
     }
     case Command::kTransform:
         return runTransform(os_args);
     case Command::kWatch: {
         if (!quiet) printBanner(std::cout);
-        return runWatch(os_args, quiet, plugins);
+        return runWatch(os_args, quiet, flat_plugins);
     }
     case Command::kServe:
         return runServe(os_args);
     case Command::kDev:
-        return runDev(os_args, plugins);
+        return runDev(os_args, flat_plugins);
     case Command::kInit:
         return runInit(os_args);
     case Command::kClean:
@@ -495,13 +508,19 @@ static int runImpl(const std::vector<std::string>& os_args,
 //         the points api::Plugin describes.
 int Run(const std::vector<std::string>& os_args) {
 
-    return runImpl(os_args, {});
+    return runImpl(os_args, {}, {});
 }
 
 int RunWithPlugins(const std::vector<std::string>& os_args,
                    const std::vector<api::Plugin>& plugins) {
 
-    return runImpl(os_args, plugins);
+    return runImpl(os_args, plugins, {});
+}
+
+int RunWithPluginGroups(const std::vector<std::string>& os_args,
+                        const std::vector<std::vector<api::Plugin>>& plugin_groups) {
+
+    return runImpl(os_args, {}, plugin_groups);
 }
 
 } // namespace guchho::cli

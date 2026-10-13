@@ -504,6 +504,15 @@ inline CliResult RunCliWithPlugins(const std::vector<std::string>& args,
     return detail::Captured([&] { return guchho::cli::RunWithPlugins(args, plugins); });
 }
 
+// The grouped entry point: plugins attached per config-file element, so each
+// resolved build runs only its own element's group. Same capture, same stdin
+// handling, and the same reason it lives here rather than in the common header.
+inline CliResult RunCliWithPluginGroups(
+    const std::vector<std::string>& args,
+    const std::vector<std::vector<api::Plugin>>& plugin_groups) {
+    return detail::Captured([&] { return guchho::cli::RunWithPluginGroups(args, plugin_groups); });
+}
+
 // True when "text" contains "needle". Every output assertion in the command
 // line tests goes through this, because what a run prints is a mixture of the
 // part that means something and the parts that are the machine talking.

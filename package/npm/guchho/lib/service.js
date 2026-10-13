@@ -35,7 +35,7 @@ const {
 // and it is the one thing that decides whether a host and a binary can talk at
 // all — so it is the first thing said, before either side decodes anything from
 // the other.
-const PROTOCOL_VERSION = "3";
+const PROTOCOL_VERSION = "4";
 
 /** The service process died with a pending request outstanding. */
 class ServiceError extends Error {

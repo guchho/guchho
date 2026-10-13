@@ -54,6 +54,15 @@ function inPluginOrder(plugins) {
     .map((entry) => entry.plugin);
 }
 
+// Whether a plugin list is grouped by configuration element — one inner array
+// per build — rather than one flat list for a single build. A flat list starts
+// with a plugin object; a grouped one starts with an array.
+function isGrouped(plugins) {
+  return (
+    Array.isArray(plugins) && plugins.length > 0 && Array.isArray(plugins[0])
+  );
+}
+
 // One byte buffer, however the value arrived. An output file's contents cross
 // the wire as bytes, a hook may hand back a string, and both are the same thing
 // by the time they are written.
@@ -182,18 +191,28 @@ function pairList(value) {
 /** Runs the plugins a caller attached to a build. */
 class PluginHost {
   /**
-   * @param {Array<object>} plugins The caller's plugin objects.
+   * @param {Array<object>|Array<Array<object>>} plugins The caller's plugin
+   *   objects. A flat list runs one configuration; a list of lists is one group
+   *   per configuration element, positionally aligned with the engine's builds.
    */
   constructor(plugins) {
-    for (const plugin of plugins) {
-      if (plugin === null || typeof plugin !== "object") {
-        throw new TypeError("each plugin must be an object");
-      }
-      if (typeof plugin.name !== "string" || plugin.name === "") {
-        throw new TypeError("each plugin must have a non-empty string name");
+    const list = Array.isArray(plugins) ? plugins : [plugins];
+    this.grouped = isGrouped(list);
+    const groups = this.grouped ? list : [list];
+    for (const group of groups) {
+      for (const plugin of group) {
+        if (plugin === null || typeof plugin !== "object") {
+          throw new TypeError("each plugin must be an object");
+        }
+        if (typeof plugin.name !== "string" || plugin.name === "") {
+          throw new TypeError("each plugin must have a non-empty string name");
+        }
       }
     }
-    this.plugins = inPluginOrder(plugins);
+    this.groups = groups.map((group) => inPluginOrder(group));
+    // A flat host is one anonymous configuration, for callers that think in a
+    // single list and for the requests that still carry one.
+    this.plugins = this.grouped ? [] : this.groups[0];
   }
 
   /**
@@ -201,12 +220,39 @@ class PluginHost {
    * should call. A hook that is not a function is not listed, and the service
    * does not register it — which is what keeps a plugin without a resolveId from
    * costing a round trip per import.
+   *
+   * A grouped host returns one array per configuration element, so that each
+   * build receives only the plugins its element named; the engine keeps them
+   * apart by the build's index.
    */
   descriptors() {
-    return this.plugins.map((plugin) => ({
+    const describe = (plugin) => ({
       name: plugin.name,
       hooks: SUPPORTED_HOOKS.filter((hook) => typeof plugin[hook] === "function"),
-    }));
+    });
+    if (this.grouped) return this.groups.map((group) => group.map(describe));
+    return this.plugins.map(describe);
+  }
+
+  // The plugin a callback is meant for. A grouped host is told which build is
+  // calling, so a name that appears in two elements resolves to the right one;
+  // a name with no group — or an ungrouped host — is looked up across all of
+  // them, and a duplicate is a plugin wrote twice rather than two builds.
+  _find(request) {
+    const name =
+      request !== null && typeof request === "object" ? request.plugin : undefined;
+    if (this.grouped) {
+      const index = request === null ? undefined : request.configIndex;
+      if (Number.isInteger(index) && index >= 0) {
+        const group = this.groups[index];
+        return group === undefined
+          ? undefined
+          : group.find((candidate) => candidate.name === name);
+      }
+    }
+    return this.groups
+      .flat()
+      .find((candidate) => candidate.name === name);
   }
 
   /**
@@ -218,11 +264,11 @@ class PluginHost {
    * is waiting on a response, and a rejection with no response would leave it
    * waiting forever.
    *
-   * @param {{plugin: string, hook: string, args: any}} request
+   * @param {{plugin: string, hook: string, args: any, configIndex?: number}} request
    * @returns {Promise<object>}
    */
   async handle(request) {
-    const plugin = this.plugins.find((candidate) => candidate.name === request.plugin);
+    const plugin = this._find(request);
     const hook = request !== null && typeof request === "object" ? request.hook : undefined;
     if (plugin === undefined || typeof plugin[hook] !== "function") return {};
 
@@ -367,6 +413,9 @@ function makePluginHost(plugins) {
   if (plugins === null || plugins === undefined) return null;
   const list = Array.isArray(plugins) ? plugins : [plugins];
   if (list.length === 0) return null;
+  // A grouped list whose every element is empty has nothing to host, the same
+  // as a flat list would.
+  if (isGrouped(list) && list.every((group) => group.length === 0)) return null;
   return new PluginHost(list);
 }
 
@@ -376,13 +425,15 @@ function makePluginHost(plugins) {
  * The host is installed on the service for exactly the duration of the call and
  * put back afterwards, so a build that named plugins cannot leave them attached
  * to a later build that did not. The request carries the descriptors the service
- * turns into its own plugin registration.
+ * turns into its own plugin registration — grouped, when the host keeps one
+ * group per configuration element.
  */
 async function callWithPlugins(service, host, request, raw = false) {
   const invoke = () => (raw ? service.request(request) : service.call(request));
   if (host === null) return invoke();
 
-  request.plugins = host.descriptors();
+  if (host.grouped) request.pluginGroups = host.descriptors();
+  else request.plugins = host.descriptors();
   const previous = service.pluginHost;
   service.pluginHost = host;
   try {

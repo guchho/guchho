@@ -546,9 +546,22 @@ EffectiveBuildConfigs ResolveEffectiveBuildConfigs(const BuildOptions& explicit_
     }
 
     result.builds.reserve(config.builds.size());
-    for (const resolver::GuchhoBuildConfig& item : config.builds) {
+    // When the host sent per-element plugin groups, each resolved build gets
+    // only its own element's group; otherwise the flat "plugins" list was
+    // already copied in by the "explicit_options" copy above and applies to
+    // every build. Either way the resolved build drops the grouping field: it
+    // is a transport for the assignment being made here, not a build option.
+    const bool plugins_grouped = !explicit_options.config_plugins.empty();
+    for (size_t i = 0; i < config.builds.size(); ++i) {
+        const resolver::GuchhoBuildConfig& item = config.builds[i];
         BuildOptions out = explicit_options;
         ResolveOneBuild(out, item.opts, item.entry_points, item.entry_from_config, *fs);
+        if (plugins_grouped) {
+            out.plugins = i < explicit_options.config_plugins.size()
+                              ? explicit_options.config_plugins[i]
+                              : std::vector<Plugin>{};
+        }
+        out.config_plugins.clear();
         result.builds.push_back(std::move(out));
     }
 

@@ -360,7 +360,7 @@ namespace guchho::helpers {
             // glibc, musl, bionic and the BSDs all expose strtod_l through
             // <stdlib.h>/<locale.h>; libstdc++ and libc++ define _GNU_SOURCE
             // for us on those platforms.
-            static locale_t locale = newlocale(LC_ALL_MASK, "C", (locale_t)0);
+            static locale_t locale = newlocale(LC_ALL_MASK, "C", static_cast<locale_t>(0));
             return locale ? strtod_l(text, end, locale) : std::strtod(text, end);
 #endif
         }

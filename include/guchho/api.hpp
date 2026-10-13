@@ -877,6 +877,15 @@ struct BuildOptions {
     bool         allow_overwrite{};
     std::vector<Plugin> plugins;
 
+    // Plugins grouped by the config-file element that named them, one group per
+    // resolved build and positionally aligned with the config root's elements.
+    // Empty means "plugins" applies to every build, which is what a host that
+    // thinks in one flat list gets. Non-empty means the i-th build runs only the
+    // i-th group: an element's plugins stay with its own build, so two elements
+    // may name the same plugin name and each build reaches its own instance.
+    // Consumed by ResolveEffectiveBuildConfigs and cleared on each resolved build.
+    std::vector<std::vector<Plugin>> config_plugins;
+
     // Whether the host that sent this request runs the config file's "plugins"
     // itself, because it has a JavaScript process in which the plugin functions
     // are live. The service host does; the command line does not. When true, the

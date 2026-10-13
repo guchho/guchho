@@ -195,7 +195,7 @@ TEST(CliService, TheGreetingIsALengthAndTheVersion) {
     const std::vector<Packet> frames = reader.Feed(frame.data(), frame.size());
     EXPECT_EQ(frames.size(), static_cast<size_t>(0)) << "the greeting is not a packet";
 
-    EXPECT_EQ(guchho::service::kVersion, std::string("3"));
+    EXPECT_EQ(guchho::service::kVersion, std::string("4"));
 }
 
 // ---------------------------------------------------------------------------

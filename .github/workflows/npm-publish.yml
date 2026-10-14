@@ -737,6 +737,23 @@ jobs:
             done
           fi
 
+          # upload-artifact and download-artifact do not preserve file
+          # permission bits: every file comes back 644, so the chmod +x the
+          # build job ran before uploading is gone by the time npm pack reads
+          # the binary. npm records the mode the file has, so without this the
+          # published package ships a non-executable binary and every Unix
+          # install fails with "Permission denied". Windows is exempt: .exe
+          # has no execute bit to lose.
+          for PLATFORM in ${PUBLISH_PLATFORMS}; do
+            case "$PLATFORM" in
+              win32-*) continue ;;
+            esac
+            BIN="package/npm/@guchho/${PLATFORM}/bin/guchho"
+            if [[ -f "$BIN" ]]; then
+              chmod +x "$BIN"
+            fi
+          done
+
       # Versions are compared, never rewritten. The expected version comes
       # from the main package manifest; for a platform run only the selected
       # package is checked, for `all` every package involved is checked along
@@ -860,6 +877,16 @@ jobs:
               exit 1
             fi
 
+            # The binary must be executable in the tree npm packs, or the
+            # published package ships a file every Unix install fails to run
+            # with "Permission denied" (exit 126). The chmod in the sync step
+            # keeps this true after an artifact download strips the bits;
+            # this gate fails the workflow before publish if it ever isn't.
+            if [[ "$PLATFORM" != win32-* ]] && [[ ! -x "${BINARY}" ]]; then
+              echo "::error::binary ${BINARY} is not executable"
+              exit 1
+            fi
+
             echo "npm pack --dry-run for @guchho/${PLATFORM}:"
             npm pack "${PKG}" --dry-run 2>&1
             echo ""
@@ -929,6 +956,23 @@ jobs:
               echo "Synced: ${PLATFORM}"
             done
           fi
+
+          # upload-artifact and download-artifact do not preserve file
+          # permission bits: every file comes back 644, so the chmod +x the
+          # build job ran before uploading is gone by the time npm pack reads
+          # the binary. npm records the mode the file has, so without this the
+          # published package ships a non-executable binary and every Unix
+          # install fails with "Permission denied". Windows is exempt: .exe
+          # has no execute bit to lose.
+          for PLATFORM in ${PUBLISH_PLATFORMS}; do
+            case "$PLATFORM" in
+              win32-*) continue ;;
+            esac
+            BIN="package/npm/@guchho/${PLATFORM}/bin/guchho"
+            if [[ -f "$BIN" ]]; then
+              chmod +x "$BIN"
+            fi
+          done
 
       # Dry run: show exactly what a publish would upload, and never call
       # npm publish. The publish step below is the only place in this

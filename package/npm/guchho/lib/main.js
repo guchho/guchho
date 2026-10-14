@@ -16,6 +16,25 @@ function getBinaryName() {
   return process.platform === "win32" ? "guchho.exe" : "guchho";
 }
 
+// The file about to be run must be executable. It normally is, but a package
+// packed from a tree whose files lost their permission bits installs a binary
+// with no execute bit, and spawning it fails with EACCES before guchho can
+// say anything. Re-applying the mode costs nothing when it is already right
+// and repairs the install when it is not. A chmod that itself fails is
+// ignored: the spawn below reports the real error either way.
+function ensureExecutable(file) {
+  if (process.platform !== "win32") {
+    try {
+      if ((fs.statSync(file).mode & 0o111) === 0) {
+        fs.chmodSync(file, 0o755);
+      }
+    } catch {
+      // Leave it to the spawn to fail with something worth reading.
+    }
+  }
+  return file;
+}
+
 // Whether a build directory name is for this platform and architecture.
 //
 // The names come from the CMake presets: "release-win32-x64", "debug-linux-arm64",
@@ -52,7 +71,7 @@ function getBinaryPath() {
           `Point it at a Guchho binary, or unset it to use the one that ships with the package.`
       );
     }
-    return override;
+    return ensureExecutable(override);
   }
 
   // 1. Check for platform-specific package (installed via optionalDependencies)
@@ -62,7 +81,7 @@ function getBinaryPath() {
       const pkgDir = path.dirname(require.resolve(`${platformPkg}/package.json`));
       const binary = path.join(pkgDir, "bin", binaryName);
       if (fs.existsSync(binary)) {
-        return binary;
+        return ensureExecutable(binary);
       }
     } catch {
       // Package not installed, fall through
@@ -79,7 +98,7 @@ function getBinaryPath() {
   // anything in build/, because that is the one a published install put here.
   const installed = path.join(__dirname, "..", "bin", binaryName);
   if (fs.existsSync(installed)) {
-    return installed;
+    return ensureExecutable(installed);
   }
 
   // Fall back to something in the build tree, for running against a checkout.
@@ -105,7 +124,7 @@ function getBinaryPath() {
     const present = candidates.filter((candidate) => fs.existsSync(candidate));
     if (present.length > 0) {
       present.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
-      return present[0];
+      return ensureExecutable(present[0]);
     }
   }
 

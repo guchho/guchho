@@ -220,6 +220,38 @@ describe("each platform package", () => {
         }
     });
 
+    it("stages a Unix binary with an execute bit", () => {
+        // npm records the mode the file has on disk, so a staged binary
+        // without an execute bit publishes as a file no Unix install can run
+        // ("Permission denied", exit 126). The publish workflow re-applies
+        // the bit after an artifact download strips it and fails before
+        // publishing if it is missing; this catches the other half — a local
+        // stage that never had it, before anything is uploaded.
+        if (process.platform === "win32") {
+            // A Windows filesystem does not carry Unix execute bits, so the
+            // mode of a file staged here says nothing about the mode the
+            // Linux/macOS publish runner will pack.
+            return;
+        }
+
+        for (const key of platformDirs()) {
+            if (key.startsWith("win32-")) {
+                continue;
+            }
+
+            const binary = path.join(PLATFORMS_DIR, key, "bin", "guchho");
+            if (!fs.existsSync(binary)) {
+                continue;
+            }
+
+            const mode = fs.statSync(binary).mode & 0o777;
+            assert.ok(
+                (mode & 0o111) !== 0,
+                `@guchho/${key} stages bin/guchho as ${mode.toString(8)}, which would publish without an execute bit`
+            );
+        }
+    });
+
     it("publishes a Windows binary that starts on its own", () => {
         // A MinGW build is not one file: the C++ runtime is left in shared
         // libraries beside the executable, and Windows looks for them in the

@@ -1,0 +1,46 @@
+name: Test Guchho Linux x64
+
+on:
+  workflow_dispatch:
+
+  push:
+    paths:
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/test-linux-x64.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check Linux platform
+        run: |
+          node -p "'Platform: ' + process.platform"
+          node -p "'Architecture: ' + process.arch"
+          npm ls @guchho/linux-x64
+
+      - name: Check Guchho CLI
+        run: |
+          npx guchho --version
+          npx guchho --help
+
+      - name: Test actual build
+        run: |
+          mkdir -p /tmp/guchho-test
+          printf '<!doctype html><html><head></head><body><h1>Guchho Linux Test</h1></body></html>\n' > /tmp/guchho-test/index.html
+          npx guchho build /tmp/guchho-test/index.html --outdir /tmp/guchho-test/dist
+          test -f /tmp/guchho-test/dist/index.html
+          echo "Linux x64 build passed"

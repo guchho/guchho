@@ -43,8 +43,16 @@ function install() {
     fs.mkdirSync(path.dirname(destBinary), { recursive: true });
     fs.copyFileSync(srcBinary, destBinary);
 
-    // Make executable on Unix
+    // Make executable on Unix. The platform package's own copy is repaired
+    // too, not just this one: it is the file getBinaryPath() prefers, and a
+    // publish pipeline that packed it without an execute bit would otherwise
+    // leave it unrunnable for every Unix install.
     if (process.platform !== "win32") {
+      try {
+        fs.chmodSync(srcBinary, 0o755);
+      } catch {
+        // An unwritable install tree still gets the copy below fixed.
+      }
       fs.chmodSync(destBinary, 0o755);
     }
 

@@ -4,43 +4,70 @@ on:
   workflow_dispatch:
 
   push:
+    branches:
+      - main
     paths:
-      - "package.json"
-      - "package-lock.json"
       - ".github/workflows/test-linux-x64.yml"
+
+permissions:
+  contents: read
 
 jobs:
   test:
+    name: Test Linux x64 CLI
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Check Linux platform
+      - name: Verify Linux environment
         run: |
+          node --version
+          npm --version
           node -p "'Platform: ' + process.platform"
           node -p "'Architecture: ' + process.arch"
-          npm ls @guchho/linux-x64
 
-      - name: Check Guchho CLI
+      - name: Install Guchho
         run: |
-          npx guchho --version
-          npx guchho --help
+          mkdir -p "$RUNNER_TEMP/guchho-test"
+          cd "$RUNNER_TEMP/guchho-test"
+          npm init -y
+          npm install --no-audit --no-fund guchho@1.0.6 @guchho/linux-x64@1.0.6
 
-      - name: Test actual build
+      - name: Inspect installed packages
         run: |
-          mkdir -p /tmp/guchho-test
-          printf '<!doctype html><html><head></head><body><h1>Guchho Linux Test</h1></body></html>\n' > /tmp/guchho-test/index.html
-          npx guchho build /tmp/guchho-test/index.html --outdir /tmp/guchho-test/dist
-          test -f /tmp/guchho-test/dist/index.html
-          echo "Linux x64 build passed"
+          cd "$RUNNER_TEMP/guchho-test"
+          npm ls guchho @guchho/linux-x64
+          file node_modules/@guchho/linux-x64/bin/guchho
+          ldd node_modules/@guchho/linux-x64/bin/guchho || true
+
+      - name: Test native binary directly
+        run: |
+          cd "$RUNNER_TEMP/guchho-test"
+          node_modules/@guchho/linux-x64/bin/guchho --version
+          node_modules/@guchho/linux-x64/bin/guchho --help
+
+      - name: Test Guchho CLI launcher
+        run: |
+          cd "$RUNNER_TEMP/guchho-test"
+          npx --no-install guchho --version
+          npx --no-install guchho --help
+
+      - name: Test actual HTML build
+        run: |
+          cd "$RUNNER_TEMP/guchho-test"
+          mkdir -p src
+          printf '<!doctype html><html><head></head><body><h1>Guchho Linux Test</h1></body></html>\n' > src/index.html
+
+          npx --no-install guchho build src/index.html --outdir dist
+
+          if [ ! -f dist/index.html ]; then
+            echo "::error::Guchho did not generate dist/index.html"
+            find . -maxdepth 4 -type f -print
+            exit 1
+          fi
+
+          echo "Linux x64 CLI and HTML build passed"

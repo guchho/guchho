@@ -7,7 +7,7 @@ set -euo pipefail
 # Build guchho Chocolatey package (.nupkg).
 #
 # Steps:
-#   1. Build (or locate) the guchho.exe native binary
+#   1. Download guchho.exe from the official GitHub release archive
 #   2. Copy it into package/chocolatey/tools/
 #   3. Update version in guchho.nuspec and VERIFICATION.txt
 #   4. Run `choco pack`
@@ -22,6 +22,9 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CHOCO_DIR="${ROOT_DIR}/package/chocolatey"
 TOOLS_DIR="${CHOCO_DIR}/tools"
 BINARY_NAME="guchho.exe"
+
+# Temporary download directory; removed by the EXIT trap.
+DOWNLOAD_DIR=""
 
 # ========================================
 # Helpers
@@ -52,6 +55,23 @@ error() {
     exit 1
 }
 
+# The single EXIT trap: bash replaces rather than chains traps, so both
+# undo-actions live here. restore_verification is defined further down (it
+# needs VERIFY_TMPL, which starts empty and makes this a no-op until the
+# template has been substituted), and the download directory is removed
+# whenever it was created.
+cleanup() {
+    if declare -F restore_verification >/dev/null 2>&1; then
+        restore_verification
+    fi
+
+    if [[ -n "${DOWNLOAD_DIR}" && -d "${DOWNLOAD_DIR}" ]]; then
+        rm -rf "${DOWNLOAD_DIR}"
+    fi
+}
+
+trap cleanup EXIT
+
 # ========================================
 # Check required tools
 # ========================================
@@ -64,6 +84,14 @@ if ! command -v node >/dev/null 2>&1; then
     error "Node.js was not found. Install it first: https://nodejs.org"
 fi
 
+if ! command -v curl >/dev/null 2>&1; then
+    error "curl was not found. It downloads the release archive: https://curl.se"
+fi
+
+if ! command -v unzip >/dev/null 2>&1; then
+    error "unzip was not found. It extracts guchho.exe from the release archive."
+fi
+
 # ========================================
 # Read version
 # ========================================
@@ -73,29 +101,46 @@ echo "Building Chocolatey package: guchho@${VERSION}"
 echo
 
 # ========================================
-# Build / locate the native binary
+# Download the native binary from the
+# official GitHub release
 # ========================================
 
 echo "========================================"
-echo "[1/4] Preparing guchho.exe"
+echo "[1/4] Downloading guchho.exe"
 echo "========================================"
 echo
 
-PRESET="release-win32-x64-ninja"
-BUILD_DIR="${ROOT_DIR}/build/${PRESET}"
+RELEASE_TAG="v${VERSION}"
+ARCHIVE_NAME="guchho-${VERSION}-win32-x64.zip"
+RELEASE_URL="https://github.com/guchho/guchho/releases/download/${RELEASE_TAG}/${ARCHIVE_NAME}"
 
-SEARCH_PATHS=(
-    "${BUILD_DIR}/bin/${BINARY_NAME}"
-    "${BUILD_DIR}/bin/Release/${BINARY_NAME}"
-    "${BUILD_DIR}/${BINARY_NAME}"
-    "${BUILD_DIR}/Release/${BINARY_NAME}"
-    "${ROOT_DIR}/build/release-win32-x64/bin/Release/${BINARY_NAME}"
-    "${ROOT_DIR}/build/release-win32-x64/bin/${BINARY_NAME}"
-)
+DOWNLOAD_DIR="$(mktemp -d)"
+EXTRACT_DIR="${DOWNLOAD_DIR}/extracted"
+mkdir -p "${EXTRACT_DIR}"
+
+log "Downloading:"
+echo "  ${RELEASE_URL}"
+echo
+
+if ! curl -fsSL --retry 3 -o "${DOWNLOAD_DIR}/${ARCHIVE_NAME}" "${RELEASE_URL}"; then
+    error "Could not download ${RELEASE_URL}
+        The ${RELEASE_TAG} release must exist and carry the ${ARCHIVE_NAME}
+        asset before the Chocolatey package can be built. Publish it first:
+        the npm-publish.yml win32-x64 run uploads guchho-win32-x64.zip (see
+        CONTRIBUTING.md, 'Downloadable Windows x64 Release Archive')."
+fi
+
+# CPack installs the binary under bin/, inside a versioned top-level folder
+# (guchho-<version>-win32-x64/bin/guchho.exe), alongside headers and docs the
+# package does not embed. The wildcard tolerates the folder name without
+# hardcoding the version twice.
+if ! unzip -o -q "${DOWNLOAD_DIR}/${ARCHIVE_NAME}" '*/bin/guchho.exe' -d "${EXTRACT_DIR}"; then
+    error "${ARCHIVE_NAME} does not contain */bin/guchho.exe -- the release archive layout changed; update this script."
+fi
 
 BINARY_PATH=""
 
-for candidate in "${SEARCH_PATHS[@]}"; do
+for candidate in "${EXTRACT_DIR}"/*/bin/"${BINARY_NAME}" "${EXTRACT_DIR}/bin/${BINARY_NAME}"; do
     if [[ -f "${candidate}" ]]; then
         BINARY_PATH="${candidate}"
         break
@@ -103,23 +148,14 @@ for candidate in "${SEARCH_PATHS[@]}"; do
 done
 
 if [[ -z "${BINARY_PATH}" ]]; then
-    log "No existing binary found. Building '${PRESET}' preset..."
-    cmake --preset "${PRESET}" --fresh
-    cmake --build --preset "${PRESET}" --parallel
-
-    for candidate in "${SEARCH_PATHS[@]}"; do
-        if [[ -f "${candidate}" ]]; then
-            BINARY_PATH="${candidate}"
-            break
-        fi
-    done
+    error "guchho.exe was not found inside ${ARCHIVE_NAME} after extraction."
 fi
 
-if [[ -z "${BINARY_PATH}" ]]; then
-    error "Could not find the built guchho.exe. Build it first with: bash scripts/build.sh"
+if [[ ! -s "${BINARY_PATH}" ]]; then
+    error "Extracted binary is empty: ${BINARY_PATH}"
 fi
 
-log "Using binary:"
+log "Extracted:"
 echo "  ${BINARY_PATH}"
 echo
 
@@ -132,6 +168,12 @@ cp "${BINARY_PATH}" "${TOOLS_DIR}/${BINARY_NAME}"
 
 if [[ ! -s "${TOOLS_DIR}/${BINARY_NAME}" ]]; then
     error "Copied binary is empty: ${TOOLS_DIR}/${BINARY_NAME}"
+fi
+
+# VERIFICATION.txt step 2 asks users to compare this hash against the release
+# binary; printing it here is what makes that comparison a copy-paste.
+if command -v sha256sum >/dev/null 2>&1; then
+    echo "  SHA256: $(sha256sum "${TOOLS_DIR}/${BINARY_NAME}" | cut -d' ' -f1)"
 fi
 
 log "Embedded: ${TOOLS_DIR}/${BINARY_NAME}"
@@ -180,7 +222,8 @@ echo "  Updated nuspec version -> ${VERSION}"
 #     no-op, and the package would ship a URL pointing at the previous
 #     release, so the placeholder is required before anything is written;
 #   - a choco pack that errors exits the script before any restore would run,
-#     so the restore is also a trap and not just a line after the pack.
+#     so the restore runs from the shared EXIT trap (cleanup, near the top of
+#     this script) and not just as a line after the pack.
 
 VERIFY="${TOOLS_DIR}/VERIFICATION.txt"
 VERIFY_WIN="$(to_winpath "${VERIFY}")"
@@ -200,7 +243,6 @@ if [[ -f "${VERIFY}" ]]; then
 
     VERIFY_TMPL="$(mktemp)"
     cp "${VERIFY}" "${VERIFY_TMPL}"
-    trap restore_verification EXIT
 
     node -e "
         const fs = require('fs');

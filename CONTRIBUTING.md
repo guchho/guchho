@@ -429,21 +429,22 @@ bash scripts/bump-version.sh 1.2.3
 
 ### 6.6 `scripts/build-chocolatey.sh` - Build the Chocolatey package (.nupkg)
 
-Builds the Windows native binary (if needed), embeds it into `package/chocolatey/guchho/tools/guchho.exe`, syncs the version in `guchho.nuspec` + `VERIFICATION.txt`, and runs `choco pack`.
+Downloads the official `win32-x64` release archive from GitHub, extracts its `guchho.exe` and embeds it into `package/chocolatey/tools/guchho.exe`, syncs the version in `guchho.nuspec` + `VERIFICATION.txt`, and runs `choco pack`.
 
-**Requirements:** Chocolatey (`choco`), Node.js, CMake (only if the binary is not already built).
+**Requirements:** Chocolatey (`choco`), Node.js, `curl`, `unzip`.
 
 ```bash
 bash scripts/build-chocolatey.sh
 ```
 
-- Reuses an existing `guchho.exe` from `build/release-win32-x64-ninja` / `build/release-win32-x64` if present; otherwise builds the `release-win32-x64-ninja` preset automatically.
-- Output: `package/chocolatey/guchho/guchho-<version>.nupkg` (gitignored).
+- Fetches `https://github.com/guchho/guchho/releases/download/v<version>/guchho-<version>-win32-x64.zip`, so the `v<version>` release must exist first (see [Downloadable Windows x64 Release Archive](#downloadable-windows-x64-release-archive)); the script fails with the URL if it does not.
+- The embedded binary is byte-identical to the release archive's `bin/guchho.exe`; the script prints its SHA256 for the `VERIFICATION.txt` comparison.
+- Output: `package/chocolatey/guchho.<version>.nupkg` (gitignored).
 
 Test the package locally:
 
 ```bash
-choco install guchho --source 'package/chocolatey/guchho'
+choco install guchho --source 'package/chocolatey'
 ```
 
 ### 6.7 `scripts/publish-chocolatey.sh` - Publish to the Chocolatey community feed
@@ -539,7 +540,7 @@ CPack generators:
 
 Package file naming: `guchho-<version>-<platform>` (e.g. `guchho-1.0.6-linux-x64`).
 
-Chocolatey distribution is handled separately by `scripts/build-chocolatey.sh` and `scripts/publish-chocolatey.sh` (see [Sections 6.6/6.7](#66-scriptsbuild-chocolateysh---build-the-chocolatey-package-nupkg)); it embeds the binary from the `win32-x64` release rather than downloading at install time.
+Chocolatey distribution is handled separately by `scripts/build-chocolatey.sh` and `scripts/publish-chocolatey.sh` (see [Sections 6.6/6.7](#66-scriptsbuild-chocolateysh---build-the-chocolatey-package-nupkg)); it downloads `guchho-<version>-win32-x64.zip` from the GitHub release and embeds its `bin/guchho.exe` at package-build time rather than downloading at install time.
 
 
 ## 9. Quick Reference - "Build Everything"
@@ -669,7 +670,10 @@ workflow artifact. It contains a single file named
 `package/npm/guchho/package.json`), built from the same `guchho.exe` the
 platform package uses. This is the archive the Chocolatey verification links
 to at
-`https://github.com/guchho/guchho/releases/download/v<version>/guchho-<version>-win32-x64.zip`.
+`https://github.com/guchho/guchho/releases/download/v<version>/guchho-<version>-win32-x64.zip`,
+and the one `scripts/build-chocolatey.sh` downloads from that URL once the
+archive is attached to the `v<version>` GitHub release — so the release must
+be published before the Chocolatey package is built.
 
 Download it from the workflow run that produced it:
 

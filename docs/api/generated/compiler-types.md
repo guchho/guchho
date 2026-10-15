@@ -3,7 +3,7 @@ title: Compiler types
 description: The types of the lexer, parser and printer stages.
 ---
 
-<!-- GENERATED from package/npm/guchho/index.d.ts by scripts/gen-docs-api.mjs. Do not edit by hand. -->
+<!-- GENERATED from package/npm/guchho/index.d.ts. Do not edit by hand. -->
 
 # Compiler types
 

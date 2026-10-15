@@ -46,7 +46,6 @@
 #include <fstream>
 #include <future>
 #include <iostream>
-#include <iterator>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -495,6 +494,14 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
             // function waits forever. The promise that is never satisfied is the
             // wait, and the process stays alive because of it.
             if (extras.watch) {
+#if defined(GUCHHO_WASM)
+                logger::PrintErrorWithNoteToStderr(
+                    args_copy,
+                    "--watch is not supported by the WASM build",
+                    "Install the native binary (npm i -D @guchho/linux-x64, "
+                    "@guchho/darwin-arm64 or @guchho/win32-x64).");
+                return static_cast<int>(ExitCode::kCLIUsageError);
+#else
                 std::vector<api::Message> ctx_errors;
                 auto ctx = api::Context(config_opts, ctx_errors);
                 if (!ctx) {
@@ -506,6 +513,7 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
                 ctx->Watch(api::WatchOptions{.delay = extras.watch_delay});
                 std::promise<void> p;
                 p.get_future().get();
+#endif
             }
 
             // The build itself, and the clock around it. A steady clock is the

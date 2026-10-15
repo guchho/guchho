@@ -224,17 +224,16 @@ describe("serve()", () => {
         }
 
         const root = makeProject();
-        let handle = null;
-        let url = "";
+        const handle = await guchho.serve(serveConfig(root));
+        const url = handle.url;
+        assert.equal((await get(`${url}/main.js`)).status, 200);
 
-        {
-            await using scoped = await guchho.serve(serveConfig(root));
-            handle = scoped;
-            url = scoped.url;
-            assert.equal((await get(`${url}/main.js`)).status, 200);
-        }
+        // The dispose hook is awaited directly rather than through an
+        // `await using` scope: that syntax only parses on newer Node, and the
+        // suite runs on every engine the package supports.
+        await handle[Symbol.asyncDispose]();
 
-        assert.equal(handle.closed, true, "leaving the scope should have closed the server");
+        assert.equal(handle.closed, true, "asyncDispose should have closed the server");
         await assertNotListening(`${url}/main.js`);
     });
 });

@@ -315,14 +315,14 @@ describe("watch()", () => {
         }
 
         const root = makeProject();
-        let handle = null;
+        const handle = await guchho.watch(watchConfig(root));
+        assert.equal(handle.closed, false);
 
-        {
-            await using scoped = await guchho.watch(watchConfig(root));
-            handle = scoped;
-            assert.equal(scoped.closed, false);
-        }
+        // Awaited directly rather than through an `await using` scope: that
+        // syntax only parses on newer Node, and the suite runs on every
+        // engine the package supports.
+        await handle[Symbol.asyncDispose]();
 
-        assert.equal(handle.closed, true, "leaving the scope should have closed the watcher");
+        assert.equal(handle.closed, true, "asyncDispose should have closed the watcher");
     });
 });

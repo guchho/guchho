@@ -1593,14 +1593,14 @@ std::string hint;
 
         timer->Begin("Step 5");
         {
-            std::vector<std::thread> step5_threads;
+            std::vector<helpers::Thread> step5_threads;
             std::vector<std::exception_ptr> step5_exceptions(graph.reachable_files.size());
             step5_threads.reserve(graph.reachable_files.size());
             size_t step5_index = 0;
             for (auto source_index : graph.reachable_files) {
                 size_t thread_index = step5_index++;
                 if (std::get_if<std::shared_ptr<graph::JSRepr>>(&graph.files[source_index].input_file.repr) != nullptr) {
-                    step5_threads.emplace_back([this, source_index, thread_index, &step5_exceptions]() {
+                    step5_threads.emplace_back(helpers::kWorkerStackSize, [this, source_index, thread_index, &step5_exceptions]() {
                         try {
                         auto& repr = *std::get<std::shared_ptr<graph::JSRepr>>(graph.files[source_index].input_file.repr);
 

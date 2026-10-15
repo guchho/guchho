@@ -1,0 +1,16 @@
+# clangd configuration for the Guchho repository.
+#
+# clangd does not read .vscode/settings.json, so the compilation database
+# path has to live here too. Without it, clangd searches for a
+# compile_commands.json in the file's directory and its ancestors, finds
+# none (the databases are under build/), and parses every file with bare
+# fallback flags - which is what produces "file not found" squiggles for
+# project headers.
+#
+# The native preset database is the base. Files that only the WebAssembly
+# preset compiles (src/cli/wasm_abi.cpp) are not in it; clangd infers a
+# command for those from a sibling translation unit, which is close enough
+# given both presets share the same include/define surface. The path is
+# relative to this file.
+CompileFlags:
+  CompilationDatabase: build/release-win32-x64-ninja

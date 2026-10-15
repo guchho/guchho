@@ -392,6 +392,18 @@ set(GUCHHO_API_SOURCES
     api/api_watcher.cpp
 )
 
+# The dev server binds sockets and the watcher polls the file system —
+# neither exists under Emscripten, so both translation units are dropped
+# from the WebAssembly flavor. BuildContext::Serve/Watch still exist as
+# methods; they throw the "not supported by the WASM build" error instead
+# of calling into these files.
+if(GUCHHO_WASM)
+    list(REMOVE_ITEM GUCHHO_API_SOURCES
+        api/api_serve.cpp
+        api/api_watcher.cpp
+    )
+endif()
+
 add_library(guchho_api STATIC)
 
 target_sources(guchho_api
@@ -452,6 +464,21 @@ set(GUCHHO_CLI_SOURCES
     service/json.cpp
     service/protocol.cpp
 )
+
+# serve, watch and dev are the three commands that need the pieces the
+# WebAssembly flavor does not compile (the server, the watcher). They are
+# dropped here; cli_run.cpp answers their command words with an error that
+# names the native binary rather than falling through to a link failure.
+if(GUCHHO_WASM)
+    list(REMOVE_ITEM GUCHHO_CLI_SOURCES
+        cli/cli_serve.cpp
+        cli/cli_watch.cpp
+    )
+    # The C ABI the JavaScript package calls: guchho_build / guchho_last_error /
+    # guchho_version. Only the WebAssembly flavor has it, and it lives in the
+    # CLI library because it drives the engine through cli::Run.
+    list(APPEND GUCHHO_CLI_SOURCES cli/wasm_abi.cpp)
+endif()
 
 add_library(guchho_cli STATIC)
 

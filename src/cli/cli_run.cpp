@@ -201,6 +201,21 @@ Command detectCommand(const std::vector<std::string>& args, bool& has_entry) {
     return Command::kNone;
 }
 
+#if defined(GUCHHO_WASM)
+// The three commands that cannot exist without sockets or a file system
+// watcher answer here rather than in their own files, which the WebAssembly
+// flavor does not compile. The message names the native binary because that
+// is the only way to get the feature: no flag turns it back on.
+static int wasmUnsupported(const char* what, const std::vector<std::string>& os_args) {
+    logger::PrintErrorWithNoteToStderr(
+        os_args,
+        std::string(what) + " is not supported by the WASM build",
+        "Install the native binary (npm i -D @guchho/linux-x64, "
+        "@guchho/darwin-arm64 or @guchho/win32-x64).");
+    return static_cast<int>(ExitCode::kCLIUsageError);
+}
+#endif
+
 // =============================================================================
 // runImpl — the dispatcher
 // =============================================================================
@@ -225,7 +240,7 @@ Command detectCommand(const std::vector<std::string>& args, bool& has_entry) {
 // Output: the banner and the usage text, and 0.
 //
 // Input:  { "--version" } or { "-v" }
-// Output: "guchho v1.0.6", and 0.
+// Output: "guchho v1.0.7", and 0.
 //
 // Input:  { }
 // Output: the banner and the usage text, and 0. A bare invocation in a
@@ -276,6 +291,7 @@ static int runImpl(const std::vector<std::string>& os_args,
 #else
     std::setlocale(LC_ALL, "");
 #endif
+
 
     // -------------------------------------------------------------------------
     // The three questions about the command line as a whole
@@ -450,13 +466,27 @@ static int runImpl(const std::vector<std::string>& os_args,
     case Command::kTransform:
         return runTransform(os_args);
     case Command::kWatch: {
+#if defined(GUCHHO_WASM)
+        return wasmUnsupported("watch", os_args);
+#else
         if (!quiet) printBanner(std::cout);
         return runWatch(os_args, quiet, flat_plugins);
+#endif
     }
-    case Command::kServe:
+    case Command::kServe: {
+#if defined(GUCHHO_WASM)
+        return wasmUnsupported("serve", os_args);
+#else
         return runServe(os_args);
-    case Command::kDev:
+#endif
+    }
+    case Command::kDev: {
+#if defined(GUCHHO_WASM)
+        return wasmUnsupported("dev", os_args);
+#else
         return runDev(os_args, flat_plugins);
+#endif
+    }
     case Command::kInit:
         return runInit(os_args);
     case Command::kClean:

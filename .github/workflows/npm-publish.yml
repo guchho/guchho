@@ -20,6 +20,7 @@ on:
           - darwin-arm64
           - darwin-x64
           - android-x64
+          - wasm
           - guchho
           - all
 
@@ -62,6 +63,7 @@ jobs:
       dry_run: ${{ steps.select.outputs.dry_run }}
       test_run: ${{ steps.select.outputs.test_run }}
       publish_main: ${{ steps.select.outputs.publish_main }}
+      publish_wasm: ${{ steps.select.outputs.publish_wasm }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -97,10 +99,21 @@ jobs:
             linux-x64|linux-arm64|win32-x64|win32-arm64|darwin-arm64|darwin-x64|android-x64)
               PLATFORMS="$TYPE"
               PUBLISH_MAIN="false"
+              PUBLISH_WASM="false"
+              ;;
+            wasm)
+              # The WebAssembly package only: no platform binaries, so the
+              # build matrix resolves to an empty set and the native build
+              # job is skipped. The wasm build job is selected by
+              # PUBLISH_WASM instead.
+              PLATFORMS=""
+              PUBLISH_MAIN="false"
+              PUBLISH_WASM="true"
               ;;
             all)
               PLATFORMS="linux-x64 win32-x64 darwin-arm64"
               PUBLISH_MAIN="true"
+              PUBLISH_WASM="true"
               ;;
             guchho)
               # Main package only: no platform binaries, so the build
@@ -108,6 +121,7 @@ jobs:
               # skipped in the build job's `if`.
               PLATFORMS=""
               PUBLISH_MAIN="true"
+              PUBLISH_WASM="false"
               ;;
             *)
               echo "::error::Unsupported type: '$TYPE'"
@@ -149,6 +163,7 @@ jobs:
           echo "Platform set: ${PLATFORMS:-<none>}"
           echo "Version: ${VERSION}"
           echo "Publish main: ${PUBLISH_MAIN}"
+          echo "Publish wasm: ${PUBLISH_WASM}"
 
           echo "matrix=${SELECTED}" >> "$GITHUB_OUTPUT"
           echo "platforms=${PLATFORMS}" >> "$GITHUB_OUTPUT"
@@ -157,6 +172,7 @@ jobs:
           echo "dry_run=${DRY_RUN}" >> "$GITHUB_OUTPUT"
           echo "test_run=${TEST_RUN}" >> "$GITHUB_OUTPUT"
           echo "publish_main=${PUBLISH_MAIN}" >> "$GITHUB_OUTPUT"
+          echo "publish_wasm=${PUBLISH_WASM}" >> "$GITHUB_OUTPUT"
 
   # ============================================
   # Job 1: Build binaries for selected platforms
@@ -668,6 +684,57 @@ jobs:
           retention-days: 1
 
   # ============================================
+  # Job 1b: Build the WebAssembly engine
+  # ============================================
+  #
+  # Only runs when @guchho/wasm is part of the requested set (type=wasm or
+  # type=all). The engine is platform-independent — one artifact serves every
+  # OS and the browser — so it is a single runner rather than a matrix entry.
+  # scripts/build-wasm.sh configures the wasm32-emscripten preset, builds it,
+  # refuses to continue if the gzip'd binary is over the size budget, and
+  # copies the glue and binary into package/npm/@guchho/wasm/lib.
+  build-wasm:
+    needs: plan
+    if: needs.plan.outputs.publish_wasm == 'true'
+    runs-on: ubuntu-latest
+    name: build (wasm)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # Pin the Emscripten SDK so the artifact is reproducible: a newer SDK
+      # can change the glue, the binary, or both.
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: "6.0.12"
+
+      - name: Setup Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Build WebAssembly engine
+        run: bash scripts/build-wasm.sh
+
+      # The pack and engine smokes: the tarball holds the glue and the binary,
+      # and the engine in it actually builds a project. These skip when no
+      # engine was built, so running them here is what makes them mean
+      # something.
+      - name: Test WebAssembly package
+        run: bash scripts/test-npm.sh --filter wasm-package
+
+      - name: Upload WebAssembly package artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: npm-wasm
+          path: package/npm/@guchho/wasm/
+          retention-days: 1
+
+  # ============================================
   # Job 2: Validate artifacts, versions and packages
   # ============================================
   #
@@ -675,16 +742,18 @@ jobs:
   # bad artifact or a version mismatch fails the workflow while nothing has
   # been published yet. This job never publishes anything.
   validate:
-    needs: [plan, build]
+    needs: [plan, build, build-wasm]
     # For a main-package-only run (type=guchho) the build job is skipped by
     # design; `always()` is required because a job that `needs` a skipped
     # job is itself skipped when its `if` is merely true. The conditions
     # below keep the gate intact: when platforms were requested they must
-    # have built successfully.
+    # have built successfully, and likewise when the wasm package was
+    # requested its build must have succeeded.
     if: >-
       always() &&
       needs.plan.result == 'success' &&
-      (needs.build.result == 'success' || needs.plan.outputs.platforms == '')
+      (needs.build.result == 'success' || needs.plan.outputs.platforms == '') &&
+      (needs.build-wasm.result == 'success' || needs.plan.outputs.publish_wasm != 'true')
     runs-on: ubuntu-latest
     name: validate
     steps:
@@ -702,6 +771,15 @@ jobs:
         with:
           path: artifacts/
           pattern: package-*
+
+      # The wasm artifact is a single directory, not the package-* set, so it
+      # is fetched by name and placed straight into its package directory.
+      - name: Download WebAssembly artifact
+        if: needs.plan.outputs.publish_wasm == 'true'
+        uses: actions/download-artifact@v7
+        with:
+          name: npm-wasm
+          path: package/npm/@guchho/wasm/
 
       - name: Sync artifacts to package directory
         if: needs.plan.outputs.platforms != ''
@@ -763,6 +841,7 @@ jobs:
         env:
           PUBLISH_TYPE: ${{ needs.plan.outputs.type }}
           PUBLISH_PLATFORMS: ${{ needs.plan.outputs.platforms }}
+          PUBLISH_WASM: ${{ needs.plan.outputs.publish_wasm }}
           PUBLISH_VERSION: ${{ needs.plan.outputs.version }}
         run: |
           node <<'EOF'
@@ -770,6 +849,7 @@ jobs:
 
           const type = process.env.PUBLISH_TYPE;
           const platforms = (process.env.PUBLISH_PLATFORMS || "").split(/\s+/).filter(Boolean);
+          const publishWasm = process.env.PUBLISH_WASM === "true";
           const expected = process.env.PUBLISH_VERSION;
           const SEMVER = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/;
 
@@ -826,6 +906,26 @@ jobs:
               const pin = pins[dep];
               if (pin !== expected) {
                 fail(`optionalDependencies pin for ${dep} is '${pin}', expected '${expected}'`);
+              }
+            }
+          }
+
+          // The wasm package is published alongside the native ones but is
+          // deliberately not an optionalDependency of the main package, so
+          // only its own name and version are checked.
+          if (publishWasm) {
+            const manifest = "package/npm/@guchho/wasm/package.json";
+            if (!fs.existsSync(manifest)) {
+              fail(`missing ${manifest}`);
+            } else {
+              const wasm = read(manifest);
+              if (wasm.name !== "@guchho/wasm") {
+                fail(`${manifest} is named '${wasm.name}', expected '@guchho/wasm'`);
+              }
+              if (typeof wasm.version !== "string" || !SEMVER.test(wasm.version)) {
+                fail(`${manifest} version '${wasm.version}' is not valid semver`);
+              } else if (wasm.version !== expected) {
+                fail(`${manifest} is ${wasm.version}, expected ${expected} (main package version)`);
               }
             }
           }
@@ -891,6 +991,48 @@ jobs:
             npm pack "${PKG}" --dry-run 2>&1
             echo ""
           done
+
+      # The last gate before the wasm package can be published: the built
+      # engine is present in the package, no preload .data crept back in,
+      # the binary is inside the size budget, and npm can pack it.
+      - name: Validate WebAssembly package contents
+        if: needs.plan.outputs.publish_wasm == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PKG="package/npm/@guchho/wasm"
+
+          echo "========================================"
+          echo "Validating @guchho/wasm"
+          echo "========================================"
+
+          for f in package.json index.mjs index.cjs bin/guchho.js lib/guchho.js lib/guchho.wasm; do
+            if [[ ! -s "${PKG}/${f}" ]]; then
+              echo "::error::${PKG}/${f} is missing or empty"
+              exit 1
+            fi
+          done
+
+          # A preload .data file would mean the engine shipped with baked-in
+          # sample files and double the download for nothing; production
+          # projects arrive through the NODEFS/MEMFS mount instead.
+          if [[ -e "${PKG}/lib/guchho.data" ]]; then
+            echo "::error::a .data preload file must not be in the package"
+            exit 1
+          fi
+
+          # Same 3 MiB gzip budget the build script enforces, checked once
+          # more on the artifact that actually gets packed.
+          GZIP_BYTES=$(gzip -9 -c "${PKG}/lib/guchho.wasm" | wc -c)
+          echo "lib/guchho.wasm: ${GZIP_BYTES} bytes gzip -9"
+          if [[ "${GZIP_BYTES}" -gt $((3 * 1024 * 1024)) ]]; then
+            echo "::error::lib/guchho.wasm exceeds the 3 MiB gzip size budget"
+            exit 1
+          fi
+
+          echo "npm pack --dry-run for @guchho/wasm:"
+          npm pack "${PKG}" --dry-run 2>&1
 
   # ============================================
   # Job 3: Publish platform packages
@@ -1051,7 +1193,110 @@ jobs:
           done
 
   # ============================================
-  # Job 4: Publish main package (last, type=guchho or type=all)
+  # Job 4: Publish WebAssembly package (type=wasm or type=all)
+  # ============================================
+  #
+  # For `all` it runs after the platform packages, so the wasm engine is
+  # never published on top of a partial native set. For `wasm` (no platforms
+  # selected) publish-platforms is skipped by design and the engine is
+  # published on its own after validation succeeds. `always()` is used
+  # because a job with `needs` is skipped whenever a needed job is skipped,
+  # even when its `if` would be true; the conditions below keep every real
+  # gate intact.
+  publish-wasm:
+    needs: [plan, validate, publish-platforms]
+    if: >-
+      always() &&
+      needs.plan.outputs.publish_wasm == 'true' &&
+      needs.plan.result == 'success' &&
+      needs.validate.result == 'success' &&
+      (needs.plan.outputs.platforms == '' &&
+      needs.publish-platforms.result == 'skipped' ||
+      needs.plan.outputs.platforms != '' &&
+      needs.publish-platforms.result == 'success')
+    runs-on: ubuntu-latest
+    name: publish-wasm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Download WebAssembly artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: npm-wasm
+          path: package/npm/@guchho/wasm/
+
+      - name: Validate WebAssembly package
+        shell: bash
+        env:
+          PUBLISH_VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          PKG="package/npm/@guchho/wasm"
+          NAME=$(node -p "require('./${PKG}/package.json').name")
+          VERSION=$(node -p "require('./${PKG}/package.json').version")
+
+          if [[ "$NAME" != "@guchho/wasm" ]]; then
+            echo "::error::wasm package is named '${NAME}', expected '@guchho/wasm'"
+            exit 1
+          fi
+
+          if [[ "$VERSION" != "$PUBLISH_VERSION" ]]; then
+            echo "::error::wasm package is ${VERSION}, expected ${PUBLISH_VERSION}"
+            exit 1
+          fi
+
+          for f in index.mjs index.cjs bin/guchho.js lib/guchho.js lib/guchho.wasm; do
+            if [[ ! -s "${PKG}/${f}" ]]; then
+              echo "::error::${PKG}/${f} is missing or empty -- not publishing"
+              exit 1
+            fi
+          done
+
+          echo "Validated @guchho/wasm@${VERSION}"
+          npm pack "${PKG}" --dry-run 2>&1
+
+      # Dry run: show exactly what a publish would upload, and never call
+      # npm publish. The publish step below is the only place in this job
+      # that can publish, and it is gated on an explicit dry_run=false.
+      - name: "Dry run: pack WebAssembly package"
+        if: needs.plan.outputs.dry_run != 'false'
+        shell: bash
+        run: |
+          NAME=$(node -p "require('./package/npm/@guchho/wasm/package.json').name")
+          VERSION=$(node -p "require('./package/npm/@guchho/wasm/package.json').version")
+          echo "[DRY RUN] Would publish ${NAME}@${VERSION}"
+          echo "No packages were published."
+
+      - name: Publish WebAssembly package
+        if: needs.plan.outputs.dry_run == 'false'
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          NAME=$(node -p "require('./package/npm/@guchho/wasm/package.json').name")
+          VERSION=$(node -p "require('./package/npm/@guchho/wasm/package.json').version")
+
+          echo "========================================"
+          echo "Publishing: ${NAME}@${VERSION}"
+          echo "========================================"
+
+          if ! npm publish package/npm/@guchho/wasm --access public --provenance 2>&1; then
+            echo "::error::Failed to publish ${NAME}@${VERSION}"
+            exit 1
+          fi
+
+  # ============================================
+  # Job 5: Publish main package (last, type=guchho or type=all)
   # ============================================
   #
   # For `all` it is gated on the platform packages having succeeded: a
@@ -1064,10 +1309,12 @@ jobs:
   # skipped, even when its `if` would be true; the conditions below keep
   # every real gate intact.
   publish-main:
-    needs: [plan, validate, publish-platforms]
+    needs: [plan, validate, publish-platforms, publish-wasm]
     # `always()` opts out of the skip cascade for type=guchho, where
-    # publish-platforms is intentionally skipped; the conditions below then
-    # enforce the real gates (see comment above the job).
+    # publish-platforms and publish-wasm are intentionally skipped; the
+    # conditions below then enforce the real gates (see comment above the
+    # job). For `all` the main package is only published once both the
+    # platform packages and the wasm package have succeeded.
     if: >-
       always() &&
       needs.plan.outputs.publish_main == 'true' &&
@@ -1076,7 +1323,9 @@ jobs:
       (needs.plan.outputs.platforms == '' &&
       needs.publish-platforms.result == 'skipped' ||
       needs.plan.outputs.platforms != '' &&
-      needs.publish-platforms.result == 'success')
+      needs.publish-platforms.result == 'success') &&
+      (needs.plan.outputs.publish_wasm != 'true' ||
+      needs.publish-wasm.result == 'success')
     runs-on: ubuntu-latest
     name: publish-main
     steps:
@@ -1155,7 +1404,7 @@ jobs:
   # Summary
   # ============================================
   summary:
-    needs: [plan, build, validate, publish-platforms, publish-main]
+    needs: [plan, build, build-wasm, validate, publish-platforms, publish-wasm, publish-main]
     runs-on: ubuntu-latest
     if: always()
     name: summary
@@ -1167,10 +1416,13 @@ jobs:
           DRY_RUN: ${{ needs.plan.outputs.dry_run }}
           VERSION: ${{ needs.plan.outputs.version }}
           PLATFORMS: ${{ needs.plan.outputs.platforms }}
+          PUBLISH_WASM: ${{ needs.plan.outputs.publish_wasm }}
           PLAN_RESULT: ${{ needs.plan.result }}
           BUILD_RESULT: ${{ needs.build.result }}
+          BUILD_WASM_RESULT: ${{ needs.build-wasm.result }}
           VALIDATE_RESULT: ${{ needs.validate.result }}
           PUBLISH_PLATFORMS_RESULT: ${{ needs.publish-platforms.result }}
+          PUBLISH_WASM_RESULT: ${{ needs.publish-wasm.result }}
           PUBLISH_MAIN_RESULT: ${{ needs.publish-main.result }}
         run: |
           SUMMARY_FILE="${GITHUB_STEP_SUMMARY:-/dev/stdout}"
@@ -1198,8 +1450,10 @@ jobs:
             # A package gets a tick only when every job that had to succeed
             # for it did: build + validate + its publish job.
             build_ok()  { [[ "$BUILD_RESULT" == "success" ]]; }
+            wasm_build_ok() { [[ "$BUILD_WASM_RESULT" == "success" ]]; }
             val_ok()    { [[ "$VALIDATE_RESULT" == "success" ]]; }
             plat_ok()   { [[ "$PUBLISH_PLATFORMS_RESULT" == "success" ]]; }
+            wasm_ok()   { [[ "$PUBLISH_WASM_RESULT" == "success" ]]; }
             main_ok()   { [[ "$PUBLISH_MAIN_RESULT" == "success" ]]; }
 
             echo "Packages:"
@@ -1213,6 +1467,15 @@ jobs:
                 failed=1
               fi
             done
+
+            if [[ "$PUBLISH_WASM" == "true" ]]; then
+              if wasm_build_ok && val_ok && wasm_ok; then
+                echo "- ✓ @guchho/wasm@${VERSION}"
+              else
+                echo "- ✗ @guchho/wasm@${VERSION}"
+                failed=1
+              fi
+            fi
 
             if [[ "$TYPE" == "all" || "$TYPE" == "guchho" ]]; then
               # `all` publishes the main package only after the platform

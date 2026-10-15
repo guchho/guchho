@@ -3,14 +3,14 @@ title: Generated embedding reference
 description: The C++ surface, produced from api.hpp and cli.hpp.
 ---
 
-<!-- GENERATED from include/guchho/api.hpp and include/guchho/cli.hpp by scripts/gen-docs-embedding.mjs. Do not edit by hand. -->
+<!-- GENERATED from include/guchho/api.hpp and include/guchho/cli.hpp. Do not edit by hand. -->
 
 # Generated embedding reference
 
-This section is produced from `include/guchho/api.hpp` and
-`include/guchho/cli.hpp` by `scripts/gen-docs-embedding.mjs` - the public
-C++ surface, transcribed exactly and automatically kept in step. Edit the
-generator or the headers, not these pages.
+This section transcribes `include/guchho/api.hpp` and
+`include/guchho/cli.hpp` - the public C++ surface, exact as declared
+there. It is a frozen snapshot: keep it in step with the headers when
+either changes.
 
 The [embedding guide](../README.md) is where the reasoning lives; these are
 for looking things up.
@@ -139,9 +139,3 @@ The boundary between Guchho as a program and Guchho as a library: running a comm
 - [`ParseOptionsKind`](cli.md#parseoptionskind)
 - [`AnalyzeMode`](cli.md#analyzemode)
 
-
-## Regenerate
-
-```sh
-node scripts/gen-docs-embedding.mjs
-```

@@ -3,7 +3,7 @@ title: Options
 description: Every option interface of the guchho package.
 ---
 
-<!-- GENERATED from package/npm/guchho/index.d.ts by scripts/gen-docs-api.mjs. Do not edit by hand. -->
+<!-- GENERATED from package/npm/guchho/index.d.ts. Do not edit by hand. -->
 
 # Options
 

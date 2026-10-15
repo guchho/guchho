@@ -3,7 +3,7 @@ title: Option structs
 description: The plain structs that describe a build, a transform, a server and a watcher.
 ---
 
-<!-- GENERATED from include/guchho/api.hpp and include/guchho/cli.hpp by scripts/gen-docs-embedding.mjs. Do not edit by hand. -->
+<!-- GENERATED from include/guchho/api.hpp and include/guchho/cli.hpp. Do not edit by hand. -->
 
 # Option structs
 

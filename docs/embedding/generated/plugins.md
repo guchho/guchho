@@ -3,7 +3,7 @@ title: The C++ plugin API
 description: The structs and callbacks through which a C++ embedder extends a build.
 ---
 
-<!-- GENERATED from include/guchho/api.hpp and include/guchho/cli.hpp by scripts/gen-docs-embedding.mjs. Do not edit by hand. -->
+<!-- GENERATED from include/guchho/api.hpp and include/guchho/cli.hpp. Do not edit by hand. -->
 
 # The C++ plugin API
 

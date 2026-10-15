@@ -3,7 +3,7 @@ title: Result and shared types
 description: The types diagnostics, files, target strings and results are expressed in.
 ---
 
-<!-- GENERATED from include/guchho/api.hpp and include/guchho/cli.hpp by scripts/gen-docs-embedding.mjs. Do not edit by hand. -->
+<!-- GENERATED from include/guchho/api.hpp and include/guchho/cli.hpp. Do not edit by hand. -->
 
 # Result and shared types
 

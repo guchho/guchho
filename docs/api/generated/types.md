@@ -3,7 +3,7 @@ title: Types & results
 description: The core types and result shapes of the guchho package.
 ---
 
-<!-- GENERATED from package/npm/guchho/index.d.ts by scripts/gen-docs-api.mjs. Do not edit by hand. -->
+<!-- GENERATED from package/npm/guchho/index.d.ts. Do not edit by hand. -->
 
 # Types & results
 

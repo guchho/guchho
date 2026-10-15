@@ -3,14 +3,13 @@ title: Generated API reference
 description: The guchho option and type surface, produced from index.d.ts.
 ---
 
-<!-- GENERATED from package/npm/guchho/index.d.ts by scripts/gen-docs-api.mjs. Do not edit by hand. -->
+<!-- GENERATED from package/npm/guchho/index.d.ts. Do not edit by hand. -->
 
 # Generated API reference
 
-This section is produced from `package/npm/guchho/index.d.ts` by
-`scripts/gen-docs-api.mjs`. It is the published surface of the `guchho`
-package, exact and automatically kept in step; edit the generator or the
-declaration, not these pages.
+This section transcribes `package/npm/guchho/index.d.ts`, the published
+surface of the `guchho` package, exact as declared there. It is a frozen
+snapshot: keep it in step with the declaration file when either changes.
 
 Everything is asynchronous and there are no `…Sync` functions by design;
 see the [API overview](../README.md). Classes live on
@@ -96,9 +95,3 @@ The tokens, nodes, options and results of `lexer`, `parse` and `print`. [Full pa
 - [`ParseResult`](compiler-types.md#parseresult)
 - [`PrintResult`](compiler-types.md#printresult)
 
-
-## Regenerate
-
-```sh
-node scripts/gen-docs-api.mjs
-```

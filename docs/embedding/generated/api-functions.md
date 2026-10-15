@@ -3,7 +3,7 @@ title: Engine functions
 description: The free functions and constants of include/guchho/api.hpp.
 ---
 
-<!-- GENERATED from include/guchho/api.hpp and include/guchho/cli.hpp by scripts/gen-docs-embedding.mjs. Do not edit by hand. -->
+<!-- GENERATED from include/guchho/api.hpp and include/guchho/cli.hpp. Do not edit by hand. -->
 
 # Engine functions
 

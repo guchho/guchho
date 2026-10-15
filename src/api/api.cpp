@@ -2730,7 +2730,9 @@ struct InternalContext : public api::BuildContext {
         auto build = std::make_shared<BuildInProgress>();
         active_build = build;
         RebuildArgs local_args = args;
+#if !defined(GUCHHO_WASM)
         auto wh = watcher.get();
+#endif
         auto notify_fn = serve_notify;
         RebuildState state;
         lock.unlock();
@@ -2778,9 +2780,14 @@ struct InternalContext : public api::BuildContext {
         // second is a harmless no-op. The set is small (absolute paths to
         // closures over path strings), so copying it per rebuild costs
         // nothing next to the rebuild itself.
+        // Under GUCHHO_WASM the watcher is never created, so this is dead —
+        // and the call itself would be a link failure, since api_watcher.cpp
+        // is not compiled into that flavor at all.
+#if !defined(GUCHHO_WASM)
         if (wh && state.watch_data.paths.size() > 0) {
             watcher->SetWatchData(state.watch_data);
         }
+#endif
 
         // Tell a running server's live-reload clients that the output changed,
         // with the session lock already released for the same reason as the
@@ -2824,6 +2831,14 @@ struct InternalContext : public api::BuildContext {
     // Output: a running watcher thread rebuilding on change; throws if the
     //         session is already disposed or already watching
     void Watch(const api::WatchOptions& options) override {
+#if defined(GUCHHO_WASM)
+        // The watcher polls the file system, which Emscripten does not have.
+        // The method stays on the interface so an embedder's code compiles
+        // against both flavors; it refuses at run time instead.
+        (void)options;
+        throw std::runtime_error(
+            "serve/watch are not supported by the WASM build (install the native binary)");
+#else
         std::lock_guard lock(mu);
         if (did_dispose) throw std::runtime_error("Cannot watch a disposed context");
         if (watcher) throw std::runtime_error("Watch mode has already been enabled");
@@ -2843,6 +2858,7 @@ struct InternalContext : public api::BuildContext {
 
         args.options.WatchMode = true;
         watcher->Start();
+#endif
     }
 
     // Serves the build over HTTP. Each request runs a pass and answers from its
@@ -2855,6 +2871,14 @@ struct InternalContext : public api::BuildContext {
     // Output: the host and port that were bound; throws if the session is
     //         disposed
     api::ServeResult Serve(const api::ServeOptions& options) override {
+#if defined(GUCHHO_WASM)
+        // The dev server binds sockets, which Emscripten does not have.
+        // The method stays on the interface so an embedder's code compiles
+        // against both flavors; it refuses at run time instead.
+        (void)options;
+        throw std::runtime_error(
+            "serve/watch are not supported by the WASM build (install the native binary)");
+#else
         std::lock_guard lock(mu);
         if (did_dispose) throw std::runtime_error("Cannot serve a disposed context");
 
@@ -2870,6 +2894,7 @@ struct InternalContext : public api::BuildContext {
         }
         serve_notify = result.notify;
         return result;
+#endif
     }
 
     // Asks the running pass to stop, then waits for it. The pass notices the flag
@@ -2914,7 +2939,9 @@ struct InternalContext : public api::BuildContext {
         auto build = active_build;
         mu.unlock();
 
+#if !defined(GUCHHO_WASM)
         if (watcher) watcher->Stop();
+#endif
 
         if (build) {
             std::unique_lock ul(build->mu);

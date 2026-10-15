@@ -1001,11 +1001,11 @@ namespace guchho::linker {
 
         timer->Begin("Generate final output files");
         std::vector<std::vector<graph::OutputFile>> results(chunks.size());
-        std::vector<std::thread> result_threads;
+        std::vector<helpers::Thread> result_threads;
         std::vector<std::exception_ptr> result_exceptions(chunks.size());
         result_threads.reserve(chunks.size());
         for (size_t chunk_index = 0; chunk_index < chunks.size(); chunk_index++) {
-            result_threads.emplace_back([this, &results, &result_exceptions, chunk_index]() {
+            result_threads.emplace_back(helpers::kWorkerStackSize, [this, &results, &result_exceptions, chunk_index]() {
                 try {
                 auto& chunk = chunks[chunk_index];
                 std::vector<graph::OutputFile> output_files;

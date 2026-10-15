@@ -42,6 +42,7 @@
 #include "guchho/api.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cctype>
@@ -66,6 +67,7 @@
 #include <ifaddrs.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -389,25 +391,33 @@ bool GetLocalIPs(bool want_v6, std::vector<std::string>& out) {
 class Listener {
 public:
     Listener() = default;
-    ~Listener() {
-        if (sock_ != kInvalidSocket) {
-            CloseSocket(sock_);
-        }
-    }
+    ~Listener() { Close(); }
     Listener(const Listener&) = delete;
     Listener& operator=(const Listener&) = delete;
-    Listener(Listener&& other) noexcept : sock_(other.sock_) { other.sock_ = kInvalidSocket; }
+    Listener(Listener&& other) noexcept : sock_(other.sock_.exchange(kInvalidSocket)) {}
     Listener& operator=(Listener&& other) noexcept {
         if (this != &other) {
-            if (sock_ != kInvalidSocket) CloseSocket(sock_);
-            sock_ = other.sock_;
-            other.sock_ = kInvalidSocket;
+            Close();
+            sock_ = other.sock_.exchange(kInvalidSocket);
         }
         return *this;
     }
 
-    bool Valid() const { return sock_ != kInvalidSocket; }
-    SockHandle Get() const { return sock_; }
+    bool Valid() const { return sock_.load() != kInvalidSocket; }
+    SockHandle Get() const { return sock_.load(); }
+
+    // Closes the socket once and forgets it.
+    //
+    // "stop" closes the listening socket from the thread disposing the context
+    // while the accept loop is watching the same handle, and the destructor runs
+    // again when the last owner lets go. Exchanging the handle for "invalid"
+    // makes whichever of the two comes second a no-op — which matters on POSIX,
+    // where closing a descriptor twice can close an unrelated one that reused
+    // the number in between.
+    void Close() {
+        SockHandle sock = sock_.exchange(kInvalidSocket);
+        if (sock != kInvalidSocket) CloseSocket(sock);
+    }
 
     // Binds a socket, starts listening, and reports the address that was taken.
     //
@@ -496,7 +506,7 @@ public:
     }
 
 private:
-    SockHandle sock_ = kInvalidSocket;
+    std::atomic<SockHandle> sock_{kInvalidSocket};
 };
 
 // ===========================================================================
@@ -2467,14 +2477,28 @@ ServeResult Serve(
     auto shared = std::make_shared<Listener>(std::move(listener));
     std::shared_ptr<ApiHandler> handler_shared = handler;
 
-    // Stopping has two halves. Closing the listener unblocks the accept loop,
-    // and closing the streams unblocks the connections that are waiting for a
-    // rebuild notification to arrive.
-    result.stop = [handler_shared, shared]() {
-        if (shared->Valid()) {
-            CloseSocket(shared->Get());
-        }
+    // Stopping has three parts. A flag tells the accept loop to stop, closing
+    // the listener ends the wait it is inside, and closing the streams unblocks
+    // the connections that are waiting for a rebuild notification to arrive.
+    //
+    // The wait at the end is what makes "stop" mean "the port is free" rather
+    // than "the port will be free soon". Both a blocking accept and the wait the
+    // loop uses instead hold a reference to the listening socket for as long as
+    // they are inside the call, so a socket that has been closed can still
+    // complete handshakes until the loop has actually left it. A caller that
+    // probes the port the instant after stopping would then connect to a socket
+    // nothing is serving and wait for a reply that never comes. Waiting here for
+    // the loop to leave means the socket is gone before stop returns.
+    auto stopping = std::make_shared<std::atomic<bool>>(false);
+    auto finished = std::make_shared<std::atomic<bool>>(false);
+
+    result.stop = [handler_shared, shared, stopping, finished]() {
+        stopping->store(true);
+        shared->Close();
         handler_shared->CloseAllStreams();
+        for (int waited = 0; waited < 5000 && !finished->load(); ++waited) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
     };
 
     // The way a rebuild the server did not run reaches the browser. Calling
@@ -2485,40 +2509,72 @@ ServeResult Serve(
         handler_shared->NotifyRebuild(rebuild_result);
     };
 
-    // The accept loop. It runs until the listener is closed, and hands every
-    // connection to a thread of its own so a slow client cannot hold up the
-    // next request.
-    std::thread accept_thread([handler_shared, shared]() {
+    // The accept loop. It runs until the stop flag is set and the listener is
+    // closed, and hands every connection to a thread of its own so a slow client
+    // cannot hold up the next request.
+    //
+    // It never blocks inside accept for longer than it takes to serve a
+    // connection. Closing a descriptor does not reliably end an accept that
+    // another thread is already inside — on POSIX the socket can outlive the
+    // close and go on completing handshakes nothing ever answers, and on Windows
+    // the close does not wake the call at all. So the loop waits for the
+    // descriptor to become readable with a bounded timeout, re-checks the stop
+    // flag between waits, and only then accepts. That wait is also what lets the
+    // loop leave promptly when it is asked to stop, instead of spinning on a
+    // descriptor that is already gone.
+    std::thread accept_thread([handler_shared, shared, stopping, finished]() {
         for (;;) {
+            if (stopping->load()) {
+                break;
+            }
+
+            SockHandle control = shared->Get();
+            if (control == kInvalidSocket) {
+                break;
+            }
+
 #ifdef _WIN32
             fd_set read_set;
             FD_ZERO(&read_set);
-            SOCKET control = shared->Get();
-            if (control == INVALID_SOCKET) {
-                break;
-            }
             FD_SET(control, &read_set);
             timeval tv;
             tv.tv_sec = 0;
             tv.tv_usec = 200000;
-            int sel = select(int(control) + 1, &read_set, nullptr, nullptr, &tv);
-            if (sel == 0) {
+            int ready = select(int(control) + 1, &read_set, nullptr, nullptr, &tv);
+            if (ready == 0) {
                 continue;
             }
-            if (sel < 0) {
+            if (ready < 0) {
                 break;
             }
 #else
+            struct pollfd waiting {};
+            waiting.fd = control;
+            waiting.events = POLLIN;
+            int ready = poll(&waiting, 1, 200);
+            if (ready == 0) {
+                continue;
+            }
+            if (ready < 0) {
+                break;
+            }
+            if (waiting.revents & (POLLERR | POLLHUP | POLLNVAL)) {
+                break;
+            }
 #endif
-            // Closing the listener is enough to unblock a blocking accept here.
+
             struct sockaddr_storage addr {};
             socklen_t len = sizeof(addr);
-            SockHandle conn = accept(shared->Get(),
+            SockHandle conn = accept(control,
                                      reinterpret_cast<sockaddr*>(&addr), &len);
-            // Either the listener was closed, which is how the loop is told
-            // to stop, or the accept was interrupted. There is nothing to
-            // serve in either case, so the next iteration decides.
+            // Either the listener was closed while this loop was between turns,
+            // which is how the loop is told to stop, or the accept was
+            // interrupted. Nothing is left to serve in either case, and the loop
+            // must not spin on a descriptor that is gone.
             if (conn == kInvalidSocket) {
+                if (stopping->load()) {
+                    break;
+                }
                 continue;
             }
 
@@ -2555,6 +2611,7 @@ ServeResult Serve(
                 CloseSocket(conn);
             }).detach();
         }
+        finished->store(true);
     });
 
     accept_thread.detach();

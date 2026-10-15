@@ -124,10 +124,23 @@ function stageNodeModules({ platformKey = PLATFORM_KEY, realBinary = false, with
             path.join(platformPkg, "package.json")
         );
 
-        const contents = realBinary && findBuiltBinary()
-            ? fs.readFileSync(findBuiltBinary())
-            : fakeBinary();
-        fs.writeFileSync(path.join(platformPkg, "bin", BINARY_NAME), contents);
+        const built = realBinary ? findBuiltBinary() : null;
+        if (built) {
+            fs.copyFileSync(built, path.join(platformPkg, "bin", BINARY_NAME));
+
+            // A MinGW binary is not one file: the C++ runtime sits in shared
+            // libraries beside the executable, and Windows looks for them in
+            // the executable's own directory. Staging the executable alone
+            // produces a tree that fails with STATUS_DLL_NOT_FOUND (the
+            // binary never starts), which would look like an API failure.
+            for (const entry of fs.readdirSync(path.dirname(built))) {
+                if (entry.toLowerCase().endsWith(".dll")) {
+                    fs.copyFileSync(path.join(path.dirname(built), entry), path.join(platformPkg, "bin", entry));
+                }
+            }
+        } else {
+            fs.writeFileSync(path.join(platformPkg, "bin", BINARY_NAME), fakeBinary());
+        }
     }
 
     return { root, project, modules, guchhoPkg };

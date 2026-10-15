@@ -70,8 +70,10 @@ function get(url) {
 //
 // The shape of the refusal is not fixed: Node resolves a hostname to both an IPv4
 // and an IPv6 address and races the two, so a closed port surfaces as an
-// AggregateError holding two ECONNREFUSEs rather than as one. What matters is
-// that the connection was refused — which is what separates "the server stopped"
+// AggregateError holding two ECONNREFUSEs rather than as one. On Windows the
+// same closed port can surface as ECONNRESET, where the stack answers the
+// handshake with a RST instead of refusing it outright. What matters is that
+// no HTTP response came back — which is what separates "the server stopped"
 // from "the server is running and answered something else".
 async function assertNotListening(url) {
     let thrown = null;
@@ -86,7 +88,7 @@ async function assertNotListening(url) {
     const detail = [thrown.code, thrown.message, ...(thrown.errors || []).map((inner) => `${inner.code} ${inner.message}`)]
         .filter(Boolean)
         .join(" ");
-    assert.match(detail, /ECONNREFUSED/, `expected a refused connection, got: ${detail}`);
+    assert.match(detail, /ECONNREFUSED|ECONNRESET/, `expected a refused connection, got: ${detail}`);
 }
 
 describe("serve()", () => {

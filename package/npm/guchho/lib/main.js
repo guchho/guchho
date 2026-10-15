@@ -158,8 +158,88 @@ function spawnBinary(args, options = {}) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Engine resolution
+// ---------------------------------------------------------------------------
+//
+// Which engine runs a command: the pure-WebAssembly build in-process, or a
+// native binary as a child process. The order is the contract:
+//
+//   1. GUCHHO_BINARY — an explicit path, spawned natively. Wins over everything:
+//      a name that is set but wrong is stopped on rather than fallen through
+//      from, same as inside getBinaryPath.
+//   2. GUCHHO_BACKEND=wasm — the WebAssembly engine, or an error naming the
+//      package to install if it is not there.
+//   3. GUCHHO_BACKEND=native — the native binary, never the WebAssembly one.
+//   4. Default: WebAssembly first whenever @guchho/wasm is installed (it is
+//      opt-in, so its presence is the caller asking for it), then the native
+//      platform package / local build tree.
+//
+// Returns { type: "wasm" } or { type: "native", binaryPath }. The wasm engine
+// is loaded by the caller through require("@guchho/wasm") — resolution only
+// decides, it does not load.
+
+function canResolveWasm() {
+  try {
+    require.resolve("@guchho/wasm");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveEngine() {
+  const override = process.env.GUCHHO_BINARY;
+  if (override) {
+    if (!fs.existsSync(override)) {
+      throw new Error(
+        `GUCHHO_BINARY is set to "${override}", which is not a file. ` +
+          `Point it at a Guchho binary, or unset it to use the one that ships with the package.`
+      );
+    }
+    return { type: "native", binaryPath: ensureExecutable(override) };
+  }
+
+  const backend = process.env.GUCHHO_BACKEND;
+
+  if (backend === "wasm") {
+    if (!canResolveWasm()) {
+      throw new Error(
+        `GUCHHO_BACKEND=wasm, but @guchho/wasm is not installed. ` +
+          `Install it with: npm install @guchho/wasm`
+      );
+    }
+    return { type: "wasm" };
+  }
+
+  if (backend === "native") {
+    return { type: "native", binaryPath: getBinaryPath() };
+  }
+
+  if (backend !== undefined) {
+    throw new Error(
+      `GUCHHO_BACKEND is set to "${backend}", which is not one of "wasm" or "native".`
+    );
+  }
+
+  if (canResolveWasm()) {
+    return { type: "wasm" };
+  }
+
+  try {
+    return { type: "native", binaryPath: getBinaryPath() };
+  } catch {
+    throw new Error(
+      `No Guchho engine found for ${getPlatformKey()}.\n` +
+        `Install the native binary: npm install -D @guchho/${getPlatformKey()}\n` +
+        `Or use the pure-WASM engine: npm install @guchho/wasm`
+    );
+  }
+}
+
 module.exports = {
   getBinaryPath,
   getPlatformKey,
   spawnBinary,
+  resolveEngine,
 };

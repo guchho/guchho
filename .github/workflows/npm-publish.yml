@@ -618,6 +618,25 @@ jobs:
             exit 1
           fi
 
+      - name: Setup Node.js (JS package tests)
+        if: matrix.method == 'native' && needs.plan.outputs.test_run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # The JS suite exercises the staged tree — manifest, installer, tarball,
+      # and the JS API — against the binary Prepare package directory just
+      # placed. GUCHHO_REQUIRE_BINARY=1 makes a missing binary a failure rather
+      # than a skip, so a green run is evidence the binary was actually run.
+      # Only native builds qualify: a cross-built binary cannot execute on the
+      # runner that produced it.
+      - name: Test npm package (JS)
+        if: matrix.method == 'native' && needs.plan.outputs.test_run == 'true'
+        shell: bash
+        env:
+          GUCHHO_REQUIRE_BINARY: "1"
+        run: bash scripts/test-npm.sh
+
       - name: Upload package artifact
         uses: actions/upload-artifact@v6
         with:

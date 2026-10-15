@@ -67,6 +67,7 @@ package/chocolatey/tools/guchho.exe
 *.exe
 *.dll
 *.pdb
+*.wasm
 
 *.obj
 *.o

@@ -495,7 +495,7 @@ namespace guchho::bundler {
                 (*remaining)++;
             }
 
-            std::thread([results, remaining, mu, cv,
+            auto task = [results, remaining, mu, cv,
                          source_index, approximate_line_count,
                          contents = f.input_file.source.contents,
                          input_source_map = f.input_file.input_source_map,
@@ -547,7 +547,16 @@ namespace guchho::bundler {
                 }
                 } catch (...) {
                 }
-            }).detach();
+            };
+            // On the serial WASM build the task runs inline; by the time the
+            // returned waiter is called the counter is already zero and the
+            // wait returns immediately, which is the same result the detached
+            // thread + condition_variable dance produces on native.
+#if defined(GUCHHO_WASM_SERIAL)
+            task();
+#else
+            std::thread(std::move(task)).detach();
+#endif
         }
 
         // Blocks until every in-flight source-map task has finished and returns the

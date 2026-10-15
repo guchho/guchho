@@ -19,6 +19,29 @@
 
 namespace guchho::helpers {
 
+#if defined(GUCHHO_WASM)
+
+    // Emscripten has no fork/exec, so there is no child process to start and
+    // none of the platform code below could ever run — it is all compiled out.
+    // Every caller already treats "did not start" as a recoverable answer (a
+    // missing tool becomes a warning naming the binary, not a crash), so the
+    // stub leaves started off, keeps the -1 exit code, and says why on stderr.
+    //
+    // Input: {"node", "--version"}, "" ->
+    // Output: ProcessResult{ started = false, exit_code = -1,
+    //          stderr_data = "child processes are not supported ..." }.
+    ProcessResult RunProcess(const std::vector<std::string>& argv, const std::string& cwd)
+    {
+        (void)argv;
+        (void)cwd;
+        ProcessResult result;
+        result.stderr_data =
+            "child processes are not supported by the WASM build of Guchho";
+        return result;
+    }
+
+#else
+
 #if !defined(_WIN32)
 
     namespace {
@@ -470,5 +493,7 @@ namespace guchho::helpers {
 
         return result;
     }
+
+#endif // GUCHHO_WASM
 
 } // namespace guchho::helpers

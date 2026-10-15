@@ -707,6 +707,9 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Setup CMake
+        uses: lukka/get-cmake@latest
+
       # Pin the Emscripten SDK so the artifact is reproducible: a newer SDK
       # can change the glue, the binary, or both.
       - name: Setup Emscripten

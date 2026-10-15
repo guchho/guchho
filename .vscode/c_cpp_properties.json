@@ -9,6 +9,12 @@
 // build/debug-win32-x64-ninja/compile_commands.json, which cpptools
 // merges in for the -I/-D flags not repeated here.
 //
+// compileCommands is a list: the native database covers the common
+// sources, and the wasm database covers the Emscripten-only files
+// (src/cli/wasm_abi.cpp) that the native preset never compiles. Both
+// presets set CMAKE_EXPORT_COMPILE_COMMANDS, so cpptools resolves every
+// translation unit instead of falling back to this file's defaults.
+//
 // Defines:
 //   _DEBUG              Debug build type
 //   _DLL, _MT           CMake's shared-lib, static-CRT target
@@ -38,10 +44,13 @@
                 "_DLL",
                 "_MT",
                 "RC_INVOKED",
-                "GUCHHO_VERSION_STRING=\"1.0.6\"",
+                "GUCHHO_VERSION_STRING=\"1.0.7\"",
                 "GUCHHO_TEST_EXE=\"${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho.exe\""
             ],
-            "compileCommands": "${workspaceFolder}/build/release-win32-x64-ninja/compile_commands.json"
+            "compileCommands": [
+                "${workspaceFolder}/build/release-win32-x64-ninja/compile_commands.json",
+                "${workspaceFolder}/build/wasm32-emscripten/compile_commands.json"
+            ]
         }
     ],
     "version": 4

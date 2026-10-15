@@ -24,3 +24,35 @@
 | <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/winget_logo.png" height="35" alt="WinGet"> | **WinGet**<br>`winget install Guchho.Guchho` | 🚧 Coming Soon |
 | <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/homebrew_logo.svg" height="40" alt="Homebrew"> | **Homebrew**<br>`brew install guchho` | 📅 Planned |
 | <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/cmake_logo.svg" height="35" alt="cmake"> | **CMake**<br>`bash scripts/build.sh` | 🛠️ Build from source. Clone the repository and build Guchho locally. |
+
+## Install
+
+The `guchho` package is the command line tool. On install it pulls the native
+binary for your platform from a matching `@guchho/<os>-<cpu>` package.
+
+```sh
+npm install -g guchho      # CLI, global
+npm install -D guchho      # CLI, per-project
+```
+
+## WebAssembly engine (optional)
+
+Where a native binary cannot be installed - CI fallbacks, sandboxes,
+StackBlitz/CodeSandbox, the browser - the same engine is available compiled to
+WebAssembly in the opt-in [`@guchho/wasm`](package/npm/@guchho/wasm/README.md)
+package:
+
+```sh
+npm install -D @guchho/wasm
+npx guchho-wasm build src/index.html --outdir=dist
+```
+
+Once installed, the `guchho` wrapper uses it automatically (wasm-first). Two
+environment variables override the choice:
+
+- `GUCHHO_BACKEND=wasm|native` - force one engine, erroring if unavailable.
+- `GUCHHO_BINARY=/path/to/guchho` - spawn a specific native binary.
+
+Limitations of the WebAssembly engine: single-threaded, no `serve` / `watch` /
+`dev`, no child processes, and a slower cold start than the native binary. See
+[the WebAssembly guide](docs/wasm.md) for details.

@@ -1465,6 +1465,11 @@ namespace guchho::cli {
         }
 
         service::Value HandleWatch(const service::Value& request) {
+#if defined(GUCHHO_WASM)
+            (void)request;
+            return ErrorResponse(EngineError("unsupported",
+                "watch is not supported by the WASM build (install the native binary)"));
+#else
             int32_t key = 0;
             if (!ContextKeyFromRequest(request, key)) {
                 return ErrorResponse(ProtocolError("a watch must name the context it is for"));
@@ -1482,9 +1487,15 @@ namespace guchho::cli {
             }
             context->Watch(watch_options);
             return service::Value::Object({});
+#endif
         }
 
         service::Value HandleServe(const service::Value& request) {
+#if defined(GUCHHO_WASM)
+            (void)request;
+            return ErrorResponse(EngineError("unsupported",
+                "serve is not supported by the WASM build (install the native binary)"));
+#else
             int32_t key = 0;
             if (!ContextKeyFromRequest(request, key)) {
                 return ErrorResponse(ProtocolError("a serve must name the context it is for"));
@@ -1551,6 +1562,7 @@ namespace guchho::cli {
                 {"port", service::Value::Number(static_cast<int32_t>(served.port))},
                 {"hosts", service::Value::Array(std::move(hosts))},
             });
+#endif
         }
 
         // The command table itself, with the throws it may contain left to

@@ -14,7 +14,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { describe, it } = require("node:test");
 
-const { GUCHHO_DIR, PLATFORMS_DIR, readManifest } = require("./helpers/paths");
+const { GUCHHO_DIR, platformDirs, readManifest } = require("./helpers/paths");
 
 const manifest = readManifest(GUCHHO_DIR);
 
@@ -131,10 +131,11 @@ describe("guchho/package.json", () => {
         // The version is pinned per platform rather than left to a range
         // because a range would let npm pair a 1.0.1 wrapper with a 1.1.0
         // binary, and the two have no way to check each other.
-        const onDisk = fs.readdirSync(PLATFORMS_DIR, { withFileTypes: true })
-            .filter((e) => e.isDirectory())
-            .map((e) => `@guchho/${e.name}`)
-            .sort();
+        //
+        // @guchho/wasm sits beside these directories but is not one of them:
+        // it is opt-in rather than an optional dependency of the meta package,
+        // so platformDirs() — which leaves it out — is the list to compare.
+        const onDisk = platformDirs().map((name) => `@guchho/${name}`).sort();
 
         const declared = Object.keys(manifest.optionalDependencies).sort();
         assert.deepEqual(declared, onDisk, "optionalDependencies and the platform packages disagree");

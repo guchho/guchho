@@ -52,9 +52,16 @@ function serveConfig(root, extra = {}) {
 // A GET that resolves with the status and body, and rejects on a refused
 // connection — which is how the closed-server test tells "stopped" from "serving
 // an empty 404".
+//
+// Every request opens its own connection. Node's default agent keeps sockets
+// alive, and a probe that reuses the socket an earlier request left behind is
+// not testing the port at all: the write goes to a socket whose peer has closed,
+// which reaches the caller as a reset on some platforms and as nothing at all on
+// others, where it hangs instead of failing. A fresh connection reaches the
+// listening port itself or is refused by it.
 function get(url) {
     return new Promise((resolve, reject) => {
-        const request = http.get(url, (response) => {
+        const request = http.get(url, { agent: false }, (response) => {
             let body = "";
             response.setEncoding("utf8");
             response.on("data", (chunk) => {
@@ -62,6 +69,14 @@ function get(url) {
             });
             response.on("end", () => resolve({ status: response.statusCode, body }));
         });
+
+        // A probe has to settle. An accepted connection that is never answered
+        // would otherwise wait forever, and "the test hung" is a worse report
+        // than "the port did not refuse the connection".
+        request.setTimeout(10000, () => {
+            request.destroy(new Error(`no response from ${url} within 10s`));
+        });
+
         request.on("error", reject);
     });
 }
@@ -70,11 +85,11 @@ function get(url) {
 //
 // The shape of the refusal is not fixed: Node resolves a hostname to both an IPv4
 // and an IPv6 address and races the two, so a closed port surfaces as an
-// AggregateError holding two ECONNREFUSEs rather than as one. On Windows the
-// same closed port can surface as ECONNRESET, where the stack answers the
-// handshake with a RST instead of refusing it outright. What matters is that
-// no HTTP response came back — which is what separates "the server stopped"
-// from "the server is running and answered something else".
+// AggregateError holding two ECONNREFUSEs rather than as one, and a platform that
+// answers the handshake with a reset instead of refusing it outright raises
+// ECONNRESET. What matters is that no HTTP response came back — which is what
+// separates "the server stopped" from "the server is running and answered
+// something else".
 async function assertNotListening(url) {
     let thrown = null;
     try {

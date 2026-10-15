@@ -91,6 +91,17 @@ fi
 NODE_VERSION="$(node --version)"
 echo -e "${CYAN}node${RESET} $NODE_VERSION"
 
+# A test that hangs must fail, not stall the job. Without a ceiling the publish
+# workflow sits on the runner until its own six-hour limit, and the run that
+# would say which test hung is the one that never ends. The flag is newer than
+# the engines range this package supports, so it is only passed when this Node
+# understands it, and it is kept out of an array because macOS runners execute
+# this with bash 3.2, where an empty array does not survive "set -u".
+TIMEOUT_ARG=""
+if node --help 2>&1 | grep -q -- "--test-timeout"; then
+    TIMEOUT_ARG="--test-timeout=300000"
+fi
+
 # The files are collected by bash and passed one by one rather than by handing
 # node a directory or a glob. "node --test <dir>" stopped recursing at some
 # point and "node --test <glob>" only appeared in later versions, and the
@@ -118,7 +129,7 @@ if [[ -n "$FILTER" ]]; then
     fi
 
     echo -e "${CYAN}Running${RESET} ${#FILES[@]} file(s) matching '$FILTER'"
-    node --test "${FILES[@]}"
+    node --test ${TIMEOUT_ARG} "${FILES[@]}"
 else
     FILES=()
     while IFS= read -r f; do
@@ -131,7 +142,7 @@ else
     fi
 
     echo -e "${CYAN}Running${RESET} ${#FILES[@]} test file(s) in package/npm/test/"
-    node --test "${FILES[@]}"
+    node --test ${TIMEOUT_ARG} "${FILES[@]}"
 fi
 
 JS_STATUS=$?

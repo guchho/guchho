@@ -1,2 +1,11 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# The bin shim must be runnable on Unix, so its shebang cannot carry a CR:
+# npm packs whatever the checkout holds, and a "#!/usr/bin/env node\r" shebang
+# breaks every install that runs it directly.
+package/npm/guchho/bin/* text eol=lf
+
+# Shell scripts are executed by bash (including on Windows runners) and CRLF
+# line endings break them.
+*.sh text eol=lf

@@ -610,6 +610,22 @@ jobs:
 
             echo "Copied binary to ${PKG_DIR}/bin/${BINARY_NAME}"
             ls -lh "${PKG_DIR}/bin/${BINARY_NAME}"
+
+            # The runner builds win32 with MinGW, and a MinGW binary is not one
+            # file: the C++ runtime lives in shared libraries beside the
+            # executable, and Windows finds them in the executable's own
+            # directory. Shipping the executable alone produces a package that
+            # runs on the machine that built it and fails everywhere else with
+            # STATUS_DLL_NOT_FOUND (0xC0000135). Copy whatever the build
+            # produced beside the binary, as scripts/build-npm.sh does.
+            if [[ "$PLATFORM" == win32-* ]]; then
+              RUNTIME_DIR="$(dirname "$BINARY_PATH")"
+              for candidate in "${RUNTIME_DIR}"/*.dll; do
+                [[ -f "${candidate}" ]] || continue
+                cp "${candidate}" "${PKG_DIR}/bin/"
+                echo "Copied runtime library $(basename "${candidate}")"
+              done
+            fi
           else
             # A platform package without a binary is not publishable, and an
             # empty one would install and fail at runtime. Fail here, before

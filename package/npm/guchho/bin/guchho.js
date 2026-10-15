@@ -4,18 +4,17 @@
 
 const { execFileSync } = require("child_process");
 
-const { getBinaryPath } = require("../lib/main");
+const { resolveEngine } = require("../lib/main");
 
 // A "guchho.config.js" or "guchho.config.json" may name plugins, and a plugin
 // is JavaScript the engine's process cannot call. When the nearest config names
 // some, the command is run through the service instead of the bare binary, so a
 // plugin host is on the far end of the pipe to answer the hooks. When it does
-// not — which is most projects — the binary is run directly, exactly as before.
+// not — which is most projects — the engine chosen by resolveEngine runs
+// directly: the WebAssembly one in-process, or the native binary as before.
 const BUILTIN_PLUGINLESS = ["build", "dev", "serve", "watch"];
 
-const binaryPath = getBinaryPath();
-
-function runBinary(args) {
+function runBinary(binaryPath, args) {
   try {
     execFileSync(binaryPath, args, { stdio: "inherit" });
   } catch (err) {
@@ -26,9 +25,21 @@ function runBinary(args) {
   }
 }
 
+// Runs the command through the WebAssembly engine, in this process. The engine
+// mounts the host file system and maps paths the same way its own bin script
+// does, so a relative entry point means the same thing as under the native
+// binary. Plugins cannot travel this way — they need the service protocol —
+// and that refusal is made before the engine is loaded, so a plugin project
+// never pays for a wasm instantiation it will not use.
+async function runWasm(args) {
+  const { runCli } = require("@guchho/wasm");
+  const code = await runCli(args);
+  process.exit(typeof code === "number" ? code : 0);
+}
+
 // The config's plugins, grouped by configuration element, or none. A config that
 // cannot be read here is left for the engine to report in its own words — the
-// fallback is the plain binary, not a second opinion about what is wrong with
+// fallback is the plain engine, not a second opinion about what is wrong with
 // the file.
 async function configPluginGroups() {
   try {
@@ -82,18 +93,38 @@ async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
 
-  if (!BUILTIN_PLUGINLESS.includes(command)) {
-    runBinary(args);
-    return;
+  if (BUILTIN_PLUGINLESS.includes(command)) {
+    const pluginGroups = await configPluginGroups();
+    if (pluginGroups.some((group) => group.length > 0)) {
+      // The service protocol speaks to a native child process; the WebAssembly
+      // engine cannot host it. A plugin project therefore needs the native
+      // binary. An explicit GUCHHO_BACKEND=wasm is refused rather than quietly
+      // ignored — the setting asked for one engine and the config makes that
+      // impossible, and running the other one anyway is not an answer.
+      if (process.env.GUCHHO_BACKEND === "wasm") {
+        process.stderr.write(
+          "guchho: this project's configuration names plugins, which need the native engine, " +
+            "but GUCHHO_BACKEND=wasm was set.\n" +
+            "Unset GUCHHO_BACKEND (or set it to \"native\"), or remove the plugins from the configuration.\n"
+        );
+        process.exit(1);
+      }
+      // Asking for the native binary before starting the service, so a missing
+      // one fails here with the error that names what to install rather than
+      // from inside the service handshake.
+      const { getBinaryPath } = require("../lib/main");
+      getBinaryPath();
+      await runWithPlugins(args, pluginGroups);
+      return;
+    }
   }
 
-  const pluginGroups = await configPluginGroups();
-  if (!pluginGroups.some((group) => group.length > 0)) {
-    runBinary(args);
+  const engine = resolveEngine();
+  if (engine.type === "wasm") {
+    await runWasm(args);
     return;
   }
-
-  await runWithPlugins(args, pluginGroups);
+  runBinary(engine.binaryPath, args);
 }
 
 main().catch((error) => {

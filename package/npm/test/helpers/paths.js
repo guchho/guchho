@@ -37,6 +37,10 @@ const GUCHHO_DIR = path.join(PACKAGES_DIR, "guchho");
 // The directory holding one subdirectory per platform package.
 const PLATFORMS_DIR = path.join(PACKAGES_DIR, "@guchho");
 
+// The pure-WebAssembly engine package. Beside the platform packages but not
+// one of them: no native binary, opt-in rather than an optional dependency.
+const WASM_DIR = path.join(PLATFORMS_DIR, "wasm");
+
 // The name of the native binary on this machine, which is the only part of a
 // package that differs by platform.
 const BINARY_NAME = process.platform === "win32" ? "guchho.exe" : "guchho";
@@ -45,12 +49,15 @@ const BINARY_NAME = process.platform === "win32" ? "guchho.exe" : "guchho";
 const PLATFORM_KEY = `${process.platform}-${process.arch}`;
 
 // Every platform package directory, named by its own key, sorted so that a
-// failure reads the same on every machine.
+// failure reads the same on every machine. "@guchho/wasm" is excluded: it is
+// the pure-WebAssembly engine, not a platform build of the native binary,
+// and platform-map/manifest tests must not mistake it for one.
 function platformDirs() {
     return fs
         .readdirSync(PLATFORMS_DIR, { withFileTypes: true })
         .filter((e) => e.isDirectory())
         .map((e) => e.name)
+        .filter((name) => name !== "wasm")
         .sort();
 }
 
@@ -70,6 +77,7 @@ module.exports = {
     REPO_ROOT,
     GUCHHO_DIR,
     PLATFORMS_DIR,
+    WASM_DIR,
     BINARY_NAME,
     PLATFORM_KEY,
     platformDirs,

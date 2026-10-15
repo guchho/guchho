@@ -710,7 +710,7 @@ jobs:
       # Pin the Emscripten SDK so the artifact is reproducible: a newer SDK
       # can change the glue, the binary, or both.
       - name: Setup Emscripten
-        uses: mymindstorm/setup-emsdk@v14
+        uses: emscripten-core/setup-emsdk@v15
         with:
           version: "6.0.12"
 

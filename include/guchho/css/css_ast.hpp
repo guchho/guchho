@@ -710,7 +710,7 @@ namespace guchho::css {
     // inner_index into a single hash.
     struct RefHash {
         size_t operator()(const guchho::compiler::Ref& r) const {
-            return (static_cast<size_t>(r.source_index) << 32) | r.inner_index;
+            return (static_cast<uint64_t>(r.source_index) << 32) | r.inner_index;
         }
     };
 

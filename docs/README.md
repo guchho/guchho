@@ -60,6 +60,7 @@ its index, so the whole tree is readable directly on GitHub.
 
 - [Writing plugins](plugins/README.md)
 - [Embedding (C++)](embedding/README.md)
+- [WebAssembly](wasm.md)
 - [Recipes](recipes/README.md)
 - [Resources](resources/README.md)
 - [Blog](blog/README.md), [Release notes](release-notes/README.md)

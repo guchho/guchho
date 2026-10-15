@@ -121,7 +121,7 @@ not a replacement for the native package in a performance-sensitive CI job.
 
 ## See also
 
-- [`@guchho/wasm` README](../../package/npm/@guchho/wasm/README.md) - the
-  package's own quick start.
-- [Release notes](../release-notes/v1.0.7.md) - where the package was
+- [`@guchho/wasm` README](https://github.com/guchho/guchho/blob/main/package/npm/@guchho/wasm/README.md) -
+  the package's own quick start.
+- [Release notes](release-notes/v1.0.7.md) - where the package was
   introduced.

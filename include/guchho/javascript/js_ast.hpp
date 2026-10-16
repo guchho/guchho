@@ -1696,7 +1696,8 @@ struct NamedExport {
 // collisions.
 struct RefHash {
     size_t operator()(const compiler::Ref& r) const {
-        return (static_cast<uint64_t>(r.source_index) << 32) | r.inner_index;
+        return static_cast<size_t>(
+            (static_cast<uint64_t>(r.source_index) << 32) | r.inner_index);
     }
 };
 

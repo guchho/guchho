@@ -7,9 +7,10 @@ set -euo pipefail
 # Build guchho Chocolatey package (.nupkg).
 #
 # Steps:
-#   1. Download guchho.exe from the official GitHub release archive
-#   2. Copy it into package/chocolatey/tools/
-#   3. Update version in guchho.nuspec and VERIFICATION.txt
+#   1. Download guchho.exe + its MinGW runtime DLLs from the official GitHub
+#      release archive
+#   2. Copy them into package/chocolatey/tools/
+#   3. Update version + SHA256 checksums in guchho.nuspec and VERIFICATION.txt
 #   4. Run `choco pack`
 #
 # Usage:

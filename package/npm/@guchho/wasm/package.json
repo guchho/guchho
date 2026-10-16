@@ -2,6 +2,10 @@
   "name": "@guchho/wasm",
   "version": "1.0.7",
   "description": "Guchho bundler compiled to WebAssembly (Node + browser)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guchho/guchho.git"
+  },
   "type": "module",
   "main": "./index.cjs",
   "module": "./index.mjs",

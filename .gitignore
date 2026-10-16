@@ -51,6 +51,10 @@ package/npm/node_modules/
 # Native npm package binaries
 package/npm/@guchho/*/bin/
 
+# ...except the wasm package, whose bin/ holds a hand-written JS shim
+# (bin/guchho.js) rather than a compiled native binary.
+!package/npm/@guchho/wasm/bin/
+
 
 # ------------------------------------------------------------
 # Chocolatey

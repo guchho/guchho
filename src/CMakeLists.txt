@@ -86,14 +86,17 @@ guchho_enable_sanitizers(guchho_common)
 # long list of -Wconversion / -Wsign-conversion diagnostics, and Clang adds
 # one -Wold-style-cast per C-style cast (GCC stays quiet because the casts
 # sit inside the file's extern "C" blocks), all of which are inherent to the
-# upstream implementation. Per-source options are appended after the
-# target-level ones, so these override guchho_set_warnings for this file
-# alone. The MSVC front end understands none of these spellings.
+# upstream implementation. The platform-detection fallback emits a
+# #pragma message on platforms outside its known list (e.g. Emscripten),
+# which surfaces as a warning under -W#pragma-messages. Per-source options
+# are appended after the target-level ones, so these override
+# guchho_set_warnings for this file alone. The MSVC front end understands
+# none of these spellings.
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     set_source_files_properties(
         core/filesystem/miniz/miniz.cpp
         PROPERTIES
-            COMPILE_OPTIONS "-Wno-conversion;-Wno-sign-conversion;-Wno-old-style-cast"
+            COMPILE_OPTIONS "-Wno-conversion;-Wno-sign-conversion;-Wno-old-style-cast;-Wno-#pragma-messages"
     )
 endif()
 

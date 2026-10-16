@@ -429,7 +429,7 @@ bash scripts/bump-version.sh 1.2.3
 
 ### 6.6 `scripts/build-chocolatey.sh` - Build the Chocolatey package (.nupkg)
 
-Downloads the official `win32-x64` release archive from GitHub, extracts its `guchho.exe` and embeds it into `package/chocolatey/tools/guchho.exe`, syncs the version in `guchho.nuspec` + `VERIFICATION.txt`, and runs `choco pack`.
+Downloads the official `win32-x64` release archive from GitHub, extracts `guchho.exe` **and its three MinGW runtime DLLs** and embeds them into `package/chocolatey/tools/`, syncs the version and SHA256 checksums in `guchho.nuspec` + `VERIFICATION.txt`, and runs `choco pack`.
 
 **Requirements:** Chocolatey (`choco`), Node.js, `curl`, `unzip`.
 
@@ -438,7 +438,8 @@ bash scripts/build-chocolatey.sh
 ```
 
 - Fetches `https://github.com/guchho/guchho/releases/download/v<version>/guchho-<version>-win32-x64.zip`, so the `v<version>` release must exist first (see [Downloadable Windows x64 Release Archive](#downloadable-windows-x64-release-archive)); the script fails with the URL if it does not.
-- The embedded binary is byte-identical to the release archive's `bin/guchho.exe`; the script prints its SHA256 for the `VERIFICATION.txt` comparison.
+- Every embedded file is byte-identical to the corresponding file under the release archive's `bin/`, and the script writes each file's SHA256 into `VERIFICATION.txt` so a moderator can confirm the match. It fails if the archive's `bin/` lacks `guchho.exe` or any runtime DLL (an archive built before the DLLs were packaged).
+- The package carries no `chocolateyInstall.ps1` / `chocolateyUninstall.ps1`: Chocolatey shims the embedded `tools/guchho.exe` and removes it on uninstall on its own, so both scripts would be no-ops.
 - Output: `package/chocolatey/guchho.<version>.nupkg` (gitignored).
 
 Test the package locally:
@@ -721,5 +722,11 @@ dist/
 ```
 
 Replace `<version>` with the project's actual version number.
+
+The archive's `guchho-<version>-win32-x64/bin/` carries `guchho.exe` together
+with its three MinGW runtime DLLs (`libstdc++-6.dll`, `libgcc_s_seh-1.dll`,
+`libwinpthread-1.dll`); the Chocolatey package is built from exactly those
+files, and its `VERIFICATION.txt` lists their SHA256 checksums. An archive that
+contains only `guchho.exe` is stale — rebuild it with this workflow.
 
 **Note:** `dry_run=false` may publish the package to npm according to the workflow's existing behavior. To test the workflow without publishing, use `-f dry_run=true` instead.

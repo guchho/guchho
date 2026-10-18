@@ -162,6 +162,30 @@ describe("the handle model", () => {
             return true;
         });
     });
+
+    it("after stop(), the handle language map is cleared, so a reused id is not attributed to the old tree", needsBinary, async () => {
+        // A css parse hands out an id (say 0) and records it as css. stop()
+        // ends the service; the restarted service reuses id 0 for a new tree.
+        // Without the clear, print(0, {language: "html"}) would throw a
+        // TypeError saying "0 is a css tree" — a lie about a tree the caller
+        // never passed. With the clear, the stale attribution is gone and the
+        // engine's own refusal (a BuildFailure) comes back instead.
+        const css = await guchho.parse(".a{color:red}", { language: "css" });
+        assert.ok(Number.isInteger(css.ast));
+
+        await guchho.stop();
+
+        // The map is cleared; print with a mismatched language no longer
+        // TypeErrors from the stale map. It reaches the (fresh) engine, which
+        // refuses the handle as never-created — a BuildFailure, not a TypeError.
+        await assert.rejects(() => guchho.print(css.ast, { language: "html" }), (error) => {
+            assert.ok(
+                error instanceof guchho.BuildFailure,
+                `expected BuildFailure (engine refusal), got ${error && error.name}: ${error && error.message}`
+            );
+            return true;
+        });
+    });
 });
 
 describe("printing", () => {

@@ -1,4 +1,4 @@
-# @guchho/wasm
+[![Guchho WebAssembly](https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/guchho_wasm.png)](https://www.npmjs.com/package/@guchho/wasm)
 
 The [Guchho](https://github.com/guchho/guchho) bundler compiled to WebAssembly.
 Same engine, same flag grammar, same diagnostics — no native binary required.
@@ -76,6 +76,16 @@ console.log(await version());
   instance's `requestRaw()` — the half a host layer with its own failure
   shape reads.
 - **`version()`** — the engine version string.
+- **`runCli(argv)`** — mounts the host FS and runs the CLI in one call, the
+  same path the npm bin (`bin/guchho.js`) takes. Arguments are the ones after
+  the program name; the return is the engine's exit code. Node only.
+- **`toVirtual(absPath)`** — maps an absolute host path to its `/host`
+  counterpart inside the engine's filesystem: `C:\proj` becomes `/host/proj`,
+  `/home/u/proj` becomes `/host/home/u/proj`. Node only.
+- **`mountHost(module, cwd?)`** — mounts the host file system at `/host` and
+  chdirs into the mount point for `cwd`. Returns `{ FS, root, virtual }`.
+  `createGuchho()` does this for you unless a `files` map says otherwise.
+  Node only.
 
 All of these share one lazily-created engine. Call `configure()` before any of
 them; after that, everything routes to the same instance.

@@ -77,9 +77,12 @@ function loadWasmEngine() {
 /**
  * Sends one compiler-stage request to whichever engine is available.
  *
- * Resolves with the engine's response object, in the same shape the native
- * service sends. Rejects when the request was refused; that is the caller's
- * `unwrap` to turn into the published failure shape, so it is left alone here.
+ * Resolves with the engine's response object untouched, in the same shape the
+ * native service sends — including a refusal's "error" field. That raw shape
+ * is deliberate: lib/compile.js's `unwrap` is what turns a refusal into the
+ * published failure shape, and it runs on both engines alike. The rejection
+ * that can happen here is an engine that could not be loaded at all, which is
+ * the installation's failure rather than a BuildFailure about the source.
  *
  * @param {object} payload The service request. Its "command" is a compile
  *   command, an unknown one is refused by the engine.
@@ -92,7 +95,7 @@ async function compilerRequest(payload) {
   }
 
   const engine = await loadWasmEngine();
-  return engine.request(payload);
+  return engine.requestRaw(payload);
 }
 
 module.exports = { compilerRequest, useWasm };

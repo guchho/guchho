@@ -136,6 +136,7 @@ const result = await build({
   define: { __DEV__: 'false' },
   external: ['react', 'react-dom'],
   loader: { '.svg': 'dataurl' },
+  write: false,
 })
 
 console.log(`${result.outputFiles?.length ?? 0} files written`)
@@ -252,6 +253,81 @@ Each input arrives under its own last path component, so `dist` and `site/build`
 `warnings` is what was deliberately left out - a symlink the walk would not follow (a symlink named as an input is followed once; one found inside a tree is skipped), a cycle it would not go round, the archive itself when it sits inside one of its own inputs. It is empty when nothing was, which is not the same as "nothing to report".
 
 A failure throws a `BuildFailure` with the engine's own message in it, the same one `guchho pack` would have printed.
+
+### Context
+
+A build set up once and run many times. The context holds everything the engine learned reading the project, which is what makes the second build cheaper than the first.
+
+```js
+import { context } from 'guchho'
+
+const ctx = await context({ entrypoints: ['src/index.html'], outdir: 'dist' })
+const first = await ctx.rebuild()
+const second = await ctx.rebuild() // cheaper: the project is already read
+await ctx.dispose()                // releases the watcher and any socket
+```
+
+### Watch
+
+A build that runs again on demand, with events for the rebuilds it performs.
+
+```js
+import { watch } from 'guchho'
+
+const watcher = await watch({ entrypoints: ['src/index.html'], outdir: 'dist' })
+watcher.on('buildEnd', (result) => console.log(result.duration, 'ms'))
+await watcher.rebuild() // trigger a rebuild
+await watcher.close()
+```
+
+The events are not a push: the service answers requests and never sends one of its own, so every `buildEnd` is a rebuild *this handle performed* — either because `rebuild()` was called or because `watch.interval` asked for one.
+
+### Serve
+
+A dev server on a build, using the engine's own HTTP server. Resolves once the server is listening over a finished build, so the address is a value rather than something to scrape out of a log.
+
+```js
+import { serve } from 'guchho'
+
+const server = await serve({
+  build: { entrypoints: ['src/index.html'], outdir: 'dist' },
+  server: { port: 3000, servedir: 'dist' },
+})
+console.log(server.url)
+await server.close()
+```
+
+### Analyze
+
+Analyses a build configuration without producing anything. The numbers come from the metafile the engine already writes, so this is the bundler's own dependency graph rather than a second opinion from a scanner.
+
+```js
+import { analyze } from 'guchho'
+
+const report = await analyze({ entrypoints: ['src/index.html'] })
+console.log(report.inputs, report.outputs, report.totalBytes)
+```
+
+### Analyze metafile
+
+Pretty-prints a metafile as a text report. Accepts the parsed metafile or its JSON text.
+
+```js
+import { analyzeMetafile } from 'guchho'
+
+const text = await analyzeMetafile(result.metafile)
+console.log(text)
+```
+
+### Stop
+
+Ends the service process, once it has actually ended. Await this before removing a build's output directory: while the process is alive it has those files open, and on Windows removing them fails.
+
+```js
+import { stop } from 'guchho'
+
+await stop()
+```
 
 ### Compiler API
 

@@ -5,9 +5,9 @@
 // The WebAssembly flavor keeps the command line as its primary interface: the
 // npm package's bin entry maps a host process's arguments onto callMain() and
 // every flag, message and exit code behaves exactly as the native binary's
-// does. These three exports exist for the other half of the package — the
+// does. The exports below exist for the other half of the package — the
 // embedder API, where a host holds the engine as a module object rather than
-// spawning it and wants a one-call build without assembling an argument list.
+// spawning it and wants one call without assembling an argument list.
 //
 // The design is deliberately thin. guchho_build builds the same argv the
 // command line would have received and calls cli::Run, so flag parsing,
@@ -18,18 +18,37 @@
 // the module); guchho_last_error is only the coarse answer to "did it work",
 // which for the CLI path is the exit code plus one sentence of context.
 //
+// guchho_service is the same idea for the service protocol: it reads the JSON
+// a host would have framed over the pipe, runs the engine's own
+// cli::RunServiceRequest in this process, and writes the answer back as JSON.
+// That is what gives the browser the compiler stages (lex, parse, print and
+// transform, per language) and the other service commands without a second
+// lexer or a second dispatch — the engine answers exactly as it answers the
+// npm package's pipe. One thing the pipe carries and JSON does not is raw
+// bytes, so a request value written as {"__bytes__":"<base64>"} is decoded
+// into bytes before dispatch; a host that passes a Uint8Array input uses that
+// spelling, which is why lexer(source) accepts bytes on the wasm path too.
+//
+// A build that names plugins cannot cross this boundary: plugin hooks are
+// callbacks from the engine to the host, and there is no callback transport
+// in process. The npm wrapper refuses such requests before they get here,
+// the same way the wasm CLI entry refuses a plugin project.
+//
 // Every export is EMSCRIPTEN_KEEPALIVE, so the symbols survive linking and
 // land on the module object as _guchho_build / _guchho_last_error /
-// _guchho_version. Strings cross the boundary as UTF-8 pointers: arguments
-// are read with UTF8ToString on the JS side, and returned pointers refer to
-// static storage that stays valid until the next call — a host that wants to
-// keep a copy must copy it before calling again.
+// _guchho_version / _guchho_service. Strings cross the boundary as UTF-8
+// pointers: arguments are read with UTF8ToString on the JS side, and returned
+// pointers refer to static storage that stays valid until the next call — a
+// host that wants to keep a copy must copy it before calling again.
 
 #include "guchho/cli.hpp"
 #include "guchho/service.hpp"
 
+#include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 // The keep-alive attribute and its header only exist under Emscripten. A
@@ -70,6 +89,96 @@ namespace {
         if (flags == nullptr) return false;
         const guchho::service::Value* field = flags->Find(key);
         return field != nullptr && field->IsBool() && field->AsBool();
+    }
+
+    // The last answer guchho_service wrote. Static for the same reason
+    // g_last_error is: the pointer handed to JavaScript must outlive the call
+    // and is only replaced on the next one.
+    std::string g_service_response;
+
+    // The base64 value of one character, or -1 for anything outside the
+    // standard alphabet. Padding is not a character and is handled by the
+    // caller, which stops at the first "=".
+    int Base64Value(char c) {
+        if (c >= 'A' && c <= 'Z') return c - 'A';
+        if (c >= 'a' && c <= 'z') return c - 'a' + 26;
+        if (c >= '0' && c <= '9') return c - '0' + 52;
+        if (c == '+') return 62;
+        if (c == '/') return 63;
+        return -1;
+    }
+
+    // Decodes standard base64 into bytes. False for a character outside the
+    // alphabet, which is the only way a host can get this wrong; an empty
+    // input decodes to empty bytes and is a real answer.
+    bool Base64Decode(std::string_view src, std::string& out) {
+        int    buffer = 0;
+        int    bits   = 0;
+        for (char c : src) {
+            if (c == '=') break;
+            const int value = Base64Value(c);
+            if (value < 0) return false;
+            buffer = (buffer << 6) | value;
+            bits += 6;
+            if (bits >= 8) {
+                bits -= 8;
+                out.push_back(static_cast<char>((buffer >> bits) & 0xFF));
+            }
+        }
+        return true;
+    }
+
+    // Rewrites a request value so that an object of the form
+    // {"__bytes__":"<base64>"} becomes bytes. JSON has no bytes kind, but the
+    // service does, and a lex or a parse can be handed a buffer; this is the
+    // one spelling that carries one across. A malformed encoding clears "ok"
+    // rather than being treated as text, so a caller that sent bytes gets a
+    // refusal instead of a lex of the literal base64.
+    guchho::service::Value DecodeBytesValue(const guchho::service::Value& value, bool& ok) {
+        using Kind = guchho::service::Value::Kind;
+
+        if (value.GetKind() == Kind::kArray) {
+            std::vector<guchho::service::Value> items;
+            items.reserve(value.Size());
+            for (const guchho::service::Value& item : value.AsArray()) {
+                items.push_back(DecodeBytesValue(item, ok));
+            }
+            return guchho::service::Value::Array(std::move(items));
+        }
+
+        if (value.GetKind() == Kind::kObject) {
+            const std::vector<std::pair<std::string, guchho::service::Value>>& entries =
+                value.AsObject();
+
+            if (entries.size() == 1 && entries[0].first == "__bytes__") {
+                const guchho::service::Value& encoded = entries[0].second;
+                std::string                   bytes;
+                if (encoded.IsString() && Base64Decode(encoded.AsString(), bytes)) {
+                    return guchho::service::Value::Bytes(
+                        std::vector<uint8_t>(bytes.begin(), bytes.end()));
+                }
+                ok = false;
+                return value;
+            }
+
+            std::vector<std::pair<std::string, guchho::service::Value>> out;
+            out.reserve(entries.size());
+            for (const std::pair<std::string, guchho::service::Value>& entry : entries) {
+                out.emplace_back(entry.first, DecodeBytesValue(entry.second, ok));
+            }
+            return guchho::service::Value::Object(std::move(out));
+        }
+
+        return value;
+    }
+
+    // The refusal shape every service command uses, so a host reads one thing
+    // for "this request was not a request". The text is the engine's own for
+    // anything it answers; this is only for a document this layer could not
+    // turn into a request at all.
+    const char* ServiceRefusal(const char* text) {
+        g_service_response = std::string("{\"error\":\"") + text + "\",\"errors\":[]}";
+        return g_service_response.c_str();
     }
 
 } // namespace
@@ -143,4 +252,37 @@ extern "C" GUCHHO_WASM_KEEPALIVE const char* guchho_last_error() {
 // for the lifetime of the module.
 extern "C" GUCHHO_WASM_KEEPALIVE const char* guchho_version() {
     return GUCHHO_VERSION_STRING;
+}
+
+// Answers one service request, in this process, from JSON to JSON.
+//
+// Input:  request_json — a JSON object whose "command" names a service command
+//         (guchho/service.hpp): a build or context command, or one of the
+//         twelve lex/parse/print/transform commands. A value written as
+//         {"__bytes__":"<base64>"} is decoded into bytes first.
+// Output: the response for it, as JSON, in the shape the pipe would have
+//         framed. Static storage, valid until the next guchho_service call.
+//
+// A malformed document, or a request that is not an object, comes back as the
+// same {"error":...} refusal every command uses, so the host reads a refusal
+// the same way whichever side of the boundary produced it.
+extern "C" GUCHHO_WASM_KEEPALIVE const char* guchho_service(const char* request_json) {
+    if (request_json == nullptr || request_json[0] == '\0') {
+        return ServiceRefusal("guchho_service: a JSON request is required");
+    }
+
+    const std::optional<guchho::service::Value> document =
+        guchho::service::JSONToValue(request_json);
+    if (!document.has_value() || !document->IsObject()) {
+        return ServiceRefusal("guchho_service: the request must be a JSON object");
+    }
+
+    bool                         ok      = true;
+    const guchho::service::Value request = DecodeBytesValue(*document, ok);
+    if (!ok) {
+        return ServiceRefusal("guchho_service: __bytes__ was not valid base64");
+    }
+
+    g_service_response = guchho::service::ValueToJSON(guchho::cli::RunServiceRequest(request));
+    return g_service_response.c_str();
 }

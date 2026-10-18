@@ -13,8 +13,9 @@
 // not list is rejected by the command line with "Invalid build flag", so a
 // name added here without a flag on the other side fails loudly and at once,
 // which is better than a silently ignored option.
-
-const path = require("path");
+//
+// Nothing here touches the host: the one function that needed a temp directory
+// moved to lib/metafile-path.js, so this module bundles for the browser.
 
 // Boolean options, sent bare: "guchho build --sourcemap" rather than
 // "--sourcemap=true". A value of false sends nothing, because there is no
@@ -193,17 +194,12 @@ function toArgs(options, { entries = true, metafile = null } = {}) {
     return args;
 }
 
-// The path a metafile is written to when the caller did not name one. Kept out
-// of the project directory on purpose: it is a receipt for one run, not a
-// build output, and a build that has to clean up after itself should not be the
-// reason a file shows up beside the sources.
-function defaultMetafilePath(tag) {
-    return path.join(require("os").tmpdir(), `guchho-${tag}-${process.pid}.json`);
-}
+// The path a metafile is written to when the caller did not name one now lives
+// in lib/metafile-path.js, which is the only part of this module that needed
+// the host file system. It is re-exported nowhere here for that reason.
 
 module.exports = {
     toArgs,
-    defaultMetafilePath,
     LOG_LEVELS,
     // The tables are exported so that the test holding them to the engine's
     // grammar can read them rather than write out its own copy, which would be

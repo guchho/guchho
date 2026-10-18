@@ -14,8 +14,9 @@
 // `import { watch } from "guchho"` gets a sentence naming the native package,
 // not `undefined` and a crash three lines later.
 //
-// Plugins are held back by the transport, not here: a build that names one is
-// refused by the engine with its own message. A project's config file is read
+// Plugins are held back by a JavaScript pre-check in the transport, not here:
+// a build that names one is refused with a plain Error (not a BuildFailure)
+// before the request reaches the engine. A project's config file is read
 // by the engine from the in-memory tree, but the JavaScript half of the plugin
 // bridge has no file to read it from in a browser, so config-file plugins are
 // ignored. Both are documented in docs/wasm.md.

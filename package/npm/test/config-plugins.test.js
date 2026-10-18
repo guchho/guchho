@@ -146,7 +146,12 @@ describe("loadConfigPluginGroups", () => {
   });
 
   it("returns nothing when there is no config file", async () => {
-    const root = makeTempDir("config-plugins-none");
+    // A temp directory is not a reliable "no config" fixture: discovery walks
+    // up the directory tree, and on Windows os.tmpdir() sits under the user's
+    // home, which may hold a guchho.config.js of its own. The drive root is —
+    // discovery checks it, finds nothing (no one keeps a project config at
+    // C:\ or /), and stops because it has no parent to continue to.
+    const root = path.parse(process.cwd()).root;
 
     assert.deepEqual(await loadConfigPluginGroups(root), []);
   });

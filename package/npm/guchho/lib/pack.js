@@ -16,7 +16,7 @@
 // archive path, that a file vanished between walking and writing — comes back
 // as a BuildFailure with the engine's own words in it.
 
-const { getService } = require("./service");
+const { getService } = require("./transport");
 const { toPackResult } = require("./convert");
 
 // The formats pack() accepts, kept in step with guchho::pack::kFormats in

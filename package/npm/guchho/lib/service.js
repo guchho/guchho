@@ -20,6 +20,7 @@ const child_process = require("child_process");
 const { EventEmitter } = require("events");
 
 const { getBinaryPath } = require("./main");
+const { ServiceError, BuildFailure, unwrap } = require("./errors");
 const {
   MAX_VERSION,
   DecodeError,
@@ -37,27 +38,9 @@ const {
 // the other.
 const PROTOCOL_VERSION = "4";
 
-/** The service process died with a pending request outstanding. */
-class ServiceError extends Error {
-  constructor(message, details = {}) {
-    super(message);
-    this.name = "ServiceError";
-    this.code = details.code;
-    this.errors = details.errors;
-    this.warnings = details.warnings;
-  }
-}
-
-/** A request the service refused, carrying the engine's own wording. */
-class BuildFailure extends Error {
-  constructor(errors, warnings) {
-    const first = errors.length > 0 ? errors[0] : null;
-    super(first ? first.text : "the build failed");
-    this.name = "BuildFailure";
-    this.errors = errors;
-    this.warnings = warnings;
-  }
-}
+// ServiceError and BuildFailure are defined in lib/errors.js and re-exported
+// below. They live there because the browser transport throws the same two
+// without importing this file, which is the one that spawns a child process.
 
 /**
  * A live connection to one Guchho process.
@@ -508,28 +491,8 @@ class Service extends EventEmitter {
   }
 }
 
-// Turns the service's refusal shape into a rejection, and leaves a success
-// alone. Every answer carries "errors"; a request the engine would not even
-// begin carries the reason in "error" as well, which is a worse failure than a
-// build error and says so in its own words.
-function unwrap(response) {
-  if (response === null || typeof response !== "object") {
-    throw new ServiceError("the Guchho service sent something that was not a response");
-  }
-
-  const errors = Array.isArray(response.errors) ? response.errors : [];
-  const warnings = Array.isArray(response.warnings) ? response.warnings : [];
-
-  if (typeof response.error === "string") {
-    throw new BuildFailure(
-      [{ id: "protocol-error", pluginName: "", text: response.error, location: null, notes: [], detail: undefined }],
-      warnings
-    );
-  }
-
-  if (errors.length > 0) throw new BuildFailure(errors, warnings);
-  return response;
-}
+// unwrap is defined in lib/errors.js, where the two failure classes are, and
+// imported above so Service.call can use it and this module can re-export it.
 
 // The one process, shared by every request.
 //

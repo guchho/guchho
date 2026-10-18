@@ -28,7 +28,8 @@
 // taking a handle would be a second way to do it, and two ways to do it is the
 // thing this module exists to avoid.
 
-const { getService, BuildFailure, ServiceError } = require("./service");
+const { BuildFailure, ServiceError } = require("./errors");
+const { compilerRequest } = require("./transport");
 const { toMessages } = require("./convert");
 const { protocolError } = require("./types");
 
@@ -232,8 +233,7 @@ function unwrap(response) {
 
 // One compiler command, sent and unwrapped.
 async function compileRequest(payload) {
-    const service = await getService();
-    const response = await service.request(payload);
+    const response = await compilerRequest(payload);
     return unwrap(response);
 }
 

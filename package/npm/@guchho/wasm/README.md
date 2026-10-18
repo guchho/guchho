@@ -34,6 +34,41 @@ guchho.build("src/index.html", { outdir: "dist", minify: true });
 Entry and outdir are ordinary host paths (relative paths resolve against
 `process.cwd()`, or pass `createGuchho({ cwd })`).
 
+## Top-level API
+
+For one-off calls you do not need to manage an instance. The package exposes a
+shared engine as top-level named exports, available from both ESM and
+CommonJS:
+
+```js
+import { configure, loadFiles, lexer, parse, print, build, request, version } from "@guchho/wasm";
+
+// Configure the in-memory file tree before the first call (browser)…
+configure({ files: { "main.js": 'console.log("hi");' } });
+// …or skip configure() entirely on Node, where the host FS is mounted.
+
+const tokens = await lexer("main.js", "js");
+const result = await build("main.js", { outdir: "dist" });
+console.log(version());
+```
+
+- **`configure({ files, print, printErr })`** — sets the virtual file tree and
+  diagnostic sinks. Must be called before the first engine use; throws if the
+  engine already exists.
+- **`loadFiles(files)`** — writes more files into the in-memory tree after the
+  engine has been created.
+- **`lexer(file, language)`**, **`parse(file, language)`**,
+  **`print(handle, language)`** — token-level access, mirroring the engine's
+  own stages.
+- **`build(entry, options)`** — one-shot build through the C ABI, same options
+  as `createGuchho(...).build(...)`.
+- **`request(payload)`** — a raw service request, same protocol as the native
+  pipe.
+- **`version()`** — the engine version string.
+
+All of these share one lazily-created engine. Call `configure()` before any of
+them; after that, everything routes to the same instance.
+
 ## Browser
 
 In the browser the engine runs in memory. Pass a `files` map when creating the
@@ -64,8 +99,13 @@ no `SharedArrayBuffer` requirements to satisfy.
 ## CommonJS
 
 ```js
-const createGuchho = require("@guchho/wasm");
+const { createGuchho, build, lexer, version } = require("@guchho/wasm");
+
+// The factory…
 const guchho = await createGuchho();
+
+// …or the top-level names, which share one engine:
+const result = await build("src/index.html", { outdir: "dist" });
 ```
 
 ## Limitations
@@ -80,4 +120,4 @@ const guchho = await createGuchho();
 
 ## License
 
-MIT
+Guchho is licensed under **MIT**. Copyright © [CodeHemu](https://github.com/code-hemu).

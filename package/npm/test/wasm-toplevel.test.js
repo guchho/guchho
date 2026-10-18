@@ -62,6 +62,9 @@ describe("@guchho/wasm top-level exports", () => {
         }
         assert.equal(typeof module.createGuchho, "function");
         assert.equal(typeof module.runCli, "function");
+        // The default is the factory itself, so the ESM and CommonJS entries
+        // answer a default import the same way (index.cjs sets .default too).
+        assert.equal(module.default, module.createGuchho);
     });
 
     it("exposes the same names through require()", () => {
@@ -75,6 +78,7 @@ describe("@guchho/wasm top-level exports", () => {
         }
         assert.equal(typeof module.createGuchho, "function");
         assert.equal(typeof module.runCli, "function");
+        assert.equal(module.default, module.createGuchho);
     });
 });
 

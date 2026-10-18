@@ -68,7 +68,7 @@ export interface Message {
 export interface SourcePosition {
   /** Offset in bytes from the start of the input. */
   start: number
-  /** Offset in bytes from the end of the token. */
+  /** Offset in bytes from the start of the input. */
   end: number
   /** 1-based line. */
   line: number
@@ -208,7 +208,7 @@ export interface LexOptions extends CompileOptions {
 export interface ParseOptions extends CompileOptions, CssMinifyOptions {
   /** HTML only. Parse as a fragment: no wrappers and no doctype complaint. */
   fragment?: boolean
-  /** HTML and CSS. Count the imports the parser resolved. */
+  /** HTML only. Count the imports the parser resolved. */
   collectImportRecords?: boolean
   /** HTML only. Count inline script and style elements. */
   collectInlineCode?: boolean
@@ -254,7 +254,7 @@ export interface ParseResult extends CompileResult {
   nodes?: HtmlNode[]
   /** HTML. */
   nodeCount?: number
-  /** HTML and CSS, only when collectImportRecords was set. */
+  /** HTML and CSS. The number of import records the parser found. */
   importRecords?: number
   /** HTML, only when collectInlineCode was set. */
   inlineScripts?: number
@@ -554,3 +554,10 @@ export declare function request(payload: ServiceRequest): Promise<ServiceRespons
 
 /** The shared engine's version string, e.g. "1.0.7". */
 export declare function version(): Promise<string>
+
+/**
+ * The default export: the same factory as the named `createGuchho`. An ESM
+ * `import createGuchho from "@guchho/wasm"` resolves to this, and it is the
+ * same function the CommonJS `require("@guchho/wasm").default` gives.
+ */
+export default createGuchho

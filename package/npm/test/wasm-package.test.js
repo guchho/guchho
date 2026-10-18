@@ -134,6 +134,43 @@ describe("@guchho/wasm engine", () => {
         assert.equal(e.version(), manifest.version);
     });
 
+    it("lexes source through the in-process service", { skip: !hasBuiltEngine() }, async () => {
+        const e = await engine();
+
+        const result = await e.lexer("<a>\n<b>", { language: "html" });
+        assert.deepEqual(result.errors, [], `unexpected errors: ${JSON.stringify(result.errors)}`);
+        assert.equal(result.count, 4);
+        assert.equal(result.tokens[0].kind, "start-tag");
+        assert.equal(result.tokens[0].value, "a");
+    });
+
+    it("lexes bytes through the __bytes__ envelope", { skip: !hasBuiltEngine() }, async () => {
+        const e = await engine();
+
+        const result = await e.lexer(Buffer.from("<p>x</p>", "utf8"), { language: "html" });
+        assert.equal(result.count, result.tokens.length);
+        assert.ok(result.count > 0, "a byte input should still lex");
+    });
+
+    it("parses and prints a tree through one handle", { skip: !hasBuiltEngine() }, async () => {
+        const e = await engine();
+
+        const parsed = await e.parse("const a = 1;", { language: "js" });
+        assert.equal(typeof parsed.ast, "number");
+        assert.equal(parsed.ok, true);
+
+        const printed = await e.print(parsed.ast, { language: "js" });
+        assert.match(printed.code, /const a = 1/);
+    });
+
+    it("answers a raw service request", { skip: !hasBuiltEngine() }, async () => {
+        const e = await engine();
+
+        const response = await e.request({ command: "lex-js", input: "let a = 1;" });
+        assert.equal(response.count, response.tokens.length);
+        assert.ok(response.count > 0);
+    });
+
     it("builds a small project from a files map and answers with the outputs", { skip: !hasBuiltEngine() }, async () => {
         // The files map has to be given at creation: on Node the engine mounts
         // the host file system unless a files map says otherwise, and a map
@@ -181,8 +218,18 @@ describe("@guchho/wasm engine", () => {
         // the other way: a project written to a temporary directory, mounted
         // through NODEFS the way the CLI mounts the working directory, with
         // the outputs landing back on the real disk.
+        //
+        // The project carries its own empty config so config discovery — which
+        // walks up the directory tree and stops at the first config it
+        // finds — cannot pick up a guchho.config.js from a parent of the
+        // temp directory. (On Windows os.tmpdir() sits under the user's home,
+        // so a home-directory config is a real possibility.) Without this the
+        // engine would try to spawn Node to evaluate that config, which the
+        // WASM build cannot do, and the build would fail for a reason this
+        // test is not about.
         const project = makeTempDir("wasm-nodefs");
         fs.mkdirSync(path.join(project, "src"), { recursive: true });
+        fs.writeFileSync(path.join(project, "guchho.config.json"), "{}\n");
         fs.writeFileSync(
             path.join(project, "src", "index.html"),
             '<!doctype html><html><body><script type="module" src="./main.js"></script></body></html>\n'

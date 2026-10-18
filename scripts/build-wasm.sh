@@ -15,7 +15,10 @@ set -euo pipefail
 # Environment prerequisites:
 #
 #   EMSDK        the emsdk install directory (emsdk_env.sh already sourced,
-#                or at least emcc on PATH). On Windows Git Bash:
+#                or at least emcc on PATH). CI pins the SDK to 6.0.12
+#                (setup-emsdk in .github/workflows/npm-publish.yml); use the
+#                same version locally so the glue and binary match CI's.
+#                On Windows Git Bash:
 #                  export EMSDK_PYTHON="C:\\Python314\\python.exe"
 #                  source "$TEMP/opencode/emsdk/emsdk_env.sh"
 #   EMSDK_PYTHON the Python emsdk should drive (Windows only)
@@ -39,7 +42,7 @@ while [[ $# -gt 0 ]]; do
         --no-sync) SYNC=false; shift ;;
         --clean)   CLEAN=true; shift ;;
         -h|--help)
-            sed -n '3,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+            sed -n '3,31p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *)

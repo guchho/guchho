@@ -15,9 +15,12 @@
 // the three are allowed to differ: a host can be several patch releases ahead
 // of a binary it is talking to, which is the whole reason the protocol version
 // is negotiated at all.
+//
+// The import is written literally rather than built from __dirname: a path
+// assembled at runtime is one a bundler cannot follow, and this module has to
+// bundle for the browser, where it is still the package's own version the
+// caller is asking for.
 
-const path = require("path");
-
-const version = require(path.join(__dirname, "..", "package.json")).version;
+const version = require("../package.json").version;
 
 module.exports = { version };

@@ -304,6 +304,20 @@ describe("toArgs: the log level", () => {
     });
 });
 
+describe("toArgs: the log limit", () => {
+    it("sends a limit the command line accepts", () => {
+        assert.deepEqual(toArgs({ logLimit: 6 }), ["--log-limit=6"]);
+    });
+
+    it("sends 0 as the unlimited sentinel, which is how the engine spells it", () => {
+        assert.deepEqual(toArgs({ logLimit: 0 }), ["--log-limit=0"]);
+    });
+
+    it("sends nothing when the limit is absent, rather than a default", () => {
+        assert.deepEqual(toArgs({}), []);
+    });
+});
+
 describe("defaultMetafilePath", () => {
     it("is in the temporary directory, because a metafile is a receipt and not an output", () => {
         // Left in the project it would make a build look like it had produced

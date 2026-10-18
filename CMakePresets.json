@@ -383,7 +383,7 @@
         "GUCHHO_WASM": "ON",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "CMAKE_CXX_FLAGS": "-fexceptions",
-        "CMAKE_EXE_LINKER_FLAGS": "-fexceptions -sSTACK_SIZE=16777216 -sINITIAL_MEMORY=67108864 -sALLOW_MEMORY_GROWTH -sMAXIMUM_MEMORY=4294967296 -sENVIRONMENT=node,web -sMODULARIZE -sEXPORT_ES6 -sEXPORT_NAME=createGuchho -sEXPORTED_RUNTIME_METHODS=FS,callMain,abort,UTF8ToString,ccall,cwrap -sEXPORTED_FUNCTIONS=_main,_guchho_build,_guchho_last_error,_guchho_version --js-library $penv{EMSDK}/upstream/emscripten/src/lib/libnodefs.js --js-library ${sourceDir}/scripts/keep-nodefs.js -sDEFAULT_LIBRARY_FUNCS_TO_INCLUDE=guchho_keep_nodefs --post-js ${sourceDir}/scripts/nodefs-post.js"
+        "CMAKE_EXE_LINKER_FLAGS": "-fexceptions -sSTACK_SIZE=16777216 -sINITIAL_MEMORY=67108864 -sALLOW_MEMORY_GROWTH -sMAXIMUM_MEMORY=4294967296 -sENVIRONMENT=node,web -sMODULARIZE -sEXPORT_ES6 -sEXPORT_NAME=createGuchho -sEXPORTED_RUNTIME_METHODS=FS,callMain,abort,UTF8ToString,ccall,cwrap -sEXPORTED_FUNCTIONS=_main,_guchho_build,_guchho_last_error,_guchho_version,_guchho_service --js-library $penv{EMSDK}/upstream/emscripten/src/lib/libnodefs.js --js-library ${sourceDir}/scripts/keep-nodefs.js -sDEFAULT_LIBRARY_FUNCS_TO_INCLUDE=guchho_keep_nodefs --post-js ${sourceDir}/scripts/nodefs-post.js"
       }
     }
   ],

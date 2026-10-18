@@ -7,7 +7,7 @@
 // input, which arrives as a string in the call rather than as an entry point
 // named on disk, so there is nothing to resolve and no file to read.
 
-const { getService } = require("./service");
+const { getService } = require("./transport");
 const { toFlags } = require("./flags");
 const { toTransformResult } = require("./convert");
 const { normalize } = require("./options");

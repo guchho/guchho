@@ -25,6 +25,12 @@
 // than two that do the same thing. An import of `zip` gives undefined, which
 // is what any name this package does not publish gives.
 
+// The engine the API below runs against: on this entry, the native service.
+// Required before the orchestrators so that the first build() finds a
+// transport already in place. The browser entry installs the WebAssembly
+// transport the same way.
+require("./transport-node");
+
 const { build, analyzeMetafile } = require("./build");
 const { analyze } = require("./analyze");
 const { transform } = require("./transform");

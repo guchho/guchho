@@ -30,12 +30,11 @@
 // a dispatch that answers it — and that is written down in the notes beside the
 // protocol rather than faked here.
 
-const { getService } = require("./service");
+const { getService, withConfigPlugins } = require("./transport");
 const { toFlags, toEntryPoints } = require("./flags");
 const { toBuildResult } = require("./convert");
 const { normalize } = require("./options");
 const { makePluginHost, callWithPlugins } = require("./plugins");
-const { withConfigPlugins } = require("./config");
 
 /** A build that is set up once and built as many times as asked. */
 class BuildContext {

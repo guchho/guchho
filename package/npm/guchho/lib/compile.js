@@ -32,6 +32,7 @@ const { BuildFailure, ServiceError } = require("./errors");
 const { compilerRequest } = require("./transport");
 const { toMessages } = require("./convert");
 const { protocolError } = require("./types");
+const { addStopHook } = require("./stop-hooks");
 
 // The languages the engine has a lexer, a parser and a printer for.
 //
@@ -101,10 +102,24 @@ const STAGES = {
 // AST has been released, or was never created": a true sentence about a tree the
 // caller did not pass, and a useless one.
 //
-// Bounded by the number of parse calls in a process, and never cleared: a handle
-// is only forgotten by a process that has stopped parsing, which is a process that
-// is about to exit.
+// Bounded by the number of parse calls in a process, and cleared when the
+// service ends: the service resets its id counter on restart, so a handle from
+// the previous service is not the tree the caller thinks it is, and this map
+// would attribute a reused id to the wrong language.
 const handleLanguages = new Map();
+
+// Clears the map when the native service process ends. The wasm engine
+// persists across a native stop (its handles remain valid), so this hook is
+// only registered in the native path and never runs in the browser.
+addStopHook(() => handleLanguages.clear());
+
+/**
+ * Clears the handle→language map. Internal: registered as a stop hook above.
+ * @private
+ */
+function clearHandles() {
+    handleLanguages.clear();
+}
 
 /**
  * Runs the engine's lexer over some source.
@@ -313,4 +328,4 @@ function forward(payload, options, stage) {
     }
 }
 
-module.exports = { lexer, parse, print };
+module.exports = { lexer, parse, print, clearHandles };

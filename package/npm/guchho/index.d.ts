@@ -1,9 +1,9 @@
 // Type declarations for guchho.
 //
-// The API is the one guchho publishes, so that a project moving between the
-// two bundlers is a change of import name rather than a rewrite. Where Guchho's
+// The API is the one guchho publishes, so that a project moving from esbuild
+// to Guchho is a change of import name rather than a rewrite. Where Guchho's
 // options are a superset — the loader map, the HTML and CSS pipelines — the
-// extra names are declared alongside; where Guchho does not have an guchho
+// extra names are declared alongside; where Guchho does not have an esbuild
 // option, it is left out rather than declared and refused at runtime.
 //
 // Two things are deliberately not declared:
@@ -13,10 +13,15 @@
 //     protocol cannot do without a second process to ask. Declaring them would
 //     be a promise this package does not keep.
 //
-//   - plugin hooks that reach past what the engine implements. Every hook and
-//     every PluginContext method below has a runtime implementation behind it;
-//     a hook the engine could not run is left out rather than declared and
-//     silently ignored. See the plugin API further down.
+//   - PluginContext.getFileName. emitFile returns nothing in this version, so
+//     there is no reference id to resolve back to an output path. The name is
+//     left out rather than declared and thrown on.
+//
+// Some hooks and context methods are declared but not fully wired yet:
+// `Plugin.transform` is declared and documented but not yet run by the
+// engine's pipeline; `PluginContext.resolve` rejects with a sentence naming
+// the limitation; `PluginContext.emitFile` supports assets only. Each of
+// these fails loudly at the call site rather than silently doing nothing.
 //
 // The version is a string, not a function: it is read once from the manifest
 // the package was installed as, so comparing it against the runtime's
@@ -138,7 +143,7 @@ export interface CommonOptions {
   external?: string[]
   /** How chatty the engine is. */
   logLevel?: LogLevel
-  /** Where the engine's own log lines go. */
+  /** The most log messages the engine will emit before truncating. 0 is unlimited. */
   logLimit?: number
   /** Colour in diagnostics, or "auto" to decide from the terminal. */
   color?: boolean
@@ -172,7 +177,7 @@ export interface CommonOptions {
   dropLabels?: string | string[]
   keepNames?: boolean
   mangleQuoted?: boolean
-  /** Only ever true in this package: there is no watch mode option on build. */
+  /** Shorthand: turns on minifyWhitespace, minifyIdentifiers and minifySyntax together. */
   minify?: boolean
   minifyWhitespace?: boolean
   minifyIdentifiers?: boolean
@@ -434,6 +439,9 @@ export interface PluginContext {
    * then hands back the answer. This is how a plugin asks where an import
    * points without claiming it. Returns `null` when nothing resolves it.
    *
+   * Not wired yet in this version: always rejects with a sentence naming the
+   * limitation, rather than resolving to a wrong answer.
+   *
    * `custom: true` is set on the question so a plugin that answers resolution
    * can tell its own question from the engine's and decline it.
    */
@@ -443,12 +451,10 @@ export interface PluginContext {
     options?: ResolveIdOptions
   ): Promise<ResolvedId | null>
   /**
-   * Adds a file to the build's output. Returns a reference id that names the
-   * file for `getFileName`, and that can be handed to another `emitFile`.
+   * Adds a file to the build's output. Assets only in this version; chunks
+   * are refused with a sentence rather than silently dropped.
    */
-  emitFile(file: EmittedFile): string
-  /** The output path a reference id from `emitFile` resolves to. */
-  getFileName(referenceId: string): string
+  emitFile(file: EmittedFile): void
   /** Reports a warning against this plugin. Does not fail the build. */
   warn(message: string | GuchhoLog): void
   /** Fails the build with this message. Never returns. */
@@ -500,6 +506,8 @@ export interface Plugin {
   /**
    * Transforms a module's source after it has been loaded and before it is
    * parsed. `code` is the text the previous step produced.
+   *
+   * Declared but not yet run by the engine's pipeline in this version.
    */
   transform?(
     this: PluginContext,
@@ -1070,12 +1078,13 @@ export declare function stop(): Promise<void>
 export declare const version: string
 
 // ---------------------------------------------------------------------------
-// The compiler API: lex, parse, transform and print, one function per
-// language. Each stage sends one request to the same service a build uses, so
-// the lexer, the parser and the printer are the engine's own. The AST never
-// crosses the wire: a parse answers with a numeric handle and a structural
-// summary, a transform turns one handle into another, and a print turns a
-// handle into text.
+// The compiler API: lex, parse and print, one function per language. Each
+// stage sends one request to the same service a build uses, so the lexer, the
+// parser and the printer are the engine's own. The AST never crosses the wire:
+// a parse answers with a numeric handle and a structural summary, and a print
+// turns a handle back into text. There is no transformAst — the engine's
+// transform work happens on source, and the high-level transform() already
+// reaches it.
 // ---------------------------------------------------------------------------
 
 /** The source a compile command reads. Bytes pass through as bytes. */
@@ -1083,8 +1092,9 @@ export type CompileSource = string | Uint8Array
 
 /**
  * The handle a parse returned. Opaque to this package: it is the service's id
- * for a tree it holds, and only transform* and print* may use it, in the same
- * language it came from.
+ * for a tree it holds, and only print() may use it, in the same language it
+ * came from. There is no transformAst — the engine's transform work happens
+ * on source, not on a handle.
  */
 export type AstHandle = number
 
@@ -1260,7 +1270,7 @@ export interface ParseResult extends CompileResult {
   nodes?: HtmlNode[]
   /** HTML. */
   nodeCount?: number
-  /** HTML, only when collectImportRecords was set. */
+  /** HTML and CSS. The number of import records the parser found. */
   importRecords?: number
   /** HTML, only when collectInlineCode was set. */
   inlineScripts?: number
@@ -1327,6 +1337,18 @@ export declare function print(
 export declare const BuildContext: {
   new (...args: any[]): BuildContext
   prototype: BuildContext
+}
+
+/** The class watch() returns. Declared for instanceof. */
+export declare const Watcher: {
+  new (...args: any[]): Watcher
+  prototype: Watcher
+}
+
+/** The class serve() returns. Declared for instanceof. */
+export declare const DevServer: {
+  new (...args: any[]): DevServer
+  prototype: DevServer
 }
 
 // ---------------------------------------------------------------------------

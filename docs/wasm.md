@@ -85,9 +85,20 @@ configure({
   files: { "src/main.js": 'console.log("hello");' },
 });
 
-const result = await lexer("src/main.js", "js");
+const source = 'console.log("hello");';
+
+const { tokens, count } = await lexer(source, { language: "js" });
+const parsed = await parse(source, { language: "js" });
+const { code } = await print(parsed.ast, { language: "js" });
+
 const output = await build("src/main.js", { outdir: "dist" });
+console.log(await version());
 ```
+
+`lexer`, `parse` and `print` take the source text (or bytes) itself, not a
+path, and an options object naming the language — one of `"html"`, `"css"` or
+`"js"`. `print` takes the numeric handle `parse` returned as `ast`. The tree
+`configure()` installs is what `build()` reads.
 
 `configure()` must be called before the first engine use; it throws if the
 engine already exists. `loadFiles(files)` writes more files into the

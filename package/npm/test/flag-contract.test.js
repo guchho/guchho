@@ -237,6 +237,7 @@ describe("the command line accepting what the wrapper sends", () => {
                     platform: "browser",
                     jsx: "automatic",
                     logLevel: "error",
+                    logLimit: 6,
                     external: ["react"],
                     define: { DEBUG: "true" },
                     loader: { ".svg": "dataurl" },

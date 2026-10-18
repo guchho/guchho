@@ -56,6 +56,12 @@ function makeProject(files = {}) {
         fs.writeFileSync(file, contents);
     }
 
+    // Stop config discovery walking up out of the temp tree: without this a
+    // guchho.config.js in a parent (the user's home, on Windows) is found,
+    // and its outdir/entry resolve against that directory instead of the
+    // project's, sending the build's output somewhere the test cannot see.
+    fs.writeFileSync(path.join(root, "guchho.config.json"), "{}\n");
+
     return root;
 }
 

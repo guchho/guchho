@@ -33,6 +33,8 @@ function makeProject(initial = 'console.log("first");\n') {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "guchho-serve-test-"));
     fs.mkdirSync(path.join(root, "src"), { recursive: true });
     fs.writeFileSync(path.join(root, "src", "main.js"), initial);
+    // Prevent discovery from walking up to a parent guchho.config.* (e.g. home)
+    fs.writeFileSync(path.join(root, "guchho.config.json"), "{}\n");
     return root;
 }
 

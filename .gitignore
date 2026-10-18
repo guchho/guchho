@@ -55,6 +55,12 @@ package/npm/@guchho/*/bin/
 # (bin/guchho.js) rather than a compiled native binary.
 !package/npm/@guchho/wasm/bin/
 
+# The generated Emscripten glue for the wasm package: scripts/build-wasm.sh
+# writes it into lib/ right before npm packaging (CI's build-wasm job
+# regenerates it), so it is a build artifact, not a source file. Its .wasm
+# sibling is covered by the *.wasm rule below.
+package/npm/@guchho/wasm/lib/guchho.js
+
 
 # ------------------------------------------------------------
 # Chocolatey

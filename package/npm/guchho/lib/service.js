@@ -21,6 +21,7 @@ const { EventEmitter } = require("events");
 
 const { getBinaryPath } = require("./main");
 const { ServiceError, BuildFailure, unwrap } = require("./errors");
+const { runStopHooks } = require("./stop-hooks");
 const {
   MAX_VERSION,
   DecodeError,
@@ -399,6 +400,10 @@ class Service extends EventEmitter {
     this.exited = true;
     this.stopped = true;
     this._failAll(error);
+    // The process's id counter is gone with it. Hooks clear state keyed by
+    // those ids — compile.js's handle→language map — so a restarted service
+    // reusing an id is not attributed to the tree the dead process held.
+    runStopHooks();
   }
 
   // Everyone waiting is told the process is gone. A promise that never settles

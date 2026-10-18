@@ -1307,3 +1307,68 @@ export declare const BuildContext: {
   new (...args: any[]): BuildContext
   prototype: BuildContext
 }
+
+// ---------------------------------------------------------------------------
+// Browser entry (the "browser" export condition).
+//
+// When a bundler resolves this package for a browser target it picks up
+// lib/browser/index.mjs (or .js), which wires the same orchestrators above to
+// the @guchho/wasm engine running in-process instead of a native child
+// process. The names below only exist on that surface; on Node they are
+// absent, and on Node `watch`/`serve` are the real functions declared above.
+//
+// @guchho/wasm is an optional peer dependency: install it alongside this
+// package for the browser entry to work.
+// ---------------------------------------------------------------------------
+
+/**
+ * Sets the virtual file tree the WASM engine is created with, and the
+ * diagnostic sinks it writes to.
+ *
+ * Call this before the first build, lex, parse or print: the engine is created
+ * once, and a browser build reads its entry points out of the in-memory tree it
+ * was created with. Throws if the engine already exists.
+ */
+export declare function configure(options: {
+  /** Virtual paths → file contents. The engine's whole filesystem. */
+  files?: Record<string, string | Uint8Array>
+  /** Receives each line the engine prints. */
+  print?: (line: string) => void
+  /** Receives each line the engine prints to stderr. */
+  printErr?: (line: string) => void
+}): void
+
+/**
+ * Writes files into the engine's in-memory tree after it has been created.
+ *
+ * For the browser the engine is usually created with a files map via
+ * `configure()`; this is the path for adding more before a later build.
+ */
+export declare function loadFiles(
+  files: Record<string, string | Uint8Array>
+): Promise<void>
+
+/**
+ * Always throws in the browser: the WASM engine has no sockets and no
+ * watchers. Present as a named export so a shared import does not break at
+ * load time.
+ *
+ * @throws {Error} Always.
+ */
+export declare function watch(options?: BuildOptions): Promise<Watcher>
+
+/**
+ * Always throws in the browser: the WASM engine has no sockets and no
+ * watchers. Present as a named export so a shared import does not break at
+ * load time.
+ *
+ * @throws {Error} Always.
+ */
+export declare function serve(options?: BuildOptions): Promise<DevServer>
+
+/**
+ * A no-op in the browser. The in-process engine frees itself with the page;
+ * there is no process to end. Kept so `stop()` has the same shape on both
+ * surfaces.
+ */
+export declare function stop(): Promise<void>

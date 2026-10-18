@@ -594,3 +594,9 @@ export async function request(payload) {
 export async function version() {
     return (await engine()).version();
 }
+
+// The default export, so the ES module and the CommonJS wrapper say the same
+// thing: index.cjs sets module.exports.default = createGuchho, and an ESM
+// `import createGuchho from "@guchho/wasm"` should resolve to the same
+// factory rather than failing on a module that publishes only named exports.
+export default createGuchho;

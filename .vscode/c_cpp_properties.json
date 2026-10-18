@@ -44,7 +44,7 @@
                 "_DLL",
                 "_MT",
                 "RC_INVOKED",
-                "GUCHHO_VERSION_STRING=\"1.0.7\"",
+                "GUCHHO_VERSION_STRING=\"1.0.8\"",
                 "GUCHHO_TEST_EXE=\"${workspaceFolder}/build/release-win32-x64-ninja/bin/guchho.exe\""
             ],
             "compileCommands": [

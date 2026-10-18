@@ -1,6 +1,6 @@
 {
   "name": "guchho",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Fast build system for web applications",
   "bin": {
     "guchho": "bin/guchho.js"
@@ -56,7 +56,7 @@
   },
   "homepage": "https://guchho.js.org",
   "peerDependencies": {
-    "@guchho/wasm": ">=1.0.7"
+    "@guchho/wasm": "1.0.8"
   },
   "peerDependenciesMeta": {
     "@guchho/wasm": {
@@ -64,31 +64,31 @@
     }
   },
   "optionalDependencies": {
-    "@guchho/aix-ppc64": "1.0.7",
-    "@guchho/android-arm": "1.0.7",
-    "@guchho/android-arm64": "1.0.7",
-    "@guchho/android-x64": "1.0.7",
-    "@guchho/darwin-arm64": "1.0.7",
-    "@guchho/darwin-x64": "1.0.7",
-    "@guchho/freebsd-arm64": "1.0.7",
-    "@guchho/freebsd-x64": "1.0.7",
-    "@guchho/linux-arm": "1.0.7",
-    "@guchho/linux-arm64": "1.0.7",
-    "@guchho/linux-ia32": "1.0.7",
-    "@guchho/linux-loong64": "1.0.7",
-    "@guchho/linux-mips64el": "1.0.7",
-    "@guchho/linux-ppc64": "1.0.7",
-    "@guchho/linux-riscv64": "1.0.7",
-    "@guchho/linux-s390x": "1.0.7",
-    "@guchho/linux-x64": "1.0.7",
-    "@guchho/netbsd-arm64": "1.0.7",
-    "@guchho/netbsd-x64": "1.0.7",
-    "@guchho/openbsd-arm64": "1.0.7",
-    "@guchho/openbsd-x64": "1.0.7",
-    "@guchho/openharmony-arm64": "1.0.7",
-    "@guchho/sunos-x64": "1.0.7",
-    "@guchho/win32-arm64": "1.0.7",
-    "@guchho/win32-ia32": "1.0.7",
-    "@guchho/win32-x64": "1.0.7"
+    "@guchho/aix-ppc64": "1.0.8",
+    "@guchho/android-arm": "1.0.8",
+    "@guchho/android-arm64": "1.0.8",
+    "@guchho/android-x64": "1.0.8",
+    "@guchho/darwin-arm64": "1.0.8",
+    "@guchho/darwin-x64": "1.0.8",
+    "@guchho/freebsd-arm64": "1.0.8",
+    "@guchho/freebsd-x64": "1.0.8",
+    "@guchho/linux-arm": "1.0.8",
+    "@guchho/linux-arm64": "1.0.8",
+    "@guchho/linux-ia32": "1.0.8",
+    "@guchho/linux-loong64": "1.0.8",
+    "@guchho/linux-mips64el": "1.0.8",
+    "@guchho/linux-ppc64": "1.0.8",
+    "@guchho/linux-riscv64": "1.0.8",
+    "@guchho/linux-s390x": "1.0.8",
+    "@guchho/linux-x64": "1.0.8",
+    "@guchho/netbsd-arm64": "1.0.8",
+    "@guchho/netbsd-x64": "1.0.8",
+    "@guchho/openbsd-arm64": "1.0.8",
+    "@guchho/openbsd-x64": "1.0.8",
+    "@guchho/openharmony-arm64": "1.0.8",
+    "@guchho/sunos-x64": "1.0.8",
+    "@guchho/win32-arm64": "1.0.8",
+    "@guchho/win32-ia32": "1.0.8",
+    "@guchho/win32-x64": "1.0.8"
   }
 }

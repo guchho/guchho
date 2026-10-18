@@ -59,6 +59,14 @@ function version() {
     return load().then((m) => m.version());
 }
 
+function toVirtual(absPath) {
+    return load().then((m) => m.toVirtual(absPath));
+}
+
+function mountHost(module, cwd) {
+    return load().then((m) => m.mountHost(module, cwd));
+}
+
 module.exports = createGuchho;
 module.exports.createGuchho = createGuchho;
 module.exports.runCli = runCli;
@@ -70,4 +78,6 @@ module.exports.print = print;
 module.exports.build = build;
 module.exports.request = request;
 module.exports.version = version;
+module.exports.toVirtual = toVirtual;
+module.exports.mountHost = mountHost;
 module.exports.default = createGuchho;

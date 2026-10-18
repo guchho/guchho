@@ -46,6 +46,7 @@ const VALUE_FLAGS = {
     jsx: "--jsx",
     tsconfig: "--tsconfig",
     logLevel: "--log-level",
+    logLimit: "--log-limit",
 };
 
 // Options that may be given more than once, each producing its own flag.
@@ -290,6 +291,7 @@ const SERVICE_VALUES = {
     jsx: "--jsx",
     tsconfig: "--tsconfig",
     logLevel: "--log-level",
+    logLimit: "--log-limit",
     charset: "--charset",
     banner: "--banner",
     footer: "--footer",

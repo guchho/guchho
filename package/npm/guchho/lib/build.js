@@ -12,13 +12,12 @@
 // name; everything goes through that one module first, which is what stops the
 // two spellings from drifting apart.
 
-const { getService } = require("./service");
+const { getService, withConfigPlugins } = require("./transport");
 const { toFlags, toEntryPoints } = require("./flags");
 const { toBuildResult, toText } = require("./convert");
 const { answerFields } = require("./context");
 const { normalize } = require("./options");
 const { makePluginHost, callWithPlugins } = require("./plugins");
-const { withConfigPlugins } = require("./config");
 
 /**
  * Runs a build.

@@ -21,6 +21,7 @@ add_library(guchho_cli_test_objects OBJECT
     cli_service_compile_test.cpp
     cli_pack_test.cpp
     cli_exe_test.cpp
+    wasm_abi_test.cpp
 )
 
 target_include_directories(
@@ -40,6 +41,25 @@ target_compile_definitions(
     PRIVATE
         GUCHHO_TEST_EXE="$<TARGET_FILE:guchho>"
 )
+
+# The WebAssembly C ABI is only built into guchho_cli when the WebAssembly
+# flavor is selected, and a native build is not that flavor. The wrapper over
+# RunServiceRequest is worth testing natively all the same, so wasm_abi.cpp is
+# compiled into the test objects here. GUCHHO_VERSION_STRING is normally a
+# PRIVATE definition on guchho_cli (src/CMakeLists.txt), which does not reach
+# this object library, so it is named again here.
+#
+# Guarded rather than unconditional: a native build that turned GUCHHO_WASM on
+# already has these symbols in guchho_cli, and compiling the file twice would
+# be a duplicate definition.
+if(NOT GUCHHO_WASM)
+    target_sources(guchho_cli_test_objects PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/cli/wasm_abi.cpp
+    )
+    target_compile_definitions(guchho_cli_test_objects PRIVATE
+        GUCHHO_VERSION_STRING="${PROJECT_VERSION}"
+    )
+endif()
 
 target_link_libraries(
     guchho_cli_test_objects

@@ -48,6 +48,31 @@ guchho.build("src/index.html", { outdir: "dist", minify: true });
 A one-shot `build(entry, options)` drives the C ABI (`guchho_build`) directly,
 and `callMain(argv)` runs the CLI with the engine's own flag grammar.
 
+### Which `guchho` API runs where
+
+This package is the engine; the `guchho` package is the orchestrator over it,
+and on Node the two do not fall back the same way:
+
+- **The CLI (`guchho build`)** runs this engine whenever it is installed —
+  wasm-first — so a machine with only `@guchho/wasm` can still run every
+  command except `serve`, `watch` and `dev`.
+- **`lexer`, `parse` and `print`** fall back to this engine too, but
+  native-first: a native binary, when one is installed, answers them without
+  loading the WebAssembly module at all.
+- **`build`, `transform`, `pack`, `analyze`, `analyzeMetafile`, `context`,
+  `watch` and `serve`** are native-only on Node. They speak the service
+  protocol to a child process, and there is no WebAssembly fallback for that
+  path: with only this package installed, `require("guchho").build()` fails
+  while `npx guchho build` succeeds. In a browser the same functions run
+  against this engine through the `guchho` package's `browser` export
+  condition, where an in-process build is the only option.
+
+`version()` on this package's engine is the **engine's** version, read from
+the compiled binary. The `guchho` package's `version` is a string constant —
+the **package's** version. The two agree in a lockstep release, which is what
+this repository publishes, but they answer different questions: compare a
+version against its own kind.
+
 ## Browser
 
 In the browser the engine runs entirely in memory. Supply a `files` map when
@@ -151,11 +176,22 @@ transport.
 
 The `guchho` wrapper resolves its engine in this order:
 
-1. `GUCHHO_BACKEND=wasm|native` - force one, erroring if it is unavailable.
-2. `GUCHHO_BINARY=/path/to/guchho` - spawn a specific native binary.
+1. `GUCHHO_BINARY=/path/to/guchho` - spawn a specific native binary. It wins
+   over everything, `GUCHHO_BACKEND` included: a path that is set but wrong is
+   an error, not a cue to run a different engine.
+2. `GUCHHO_BACKEND=wasm|native` - force one, erroring if it is unavailable.
 3. `@guchho/wasm`, if it is installed - **wasm-first**.
 4. The native platform package for the current `os`/`cpu`.
 5. Otherwise, an error naming both install options.
+
+This is the *command line's* order. The compiler stages (`lexer`, `parse`,
+`print`) resolve the other way round on purpose: **native-first**, WebAssembly
+only when no binary is installed or `GUCHHO_BACKEND=wasm` asks for it. A
+compiler-stage request carries no plugins and reaches the same lexer either
+way, so there is nothing to gain from the slower engine where the faster one
+exists; the fallback is for the machine that has no binary. The high-level
+`build()` API does not consult either order on Node — it is native-only (see
+"Node API" above).
 
 ## Architecture
 

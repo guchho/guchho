@@ -14,6 +14,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 const { after, describe, it } = require("node:test");
 
 const { npmPackDryRun, makeTempDir } = require("./helpers/workspace");
@@ -82,6 +83,7 @@ describe("@guchho/wasm pack", () => {
             "package.json",
             "index.mjs",
             "index.cjs",
+            "index.d.ts",
             "bin/guchho.js",
             "lib/guchho.js",
             "lib/guchho.wasm",
@@ -90,6 +92,23 @@ describe("@guchho/wasm pack", () => {
         ]) {
             assert.ok(packed.has(required), `${required} would be missing from the tarball`);
         }
+    });
+
+    it("declares its types entry and ships it", () => {
+        // TypeScript resolves this package through the manifest's "types"
+        // field and the "types" condition in exports. A declaration file
+        // that exists but is not packed would typecheck in the repository
+        // and fail for every consumer, which is the worst place to find
+        // that out.
+        assert.equal(manifest.types, "index.d.ts");
+        assert.equal(manifest.exports["."].types, "./index.d.ts");
+        assert.ok(
+            fs.existsSync(path.join(WASM_DIR, manifest.types)),
+            "the file manifest.types names does not exist"
+        );
+
+        const packed = new Set(npmPackDryRun(WASM_DIR).files.map((f) => f.path));
+        assert.ok(packed.has("index.d.ts"), "index.d.ts would be missing from the tarball");
     });
 
     it("does not pack a .data preload file", () => {
@@ -112,6 +131,44 @@ describe("@guchho/wasm pack", () => {
             unpacked < 25 * 1024 * 1024,
             `the package would unpack to ${Math.round(unpacked / 1024 / 1024)}MB, over the 25MB budget`
         );
+    });
+});
+
+// The glue is a contract, not an implementation detail: index.mjs imports it
+// as a default-exported factory and reaches the engine through four C ABI
+// symbols with ccall. Both halves are checked against the file the build
+// produced, so a glue emitted with a different MODULARIZE shape or a renamed
+// export fails here rather than in a caller's first run.
+describe("@guchho/wasm glue", () => {
+    // The four exports CMakePresets.json links in (-sEXPORTED_FUNCTIONS) and
+    // src/cli/wasm_abi.cpp defines. The glue has to publish each one on the
+    // module object — ccall looks up Module["_" + name] — or every call
+    // through it fails with a "not a function" that names nothing useful.
+    const GLUE_SYMBOLS = [
+        "_guchho_build",
+        "_guchho_last_error",
+        "_guchho_service",
+        "_guchho_version",
+    ];
+
+    it("default-exports the module factory as a function", { skip: !hasBuiltEngine() }, async () => {
+        const glueUrl = pathToFileURL(path.join(WASM_DIR, "lib", "guchho.js")).href;
+        const glue = await import(glueUrl);
+        assert.equal(
+            typeof glue.default,
+            "function",
+            "lib/guchho.js should default-export the MODULARIZE factory"
+        );
+    });
+
+    it("publishes the four _guchho_* C ABI symbols on the module", { skip: !hasBuiltEngine() }, () => {
+        const source = fs.readFileSync(path.join(WASM_DIR, "lib", "guchho.js"), "utf8");
+        for (const symbol of GLUE_SYMBOLS) {
+            assert.ok(
+                source.includes(`Module["${symbol}"]`),
+                `the glue should bind ${symbol} onto the module object`
+            );
+        }
     });
 });
 

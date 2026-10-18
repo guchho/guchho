@@ -18,7 +18,8 @@
 const assert = require("node:assert/strict");
 const { describe, it } = require("node:test");
 
-const { toArgs, defaultMetafilePath, LOG_LEVELS } = require("../guchho/lib/flags");
+const { toArgs, LOG_LEVELS } = require("../guchho/lib/flags");
+const { defaultMetafilePath } = require("../guchho/lib/metafile-path");
 
 describe("toArgs: entry points", () => {
     it("puts entries first, because the command line reads them positionally", () => {

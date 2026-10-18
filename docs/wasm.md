@@ -73,6 +73,69 @@ The glue is an ES module (`-sMODULARIZE -sEXPORT_ES6`), and the binary is
 resolved relative to the package (`locateFile`), never the working directory,
 so the package can be served from any path.
 
+### Top-level functions
+
+`@guchho/wasm` also exposes a shared-engine API as top-level named exports, so
+you do not need to manage an instance for one-off calls:
+
+```js
+import { configure, loadFiles, lexer, parse, print, build, version } from "@guchho/wasm";
+
+configure({
+  files: { "src/main.js": 'console.log("hello");' },
+});
+
+const result = await lexer("src/main.js", "js");
+const output = await build("src/main.js", { outdir: "dist" });
+```
+
+`configure()` must be called before the first engine use; it throws if the
+engine already exists. `loadFiles(files)` writes more files into the
+already-created in-memory tree. These names are available from both the ESM
+(`import`) and CommonJS (`require`) entry points.
+
+## Using `guchho` in the browser
+
+The `guchho` package itself has a `browser` export condition. When a bundler
+resolves `import { build } from "guchho"` for a browser target, it picks up
+`lib/browser/index.mjs` (or `.js` for `require`), which wires the same
+orchestrators to the WASM transport instead of the native pipe:
+
+```js
+import { configure, build, transform, lexer } from "guchho";
+
+// Supply the project's files before the first call.
+configure({
+  files: {
+    "src/index.html": '<!doctype html><script type="module" src="./main.js"></script>',
+    "src/main.js": 'console.log("hello");',
+  },
+});
+
+const result = await build("src/index.html", { outdir: "dist" });
+```
+
+Install `@guchho/wasm` alongside `guchho`; it is an optional peer dependency
+and the browser entry will tell you to if it is missing.
+
+Differences from the Node surface:
+
+- **`configure({ files, print, printErr })`** — sets the virtual file tree the
+  engine is created with and the diagnostic sinks. Call it before the first
+  build, lex, parse or print.
+- **`loadFiles(files)`** — writes more files into the in-memory tree after the
+  engine exists.
+- **No plugins.** Plugin hooks are callbacks across the C ABI, which cannot
+  cross; a request that names a plugin is refused with an explanatory error
+  rather than silently ignored.
+- **`watch` and `serve` are present but throw.** They are kept as named exports
+  (so a shared import does not break at load time) that throw a sentence
+  explaining they need a host process.
+- **`stop()` is a no-op.** The in-process engine frees itself with the page.
+
+`analyze`, `analyzeMetafile`, `context` and `pack` all work through the same
+transport.
+
 ## Choosing an engine
 
 The `guchho` wrapper resolves its engine in this order:

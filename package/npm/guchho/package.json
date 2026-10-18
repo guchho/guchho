@@ -10,6 +10,10 @@
   "exports": {
     ".": {
       "types": "./index.d.ts",
+      "browser": {
+        "import": "./lib/browser/index.mjs",
+        "require": "./lib/browser/index.js"
+      },
       "import": "./lib/index.mjs",
       "require": "./lib/index.js"
     },
@@ -49,6 +53,14 @@
     "url": "https://github.com/guchho/guchho/issues"
   },
   "homepage": "https://guchho.js.org",
+  "peerDependencies": {
+    "@guchho/wasm": ">=1.0.7"
+  },
+  "peerDependenciesMeta": {
+    "@guchho/wasm": {
+      "optional": true
+    }
+  },
   "optionalDependencies": {
     "@guchho/aix-ppc64": "1.0.7",
     "@guchho/android-arm": "1.0.7",

@@ -74,9 +74,9 @@ async function compilerRequest(payload) {
 }
 
 // The browser has no project directory to walk for a config file, so the
-// config's plugins are left to the engine to ignore. The caller's own plugins
-// are returned, so a build that named one is refused by the engine with its
-// own wording rather than silently dropping it.
+// config's plugins are left out. The caller's own plugins are returned, so a
+// build that named one is refused by a JavaScript pre-check (a plain Error,
+// not a BuildFailure) rather than silently dropped.
 async function withConfigPlugins(_startDir, callerPlugins) {
     if (callerPlugins === null || callerPlugins === undefined) return null;
     const list = Array.isArray(callerPlugins) ? callerPlugins : [callerPlugins];

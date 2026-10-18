@@ -47,9 +47,14 @@ import { configure, loadFiles, lexer, parse, print, build, request, version } fr
 configure({ files: { "main.js": 'console.log("hi");' } });
 // …or skip configure() entirely on Node, where the host FS is mounted.
 
-const tokens = await lexer("main.js", "js");
+const source = 'console.log("hi");';
+
+const tokens = await lexer(source, { language: "js" });
+const parsed = await parse(source, { language: "js" });
+const { code } = await print(parsed.ast, { language: "js" });
+
 const result = await build("main.js", { outdir: "dist" });
-console.log(version());
+console.log(await version());
 ```
 
 - **`configure({ files, print, printErr })`** — sets the virtual file tree and
@@ -57,13 +62,19 @@ console.log(version());
   engine already exists.
 - **`loadFiles(files)`** — writes more files into the in-memory tree after the
   engine has been created.
-- **`lexer(file, language)`**, **`parse(file, language)`**,
-  **`print(handle, language)`** — token-level access, mirroring the engine's
-  own stages.
+- **`lexer(source, { language })`**, **`parse(source, { language })`**,
+  **`print(handle, { language })`** — token-level access, mirroring the engine's
+  own stages. `source` is the text (or bytes) to work on, not a path; `print`
+  takes the numeric handle `parse` returned as `ast`. The `files` tree is what
+  `build()` reads, not what these stages read.
 - **`build(entry, options)`** — one-shot build through the C ABI, same options
   as `createGuchho(...).build(...)`.
-- **`request(payload)`** — a raw service request, same protocol as the native
-  pipe.
+- **`request(payload)`** — one service request, same protocol as the native
+  pipe. It **rejects** when the engine refused (an `error` field rather than a
+  populated `errors` list), carrying the engine's wording and the parsed
+  errors. The untouched response, `error` field and all, is the engine
+  instance's `requestRaw()` — the half a host layer with its own failure
+  shape reads.
 - **`version()`** — the engine version string.
 
 All of these share one lazily-created engine. Call `configure()` before any of

@@ -22,15 +22,18 @@ const { WASM_DIR, readManifest } = require("./helpers/paths");
 const manifest = readManifest(WASM_DIR);
 
 // The functions that run against the shared engine. createGuchho and runCli are
-// the factory and the CLI entry; they are checked alongside.
+// the factory and the CLI entry; they are checked alongside. toVirtual and
+// mountHost are Node-only path utilities, synchronous in the ES module.
 const TOP_LEVEL = [
     "build",
     "configure",
     "lexer",
     "loadFiles",
+    "mountHost",
     "parse",
     "print",
     "request",
+    "toVirtual",
     "version",
 ];
 

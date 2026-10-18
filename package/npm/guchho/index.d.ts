@@ -925,6 +925,11 @@ export declare class ServiceError extends Error {
  * configuration, in the order given. It does not go looking for more: a caller
  * who wrote three configurations wants three builds.
  *
+ * On Node this reaches the native child-process service: the high-level
+ * orchestrators have no WebAssembly fallback (only lexer/parse/print do — see
+ * docs/wasm.md, "Which `guchho` API runs where"). The browser entry runs this
+ * same function against the in-process WASM engine instead.
+ *
  * @throws {BuildFailure} When a build failed.
  */
 /** An overload rather than a union, because the answer's shape follows the
@@ -983,6 +988,8 @@ export declare function context(options: BuildOptions): Promise<BuildContext>
  * @throws {TypeError} When the configuration is not an object, names a server
  *   option the server does not have, or asks for `open`.
  * @throws {BuildFailure} When the engine refused the request.
+ * @throws {Error} In the browser entry, always: the WebAssembly engine has no
+ *   sockets. The export is kept so a shared import does not break at load time.
  */
 export declare function serve(options?: BuildOptions): Promise<DevServer>
 
@@ -1005,6 +1012,9 @@ export declare function serve(options?: BuildOptions): Promise<DevServer>
  *   option the watcher does not have, or gives an interval that is not a
  *   non-negative number.
  * @throws {BuildFailure} When the engine refused the request.
+ * @throws {Error} In the browser entry, always: the WebAssembly engine has no
+ *   sockets and no watchers. The export is kept so a shared import does not
+ *   break at load time.
  */
 export declare function watch(options?: BuildOptions): Promise<Watcher>
 
@@ -1042,10 +1052,21 @@ export declare function analyzeMetafile(metafile: Metafile | string): Promise<st
  *
  * Await this before removing a build's output directory: while the process is
  * alive it has those files open, and on Windows removing them fails.
+ *
+ * A no-op in the browser entry: the in-process engine frees itself with the
+ * page, so `stop()` keeps the same shape on both entries and costs nothing.
  */
 export declare function stop(): Promise<void>
 
-/** This package's version, as published. A string, not a function. */
+/**
+ * This package's version, as published. A string, not a function.
+ *
+ * The package's version — not the binary's, not the protocol's, and not
+ * `@guchho/wasm`'s engine version, which that package answers with from a
+ * version() function. The two agree in the lockstep releases this repository
+ * publishes, but they answer different questions: compare a version against
+ * its own kind.
+ */
 export declare const version: string
 
 // ---------------------------------------------------------------------------
@@ -1314,61 +1335,22 @@ export declare const BuildContext: {
 // When a bundler resolves this package for a browser target it picks up
 // lib/browser/index.mjs (or .js), which wires the same orchestrators above to
 // the @guchho/wasm engine running in-process instead of a native child
-// process. The names below only exist on that surface; on Node they are
-// absent, and on Node `watch`/`serve` are the real functions declared above.
+// process.
+//
+// Every function declared above exists on both entries; what differs is
+// behaviour, noted on the declarations themselves: watch() and serve() always
+// throw in the browser (the WASM engine has no sockets and no watchers),
+// stop() is a no-op there, and the high-level orchestrators run against the
+// in-process engine rather than a pipe.
+//
+// Two names exist ONLY on the browser entry: configure() and loadFiles().
+// They are deliberately not declared in this file — a Node caller that typed
+// them would be writing code that crashes at runtime, which is exactly the
+// promise a declaration must not make. They live in browser.d.ts, which the
+// package's "browser" types condition points at: a TypeScript project that
+// targets the browser adds "browser" to customConditions and sees them;
+// every other project lands here and does not.
 //
 // @guchho/wasm is an optional peer dependency: install it alongside this
 // package for the browser entry to work.
 // ---------------------------------------------------------------------------
-
-/**
- * Sets the virtual file tree the WASM engine is created with, and the
- * diagnostic sinks it writes to.
- *
- * Call this before the first build, lex, parse or print: the engine is created
- * once, and a browser build reads its entry points out of the in-memory tree it
- * was created with. Throws if the engine already exists.
- */
-export declare function configure(options: {
-  /** Virtual paths → file contents. The engine's whole filesystem. */
-  files?: Record<string, string | Uint8Array>
-  /** Receives each line the engine prints. */
-  print?: (line: string) => void
-  /** Receives each line the engine prints to stderr. */
-  printErr?: (line: string) => void
-}): void
-
-/**
- * Writes files into the engine's in-memory tree after it has been created.
- *
- * For the browser the engine is usually created with a files map via
- * `configure()`; this is the path for adding more before a later build.
- */
-export declare function loadFiles(
-  files: Record<string, string | Uint8Array>
-): Promise<void>
-
-/**
- * Always throws in the browser: the WASM engine has no sockets and no
- * watchers. Present as a named export so a shared import does not break at
- * load time.
- *
- * @throws {Error} Always.
- */
-export declare function watch(options?: BuildOptions): Promise<Watcher>
-
-/**
- * Always throws in the browser: the WASM engine has no sockets and no
- * watchers. Present as a named export so a shared import does not break at
- * load time.
- *
- * @throws {Error} Always.
- */
-export declare function serve(options?: BuildOptions): Promise<DevServer>
-
-/**
- * A no-op in the browser. The in-process engine frees itself with the page;
- * there is no process to end. Kept so `stop()` has the same shape on both
- * surfaces.
- */
-export declare function stop(): Promise<void>

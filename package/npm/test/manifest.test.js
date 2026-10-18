@@ -47,7 +47,7 @@ describe("guchho/package.json", () => {
 
         const root = manifest.exports["."];
         assert.ok(root, 'exports["."] is missing');
-        for (const condition of ["import", "require"]) {
+        for (const condition of ["import", "require", "types"]) {
             const target = root[condition];
             assert.ok(target, `exports["."] has no "${condition}" condition`);
             assert.ok(
@@ -55,6 +55,23 @@ describe("guchho/package.json", () => {
                 `exports["."].${condition} names a missing file: ${target}`
             );
         }
+
+        // The browser condition has its own types entry: browser.d.ts is the
+        // only file that declares configure()/loadFiles(), because on Node
+        // those exports do not exist at runtime and a declaration for them
+        // would be a promise the package does not keep.
+        const browser = root.browser;
+        assert.ok(browser, 'exports["."] has no "browser" condition');
+        for (const condition of ["import", "require", "types"]) {
+            const target = browser[condition];
+            assert.ok(target, `exports["."].browser has no "${condition}" condition`);
+            assert.ok(
+                fs.existsSync(path.join(GUCHHO_DIR, target)),
+                `exports["."].browser.${condition} names a missing file: ${target}`
+            );
+        }
+        assert.equal(browser.types, "./browser.d.ts");
+        assert.notEqual(browser.types, root.types, "browser and Node must not share one types file");
     });
 
     it("keeps package.json reachable through exports", () => {

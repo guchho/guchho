@@ -477,6 +477,16 @@ class Service extends EventEmitter {
     this.stopped = true;
 
     if (this.stopping === null) {
+      // The exit this promise waits for has to hold the event loop open on its
+      // own. An idle service was unref'd — nothing was waiting on it — and an
+      // unref'd child cannot keep the loop alive for the "exit" that settles
+      // this promise: a caller awaiting stop() on an idle service would be
+      // left on a promise the loop has already abandoned, with the process
+      // exiting out from under it. The reference goes back for exactly the
+      // wait it takes to be told the process is gone, which is the same rule
+      // as everywhere else here.
+      this._ref();
+
       this.stopping = new Promise((resolve) => {
         this.child.once("exit", () => resolve());
         this.child.once("error", () => resolve());

@@ -11,7 +11,7 @@ snapshot of the whole docs tree is taken and never edited again.
 
 ## The current version
 
-**1.0.4** is the latest release, and the pages at the top level of this site
+**1.0.8** is the latest release, and the pages at the top level of this site
 describe it. See the [release notes](../release-notes/README.md) for what each
 version changed.
 

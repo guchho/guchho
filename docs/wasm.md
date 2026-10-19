@@ -40,7 +40,7 @@ no copy-back.
 import { createGuchho } from "@guchho/wasm";
 
 const guchho = await createGuchho();       // mounts the host FS at process.cwd()
-console.log(guchho.version());             // e.g. "1.0.7"
+console.log(guchho.version());             // e.g. "1.0.8"
 
 guchho.build("src/index.html", { outdir: "dist", minify: true });
 ```
@@ -234,4 +234,5 @@ not a replacement for the native package in a performance-sensitive CI job.
 - [`@guchho/wasm` README](https://github.com/guchho/guchho/blob/main/package/npm/@guchho/wasm/README.md) -
   the package's own quick start.
 - [Release notes](release-notes/v1.0.7.md) - where the package was
-  introduced.
+  introduced, and [1.0.8](release-notes/v1.0.8.md) - where the compiler API
+  (`lexer`, `parse`, `print`) came to WebAssembly.

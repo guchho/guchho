@@ -1,6 +1,7 @@
 ---
 title: Introducing Guchho
 description: A native, HTML-first bundler, and the choices behind it.
+date: 2026-10-14
 ---
 
 # Introducing Guchho

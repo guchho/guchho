@@ -46,8 +46,16 @@ const needsBinary = { skip: skipWithoutBinary() };
 // the tests write to is the only kind of input whose state is known, and a
 // shared one would let a test that failed to clean up decide the next one's
 // result.
+//
+// The path is resolved before use: the binary reports output paths with any
+// symlink in the directory already resolved (on macOS os.tmpdir() is under
+// /var, a symlink to /private/var), so an un-resolved root here would make a
+// startsWith against a reported path fail on a difference that is not the
+// thing under test.
 function makeProject(files = {}) {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "guchho-build-test-"));
+    const root = fs.realpathSync(
+        fs.mkdtempSync(path.join(os.tmpdir(), "guchho-build-test-"))
+    );
     const sources = { "src/main.js": "const answer = 42;\nconsole.log(answer);\n", ...files };
 
     for (const [relative, contents] of Object.entries(sources)) {

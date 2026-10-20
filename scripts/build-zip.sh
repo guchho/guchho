@@ -21,8 +21,10 @@ set -euo pipefail
 #      optionalDependencies of guchho@<version>
 #   2. Download each @guchho/<platform> tarball
 #      and verify its npm sha512 integrity
-#   3. Extract, stage, zip, verify every ZIP
-#      with `unzip -t` and the entry list
+#   3. Extract, stage, zip, restore the Unix
+#      executable bit that Windows zip builds
+#      drop, verify every ZIP with `unzip -t`
+#      and the entry list
 #   4. Write a SHA-256 checksum beside each ZIP
 #
 # The script never executes a downloaded
@@ -442,6 +444,119 @@ find_doc() {
 }
 
 # ========================================
+# ZIP central-directory permission repair
+#
+# zip(1) on Windows stores MS-DOS file attributes and
+# drops the Unix mode bits, so an executable that was
+# chmod 755 before zipping extracts on Linux without its
+# execute bit. set_zip_exec_mode rewrites the central-
+# directory entry of the staged executable to carry
+# host OS "Unix" (3) and mode 0100755. Local headers
+# and compressed data are untouched; unzip(1) and every
+# mainstream ZIP reader take file attributes from the
+# central directory. The patch is idempotent: on systems
+# where zip already preserved the mode it writes the
+# same bytes back.
+# ========================================
+
+read_u16le() {
+    local file="$1" off="$2"
+    local b0 b1
+    read -r b0 b1 < <(od -An -tu1 -j "${off}" -N 2 "${file}")
+    echo $(( b0 + (b1 << 8) ))
+}
+
+read_u32le() {
+    local file="$1" off="$2"
+    local b0 b1 b2 b3
+    read -r b0 b1 b2 b3 < <(od -An -tu1 -j "${off}" -N 4 "${file}")
+    echo $(( b0 + (b1 << 8) + (b2 << 16) + (b3 << 24) ))
+}
+
+write_bytes_at() {
+    # write_bytes_at FILE OFFSET b0 b1 ...  (decimal bytes).
+    # The bytes travel as printf octal escapes inside a
+    # format string: command substitution cannot carry NUL
+    # bytes, and printf '\\x..' emits those two characters
+    # literally instead of the byte.
+    local file="$1" off="$2"
+    shift 2
+    local fmt="" b
+    for b in "$@"; do
+        fmt+="\\$(printf '%03o' "${b}")"
+    done
+    printf "${fmt}" | dd of="${file}" bs=1 seek="${off}" conv=notrunc 2>/dev/null
+}
+
+set_zip_exec_mode() {
+    # set_zip_exec_mode ZIPFILE ENTRY
+    # Store ENTRY with Unix mode 0100755 in the central
+    # directory. Returns non-zero if the archive cannot be
+    # parsed, the entry is missing, or the write did not
+    # read back correctly.
+    local file="$1" target="$2"
+
+    local size
+    size=$(( $(wc -c < "${file}") ))
+
+    # The EOCD record is the last PK\x05\x06 whose comment
+    # length lands exactly on end-of-file.
+    local eocd="" cand clen
+    while IFS= read -r cand; do
+        clen="$(read_u16le "${file}" $((cand + 20)))"
+        if (( cand + 22 + clen == size )); then
+            eocd="${cand}"
+            break
+        fi
+    done < <(LC_ALL=C grep -aob $'PK\x05\x06' "${file}" | cut -d: -f1)
+
+    [[ -n "${eocd}" ]] || return 1
+
+    local total cd_off
+    total="$(read_u16le "${file}" $((eocd + 10)))"
+    cd_off="$(read_u32le "${file}" $((eocd + 16)))"
+
+    local pos="${cd_off}" i sig fn_len extra_len comment_len name
+    for (( i = 0; i < total; i++ )); do
+        sig="$(od -An -tx1 -j "${pos}" -N 4 "${file}" | tr -d ' \n')"
+        [[ "${sig}" == "504b0102" ]] || return 1
+        fn_len="$(read_u16le "${file}" $((pos + 28)))"
+        extra_len="$(read_u16le "${file}" $((pos + 30)))"
+        comment_len="$(read_u16le "${file}" $((pos + 32)))"
+        name="$(tail -c "+$((pos + 46 + 1))" "${file}" | head -c "${fn_len}")"
+
+        if [[ "${name}" == "${target}" ]]; then
+            # Version made by: low byte stays the zip spec
+            # version, high byte becomes 3 (Unix).
+            local spec
+            spec="$(od -An -tu1 -j "${pos}" -N 1 "${file}" | tr -d ' ')"
+            write_bytes_at "${file}" "${pos}" "${spec}" 3
+
+            # External attributes = (0100755 << 16),
+            # stored little-endian.
+            local mode=$(( 8#100755 << 16 ))
+            write_bytes_at "${file}" $((pos + 38)) \
+                $(( mode & 255 )) \
+                $(( (mode >> 8) & 255 )) \
+                $(( (mode >> 16) & 255 )) \
+                $(( (mode >> 24) & 255 ))
+
+            # Read the header back; a short write or a full
+            # disk must fail the platform, not ship a lie.
+            local host attrs
+            host="$(read_u16le "${file}" "${pos}")"
+            attrs="$(read_u32le "${file}" $((pos + 38)))"
+            (( (host >> 8) == 3 && attrs == mode )) || return 1
+            return 0
+        fi
+
+        pos=$(( pos + 46 + fn_len + extra_len + comment_len ))
+    done
+
+    return 1
+}
+
+# ========================================
 # Per-platform processing
 # ========================================
 
@@ -606,6 +721,18 @@ process_platform() {
         return 1
     fi
 
+    # Windows zip builds store DOS attributes and drop the
+    # Unix mode; restore the executable bit before anything
+    # hashes or verifies the archive. win32 archives keep
+    # their DOS attributes untouched.
+    if [[ "${exe}" == "guchho" ]]; then
+        if ! set_zip_exec_mode "${zipfile}" "bin/guchho"; then
+            warn "${platform}: could not store bin/guchho as executable in ${zipname}"
+            rm -f "${zipfile}"
+            return 1
+        fi
+    fi
+
     # ---- Verify ----
     if ! unzip -t -q "${zipfile}" >/dev/null 2>&1; then
         warn "${platform}: unzip -t failed on ${zipname}; archive is corrupt"
@@ -636,6 +763,21 @@ process_platform() {
             return 1
         fi
     done
+
+    # Independent of the in-place repair above: ask zipinfo
+    # how the entry will actually be interpreted. Skipped
+    # when zipinfo is not installed; the repair already
+    # verified its own write.
+    if [[ "${exe}" == "guchho" ]] && command -v zipinfo >/dev/null 2>&1; then
+        local perm
+        perm="$(zipinfo -l "${zipfile}" 2>/dev/null \
+            | awk '$NF == "bin/guchho" { print $1; exit }')"
+        if [[ "${perm}" != -rwx?x?x? ]]; then
+            warn "${platform}: ${zipname} does not store bin/guchho as rwxr-xr-x (got: ${perm:-missing})"
+            rm -f "${zipfile}"
+            return 1
+        fi
+    fi
 
     # ---- Place ----
     mkdir -p "${OUTDIR}"

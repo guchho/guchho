@@ -153,7 +153,9 @@ function(guchho_set_warnings TARGET)
             # Correctness
             # ------------------------------------------------
 
-            -Wnull-dereference
+            # -Wnull-dereference omitted for GCC: its inlining-based
+            # analysis false-positives routinely on libstdc++
+            # vector/string internals (Clang keeps the flag above).
 
             # ------------------------------------------------
             # Cast/style
@@ -173,6 +175,14 @@ function(guchho_set_warnings TARGET)
             # ------------------------------------------------
 
             -Wdouble-promotion
+
+            # ------------------------------------------------
+            # Compiler ABI notes
+            # ------------------------------------------------
+
+            # Silence informational notes about C++17 std::pair
+            # parameter-passing ABI changes in GCC >= 10.
+            -Wno-psabi
         )
 
     endif()

@@ -526,11 +526,14 @@ set_zip_exec_mode() {
         name="$(tail -c "+$((pos + 46 + 1))" "${file}" | head -c "${fn_len}")"
 
         if [[ "${name}" == "${target}" ]]; then
-            # Version made by: low byte stays the zip spec
-            # version, high byte becomes 3 (Unix).
+            # Version made by sits at offset +4 of the central
+            # directory entry (right after the PK\x01\x02
+            # signature): low byte stays the zip spec version,
+            # high byte becomes 3 (Unix). Writing at ${pos} would
+            # corrupt the signature itself.
             local spec
-            spec="$(od -An -tu1 -j "${pos}" -N 1 "${file}" | tr -d ' ')"
-            write_bytes_at "${file}" "${pos}" "${spec}" 3
+            spec="$(od -An -tu1 -j $((pos + 4)) -N 1 "${file}" | tr -d ' ')"
+            write_bytes_at "${file}" $((pos + 4)) "${spec}" 3
 
             # External attributes = (0100755 << 16),
             # stored little-endian.
@@ -544,7 +547,7 @@ set_zip_exec_mode() {
             # Read the header back; a short write or a full
             # disk must fail the platform, not ship a lie.
             local host attrs
-            host="$(read_u16le "${file}" "${pos}")"
+            host="$(read_u16le "${file}" $((pos + 4)))"
             attrs="$(read_u32le "${file}" $((pos + 38)))"
             (( (host >> 8) == 3 && attrs == mode )) || return 1
             return 0
@@ -772,7 +775,7 @@ process_platform() {
         local perm
         perm="$(zipinfo -l "${zipfile}" 2>/dev/null \
             | awk '$NF == "bin/guchho" { print $1; exit }')"
-        if [[ "${perm}" != -rwx?x?x? ]]; then
+        if [[ "${perm}" != -rwxr-xr-x ]]; then
             warn "${platform}: ${zipname} does not store bin/guchho as rwxr-xr-x (got: ${perm:-missing})"
             rm -f "${zipfile}"
             return 1

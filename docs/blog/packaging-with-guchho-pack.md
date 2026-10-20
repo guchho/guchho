@@ -1,6 +1,7 @@
 ---
 title: Shipping a distribution with guchho pack
 description: Turning a build directory into one archive, and why the details matter.
+date: 2026-10-14
 ---
 
 # Shipping a distribution with `guchho pack`

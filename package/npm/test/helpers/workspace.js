@@ -29,10 +29,21 @@ let tempCounter = 0;
 // Creates a temporary directory and hands back its path together with a
 // function that removes it. Registered for cleanup on the way out, so a test
 // that throws still leaves nothing behind.
+//
+// The path is resolved before it is handed back. os.tmpdir() is not always a
+// real path: on macOS it is under /var, which is a symlink to /private/var,
+// while require.resolve and the native binary both report paths with the
+// symlink already resolved. A test comparing the two by startsWith or equal
+// would then be comparing "/var/..." with "/private/var/..." and fail for a
+// difference that is not the thing under test. Resolving here means every
+// tree built from this root is in the same form the rest of the system
+// reports.
 function makeTempDir(tag = "pkg") {
     tempCounter += 1;
-    const dir = fs.mkdtempSync(
-        path.join(os.tmpdir(), `guchho-npm-${tag}-${process.pid}-${tempCounter}-`)
+    const dir = fs.realpathSync(
+        fs.mkdtempSync(
+            path.join(os.tmpdir(), `guchho-npm-${tag}-${process.pid}-${tempCounter}-`)
+        )
     );
 
     tempDirs.add(dir);

@@ -21,15 +21,18 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "20"
 
       - name: Install published guchho
         run: |
+          set -euo pipefail
           mkdir -p "$RUNNER_TEMP/guchho-test"
           cd "$RUNNER_TEMP/guchho-test"
           npm init -y
+          # npm init writes "type": "commonjs", but guchho.config.js is ESM.
+          npm pkg set type=module
           npm install --no-audit --no-fund guchho@latest
 
       - name: CLI responds
@@ -40,8 +43,11 @@ jobs:
 
       - name: Scaffold and build
         run: |
+          set -euo pipefail
           cd "$RUNNER_TEMP/guchho-test"
-          npx --no-install guchho init -y
+          # The directory already holds package.json and node_modules from the
+          # install above, so init must be told to scaffold into it anyway.
+          npx --no-install guchho init --force -y
           npx --no-install guchho build
           if [ ! -f dist/index.html ]; then
             echo "::error::guchho build did not produce dist/index.html"

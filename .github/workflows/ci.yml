@@ -1,12 +1,11 @@
 name: Node.js CI
 
 on:
+  # Only when a version is released: a v* tag (v1.0.9, ...). Pushes to main
+  # and pull requests deliberately do not run this workflow.
   push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+    tags:
+      - "v*"
   workflow_dispatch:
 
 permissions:

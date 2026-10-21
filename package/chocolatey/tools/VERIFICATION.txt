@@ -12,8 +12,10 @@ And can be verified by doing the following:
 1. Download the official release archive from:
    https://github.com/guchho/guchho/releases/download/v{VERSION}/guchho-{VERSION}-win32-x64.zip
 
-2. Extract the zip and compare the guchho.exe binary with the one embedded
-   in this package (tools/guchho.exe) using a SHA256 hash comparison.
+2. Extract the zip and compare the binaries embedded in this package --
+   tools/guchho.exe and the MinGW runtime DLLs beside it (libstdc++-6.dll,
+   libgcc_s_seh-1.dll, libwinpthread-1.dll) -- with the contents of the
+   archive's bin/ directory, using a SHA256 hash comparison.
 
 3. The source code for this software is available at:
    https://github.com/guchho/guchho

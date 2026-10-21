@@ -1,0 +1,51 @@
+name: Node.js CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: npm smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install published guchho
+        run: |
+          mkdir -p "$RUNNER_TEMP/guchho-test"
+          cd "$RUNNER_TEMP/guchho-test"
+          npm init -y
+          npm install --no-audit --no-fund guchho@latest
+
+      - name: CLI responds
+        run: |
+          cd "$RUNNER_TEMP/guchho-test"
+          npx --no-install guchho --version
+          npx --no-install guchho --help
+
+      - name: Scaffold and build
+        run: |
+          cd "$RUNNER_TEMP/guchho-test"
+          npx --no-install guchho init -y
+          npx --no-install guchho build
+          if [ ! -f dist/index.html ]; then
+            echo "::error::guchho build did not produce dist/index.html"
+            find . -maxdepth 4 -type f -print
+            exit 1
+          fi
+          echo "npm smoke test passed"

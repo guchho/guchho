@@ -6,10 +6,10 @@
 </p>
 
 <p>
-  <a href="https://github.com/guchho/guchho/actions/workflows/ci.yml"><img src="https://github.com/guchho/guchho/actions/workflows/ci.yml/badge.svg" alt="Node.js CI"></a>
   <a href="https://www.npmjs.com/package/guchho"><img src="https://img.shields.io/npm/v/guchho" alt="Version"></a>
   <a href="https://nodejs.org/en/about/previous-releases"><img src="https://img.shields.io/node/v/guchho.svg" alt="node compatibility"></a>
   <a href="https://github.com/guchho/guchho/blob/main/LICENSE"><img src="https://img.shields.io/github/license/guchho/guchho" alt="License"></a>
+  <a href="https://github.com/guchho/guchho/actions/workflows/ci.yml"><img src="https://github.com/guchho/guchho/actions/workflows/ci.yml/badge.svg" alt="Node.js CI"></a>
   <a href="https://github.com/guchho/guchho/issues"><img src="https://img.shields.io/github/issues/guchho/guchho" alt="Issues"></a>
   <a href="https://github.com/guchho/guchho/discussions"><img src="https://img.shields.io/github/discussions/guchho/guchho" alt="GitHub Discussions"></a>
   <a href="https://github.com/guchho/guchho/graphs/contributors"><img src="https://img.shields.io/github/contributors/guchho/guchho" alt="Contributors"></a>

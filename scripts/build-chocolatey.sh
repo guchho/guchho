@@ -131,12 +131,15 @@ if ! curl -fsSL --retry 3 -o "${DOWNLOAD_DIR}/${ARCHIVE_NAME}" "${RELEASE_URL}";
         CONTRIBUTING.md, 'Downloadable Windows x64 Release Archive')."
 fi
 
-# CPack installs the binary under bin/, inside a versioned top-level folder
-# (guchho-<version>-win32-x64/bin/guchho.exe), alongside headers and docs the
-# package does not embed. The wildcard tolerates the folder name without
-# hardcoding the version twice.
-if ! unzip -o -q "${DOWNLOAD_DIR}/${ARCHIVE_NAME}" '*/bin/guchho.exe' -d "${EXTRACT_DIR}"; then
-    error "${ARCHIVE_NAME} does not contain */bin/guchho.exe -- the release archive layout changed; update this script."
+# The archive is extracted whole instead of filtered through a filename
+# pattern: build-zip.sh lays it out flat (bin/guchho.exe at the root,
+# exactly as the npm platform package publishes it), while older CPack
+# releases nested bin/ under a versioned top-level folder, and unzip
+# exits non-zero on any pattern that matches nothing -- so a pattern
+# written for one layout cannot recognize the other. The candidate
+# search below finds the binary under either shape.
+if ! unzip -o -q "${DOWNLOAD_DIR}/${ARCHIVE_NAME}" -d "${EXTRACT_DIR}"; then
+    error "${ARCHIVE_NAME} could not be extracted -- the archive is corrupt or truncated. Re-download it, or the release asset is not a valid zip."
 fi
 
 BINARY_PATH=""
@@ -161,23 +164,52 @@ echo "  ${BINARY_PATH}"
 echo
 
 # ========================================
-# Copy binary into package tools/
+# Copy binary + MinGW runtime DLLs into
+# package tools/
 # ========================================
 
+# guchho.exe is dynamically linked against the MinGW runtime (libstdc++,
+# libgcc, libwinpthread); the release archive ships those DLLs beside it
+# in bin/, and without them the installed binary fails to load. choco
+# packs tools/ exactly as it finds it, so DLLs left behind by an earlier
+# build -- including ones a newer release may no longer ship -- are
+# removed rather than silently carried into the package.
 mkdir -p "${TOOLS_DIR}"
+rm -f "${TOOLS_DIR}"/*.dll
+
 cp "${BINARY_PATH}" "${TOOLS_DIR}/${BINARY_NAME}"
 
 if [[ ! -s "${TOOLS_DIR}/${BINARY_NAME}" ]]; then
     error "Copied binary is empty: ${TOOLS_DIR}/${BINARY_NAME}"
 fi
 
-# VERIFICATION.txt step 2 asks users to compare this hash against the release
-# binary; printing it here is what makes that comparison a copy-paste.
-if command -v sha256sum >/dev/null 2>&1; then
-    echo "  SHA256: $(sha256sum "${TOOLS_DIR}/${BINARY_NAME}" | cut -d' ' -f1)"
+BIN_DIR="$(dirname "${BINARY_PATH}")"
+COPIED_DLLS=()
+
+for dll_path in "${BIN_DIR}"/*.dll; do
+    [[ -f "${dll_path}" ]] || continue
+    cp "${dll_path}" "${TOOLS_DIR}/"
+    COPIED_DLLS+=("$(basename "${dll_path}")")
+done
+
+if [[ ${#COPIED_DLLS[@]} -eq 0 ]]; then
+    error "No MinGW runtime DLLs found next to guchho.exe in ${ARCHIVE_NAME} -- the binary cannot load without them, and the archive layout has changed again."
 fi
 
-log "Embedded: ${TOOLS_DIR}/${BINARY_NAME}"
+# VERIFICATION.txt step 2 asks users to compare these hashes against the
+# release archive; printing them here is what makes that comparison a
+# copy-paste.
+if command -v sha256sum >/dev/null 2>&1; then
+    echo "  SHA256:"
+    for dll_name in "${BINARY_NAME}" "${COPIED_DLLS[@]}"; do
+        printf '    %s  %s\n' "$(sha256sum "${TOOLS_DIR}/${dll_name}" | cut -d' ' -f1)" "${dll_name}"
+    done
+fi
+
+log "Embedded: ${BINARY_NAME} + ${#COPIED_DLLS[@]} runtime DLL(s)"
+for dll_name in "${COPIED_DLLS[@]}"; do
+    echo "  ${dll_name}"
+done
 echo
 
 # ========================================

@@ -20,6 +20,7 @@ on:
           - darwin-arm64
           - darwin-x64
           - android-x64
+          - android-arm64
           - wasm
           - guchho
           - all
@@ -96,7 +97,7 @@ jobs:
           esac
 
           case "$TYPE" in
-            linux-x64|linux-arm64|win32-x64|win32-arm64|darwin-arm64|darwin-x64|android-x64)
+            linux-x64|linux-arm64|win32-x64|win32-arm64|darwin-arm64|darwin-x64|android-x64|android-arm64)
               PLATFORMS="$TYPE"
               PUBLISH_MAIN="false"
               PUBLISH_WASM="false"
@@ -138,6 +139,7 @@ jobs:
             {"platform":"darwin-arm64","runner":"macos-latest","method":"native","preset":"release-darwin-arm64"},
             {"platform":"darwin-x64","runner":"macos-15-intel","method":"native","preset":"release-darwin-x64"},
             {"platform":"android-x64","runner":"ubuntu-latest","method":"android","android_abi":"x86_64","android_api":21},
+            {"platform":"android-arm64","runner":"ubuntu-latest","method":"android","android_abi":"arm64-v8a","android_api":21},
             {"platform":"win32-x64","runner":"windows-latest","method":"native","preset":"release-win32-x64-ninja"},
             {"platform":"win32-arm64","runner":"windows-latest","method":"msvc_cross","arch":"ARM64"}
           ]'
@@ -254,12 +256,6 @@ jobs:
       #   runner: ubuntu-latest
       #   method: android
       #   android_abi: armeabi-v7a
-      #   android_api: 21
-      #
-      # - platform: android-arm64
-      #   runner: ubuntu-latest
-      #   method: android
-      #   android_abi: arm64-v8a
       #   android_api: 21
       #
       # The plan job emits the entries as a JSON array; strategy.matrix takes

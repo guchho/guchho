@@ -138,8 +138,8 @@ jobs:
             {"platform":"linux-arm64","runner":"ubuntu-24.04-arm","method":"native","preset":"release-linux-arm64"},
             {"platform":"darwin-arm64","runner":"macos-latest","method":"native","preset":"release-darwin-arm64"},
             {"platform":"darwin-x64","runner":"macos-15-intel","method":"native","preset":"release-darwin-x64"},
-            {"platform":"android-x64","runner":"ubuntu-latest","method":"android","android_abi":"x86_64","android_api":21},
-            {"platform":"android-arm64","runner":"ubuntu-latest","method":"android","android_abi":"arm64-v8a","android_api":21},
+            {"platform":"android-x64","runner":"ubuntu-latest","method":"android","android_abi":"x86_64","android_api":24},
+            {"platform":"android-arm64","runner":"ubuntu-latest","method":"android","android_abi":"arm64-v8a","android_api":24},
             {"platform":"win32-x64","runner":"windows-latest","method":"native","preset":"release-win32-x64-ninja"},
             {"platform":"win32-arm64","runner":"windows-latest","method":"msvc_cross","arch":"ARM64"}
           ]'
@@ -256,7 +256,7 @@ jobs:
       #   runner: ubuntu-latest
       #   method: android
       #   android_abi: armeabi-v7a
-      #   android_api: 21
+      #   android_api: 24
       #
       # The plan job emits the entries as a JSON array; strategy.matrix takes
       # that array through `include`, which is the mapping form it evaluates
@@ -534,12 +534,19 @@ jobs:
       - name: Build (Android NDK)
         if: matrix.method == 'android'
         run: |
+          # The C++ runtime is linked statically. With c++_shared the binary
+          # needs libc++_shared.so at run time, and neither the NDK's CMake
+          # toolchain nor this workflow puts that library next to it or
+          # records a run path to it, so the packaged binary would stop at
+          # startup on a device with "cannot open shared object file". A
+          # command line tool has no other shared library to share with, so
+          # the runtime belongs inside the binary.
           cmake -B build/release-${{ matrix.platform }} \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI=${{ matrix.android_abi }} \
             -DANDROID_PLATFORM=android-${{ matrix.android_api }} \
-            -DANDROID_STL=c++_shared \
+            -DANDROID_STL=c++_static \
             -DCMAKE_C_STANDARD=17 \
             -DCMAKE_CXX_STANDARD=20 \
             -DCMAKE_C_STANDARD_REQUIRED=ON \
@@ -598,10 +605,17 @@ jobs:
           if [[ -n "$BINARY_PATH" && -f "$BINARY_PATH" ]]; then
             cp "$BINARY_PATH" "${PKG_DIR}/bin/${BINARY_NAME}"
 
-            # Strip debug symbols on Unix
+            # Strip debug symbols on Unix. The runner's strip reads the
+            # host's own binaries only, so an Android build is stripped with
+            # the NDK's llvm-strip, which knows the target's format.
             if [[ "$PLATFORM" != win32-* ]]; then
               chmod +x "${PKG_DIR}/bin/${BINARY_NAME}"
-              strip "${PKG_DIR}/bin/${BINARY_NAME}" 2>/dev/null || true
+              NDK_STRIP="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+              if [[ "$PLATFORM" == android-* && -x "${NDK_STRIP}" ]]; then
+                "${NDK_STRIP}" "${PKG_DIR}/bin/${BINARY_NAME}" 2>/dev/null || true
+              else
+                strip "${PKG_DIR}/bin/${BINARY_NAME}" 2>/dev/null || true
+              fi
             fi
 
             echo "Copied binary to ${PKG_DIR}/bin/${BINARY_NAME}"

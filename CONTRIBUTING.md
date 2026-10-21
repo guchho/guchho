@@ -268,15 +268,26 @@ Requirements on the build host (Linux):
 | android-arm64   | `arm64-v8a`      |
 | android-x64     | `x86_64`         |
 
-All use `ANDROID_PLATFORM=android-21`, `ANDROID_STL=c++_shared`, and the NDK's `android.toolchain.cmake`.
+All use `ANDROID_PLATFORM=android-24`, `ANDROID_STL=c++_static`, and the NDK's `android.toolchain.cmake`.
+
+API level 24 (Android 7.0) is the floor because the dev server lists the
+addresses a browser can reach with `getifaddrs()`, which Android did not grow
+until API level 24. `src/api/api_serve.cpp` says so with an `#error` when it is
+built for anything older.
+
+The C++ runtime is linked statically. With `c++_shared` the binary needs
+`libc++_shared.so` at run time, and the NDK's CMake toolchain neither puts
+that library next to the binary nor records a run path to it, so a packaged
+binary would stop at startup on a device. A command line tool has no other
+shared library to share with, so the runtime belongs inside the binary.
 
 ```bash
 cmake -B build/release-android-arm64 \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
   -DANDROID_ABI=arm64-v8a \
-  -DANDROID_PLATFORM=android-21 \
-  -DANDROID_STL=c++_shared \
+  -DANDROID_PLATFORM=android-24 \
+  -DANDROID_STL=c++_static \
   -DCMAKE_C_STANDARD=17 -DCMAKE_CXX_STANDARD=20 \
   -DCMAKE_C_STANDARD_REQUIRED=ON -DCMAKE_CXX_STANDARD_REQUIRED=ON
 cmake --build build/release-android-arm64 --parallel

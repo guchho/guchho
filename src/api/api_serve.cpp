@@ -87,6 +87,14 @@
 #endif
 #endif
 
+// Android grew "getifaddrs()" in API level 24, and the dev server needs it to
+// list the addresses a browser can reach. A build for an older release would
+// fail with an undeclared identifier a long way into this file, so the
+// requirement is stated here instead, where the reason for it is.
+#if defined(__ANDROID__) && defined(__ANDROID_MIN_SDK_VERSION__) && __ANDROID_MIN_SDK_VERSION__ < 24
+#error "Android builds need API level 24 or newer: getifaddrs() arrived in API level 24."
+#endif
+
 namespace guchho::api {
 
 namespace logger = guchho::logger;

@@ -25,7 +25,7 @@
 | Distribution | Install from | Status |
 | :-------------: | ------------ | ------ |
 | <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/npm_logo.svg" height="20" alt="npm"> | **npm**<br>`npm install -g guchho` | ✅ Official Package Available |
-| <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/chocolatey_logo.png" height="45" alt="Chocolatey"> | **Chocolatey**<br>`choco install guchho` | ⏳ Pending review |
+| <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/chocolatey_logo.png" height="45" alt="Chocolatey"> | **Chocolatey**<br>`choco install guchho` | 🏆 guchho v1.0.8 - Approved |
 | <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/scoop_logo.png" height="40" alt="Scoop"> | **Scoop**<br>`scoop install guchho` | 🚧 Coming Soon |
 | <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/winget_logo.png" height="35" alt="WinGet"> | **WinGet**<br>`winget install Guchho.Guchho` | 🚧 Coming Soon |
 | <img src="https://raw.githubusercontent.com/guchho/.github/refs/heads/main/profile/image/homebrew_logo.svg" height="40" alt="Homebrew"> | **Homebrew**<br>`brew install guchho` | 📅 Planned |

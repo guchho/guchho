@@ -17,6 +17,7 @@ on:
           - linux-arm64
           - win32-x64
           - win32-arm64
+          - win32-ia32
           - darwin-arm64
           - darwin-x64
           - android-x64
@@ -97,7 +98,7 @@ jobs:
           esac
 
           case "$TYPE" in
-            linux-x64|linux-arm64|win32-x64|win32-arm64|darwin-arm64|darwin-x64|android-x64|android-arm64)
+            linux-x64|linux-arm64|win32-x64|win32-arm64|win32-ia32|darwin-arm64|darwin-x64|android-x64|android-arm64)
               PLATFORMS="$TYPE"
               PUBLISH_MAIN="false"
               PUBLISH_WASM="false"
@@ -141,7 +142,8 @@ jobs:
             {"platform":"android-x64","runner":"ubuntu-latest","method":"android","android_abi":"x86_64","android_api":24},
             {"platform":"android-arm64","runner":"ubuntu-latest","method":"android","android_abi":"arm64-v8a","android_api":24},
             {"platform":"win32-x64","runner":"windows-latest","method":"native","preset":"release-win32-x64-ninja"},
-            {"platform":"win32-arm64","runner":"windows-latest","method":"msvc_cross","arch":"ARM64"}
+            {"platform":"win32-arm64","runner":"windows-latest","method":"msvc_cross","arch":"ARM64"},
+            {"platform":"win32-ia32","runner":"windows-latest","method":"msvc_cross","arch":"Win32"}
           ]'
 
           SELECTED="$(
@@ -244,12 +246,6 @@ jobs:
       #   runner: ubuntu-latest
       #   method: docker
       #   docker_image: ghcr.io/loong64/loongnix:25
-      #
-      # ---- Windows MSVC cross-compilation ----
-      # - platform: win32-ia32
-      #   runner: windows-latest
-      #   method: msvc_cross
-      #   arch: Win32
       #
       # ---- Android NDK cross-compilation ----
       # - platform: android-arm

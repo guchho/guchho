@@ -649,6 +649,12 @@ gh workflow run npm-publish.yml -f type=darwin-arm64 -f dry_run=false test_run=t
 ```bash
 gh workflow run npm-publish.yml -f type=android-arm64 -f dry_run=false test_run=true
 ```
+
+
+```bash
+gh workflow run npm-publish.yml -f type=win32-ia32 -f dry_run=false dry_run=true
+```
+
 Publish only the main `guchho` package:
 
 ```bash

@@ -9,10 +9,10 @@
 // written once — running against the transport installed here instead of a
 // pipe.
 //
-// watch, serve and stop are the three that need a host process, so they are
-// kept as names that refuse rather than removed. A caller who wrote
-// `import { watch } from "guchho"` gets a sentence naming the native package,
-// not `undefined` and a crash three lines later.
+// watch, serve, unpack and stop are the four that need a host process or a
+// host filesystem, so they are kept as names that refuse rather than removed.
+// A caller who wrote `import { unpack } from "guchho"` gets a sentence naming
+// the native package, not `undefined` and a crash three lines later.
 //
 // Plugins are held back by a JavaScript pre-check in the transport, not here:
 // a build that names one is refused with a plain Error (not a BuildFailure)
@@ -35,12 +35,12 @@ const { lexer, parse, print } = require("../compile");
 // A name the browser cannot keep, kept as a name that says why. Thrown when
 // called, not when imported: an import of the module should not fail over a
 // feature the caller never reaches for.
-function unavailable(name) {
+function unavailable(name, why) {
     return function unavailableInBrowser() {
         throw new Error(
-            `${name} is not available in the browser: the WebAssembly engine has ` +
-                "no sockets and no watchers. Run it with the native package, or " +
-                "use build() and the compiler stages, which the WASM engine serves."
+            `${name} is not available in the browser: ${why}. Run it with the ` +
+                "native package, or use build() and the compiler stages, which " +
+                "the WASM engine serves."
         );
     };
 }
@@ -65,9 +65,10 @@ module.exports = {
     configure: transport.configure,
     loadFiles: transport.loadFiles,
 
-    // Not available without a host process.
-    watch: unavailable("watch"),
-    serve: unavailable("serve"),
+    // Not available without a host process or a host filesystem.
+    watch: unavailable("watch", "the WebAssembly engine has no watchers"),
+    serve: unavailable("serve", "the WebAssembly engine has no sockets"),
+    unpack: unavailable("unpack", "the WebAssembly engine has no host filesystem"),
     stop: async () => {},
 
     // The failure shapes, and the context handle, exactly as the Node entry

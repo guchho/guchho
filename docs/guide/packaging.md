@@ -46,3 +46,24 @@ const { path, size, warnings } = await pack({
 `date` and `mode` options are **recorded, not applied**: they are metadata the
 archive carries for whoever extracts it. A failure throws a `BuildFailure` with
 the engine's own message. See the [pack API](../api/README.md#pack).
+
+## Extracting
+
+`guchho unpack` is the other half: it reads a zip, tar or tar.gz archive and
+writes its entries to disk.
+
+```bash
+guchho unpack release.zip
+guchho unpack release.tar.gz -o out/
+guchho unpack archive.tar --format=tar
+guchho unpack bundle.zip --strip-components=1
+```
+
+Without `-o`, the output directory is the archive's name with a known extension
+removed: `release.zip` extracts into `release/`. Existing files are kept unless
+`--overwrite` is given, and every skipped file is reported as a warning.
+
+Paths that are absolute or contain `..` are refused, so an archive cannot write
+outside the output directory. Symbolic links are skipped with a warning rather
+than followed, matching what `guchho pack` does with links found inside a tree.
+See the [`unpack` reference](../reference/cli/unpack.md).

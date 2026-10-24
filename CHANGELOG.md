@@ -13,6 +13,10 @@ All notable changes to Guchho. Newest first. Full release notes live in
   components are refused, and symlinks are skipped with a warning. Tar
   headers are checksum-verified and PAX records are honoured; gzip streams
   are validated against their CRC-32 and length trailer.
+- `unpack()` in the `guchho` package extracts an archive from JavaScript,
+  with the same default destination, format detection, overwrite rule and
+  component stripping as `guchho unpack`. It is native-only; the browser entry
+  exports a refusing stub because the WASM engine has no host filesystem.
 
 ## [1.0.8] - 2026-10-19
 

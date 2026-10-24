@@ -832,6 +832,43 @@ namespace guchho::logger {
         case MsgCat::kPack_TimestampBeforeUnixEpochNote: return "The value is seconds since the Unix epoch, and this file is recorded as modified before it began.";
         case MsgCat::kPack_CannotStartWritingFileNotOpened: return "Cannot start writing \"{}\": the file could not be opened";
 
+        // -------------------------------------------------------------------
+        // Archive extraction (unpack.cpp / zip.cpp / tar.cpp)
+        // -------------------------------------------------------------------
+        case MsgCat::kUnpack_NoArchiveFile: return "No archive file was given";
+        case MsgCat::kUnpack_NoArchiveFileNote: return "Name an archive to extract.";
+        case MsgCat::kUnpack_CouldNotDetectFormat: return "Could not detect archive format";
+        case MsgCat::kUnpack_CouldNotDetectFormatNote: return "Use --format=zip, tar, or tar.gz.";
+        case MsgCat::kUnpack_NoOutputDirectory: return "No output directory was given";
+        case MsgCat::kUnpack_NoOutputDirectoryNote: return "Name a directory to extract into with -o/--outdir.";
+        case MsgCat::kUnpack_OutputPathIsFile: return "Output path is a file, not a directory: {}";
+        case MsgCat::kUnpack_CannotCreateOutputDirectory: return "Cannot create output directory: {}";
+        case MsgCat::kUnpack_ArchiveDoesNotExist: return "Archive does not exist: {}";
+        case MsgCat::kUnpack_FailedToOpenArchive: return "Failed to open archive";
+        case MsgCat::kUnpack_FailedToReadArchive: return "Failed to read archive";
+        case MsgCat::kUnpack_InvalidGzip: return "Invalid gzip";
+        case MsgCat::kUnpack_FailedToDecompressGzip: return "Failed to decompress gzip";
+        case MsgCat::kUnpack_CorruptGzipArchive: return "Corrupt gzip archive";
+        case MsgCat::kUnpack_CorruptTarHeaderChecksum: return "Corrupt tar archive: header checksum mismatch";
+        case MsgCat::kUnpack_CorruptTarSizeField: return "Corrupt tar archive: invalid size field";
+        case MsgCat::kUnpack_CorruptTarTruncatedEntry: return "Corrupt tar archive: truncated entry";
+        case MsgCat::kUnpack_CorruptTarPaxHeader: return "Corrupt tar archive: invalid PAX header";
+        case MsgCat::kUnpack_SkippedAbsolutePath: return "Skipped absolute path: {}";
+        case MsgCat::kUnpack_SkippedPathTraversal: return "Skipped path traversal: {}";
+        case MsgCat::kUnpack_SkippedStripComponents: return "Skipped due to strip-components: {}";
+        case MsgCat::kUnpack_SkippedOutsideOutputDir: return "Skipped path outside output directory: {}";
+        case MsgCat::kUnpack_SkippedSymlink: return "Skipped symlink: {}";
+        case MsgCat::kUnpack_SkippedHardlink: return "Skipped hardlink: {}";
+        case MsgCat::kUnpack_SkippedSpecialFile: return "Skipped special file: {}";
+        case MsgCat::kUnpack_SkippedUnsupportedEntry: return "Skipped unsupported entry: {}";
+        case MsgCat::kUnpack_SkippedExistingFile: return "Skipped existing file (use --overwrite): {}";
+        case MsgCat::kUnpack_FailedToCreateDirectory: return "Failed to create directory: {}";
+        case MsgCat::kUnpack_FailedToCreateDirectoryFor: return "Failed to create directory for: {}";
+        case MsgCat::kUnpack_FailedToExtract: return "Failed to extract: {}";
+        case MsgCat::kUnpack_FailedToWrite: return "Failed to write: {}";
+        case MsgCat::kUnpack_FailedToOpenZipArchive: return "Failed to open zip archive";
+        case MsgCat::kUnpack_FailedToReadEntryMetadata: return "Failed to read entry metadata";
+
             default:
                 return "";
         }

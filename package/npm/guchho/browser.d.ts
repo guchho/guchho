@@ -16,7 +16,7 @@
 //
 // The runtime this describes is lib/browser/index.js, which exports exactly
 // these names: the orchestrators, the three compiler stages, configure,
-// loadFiles, the refusing watch/serve, the no-op stop, and the failure
+// loadFiles, the refusing watch/serve/unpack, the no-op stop, and the failure
 // classes.
 
 export * from "./index";

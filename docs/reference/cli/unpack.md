@@ -45,3 +45,4 @@ guchho unpack release.zip --overwrite
 
 - [Packaging](../../guide/packaging.md)
 - [`guchho pack`](pack.md)
+- [`unpack()` API](../../api/README.md#unpack)

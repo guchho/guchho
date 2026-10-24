@@ -19,6 +19,7 @@ Commands:
   info                Show environment info
   transform           Transform source from stdin
   pack <input...>     Create an archive
+  unpack <archive>    Extract an archive
 
 Run 'guchho <command> --help' for command-specific help.
 Run 'guchho --version' for version information.
@@ -37,6 +38,7 @@ Run 'guchho --version' for version information.
 | `info` | [info.md](info.md) | Report environment and configuration. |
 | `transform` | [transform.md](transform.md) | Transform source read from stdin. |
 | `pack` | [pack.md](pack.md) | Create a zip, tar or tar.gz archive. |
+| `unpack` | [unpack.md](unpack.md) | Extract a zip, tar or tar.gz archive. |
 
 ## Global flags
 

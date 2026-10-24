@@ -2,14 +2,14 @@
 
 #include "guchho/pack.hpp"
 #include "guchho/unpack.hpp"
-#include "guchho_test.hpp"
+#include "test/guchho_test.hpp"
 
 #include <filesystem>
 #include <fstream>
 
 using namespace guchho;
 
-TEST(UnpackZipRoundtrip)
+TEST(Unpack, ZipRoundtrip)
 {
     namespace fs = std::filesystem;
     fs::path tmp = fs::temp_directory_path() / "guchho_unpack_test";
@@ -59,7 +59,7 @@ TEST(UnpackZipRoundtrip)
     fs::remove_all(tmp);
 }
 
-TEST(UnpackZipTraversalRejected)
+TEST(Unpack, ZipTraversalRejected)
 {
     // This is a basic sanity - traversal is blocked by our sanitizer
     ASSERT_TRUE(true);

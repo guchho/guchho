@@ -4,6 +4,16 @@ All notable changes to Guchho. Newest first. Full release notes live in
 [docs/release-notes](docs/release-notes/README.md); tags are on
 [GitHub](https://github.com/guchho/guchho/tags).
 
+## [Unreleased]
+
+### Added
+
+- `guchho unpack` extracts zip, tar and tar.gz archives, with `--outdir`,
+  `--format`, `--overwrite` and `--strip-components`. Absolute paths and `..`
+  components are refused, and symlinks are skipped with a warning. Tar
+  headers are checksum-verified and PAX records are honoured; gzip streams
+  are validated against their CRC-32 and length trailer.
+
 ## [1.0.8] - 2026-10-19
 
 ### Added

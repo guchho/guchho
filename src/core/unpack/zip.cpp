@@ -153,11 +153,11 @@ static bool IsSafePath(const std::string& name, const UnpackOptions& options,
     }
     // Reject absolute
     if (!cleaned.empty() && cleaned[0] == '/') {
-        warning = "Skipped absolute path: " + name;
+        warning = logger::FormatMsg(logger::MsgCat::kUnpack_SkippedAbsolutePath, name);
         return false;
     }
     if (cleaned.size() >= 2 && cleaned[1] == ':') {
-        warning = "Skipped absolute path: " + name;
+        warning = logger::FormatMsg(logger::MsgCat::kUnpack_SkippedAbsolutePath, name);
         return false;
     }
 
@@ -168,7 +168,7 @@ static bool IsSafePath(const std::string& name, const UnpackOptions& options,
         if (c == '/') {
             if (!cur.empty()) {
                 if (cur == "..") {
-                    warning = "Skipped path traversal: " + name;
+                    warning = logger::FormatMsg(logger::MsgCat::kUnpack_SkippedPathTraversal, name);
                     return false;
                 }
                 if (cur != ".") parts.push_back(cur);
@@ -180,7 +180,7 @@ static bool IsSafePath(const std::string& name, const UnpackOptions& options,
     }
     if (!cur.empty()) {
         if (cur == "..") {
-            warning = "Skipped path traversal: " + name;
+            warning = logger::FormatMsg(logger::MsgCat::kUnpack_SkippedPathTraversal, name);
             return false;
         }
         if (cur != ".") parts.push_back(cur);
@@ -189,7 +189,7 @@ static bool IsSafePath(const std::string& name, const UnpackOptions& options,
     // Apply strip components
     if (options.stripComponents > 0) {
         if (parts.size() <= options.stripComponents) {
-            warning = "Skipped due to strip-components: " + name;
+            warning = logger::FormatMsg(logger::MsgCat::kUnpack_SkippedStripComponents, name);
             return false;
         }
         parts.erase(parts.begin(), parts.begin() +
@@ -214,7 +214,7 @@ bool ExtractZip(const UnpackOptions& options, UnpackResult& result)
     fs::path archivePath = filesystem::PathFromUTF8(options.archive);
     std::error_code ec;
     if (!fs::exists(archivePath, ec)) {
-        result.error = "Archive does not exist: " + options.archive;
+        result.error = logger::FormatMsg(logger::MsgCat::kUnpack_ArchiveDoesNotExist, options.archive);
         return false;
     }
 
@@ -226,7 +226,7 @@ bool ExtractZip(const UnpackOptions& options, UnpackResult& result)
     if (!mz_zip_reader_init_file(&zip_archive, options.archive.c_str(), 0)) {
         mz_zip_error err = mz_zip_get_last_error(&zip_archive);
         const char* msg = mz_zip_get_error_string(err);
-        result.error = "Failed to open zip archive";
+        result.error = logger::FormatMsg(logger::MsgCat::kUnpack_FailedToOpenZipArchive);
         if (msg) result.note = msg;
         return false;
     }
@@ -237,11 +237,11 @@ bool ExtractZip(const UnpackOptions& options, UnpackResult& result)
     for (mz_uint i = 0; i < num_files; ++i) {
         mz_zip_archive_file_stat stat;
         if (!mz_zip_reader_file_stat(&zip_archive, i, &stat)) {
-            result.warnings.push_back("Failed to read entry metadata");
+            result.warnings.push_back(logger::FormatMsg(logger::MsgCat::kUnpack_FailedToReadEntryMetadata));
             continue;
         }
 
-        std::string filename = stat.m_filename ? stat.m_filename : "";
+        std::string filename = stat.m_filename;
         bool isDir = stat.m_is_directory != 0 ||
                      (!filename.empty() && filename.back() == '/');
 
@@ -254,7 +254,7 @@ bool ExtractZip(const UnpackOptions& options, UnpackResult& result)
 
         fs::path destPath = outBase / filesystem::PathFromUTF8(relPath);
         if (!PathIsUnder(outBase, destPath)) {
-            result.warnings.push_back("Skipped path outside output directory: " + relPath);
+            result.warnings.push_back(logger::FormatMsg(logger::MsgCat::kUnpack_SkippedOutsideOutputDir, relPath));
             continue;
         }
 
@@ -268,7 +268,7 @@ bool ExtractZip(const UnpackOptions& options, UnpackResult& result)
         if (isDir) {
             fs::create_directories(destPath, ec);
             if (ec) {
-                result.warnings.push_back("Failed to create directory: " + relPath);
+                result.warnings.push_back(logger::FormatMsg(logger::MsgCat::kUnpack_FailedToCreateDirectory, relPath));
                 continue;
             }
             metadata.push_back(meta);
@@ -276,12 +276,12 @@ bool ExtractZip(const UnpackOptions& options, UnpackResult& result)
         }
 
         if (IsSymlinkEntry(stat)) {
-            result.warnings.push_back("Skipped symlink: " + relPath);
+            result.warnings.push_back(logger::FormatMsg(logger::MsgCat::kUnpack_SkippedSymlink, relPath));
             continue;
         }
 
         if (!stat.m_is_supported) {
-            result.warnings.push_back("Skipped unsupported entry: " + relPath);
+            result.warnings.push_back(logger::FormatMsg(logger::MsgCat::kUnpack_SkippedUnsupportedEntry, relPath));
             continue;
         }
 
@@ -289,34 +289,34 @@ bool ExtractZip(const UnpackOptions& options, UnpackResult& result)
         if (destPath.has_parent_path()) {
             fs::create_directories(destPath.parent_path(), ec);
             if (ec) {
-                result.warnings.push_back("Failed to create directory for: " + relPath);
+                result.warnings.push_back(logger::FormatMsg(logger::MsgCat::kUnpack_FailedToCreateDirectoryFor, relPath));
                 continue;
             }
         }
 
         if (fs::exists(destPath, ec) && !options.overwrite) {
-            result.warnings.push_back("Skipped existing file (use --overwrite): " + relPath);
+            result.warnings.push_back(logger::FormatMsg(logger::MsgCat::kUnpack_SkippedExistingFile, relPath));
             continue;
         }
 
         Sink sink;
         sink.out.open(destPath, std::ios::binary | std::ios::trunc);
         if (!sink.out) {
-            result.warnings.push_back("Failed to extract: " + relPath);
+            result.warnings.push_back(logger::FormatMsg(logger::MsgCat::kUnpack_FailedToExtract, relPath));
             continue;
         }
 
         if (!mz_zip_reader_extract_to_callback(&zip_archive, i, WriteSink, &sink, 0)) {
             sink.out.close();
             fs::remove(destPath, ec);
-            result.warnings.push_back("Failed to extract: " + relPath);
+            result.warnings.push_back(logger::FormatMsg(logger::MsgCat::kUnpack_FailedToExtract, relPath));
             continue;
         }
 
         sink.out.close();
         if (!sink.out) {
             fs::remove(destPath, ec);
-            result.warnings.push_back("Failed to write: " + relPath);
+            result.warnings.push_back(logger::FormatMsg(logger::MsgCat::kUnpack_FailedToWrite, relPath));
             continue;
         }
 

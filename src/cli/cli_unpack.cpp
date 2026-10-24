@@ -11,7 +11,6 @@
 #include <optional>
 #include <string>
 #include <vector>
-#include <cstddef>
 
 namespace guchho::cli {
 

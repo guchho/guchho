@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include <format>
 #include <string>
 #include <vector>
@@ -33,7 +34,7 @@ std::string SupportedFormatsNote()
 std::string DefaultOutDir(const std::string& archive)
 {
     std::string name = archive;
-    while (name.size() > 1 && (name.back() == '/' || name.back() == '\')) {
+    while (name.size() > 1 && (name.back() == '/' || name.back() == '\\')) {
         name.pop_back();
     }
     // Strip known extensions

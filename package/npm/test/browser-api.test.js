@@ -4,8 +4,9 @@
 // installs the WebAssembly transport and re-exports the same orchestrators the
 // Node entry uses, so the API a browser bundle gets is the API the package
 // documents: build, transform, pack, analyze, analyzeMetafile, context and the
-// three compiler stages. watch and serve need a host process and are kept as
-// names that refuse; configure and loadFiles are the browser's own knobs.
+// three compiler stages. watch and serve need a host process, unpack needs a
+// host filesystem, and all three are kept as names that refuse; configure and
+// loadFiles are the browser's own knobs.
 //
 // These tests need no built engine. A stand-in @guchho/wasm is staged into a
 // copy of the package — the same trick api-compiler-wasm.test.js uses for the
@@ -155,9 +156,15 @@ describe("the browser entry", () => {
         assert.ok(state().requests.some((r) => r.command === "pack"));
     });
 
-    it("refuses watch and serve with a sentence naming the native package", () => {
+    it("refuses watch, serve and unpack with a sentence naming the native package", () => {
         assert.throws(() => guchho.watch(), /not available in the browser/);
         assert.throws(() => guchho.serve(), /not available in the browser/);
+        assert.throws(() => guchho.unpack({ archive: "a.zip" }), /not available in the browser/);
+        assert.throws(
+            () => guchho.unpack({ archive: "a.zip" }),
+            /native package/,
+            "the refusal should name the package that can do it"
+        );
     });
 
     it("publishes configure and loadFiles, and loadFiles reaches the engine", async () => {

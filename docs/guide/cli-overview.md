@@ -1,6 +1,6 @@
 ---
 title: CLI overview
-description: The nine Guchho commands at a glance.
+description: The ten Guchho commands at a glance.
 ---
 
 # CLI overview
@@ -18,6 +18,7 @@ Commands:
   info                Show environment info
   transform           Transform source from stdin
   pack <input...>     Create an archive
+  unpack <archive>    Extract an archive
 ```
 
 Run `guchho <command> --help` for command-specific help, and `guchho --version`
@@ -31,6 +32,7 @@ guchho dev                          # develop with live rebuilds
 guchho build --minify --sourcemap   # production build
 guchho serve                        # preview the output
 guchho pack dist -o release.zip     # archive it
+guchho unpack release.zip -o check  # extract a copy
 ```
 
 ## Command reference
@@ -46,3 +48,4 @@ Each command has a full page:
 - [info](../reference/cli/info.md)
 - [transform](../reference/cli/transform.md)
 - [pack](../reference/cli/pack.md)
+- [unpack](../reference/cli/unpack.md)

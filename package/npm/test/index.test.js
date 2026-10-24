@@ -46,6 +46,7 @@ const PUBLIC_API = [
     "transform",
     "watch",
     "pack",
+    "unpack",
 ];
 
 // The classes. Checked as constructors rather than as functions, because what a
@@ -104,6 +105,7 @@ describe("the package's CommonJS entry", () => {
         const { analyze } = require("../guchho/lib/analyze");
         const { transform } = require("../guchho/lib/transform");
         const { pack } = require("../guchho/lib/pack");
+        const { unpack } = require("../guchho/lib/unpack");
         const { context, BuildContext } = require("../guchho/lib/context");
         const { watch, Watcher } = require("../guchho/lib/watch");
         const { serve, DevServer } = require("../guchho/lib/serve");
@@ -114,6 +116,7 @@ describe("the package's CommonJS entry", () => {
         assert.equal(guchho.build, build);
         assert.equal(guchho.transform, transform);
         assert.equal(guchho.pack, pack);
+        assert.equal(guchho.unpack, unpack);
         assert.equal(guchho.context, context);
         assert.equal(guchho.analyze, analyze);
         assert.equal(guchho.analyzeMetafile, analyzeMetafile);

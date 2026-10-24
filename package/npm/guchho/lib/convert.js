@@ -298,6 +298,26 @@ function toTransformResult(response) {
 }
 
 /**
+ * An unpack response, in the shape guchho publishes.
+ *
+ * The directory and the files are the engine's own paths, already relative to
+ * the extraction root where it could report them that way. Both lists are
+ * filtered rather than trusted wholesale, so a malformed response gives a
+ * caller an empty list instead of an array of things that are not strings.
+ */
+function toUnpackResult(response) {
+  return {
+    outDir: typeof response.outDir === "string" ? response.outDir : "",
+    files: Array.isArray(response.files)
+      ? response.files.filter((entry) => typeof entry === "string")
+      : [],
+    warnings: Array.isArray(response.warnings)
+      ? response.warnings.filter((entry) => typeof entry === "string")
+      : [],
+  };
+}
+
+/**
  * A pack response, in the shape guchho publishes.
  *
  * The size arrives as a decimal string rather than as a number because the
@@ -329,6 +349,7 @@ module.exports = {
   toBuildResult,
   toTransformResult,
   toPackResult,
+  toUnpackResult,
   toInputSummaries,
   toOutputSummaries,
   toDependencySummaries,

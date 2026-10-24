@@ -6,7 +6,7 @@ description: The programmatic surface of the guchho package.
 # JavaScript / TypeScript API
 
 ```js
-import { build, transform, pack, serve, watch } from 'guchho'
+import { build, transform, pack, unpack, serve, watch } from 'guchho'
 ```
 
 The package runs the same native engine as the command line, over a long-lived
@@ -21,6 +21,7 @@ answers.
 | `build(options)` | [#build](#build) | Builds a project. |
 | `transform(code, options)` | [#transform](#transform) | Transforms one piece of source. |
 | `pack(options)` | [#pack](#pack) | Writes an archive from files on disk. |
+| `unpack(options)` | [#unpack](#unpack) | Extracts an archive to disk. |
 | `context(options)` | [#context](#context) | Sets up a build that can be repeated. |
 | `analyze(options)` | [#analyze](#analyze) | Analyses a build without writing it. |
 | `analyzeMetafile(metafile)` | [#analyzemetafile](#analyzemetafile) | Pretty-prints a metafile. |
@@ -76,6 +77,25 @@ function pack(options: PackOptions): Promise<PackResult>
 Everything the command line's `guchho pack` does, reached as a function: the
 same entry naming, symlink policy and collision refusal - but a path and a size
 come back as data rather than a line on a terminal.
+
+## unpack
+
+```ts
+function unpack(options: UnpackOptions): Promise<UnpackResult>
+```
+
+The other half of `pack()`, and the same shape: the archive to read, where to
+extract it, and the format if the extension and magic bytes are not enough. The
+answer is the directory that was written and the files inside it. Absolute paths
+and paths that would escape the destination are refused; symlinks, hardlinks and
+special files are skipped with a warning, as they are when packing.
+
+`outDir` defaults to the archive's name without its extension, `format` is
+detected when it is left out, and `overwrite` and `stripComponents` match the
+command line's flags.
+
+`unpack` is native-only. The browser entry exports the name and throws: the
+WebAssembly engine has no host filesystem to extract into.
 
 ## context
 

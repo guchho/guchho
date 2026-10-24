@@ -48,6 +48,11 @@ set(GUCHHO_COMMON_SOURCES
     core/pack/tar.cpp
     core/pack/zip.cpp
 
+    # core/unpack/
+    core/unpack/unpack.cpp
+    core/unpack/zip.cpp
+    core/unpack/tar.cpp
+
     # core/sourcemap/
     core/sourcemap/sourcemap.cpp
 
@@ -464,6 +469,7 @@ set(GUCHHO_CLI_SOURCES
     cli/cli_watch.cpp
     cli/cli_mangle.cpp
     cli/cli_pack.cpp
+    cli/cli_unpack.cpp
     service/json.cpp
     service/protocol.cpp
 )

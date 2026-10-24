@@ -26,6 +26,7 @@ export const {
     loadFiles,
     watch,
     serve,
+    unpack,
     stop,
     BuildFailure,
     ServiceError,

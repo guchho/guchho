@@ -164,9 +164,10 @@ Differences from the Node surface:
 - **No plugins.** Plugin hooks are callbacks across the C ABI, which cannot
   cross; a request that names a plugin is refused with an explanatory error
   rather than silently ignored.
-- **`watch` and `serve` are present but throw.** They are kept as named exports
-  (so a shared import does not break at load time) that throw a sentence
-  explaining they need a host process.
+- **`watch`, `serve` and `unpack` are present but throw.** They are kept as
+  named exports (so a shared import does not break at load time) that throw a
+  sentence explaining what the browser lacks: a host process for the first two,
+  and a host filesystem for `unpack`.
 - **`stop()` is a no-op.** The in-process engine frees itself with the page.
 
 `analyze`, `analyzeMetafile`, `context` and `pack` all work through the same

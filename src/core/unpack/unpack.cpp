@@ -27,8 +27,12 @@ bool ExtractTar(const UnpackOptions& options, UnpackResult& result, bool gzip);
 
 std::string SupportedFormatsNote()
 {
-    // Match pack style
-    return "Only \"zip\", \"tar\" and \"tar.gz\" are supported today.";
+    std::string list;
+    for (std::size_t i = 0; i < kFormats.size(); ++i) {
+        if (i != 0) list += (i + 1 == kFormats.size()) ? " and " : ", ";
+        list += "\"" + std::string(kFormats[i]) + "\"";
+    }
+    return logger::FormatMsg(logger::MsgCat::kPack_OnlySupportedFormats, list);
 }
 
 std::string DefaultOutDir(const std::string& archive)
@@ -83,8 +87,8 @@ UnpackResult CreateUnpack(const UnpackOptions& options)
     result.outDir = options.outDir;
 
     if (options.archive.empty()) {
-        result.error = "No archive file was given";
-        result.note = "Name an archive to extract.";
+        result.error = logger::FormatMsg(logger::MsgCat::kUnpack_NoArchiveFile);
+        result.note = logger::FormatMsg(logger::MsgCat::kUnpack_NoArchiveFileNote);
         return result;
     }
 
@@ -93,8 +97,8 @@ UnpackResult CreateUnpack(const UnpackOptions& options)
         format = DetectFormat(options.archive);
     }
     if (format.empty()) {
-        result.error = "Could not detect archive format";
-        result.note = "Use --format=zip, tar, or tar.gz.";
+        result.error = logger::FormatMsg(logger::MsgCat::kUnpack_CouldNotDetectFormat);
+        result.note = logger::FormatMsg(logger::MsgCat::kUnpack_CouldNotDetectFormatNote);
         return result;
     }
     if (!IsSupportedFormat(format)) {
@@ -104,8 +108,8 @@ UnpackResult CreateUnpack(const UnpackOptions& options)
     }
 
     if (options.outDir.empty()) {
-        result.error = "No output directory was given";
-        result.note = "Name a directory to extract into with -o/--outdir.";
+        result.error = logger::FormatMsg(logger::MsgCat::kUnpack_NoOutputDirectory);
+        result.note = logger::FormatMsg(logger::MsgCat::kUnpack_NoOutputDirectoryNote);
         return result;
     }
 
@@ -113,13 +117,15 @@ UnpackResult CreateUnpack(const UnpackOptions& options)
     std::error_code ec;
     fs::file_status outStatus = fs::symlink_status(outPath, ec);
     if (fs::is_regular_file(outStatus)) {
-        result.error = "Output path is a file, not a directory: " + options.outDir;
+        result.error = logger::FormatMsg(logger::MsgCat::kUnpack_OutputPathIsFile,
+                                         options.outDir);
         return result;
     }
     if (!fs::exists(outPath, ec)) {
         fs::create_directories(outPath, ec);
         if (ec) {
-            result.error = "Cannot create output directory: " + options.outDir;
+            result.error = logger::FormatMsg(
+                logger::MsgCat::kUnpack_CannotCreateOutputDirectory, options.outDir);
             result.note = ec.message();
             return result;
         }
@@ -138,7 +144,7 @@ UnpackResult CreateUnpack(const UnpackOptions& options)
             return result;
         }
     } else {
-        result.error = "Unsupported archive format: " + format;
+        result.error = logger::FormatMsg(logger::MsgCat::kPack_UnsupportedFormat, format);
         result.note = SupportedFormatsNote();
         return result;
     }

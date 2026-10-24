@@ -58,6 +58,7 @@
 #include "guchho/cli.hpp"
 #include "guchho/service.hpp"
 #include "guchho/pack.hpp"
+#include "guchho/unpack.hpp"
 
 namespace guchho::cli {
 
@@ -1235,6 +1236,119 @@ namespace guchho::cli {
             });
         }
 
+        // Runs one unpack request and returns the response.
+        //
+        // The mirror of HandlePack, and for the same reason: an extraction has
+        // no flag grammar to read, so the request carries fields whose types are
+        // checked here and whose values are checked by the core. A caller that
+        // sent the wrong shape hears about the shape; a caller that asked for
+        // something the engine refuses hears the engine's own words.
+        //
+        // "outDir" is filled in here rather than by the core because the default
+        // is a naming rule the command line also applies, and the two should
+        // agree on what "release.zip" extracts to.
+        service::Value HandleUnpack(const service::Value& request) {
+            unpack::UnpackOptions options;
+
+            const service::Value* archive = request.Find("archive");
+            if (archive == nullptr || !archive->IsString()) {
+                return ErrorResponse(ProtocolError("\"archive\" must be a string"));
+            }
+            options.archive = archive->AsString();
+
+            if (const service::Value* out_dir = request.Find("outDir");
+                out_dir != nullptr && !out_dir->IsNull()) {
+                if (!out_dir->IsString()) {
+                    return ErrorResponse(ProtocolError("\"outDir\" must be a string"));
+                }
+                options.outDir = out_dir->AsString();
+            }
+            if (options.outDir.empty()) {
+                options.outDir = unpack::DefaultOutDir(options.archive);
+            }
+
+            if (const service::Value* format = request.Find("format");
+                format != nullptr && !format->IsNull()) {
+                if (!format->IsString()) {
+                    return ErrorResponse(ProtocolError("\"format\" must be a string"));
+                }
+                options.format = format->AsString();
+            }
+
+            if (const service::Value* overwrite = request.Find("overwrite");
+                overwrite != nullptr && !overwrite->IsNull()) {
+                if (!overwrite->IsBool()) {
+                    return ErrorResponse(ProtocolError("\"overwrite\" must be a boolean"));
+                }
+                options.overwrite = overwrite->AsBool();
+            }
+
+            if (const service::Value* strip = request.Find("stripComponents");
+                strip != nullptr && !strip->IsNull()) {
+                if (!strip->IsNumber() || strip->AsNumber() < 0) {
+                    return ErrorResponse(ProtocolError(
+                        "\"stripComponents\" must be a non-negative whole number"));
+                }
+                options.stripComponents = static_cast<std::size_t>(strip->AsNumber());
+            }
+
+            if (const service::Value* preserve = request.Find("preservePermissions");
+                preserve != nullptr && !preserve->IsNull()) {
+                if (!preserve->IsBool()) {
+                    return ErrorResponse(
+                        ProtocolError("\"preservePermissions\" must be a boolean"));
+                }
+                options.preservePermissions = preserve->AsBool();
+            }
+
+            if (const service::Value* preserve = request.Find("preserveTimestamps");
+                preserve != nullptr && !preserve->IsNull()) {
+                if (!preserve->IsBool()) {
+                    return ErrorResponse(
+                        ProtocolError("\"preserveTimestamps\" must be a boolean"));
+                }
+                options.preserveTimestamps = preserve->AsBool();
+            }
+
+            const unpack::UnpackResult result = unpack::CreateUnpack(options);
+
+            std::vector<service::Value> files;
+            files.reserve(result.files.size());
+            for (const std::string& file : result.files) {
+                files.push_back(service::Value::String(file));
+            }
+
+            std::vector<service::Value> warnings;
+            warnings.reserve(result.warnings.size());
+            for (const std::string& warning : result.warnings) {
+                warnings.push_back(service::Value::String(warning));
+            }
+
+            if (!result.Ok()) {
+                // Reported as an error rather than as a result with an error
+                // field, so unwrap() throws the BuildFailure every other failing
+                // call in the package throws. The note travels on the message,
+                // which is where a caller reading errors[0].notes expects it.
+                api::Message message = EngineError("unpack-failed", result.error);
+                if (!result.note.empty()) {
+                    api::Note note;
+                    note.text = result.note;
+                    message.notes.push_back(std::move(note));
+                }
+                return service::Value::Object({
+                    {"error", service::Value::String(result.error)},
+                    {"errors", service::Value::Array({service::MessageToValue(message)})},
+                    {"warnings", service::Value::Array(std::move(warnings))},
+                });
+            }
+
+            return service::Value::Object({
+                {"outDir", service::Value::String(result.outDir)},
+                {"files", service::Value::Array(std::move(files))},
+                {"warnings", service::Value::Array(std::move(warnings))},
+            });
+        }
+
         // Formats diagnostics the way a terminal would show them, for a host that
         // has messages and wants the sentences rather than the fields.
         service::Value HandleFormatMessages(const service::Value& request) {
@@ -1611,6 +1725,7 @@ namespace guchho::cli {
             if (name == "dispose") return HandleDispose(request);
             if (name == "transform") return HandleTransform(request);
             if (name == "pack") return HandlePack(request);
+            if (name == "unpack") return HandleUnpack(request);
             if (name == "format-msgs") return HandleFormatMessages(request);
             if (name == "analyze-metafile") return HandleAnalyzeMetafile(request);
 

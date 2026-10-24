@@ -10,9 +10,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
-#include <format>
 #include <string>
-#include <vector>
 #include <cctype>
 
 namespace guchho::unpack {

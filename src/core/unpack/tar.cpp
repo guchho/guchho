@@ -4,6 +4,7 @@
 
 #include "guchho/unpack.hpp"
 #include "guchho/filesystem.hpp"
+#include "guchho/logger.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -309,7 +310,7 @@ bool ParseGzip(const std::string& path, std::vector<unsigned char>& out,
 {
     std::ifstream in(filesystem::PathFromUTF8(path), std::ios::binary);
     if (!in) {
-        error = "Failed to open archive";
+        error = logger::FormatMsg(logger::MsgCat::kUnpack_FailedToOpenArchive);
         return false;
     }
 
@@ -317,19 +318,19 @@ bool ParseGzip(const std::string& path, std::vector<unsigned char>& out,
     const std::streamsize size = in.tellg();
     in.seekg(0, std::ios::beg);
     if (size < 10) {
-        error = "Invalid gzip";
+        error = logger::FormatMsg(logger::MsgCat::kUnpack_InvalidGzip);
         return false;
     }
 
     std::vector<unsigned char> gzip(static_cast<std::size_t>(size));
     in.read(reinterpret_cast<char*>(gzip.data()), size);
     if (!in) {
-        error = "Failed to read archive";
+        error = logger::FormatMsg(logger::MsgCat::kUnpack_FailedToReadArchive);
         return false;
     }
 
     if (gzip[0] != 0x1f || gzip[1] != 0x8b || gzip[2] != 8) {
-        error = "Invalid gzip";
+        error = logger::FormatMsg(logger::MsgCat::kUnpack_InvalidGzip);
         return false;
     }
 
@@ -339,7 +340,7 @@ bool ParseGzip(const std::string& path, std::vector<unsigned char>& out,
 
     if ((flags & 0x04u) != 0) { // FEXTRA
         if (pos + 2 > total) {
-            error = "Invalid gzip";
+            error = logger::FormatMsg(logger::MsgCat::kUnpack_InvalidGzip);
             return false;
         }
         const auto extra = static_cast<std::size_t>(gzip[pos]) |
@@ -359,7 +360,7 @@ bool ParseGzip(const std::string& path, std::vector<unsigned char>& out,
     }
 
     if (pos > total || total - pos < 8) {
-        error = "Invalid gzip";
+        error = logger::FormatMsg(logger::MsgCat::kUnpack_InvalidGzip);
         return false;
     }
 
@@ -368,7 +369,7 @@ bool ParseGzip(const std::string& path, std::vector<unsigned char>& out,
     InflateOutput output;
     if (tinfl_decompress_mem_to_callback(gzip.data() + pos, &consumed,
                                          InflateCallback, &output, 0) == 0) {
-        error = "Failed to decompress gzip";
+        error = logger::FormatMsg(logger::MsgCat::kUnpack_FailedToDecompressGzip);
         return false;
     }
 
@@ -389,7 +390,7 @@ bool ParseGzip(const std::string& path, std::vector<unsigned char>& out,
 
     if (actual_crc != expected_crc ||
         static_cast<std::uint32_t>(output.bytes.size()) != expected_size) {
-        error = "Corrupt gzip archive";
+        error = logger::FormatMsg(logger::MsgCat::kUnpack_CorruptGzipArchive);
         return false;
     }
 
@@ -408,11 +409,11 @@ static bool IsSafePathTar(const std::string& name, const UnpackOptions& options,
         cleaned.erase(0, 2);
     }
     if (!cleaned.empty() && cleaned[0] == '/') {
-        warning = "Skipped absolute path: " + name;
+        warning = logger::FormatMsg(logger::MsgCat::kUnpack_SkippedAbsolutePath, name);
         return false;
     }
     if (cleaned.size() >= 2 && cleaned[1] == ':') {
-        warning = "Skipped absolute path: " + name;
+        warning = logger::FormatMsg(logger::MsgCat::kUnpack_SkippedAbsolutePath, name);
         return false;
     }
 
@@ -422,7 +423,7 @@ static bool IsSafePathTar(const std::string& name, const UnpackOptions& options,
         if (c == '/') {
             if (!cur.empty()) {
                 if (cur == "..") {
-                    warning = "Skipped path traversal: " + name;
+                    warning = logger::FormatMsg(logger::MsgCat::kUnpack_SkippedPathTraversal, name);
                     return false;
                 }
                 if (cur != ".") parts.push_back(cur);
@@ -434,7 +435,7 @@ static bool IsSafePathTar(const std::string& name, const UnpackOptions& options,
     }
     if (!cur.empty()) {
         if (cur == "..") {
-            warning = "Skipped path traversal: " + name;
+            warning = logger::FormatMsg(logger::MsgCat::kUnpack_SkippedPathTraversal, name);
             return false;
         }
         if (cur != ".") parts.push_back(cur);
@@ -442,7 +443,7 @@ static bool IsSafePathTar(const std::string& name, const UnpackOptions& options,
 
     if (options.stripComponents > 0) {
         if (parts.size() <= options.stripComponents) {
-            warning = "Skipped due to strip-components: " + name;
+            warning = logger::FormatMsg(logger::MsgCat::kUnpack_SkippedStripComponents, name);
             return false;
         }
         parts.erase(parts.begin(), parts.begin() +
@@ -464,7 +465,7 @@ bool ExtractTar(const UnpackOptions& options, UnpackResult& result, bool gzip)
     fs::path archivePath = filesystem::PathFromUTF8(options.archive);
     std::error_code ec;
     if (!fs::exists(archivePath, ec)) {
-        result.error = "Archive does not exist: " + options.archive;
+        result.error = logger::FormatMsg(logger::MsgCat::kUnpack_ArchiveDoesNotExist, options.archive);
         return false;
     }
 
@@ -481,20 +482,20 @@ bool ExtractTar(const UnpackOptions& options, UnpackResult& result, bool gzip)
     } else {
         std::ifstream in(archivePath, std::ios::binary);
         if (!in) {
-            result.error = "Failed to open archive";
+            result.error = logger::FormatMsg(logger::MsgCat::kUnpack_FailedToOpenArchive);
             return false;
         }
         in.seekg(0, std::ios::end);
         const std::streamsize size = in.tellg();
         in.seekg(0, std::ios::beg);
         if (size < 0) {
-            result.error = "Failed to read archive";
+            result.error = logger::FormatMsg(logger::MsgCat::kUnpack_FailedToReadArchive);
             return false;
         }
         data.resize(static_cast<std::size_t>(size));
         in.read(reinterpret_cast<char*>(data.data()), size);
         if (!in) {
-            result.error = "Failed to read archive";
+            result.error = logger::FormatMsg(logger::MsgCat::kUnpack_FailedToReadArchive);
             return false;
         }
     }
@@ -524,20 +525,20 @@ bool ExtractTar(const UnpackOptions& options, UnpackResult& result, bool gzip)
         std::uint64_t stored_checksum = 0;
         if (!ParseNumber(header.chksum, 8, stored_checksum) ||
             !ChecksumMatches(raw, stored_checksum)) {
-            result.error = "Corrupt tar archive: header checksum mismatch";
+            result.error = logger::FormatMsg(logger::MsgCat::kUnpack_CorruptTarHeaderChecksum);
             return false;
         }
 
         std::uint64_t header_size = 0;
         if (!ParseNumber(header.size, 12, header_size)) {
-            result.error = "Corrupt tar archive: invalid size field";
+            result.error = logger::FormatMsg(logger::MsgCat::kUnpack_CorruptTarSizeField);
             return false;
         }
 
         offset += kBlockSize;
         const auto data_size = static_cast<std::size_t>(header_size);
         if (data_size > total - offset) {
-            result.error = "Corrupt tar archive: truncated entry";
+            result.error = logger::FormatMsg(logger::MsgCat::kUnpack_CorruptTarTruncatedEntry);
             return false;
         }
 
@@ -546,7 +547,7 @@ bool ExtractTar(const UnpackOptions& options, UnpackResult& result, bool gzip)
         if (typeflag == 'x' || typeflag == 'g') {
             PaxValues parsed;
             if (!ParsePax(data.data() + offset, data_size, typeflag == 'g', parsed)) {
-                result.error = "Corrupt tar archive: invalid PAX header";
+                result.error = logger::FormatMsg(logger::MsgCat::kUnpack_CorruptTarPaxHeader);
                 return false;
             }
             if (typeflag == 'x') {
@@ -603,7 +604,7 @@ bool ExtractTar(const UnpackOptions& options, UnpackResult& result, bool gzip)
         pax = PaxValues{};
 
         if (entry_size > total - offset) {
-            result.error = "Corrupt tar archive: truncated entry";
+            result.error = logger::FormatMsg(logger::MsgCat::kUnpack_CorruptTarTruncatedEntry);
             return false;
         }
 
@@ -618,7 +619,7 @@ bool ExtractTar(const UnpackOptions& options, UnpackResult& result, bool gzip)
 
         fs::path destPath = outBase / filesystem::PathFromUTF8(relPath);
         if (!PathIsUnder(outBase, destPath)) {
-            result.warnings.push_back("Skipped path outside output directory: " + relPath);
+            result.warnings.push_back(logger::FormatMsg(logger::MsgCat::kUnpack_SkippedOutsideOutputDir, relPath));
             offset += RoundUp(static_cast<std::size_t>(entry_size));
             continue;
         }
@@ -636,7 +637,7 @@ bool ExtractTar(const UnpackOptions& options, UnpackResult& result, bool gzip)
         if (is_directory) {
             fs::create_directories(destPath, ec);
             if (ec) {
-                result.warnings.push_back("Failed to create directory: " + relPath);
+                result.warnings.push_back(logger::FormatMsg(logger::MsgCat::kUnpack_FailedToCreateDirectory, relPath));
             } else {
                 metadata.push_back(meta);
             }
@@ -645,22 +646,22 @@ bool ExtractTar(const UnpackOptions& options, UnpackResult& result, bool gzip)
         }
 
         if (typeflag == '2') {
-            result.warnings.push_back("Skipped symlink: " + relPath);
+            result.warnings.push_back(logger::FormatMsg(logger::MsgCat::kUnpack_SkippedSymlink, relPath));
             offset += RoundUp(static_cast<std::size_t>(entry_size));
             continue;
         }
         if (typeflag == '1') {
-            result.warnings.push_back("Skipped hardlink: " + relPath);
+            result.warnings.push_back(logger::FormatMsg(logger::MsgCat::kUnpack_SkippedHardlink, relPath));
             offset += RoundUp(static_cast<std::size_t>(entry_size));
             continue;
         }
         if (typeflag == '3' || typeflag == '4' || typeflag == '6') {
-            result.warnings.push_back("Skipped special file: " + relPath);
+            result.warnings.push_back(logger::FormatMsg(logger::MsgCat::kUnpack_SkippedSpecialFile, relPath));
             offset += RoundUp(static_cast<std::size_t>(entry_size));
             continue;
         }
         if (typeflag != '0' && typeflag != '7') {
-            result.warnings.push_back("Skipped unsupported entry: " + relPath);
+            result.warnings.push_back(logger::FormatMsg(logger::MsgCat::kUnpack_SkippedUnsupportedEntry, relPath));
             offset += RoundUp(static_cast<std::size_t>(entry_size));
             continue;
         }
@@ -669,14 +670,14 @@ bool ExtractTar(const UnpackOptions& options, UnpackResult& result, bool gzip)
             fs::create_directories(destPath.parent_path(), ec);
         }
         if (fs::exists(destPath, ec) && !options.overwrite) {
-            result.warnings.push_back("Skipped existing file (use --overwrite): " + relPath);
+            result.warnings.push_back(logger::FormatMsg(logger::MsgCat::kUnpack_SkippedExistingFile, relPath));
             offset += RoundUp(static_cast<std::size_t>(entry_size));
             continue;
         }
 
         std::ofstream out(destPath, std::ios::binary | std::ios::trunc);
         if (!out) {
-            result.warnings.push_back("Failed to extract: " + relPath);
+            result.warnings.push_back(logger::FormatMsg(logger::MsgCat::kUnpack_FailedToExtract, relPath));
             offset += RoundUp(static_cast<std::size_t>(entry_size));
             continue;
         }
@@ -688,7 +689,7 @@ bool ExtractTar(const UnpackOptions& options, UnpackResult& result, bool gzip)
         out.close();
         if (!out) {
             fs::remove(destPath, ec);
-            result.warnings.push_back("Failed to write: " + relPath);
+            result.warnings.push_back(logger::FormatMsg(logger::MsgCat::kUnpack_FailedToWrite, relPath));
         } else {
             metadata.push_back(meta);
             result.files.push_back(relPath);

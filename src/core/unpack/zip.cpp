@@ -7,9 +7,13 @@
 #include "guchho/logger.hpp"
 
 #include <algorithm>
+#include <cctype>
+#include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #define MINIZ_NO_ARCHIVE_WRITING_APIS
@@ -21,8 +25,124 @@ namespace detail {
 
 namespace fs = std::filesystem;
 
-static bool IsSafePath(const std::string& name, const fs::path& outBase, 
-                       const UnpackOptions& options, std::string& outRel, std::string& warning)
+namespace {
+
+// Unix file-type bits live in the high half of a zip entry's external
+// attributes, but only when the archive says it was made on Unix. A DOS
+// archive leaves that half zero and puts its read-only/hidden bits in the low
+// half, so interpreting those as a mode would turn every entry into a regular
+// file with mode 0.
+constexpr std::uint32_t kUnixFileTypeMask = 0170000u;
+constexpr std::uint32_t kUnixSymlink      = 0120000u;
+constexpr std::uint32_t kPermissionMask   = 07777u;
+
+std::uint16_t MadeByOs(const mz_zip_archive_file_stat& stat)
+{
+    return static_cast<std::uint16_t>(stat.m_version_made_by >> 8);
+}
+
+bool IsUnixArchive(const mz_zip_archive_file_stat& stat)
+{
+    const std::uint16_t os = MadeByOs(stat);
+    return os == 3 || os == 19; // Unix, macOS
+}
+
+bool IsSymlinkEntry(const mz_zip_archive_file_stat& stat)
+{
+    if (!IsUnixArchive(stat)) return false;
+    const std::uint32_t mode = stat.m_external_attr >> 16;
+    return (mode & kUnixFileTypeMask) == kUnixSymlink;
+}
+
+std::uint32_t EntryMode(const mz_zip_archive_file_stat& stat)
+{
+    if (!IsUnixArchive(stat)) return 0;
+    return (stat.m_external_attr >> 16) & kPermissionMask;
+}
+
+struct Metadata {
+    fs::path path;
+    std::uint32_t mode = 0;
+    bool has_mode      = false;
+    std::time_t mtime  = 0;
+    bool has_mtime     = false;
+};
+
+void SetTimestamps(const fs::path& path, std::time_t mtime)
+{
+    std::error_code ec;
+    const auto system_time = std::chrono::system_clock::from_time_t(mtime);
+    const auto file_time   = fs::file_time_type::clock::now() +
+                           (system_time - std::chrono::system_clock::now());
+    fs::last_write_time(path, file_time, ec);
+}
+
+void ApplyMetadata(const std::vector<Metadata>& records)
+{
+    // Reverse discovery order, so a directory's own time and mode are set
+    // after everything inside it. Creating a child touches the parent's mtime;
+    // setting the parent first would leave it with the moment of extraction
+    // instead of the moment it had in the archive.
+    for (auto it = records.rbegin(); it != records.rend(); ++it) {
+        std::error_code ec;
+        if (it->has_mtime) SetTimestamps(it->path, it->mtime);
+        if (it->has_mode && it->mode != 0) {
+            fs::permissions(it->path, static_cast<fs::perms>(it->mode),
+                            fs::perm_options::replace, ec);
+        }
+    }
+}
+
+std::string FoldCase(std::string text)
+{
+#ifdef _WIN32
+    std::transform(text.begin(), text.end(), text.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+#endif
+    return text;
+}
+
+// Whether "candidate" is inside "base". Both are made absolute and canonical
+// first, so a path that walks through an existing symbolic link is judged by
+// where it really lands rather than by how it was spelled.
+bool PathIsUnder(const fs::path& base, const fs::path& candidate)
+{
+    std::error_code ec;
+    fs::path canon_base = fs::weakly_canonical(base, ec);
+    if (ec) canon_base = fs::absolute(base, ec);
+
+    fs::path parent = candidate.parent_path();
+    if (parent.empty()) parent = candidate;
+    fs::path canon_parent = fs::weakly_canonical(parent, ec);
+    if (ec) canon_parent = fs::absolute(parent, ec);
+
+    const std::string base_text   = FoldCase(canon_base.generic_string());
+    const std::string parent_text = FoldCase(canon_parent.generic_string());
+
+    if (parent_text == base_text) return true;
+    if (parent_text.size() <= base_text.size()) return false;
+    if (parent_text.compare(0, base_text.size(), base_text) != 0) return false;
+
+    // A prefix match alone would accept "outdir-extra" for "outdir".
+    return base_text.back() == '/' || parent_text[base_text.size()] == '/';
+}
+
+struct Sink {
+    std::ofstream out;
+};
+
+size_t WriteSink(void* opaque, mz_uint64 file_ofs, const void* buffer, size_t size)
+{
+    auto* sink = static_cast<Sink*>(opaque);
+    sink->out.seekp(static_cast<std::streamoff>(file_ofs));
+    sink->out.write(static_cast<const char*>(buffer), static_cast<std::streamsize>(size));
+    return sink->out.good() ? size : 0;
+}
+
+} // namespace
+
+static bool IsSafePath(const std::string& name, const UnpackOptions& options,
+                       std::string& outRel, std::string& warning)
 {
     std::string cleaned = name;
     // Normalize separators
@@ -40,7 +160,7 @@ static bool IsSafePath(const std::string& name, const fs::path& outBase,
         warning = "Skipped absolute path: " + name;
         return false;
     }
-    
+
     // Split and check components
     std::vector<std::string> parts;
     std::string cur;
@@ -65,21 +185,22 @@ static bool IsSafePath(const std::string& name, const fs::path& outBase,
         }
         if (cur != ".") parts.push_back(cur);
     }
-    
+
     // Apply strip components
     if (options.stripComponents > 0) {
         if (parts.size() <= options.stripComponents) {
             warning = "Skipped due to strip-components: " + name;
             return false;
         }
-        parts.erase(parts.begin(), parts.begin() + options.stripComponents);
+        parts.erase(parts.begin(), parts.begin() +
+                                       static_cast<std::ptrdiff_t>(options.stripComponents));
     }
-    
+
     if (parts.empty()) {
         // Could be just a directory entry for root - skip
         return false;
     }
-    
+
     outRel.clear();
     for (size_t i = 0; i < parts.size(); ++i) {
         if (i) outRel += "/";
@@ -96,10 +217,10 @@ bool ExtractZip(const UnpackOptions& options, UnpackResult& result)
         result.error = "Archive does not exist: " + options.archive;
         return false;
     }
-    
+
     fs::path outBase = filesystem::PathFromUTF8(options.outDir);
     outBase = fs::absolute(outBase, ec);
-    
+
     mz_zip_archive zip_archive{};
     mz_zip_zero_struct(&zip_archive);
     if (!mz_zip_reader_init_file(&zip_archive, options.archive.c_str(), 0)) {
@@ -109,67 +230,106 @@ bool ExtractZip(const UnpackOptions& options, UnpackResult& result)
         if (msg) result.note = msg;
         return false;
     }
-    
+
+    std::vector<Metadata> metadata;
+
     mz_uint num_files = mz_zip_reader_get_num_files(&zip_archive);
     for (mz_uint i = 0; i < num_files; ++i) {
         mz_zip_archive_file_stat stat;
         if (!mz_zip_reader_file_stat(&zip_archive, i, &stat)) {
+            result.warnings.push_back("Failed to read entry metadata");
             continue;
         }
-        
+
         std::string filename = stat.m_filename ? stat.m_filename : "";
-        bool isDir = stat.m_is_directory != 0 || (!filename.empty() && filename.back() == '/');
-        
+        bool isDir = stat.m_is_directory != 0 ||
+                     (!filename.empty() && filename.back() == '/');
+
         std::string relPath;
         std::string warn;
-        if (!IsSafePath(filename, outBase, options, relPath, warn)) {
+        if (!IsSafePath(filename, options, relPath, warn)) {
             if (!warn.empty()) result.warnings.push_back(warn);
             continue;
         }
-        
+
         fs::path destPath = outBase / filesystem::PathFromUTF8(relPath);
-        // Ensure dest is under outBase
-        std::error_code ec2;
-        fs::path canonDest = fs::weakly_canonical(destPath.parent_path(), ec2);
-        if (ec2) canonDest = fs::absolute(destPath.parent_path(), ec2);
-        fs::path canonBase = outBase;
-        if (canonDest.string().find(canonBase.string()) != 0 && 
-            !(canonBase.string() == canonDest.string().substr(0, canonBase.string().size()))) {
-            // Additional check
+        if (!PathIsUnder(outBase, destPath)) {
+            result.warnings.push_back("Skipped path outside output directory: " + relPath);
+            continue;
         }
-        
+
+        Metadata meta;
+        meta.path      = destPath;
+        meta.mode      = EntryMode(stat);
+        meta.has_mode  = meta.mode != 0;
+        meta.mtime     = stat.m_time;
+        meta.has_mtime = stat.m_time != 0;
+
         if (isDir) {
             fs::create_directories(destPath, ec);
             if (ec) {
                 result.warnings.push_back("Failed to create directory: " + relPath);
+                continue;
             }
+            metadata.push_back(meta);
             continue;
         }
-        
+
+        if (IsSymlinkEntry(stat)) {
+            result.warnings.push_back("Skipped symlink: " + relPath);
+            continue;
+        }
+
+        if (!stat.m_is_supported) {
+            result.warnings.push_back("Skipped unsupported entry: " + relPath);
+            continue;
+        }
+
         // Create parent directories
         if (destPath.has_parent_path()) {
             fs::create_directories(destPath.parent_path(), ec);
+            if (ec) {
+                result.warnings.push_back("Failed to create directory for: " + relPath);
+                continue;
+            }
         }
-        
+
         if (fs::exists(destPath, ec) && !options.overwrite) {
             result.warnings.push_back("Skipped existing file (use --overwrite): " + relPath);
             continue;
         }
-        
-        // Extract file
-        if (!mz_zip_reader_extract_to_file(&zip_archive, i, destPath.string().c_str(), 0)) {
-            mz_zip_error err = mz_zip_get_last_error(&zip_archive);
-            const char* msg = mz_zip_get_error_string(err);
+
+        Sink sink;
+        sink.out.open(destPath, std::ios::binary | std::ios::trunc);
+        if (!sink.out) {
             result.warnings.push_back("Failed to extract: " + relPath);
-            if (msg) {
-                // append briefly
-            }
             continue;
         }
+
+        if (!mz_zip_reader_extract_to_callback(&zip_archive, i, WriteSink, &sink, 0)) {
+            sink.out.close();
+            fs::remove(destPath, ec);
+            result.warnings.push_back("Failed to extract: " + relPath);
+            continue;
+        }
+
+        sink.out.close();
+        if (!sink.out) {
+            fs::remove(destPath, ec);
+            result.warnings.push_back("Failed to write: " + relPath);
+            continue;
+        }
+
+        metadata.push_back(meta);
         result.files.push_back(relPath);
     }
-    
+
     mz_zip_reader_end(&zip_archive);
+
+    if (options.preservePermissions || options.preserveTimestamps) {
+        ApplyMetadata(metadata);
+    }
+
     return true;
 }
 

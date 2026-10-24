@@ -11,7 +11,9 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -370,6 +372,88 @@ TEST(Unpack, CorruptTarChecksumIsRejected)
 
     ASSERT_TRUE(!result.Ok());
     ASSERT_TRUE(result.error.find("checksum") != std::string::npos);
+}
+
+TEST(Unpack, PreserveFlagsAreIndependent)
+{
+    UnpackTempDir dir("preserve-flags");
+    dir.MakeDir("srcdir");
+    dir.Write("srcdir/hello.txt", "hello");
+
+    constexpr std::time_t kOldTime = 981173106; // 2001-02-03 04:05:06 UTC
+    const fs::path source = dir.Path("srcdir/hello.txt");
+    std::error_code ec;
+    const auto old_system = std::chrono::system_clock::from_time_t(kOldTime);
+    const auto old_file   = fs::file_time_type::clock::now() +
+                          (old_system - std::chrono::system_clock::now());
+    fs::last_write_time(source, old_file, ec);
+    ASSERT_FALSE(ec);
+
+    const std::string archive = dir.At("out.tar");
+    auto pres = guchho::pack::CreatePack(PackOptionsFor(dir.At("srcdir"), archive, "tar"));
+    ASSERT_TRUE(pres.Ok());
+
+    auto unpackTo = [&](const std::string& out, bool timestamps) {
+        guchho::unpack::UnpackOptions options;
+        options.archive = archive;
+        options.outDir  = out;
+        options.overwrite = true;
+        options.preservePermissions = true;
+        options.preserveTimestamps  = timestamps;
+        return guchho::unpack::CreateUnpack(options);
+    };
+
+    auto toSeconds = [](fs::file_time_type value) {
+        const auto system = std::chrono::system_clock::now() +
+                            (value - fs::file_time_type::clock::now());
+        return static_cast<long long>(
+            std::chrono::system_clock::to_time_t(system));
+    };
+
+    // Permissions on, timestamps off: the extracted file keeps the moment it
+    // was written rather than the moment the source had in 2001.
+    ASSERT_TRUE(unpackTo(dir.At("fresh"), false).Ok());
+    const auto fresh = fs::last_write_time(dir.Path("fresh/srcdir/hello.txt"), ec);
+    ASSERT_FALSE(ec);
+    ASSERT_GT(std::llabs(toSeconds(fresh) - static_cast<long long>(kOldTime)),
+              static_cast<long long>(86400));
+
+    // Timestamps on: the archive's value is restored.
+    ASSERT_TRUE(unpackTo(dir.At("kept"), true).Ok());
+    const auto kept = fs::last_write_time(dir.Path("kept/srcdir/hello.txt"), ec);
+    ASSERT_FALSE(ec);
+    ASSERT_LE(std::llabs(toSeconds(kept) - static_cast<long long>(kOldTime)), 2LL);
+}
+
+TEST(Unpack, ExistingSymlinkAtDestinationIsNotFollowed)
+{
+#ifdef _WIN32
+    return; // creating symlinks requires privileges on Windows
+#else
+    UnpackTempDir dir("symlink-dest");
+    dir.Write("outside.txt", "original");
+    dir.MakeDir("extracted");
+
+    std::error_code ec;
+    fs::create_symlink(dir.Path("outside.txt"), dir.Path("extracted/evil.txt"), ec);
+    if (ec) return; // the host cannot create symbolic links
+
+    std::vector<char> archive;
+    AddTarHeader(archive, "evil.txt", "owned");
+    FinishTar(archive);
+    const fs::path tar_path = dir.Path("evil.tar");
+    WriteBytes(tar_path, archive);
+
+    guchho::unpack::UnpackOptions options;
+    options.archive   = PathToUTF8(tar_path);
+    options.outDir    = dir.At("extracted");
+    options.overwrite = true;
+    auto result = guchho::unpack::CreateUnpack(options);
+
+    ASSERT_TRUE(result.Ok());
+    ASSERT_EQ(ReadWholeFile(dir.Path("outside.txt")), std::string("original"));
+    ASSERT_TRUE(!result.warnings.empty());
+#endif
 }
 
 TEST(Unpack, PaxPathHeaderIsHonoured)

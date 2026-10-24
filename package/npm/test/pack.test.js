@@ -62,6 +62,7 @@ describe("the main package", () => {
             "lib/main.js",
             "lib/transform.js",
             "lib/pack.js",
+            "lib/unpack.js",
             "lib/build.js",
             "lib/exec.js",
             "lib/flags.js",

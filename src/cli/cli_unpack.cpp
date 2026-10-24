@@ -24,7 +24,7 @@ std::optional<std::size_t> ParseSize(const std::string& text)
     std::size_t v = 0;
     for (char c : text) {
         if (c < '0' || c > '9') return std::nullopt;
-        v = v * 10 + (std::size_t)(c - '0');
+        v = v * 10 + static_cast<std::size_t>(c - '0');
     }
     return v;
 }

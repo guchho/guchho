@@ -83,24 +83,33 @@ std::string FoldCase(std::string text)
     return text;
 }
 
+// The candidate is canonicalized as well as the base: an existing destination
+// symlink would otherwise be followed and written through, even when its
+// target is outside the output directory.
 bool PathIsUnder(const fs::path& base, const fs::path& candidate)
 {
     std::error_code ec;
     fs::path canon_base = fs::weakly_canonical(base, ec);
-    if (ec) canon_base = fs::absolute(base, ec);
+    if (ec) {
+        ec.clear();
+        canon_base = fs::absolute(base, ec);
+    }
+    if (ec) return false;
 
-    fs::path parent = candidate.parent_path();
-    if (parent.empty()) parent = candidate;
-    fs::path canon_parent = fs::weakly_canonical(parent, ec);
-    if (ec) canon_parent = fs::absolute(parent, ec);
+    fs::path canon_candidate = fs::weakly_canonical(candidate, ec);
+    if (ec) {
+        ec.clear();
+        canon_candidate = fs::absolute(candidate, ec);
+    }
+    if (ec) return false;
 
-    const std::string base_text   = FoldCase(canon_base.generic_string());
-    const std::string parent_text = FoldCase(canon_parent.generic_string());
+    const std::string base_text = FoldCase(canon_base.generic_string());
+    const std::string cand_text = FoldCase(canon_candidate.generic_string());
 
-    if (parent_text == base_text) return true;
-    if (parent_text.size() <= base_text.size()) return false;
-    if (parent_text.compare(0, base_text.size(), base_text) != 0) return false;
-    return base_text.back() == '/' || parent_text[base_text.size()] == '/';
+    if (cand_text == base_text) return true;
+    if (cand_text.size() <= base_text.size()) return false;
+    if (cand_text.compare(0, base_text.size(), base_text) != 0) return false;
+    return base_text.back() == '/' || cand_text[base_text.size()] == '/';
 }
 
 // tar numbers are octal text. GNU's base-256 extension sets the high bit of
@@ -281,11 +290,12 @@ void SetTimestamps(const fs::path& path, std::int64_t mtime)
     fs::last_write_time(path, file_time, ec);
 }
 
-void ApplyMetadata(const std::vector<Metadata>& records)
+void ApplyMetadata(const std::vector<Metadata>& records, bool permissions,
+                   bool timestamps)
 {
     for (auto it = records.rbegin(); it != records.rend(); ++it) {
-        if (it->has_mtime) SetTimestamps(it->path, it->mtime);
-        if (it->has_mode && it->mode != 0) {
+        if (timestamps && it->has_mtime) SetTimestamps(it->path, it->mtime);
+        if (permissions && it->has_mode && it->mode != 0) {
             std::error_code ec;
             fs::permissions(it->path, static_cast<fs::perms>(it->mode & kPermissionMask),
                             fs::perm_options::replace, ec);
@@ -699,7 +709,8 @@ bool ExtractTar(const UnpackOptions& options, UnpackResult& result, bool gzip)
     }
 
     if (options.preservePermissions || options.preserveTimestamps) {
-        ApplyMetadata(metadata);
+        ApplyMetadata(metadata, options.preservePermissions,
+                      options.preserveTimestamps);
     }
 
     return true;

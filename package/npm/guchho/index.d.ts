@@ -772,6 +772,69 @@ export interface PackResult {
 }
 
 /**
+ * What unpack() reads, and where its files go.
+ *
+ * Every path is a path on disk. The archive is the only required option: the
+ * destination follows the archive's name, the format follows its extension and
+ * first bytes, and the preserve flags follow what the archive recorded.
+ */
+export interface UnpackOptions {
+  /** The archive to extract: a zip, tar or tar.gz file. */
+  archive: string
+  /**
+   * Where to extract. Created if it is missing. Left out, the archive's name
+   * without its extension is used, and an empty result (an archive called
+   * `.zip`) falls back to `"extracted"`.
+   */
+  outDir?: string
+  /**
+   * Which archive format to read: `"zip"`, `"tar"` or `"tar.gz"`. Leaving this
+   * out detects it from the extension and the archive's magic bytes; an empty
+   * string is a RangeError thrown before the engine is asked.
+   */
+  format?: "zip" | "tar" | "tar.gz"
+  /**
+   * Replace existing files. Without it, a file already at a destination is an
+   * error rather than something to destroy.
+   */
+  overwrite?: boolean
+  /**
+   * Leading path components to drop from every entry, the way
+   * `tar --strip-components` does. Entries with too few components are skipped
+   * with a warning. Defaults to 0.
+   */
+  stripComponents?: number
+  /**
+   * Restore the permissions recorded in the archive where the host file system
+   * supports them. Defaults to true. On Windows only the read-only bit can be
+   * expressed.
+   */
+  preservePermissions?: boolean
+  /**
+   * Restore the modification times recorded in the archive where the host file
+   * system supports them. Defaults to true.
+   */
+  preserveTimestamps?: boolean
+}
+
+export interface UnpackResult {
+  /** The directory the files were extracted into. */
+  outDir: string
+  /**
+   * The files that were written, relative to outDir where the archive allowed
+   * it. Directories are not listed; symlinks and special files are absent
+   * because they are skipped, with a warning.
+   */
+  files: string[]
+  /**
+   * What was deliberately left out: a symlink, a hardlink, a special file, an
+   * entry that would escape the destination, an entry too short to strip.
+   * Empty because nothing was skipped, not because anything was missed.
+   */
+  warnings: string[]
+}
+
+/**
  * A build that is set up once and built as many times as asked.
  *
  * A context holds everything the engine learned reading the project, which is
@@ -974,6 +1037,25 @@ export declare function transform(
  * @throws {BuildFailure} When the engine refused the request.
  */
 export declare function pack(options: PackOptions): Promise<PackResult>
+
+/**
+ * Extracts an archive into files and directories on disk.
+ *
+ * The other half of `pack()`, and the same shape: an options object in, a
+ * promise of what was written out, and a throw when the archive could not be
+ * read. Everything the command line's `guchho unpack` does is reachable here —
+ * the same default destination, format detection, overwrite rule and
+ * component stripping — with the result as data rather than a terminal line.
+ *
+ * Native only. The browser entry exports this name and refuses it: the
+ * WebAssembly engine has no host filesystem to extract into.
+ *
+ * @throws {TypeError} When an option is missing or has the wrong type.
+ * @throws {RangeError} When the format is not one this engine can read, or the
+ *   strip count is negative or not a whole number.
+ * @throws {BuildFailure} When the engine refused the request.
+ */
+export declare function unpack(options: UnpackOptions): Promise<UnpackResult>
 
 /** Sets up a build that can be repeated. */
 export declare function context(options: BuildOptions): Promise<BuildContext>

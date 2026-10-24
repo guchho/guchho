@@ -1765,6 +1765,43 @@ namespace guchho::logger {
         kPack_TimestampBeforeUnixEpochNote,
         kPack_CannotStartWritingFileNotOpened,
 
+        // -------------------------------------------------------------------
+        // Archive extraction (unpack.cpp / zip.cpp / tar.cpp)
+        // -------------------------------------------------------------------
+        kUnpack_NoArchiveFile,
+        kUnpack_NoArchiveFileNote,
+        kUnpack_CouldNotDetectFormat,
+        kUnpack_CouldNotDetectFormatNote,
+        kUnpack_NoOutputDirectory,
+        kUnpack_NoOutputDirectoryNote,
+        kUnpack_OutputPathIsFile,
+        kUnpack_CannotCreateOutputDirectory,
+        kUnpack_ArchiveDoesNotExist,
+        kUnpack_FailedToOpenArchive,
+        kUnpack_FailedToReadArchive,
+        kUnpack_InvalidGzip,
+        kUnpack_FailedToDecompressGzip,
+        kUnpack_CorruptGzipArchive,
+        kUnpack_CorruptTarHeaderChecksum,
+        kUnpack_CorruptTarSizeField,
+        kUnpack_CorruptTarTruncatedEntry,
+        kUnpack_CorruptTarPaxHeader,
+        kUnpack_SkippedAbsolutePath,
+        kUnpack_SkippedPathTraversal,
+        kUnpack_SkippedStripComponents,
+        kUnpack_SkippedOutsideOutputDir,
+        kUnpack_SkippedSymlink,
+        kUnpack_SkippedHardlink,
+        kUnpack_SkippedSpecialFile,
+        kUnpack_SkippedUnsupportedEntry,
+        kUnpack_SkippedExistingFile,
+        kUnpack_FailedToCreateDirectory,
+        kUnpack_FailedToCreateDirectoryFor,
+        kUnpack_FailedToExtract,
+        kUnpack_FailedToWrite,
+        kUnpack_FailedToOpenZipArchive,
+        kUnpack_FailedToReadEntryMetadata,
+
         kEND,
     };
 

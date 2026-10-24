@@ -184,6 +184,7 @@ Command detectCommand(const std::vector<std::string>& args, bool& has_entry) {
     if (first == "info")   return Command::kInfo;
     if (first == "transform") return Command::kTransform;
     if (first == "pack") return Command::kPack;
+    if (first == "unpack") return Command::kUnpack;
 
     // Not a command word, so the leading argument means something else. A path
     // is the case worth catching, and it is recognised by the one thing a
@@ -495,6 +496,8 @@ static int runImpl(const std::vector<std::string>& os_args,
         return runInfo(os_args);
     case Command::kPack:
         return runPack(os_args);
+    case Command::kUnpack:
+        return runUnpack(os_args);
     default:
         printUsage(std::cout);
         return 0;

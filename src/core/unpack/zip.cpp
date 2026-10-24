@@ -77,7 +77,8 @@ void SetTimestamps(const fs::path& path, std::time_t mtime)
     fs::last_write_time(path, file_time, ec);
 }
 
-void ApplyMetadata(const std::vector<Metadata>& records)
+void ApplyMetadata(const std::vector<Metadata>& records, bool permissions,
+                   bool timestamps)
 {
     // Reverse discovery order, so a directory's own time and mode are set
     // after everything inside it. Creating a child touches the parent's mtime;
@@ -85,8 +86,8 @@ void ApplyMetadata(const std::vector<Metadata>& records)
     // instead of the moment it had in the archive.
     for (auto it = records.rbegin(); it != records.rend(); ++it) {
         std::error_code ec;
-        if (it->has_mtime) SetTimestamps(it->path, it->mtime);
-        if (it->has_mode && it->mode != 0) {
+        if (timestamps && it->has_mtime) SetTimestamps(it->path, it->mtime);
+        if (permissions && it->has_mode && it->mode != 0) {
             fs::permissions(it->path, static_cast<fs::perms>(it->mode),
                             fs::perm_options::replace, ec);
         }
@@ -104,27 +105,35 @@ std::string FoldCase(std::string text)
 
 // Whether "candidate" is inside "base". Both are made absolute and canonical
 // first, so a path that walks through an existing symbolic link is judged by
-// where it really lands rather than by how it was spelled.
+// where it really lands rather than by how it was spelled. The candidate is
+// canonicalized too: an existing destination symlink can otherwise point
+// outside the output directory and be written through.
 bool PathIsUnder(const fs::path& base, const fs::path& candidate)
 {
     std::error_code ec;
     fs::path canon_base = fs::weakly_canonical(base, ec);
-    if (ec) canon_base = fs::absolute(base, ec);
+    if (ec) {
+        ec.clear();
+        canon_base = fs::absolute(base, ec);
+    }
+    if (ec) return false;
 
-    fs::path parent = candidate.parent_path();
-    if (parent.empty()) parent = candidate;
-    fs::path canon_parent = fs::weakly_canonical(parent, ec);
-    if (ec) canon_parent = fs::absolute(parent, ec);
+    fs::path canon_candidate = fs::weakly_canonical(candidate, ec);
+    if (ec) {
+        ec.clear();
+        canon_candidate = fs::absolute(candidate, ec);
+    }
+    if (ec) return false;
 
-    const std::string base_text   = FoldCase(canon_base.generic_string());
-    const std::string parent_text = FoldCase(canon_parent.generic_string());
+    const std::string base_text = FoldCase(canon_base.generic_string());
+    const std::string cand_text = FoldCase(canon_candidate.generic_string());
 
-    if (parent_text == base_text) return true;
-    if (parent_text.size() <= base_text.size()) return false;
-    if (parent_text.compare(0, base_text.size(), base_text) != 0) return false;
+    if (cand_text == base_text) return true;
+    if (cand_text.size() <= base_text.size()) return false;
+    if (cand_text.compare(0, base_text.size(), base_text) != 0) return false;
 
     // A prefix match alone would accept "outdir-extra" for "outdir".
-    return base_text.back() == '/' || parent_text[base_text.size()] == '/';
+    return base_text.back() == '/' || cand_text[base_text.size()] == '/';
 }
 
 struct Sink {
@@ -327,7 +336,8 @@ bool ExtractZip(const UnpackOptions& options, UnpackResult& result)
     mz_zip_reader_end(&zip_archive);
 
     if (options.preservePermissions || options.preserveTimestamps) {
-        ApplyMetadata(metadata);
+        ApplyMetadata(metadata, options.preservePermissions,
+                      options.preserveTimestamps);
     }
 
     return true;

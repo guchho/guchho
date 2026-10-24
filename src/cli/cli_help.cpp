@@ -165,6 +165,7 @@ void printUsage(std::ostream& os) {
        << "  info                Show environment info\n"
        << "  transform           Transform source from stdin\n"
        << "  pack <input...>     Create an archive\n"
+       << "  unpack <archive>    Extract an archive\n"
        << "\n"
        << "Run 'guchho <command> --help' for command-specific help.\n"
        << "Run 'guchho --version' for version information.\n";
@@ -707,6 +708,24 @@ void printBuildSummary(const api::BuildResult& result, double elapsed_ms, bool q
         }
         std::cout << "\n";
     }
+}
+
+void printUnpackHelp(std::ostream& os)
+{
+    os << "Usage:\n";
+    os << "  guchho unpack <archive> [options]\n";
+    os << "\n";
+    os << "Options:\n";
+    os << "  -o, --outdir <dir>    Output directory (default: archive name without extension)\n";
+    os << "  --format <format>     Archive format: zip, tar, tar.gz (default: auto-detect)\n";
+    os << "  --overwrite           Overwrite existing files\n";
+    os << "  --strip-components <n> Strip leading path components\n";
+    os << "  -h, --help            Show this help\n";
+    os << "\n";
+    os << "Examples:\n";
+    os << "  guchho unpack dist.zip\n";
+    os << "  guchho unpack release.tar.gz -o out/\n";
+    os << "  guchho unpack archive.tar --format=tar\n";
 }
 
 } // namespace guchho::cli

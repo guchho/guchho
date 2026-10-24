@@ -20,6 +20,7 @@ add_library(guchho_cli_test_objects OBJECT
     cli_service_test.cpp
     cli_service_compile_test.cpp
     cli_pack_test.cpp
+    cli_unpack_test.cpp
     cli_exe_test.cpp
     wasm_abi_test.cpp
 )

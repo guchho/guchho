@@ -448,6 +448,15 @@ namespace guchho::logger {
         case MsgCat::kJS_ImportNamespaceESModuleInteropNote: return "Make sure to enable TypeScript's \"esModuleInterop\" setting so that TypeScript's type checker generates an error when you try to do this. You can read more about this setting here: https://www.typescriptlang.org/tsconfig#esModuleInterop";
 
         // -------------------------------------------------------------------
+        // JavaScript lint (js_parser.cpp)
+        // -------------------------------------------------------------------
+        case MsgCat::kJS_UndefinedVariable: return "\"{}\" is not defined";
+        case MsgCat::kJS_UnusedVariable: return "\"{}\" is declared but never used";
+        case MsgCat::kJS_UnusedParameter: return "\"{}\" is declared but never used";
+        case MsgCat::kJS_DidYouMeanSuggestion: return "Did you mean \"{}\"?";
+        case MsgCat::kJS_ExpectedInsertionSuggestion: return "Insert \"{}\" before \"{}\"";
+
+        // -------------------------------------------------------------------
         // TypeScript parser (ts_parser.cpp)
         // -------------------------------------------------------------------
         case MsgCat::kTS_UnexpectedConst: return "Unexpected \"const\"";

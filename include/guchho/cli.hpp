@@ -488,6 +488,7 @@ namespace guchho::cli {
         kClean,
         kInfo,
         kTransform,
+        kLint,
         kPack,
         kUnpack,
     };
@@ -550,6 +551,7 @@ namespace guchho::cli {
     void printInitHelp(std::ostream& os);
     void printCleanHelp(std::ostream& os);
     void printInfoHelp(std::ostream& os);
+    void printLintHelp(std::ostream& os);
     void printPackHelp(std::ostream& os);
     void printUnpackHelp(std::ostream& os);
 
@@ -619,8 +621,6 @@ namespace guchho::cli {
         const std::string& arg, bool default_value);
     std::optional<ErrorWithNote> parseLogLevel(
         const std::string& value, const std::string& arg, api::LogLevel& out);
-    std::optional<ErrorWithNote> parseLintLevel(
-        const std::string& value, const std::string& arg, api::LintLevel& out);
     std::optional<ErrorWithNote> parseTargets(
         const std::vector<std::string>& targets,
         const std::string& arg,
@@ -731,6 +731,7 @@ namespace guchho::cli {
     int runInit(const std::vector<std::string>& args);
     int runClean(const std::vector<std::string>& args);
     int runInfo(const std::vector<std::string>& args);
+    int runLint(const std::vector<std::string>& args);
     int runPack(const std::vector<std::string>& args);
     int runUnpack(const std::vector<std::string>& args);
 

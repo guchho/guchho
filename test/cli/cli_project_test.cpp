@@ -243,6 +243,75 @@ TEST(CliProject, InfoNamesTheConfigFileItFound) {
     EXPECT_TRUE(OutputContains(result.out, "guchho.config.js"));
 }
 
+// A config whose root is an array describes several builds, not several
+// configuration files. The count is the number of entries, and each entry's
+// output file and format are reported beside it.
+TEST(CliProject, InfoCountsArrayEntriesAsBuildTargets) {
+    CliWorkspace ws("info-array");
+    ws.Write("a.js", "console.log(1);\n");
+    ws.Write("b.js", "console.log(2);\n");
+    ws.Write("c.js", "console.log(3);\n");
+    ws.Write("guchho.config.json",
+             "[{\"build\":{\"entry\":\"a.js\",\"outfile\":\"dist/a.esm.js\",\"format\":\"esm\"}},"
+             " {\"build\":{\"entry\":\"b.js\",\"outfile\":\"dist/b.cjs.js\",\"format\":\"cjs\"}},"
+             " {\"build\":{\"entry\":\"c.js\",\"outfile\":\"dist/c.js\",\"format\":\"umd\","
+             "\"minify\":true}}]");
+
+    const guchho::test::CliResult result = RunCli({"info"});
+
+    EXPECT_EQ(result.exit_code, kSuccess);
+    EXPECT_TRUE(OutputContains(result.out, "Build Targets: 3"));
+    EXPECT_TRUE(OutputContains(result.out, "dist/a.esm.js"));
+    EXPECT_TRUE(OutputContains(result.out, "ESM"));
+    EXPECT_TRUE(OutputContains(result.out, "dist/b.cjs.js"));
+    EXPECT_TRUE(OutputContains(result.out, "CJS"));
+    EXPECT_TRUE(OutputContains(result.out, "dist/c.js"));
+    EXPECT_TRUE(OutputContains(result.out, "UMD (minified)"));
+
+    const size_t first = result.out.find("guchho.config.json");
+    ASSERT_NE(first, std::string::npos);
+    EXPECT_EQ(result.out.find("guchho.config.json", first + 1), std::string::npos)
+        << "the array entries were counted as separate configuration files";
+}
+
+// Reporting what a config describes is not building it, so warnings about
+// settings a build would ignore stay with the build. A plugin warning repeated
+// once per array element used to bury the report this command exists to print.
+TEST(CliProject, InfoDoesNotPrintConfigWarnings) {
+    CliWorkspace ws("info-no-warnings");
+    ws.Write("a.js", "console.log(1);\n");
+    ws.Write("b.js", "console.log(2);\n");
+    ws.Write("guchho.config.json",
+             "[{\"build\":{\"entry\":\"a.js\",\"outfile\":\"dist/a.esm.js\",\"format\":\"esm\"},"
+             " \"plugins\":[\"a-plugin\"]},"
+             " {\"build\":{\"entry\":\"b.js\",\"outfile\":\"dist/b.cjs.js\",\"format\":\"cjs\"},"
+             " \"plugins\":[\"b-plugin\"]}]");
+
+    const guchho::test::CliResult result = RunCli({"info"});
+
+    EXPECT_EQ(result.exit_code, kSuccess);
+    EXPECT_TRUE(OutputContains(result.out, "Build Targets: 2"));
+    EXPECT_TRUE(OutputContains(result.out, "dist/a.esm.js"));
+    EXPECT_TRUE(OutputContains(result.out, "dist/b.cjs.js"));
+    EXPECT_FALSE(OutputContains(result.err, "WARNING"));
+    EXPECT_FALSE(OutputContains(result.err, "plugins are not implemented"));
+}
+
+// The object root is one target, and its output is reported the same way.
+TEST(CliProject, InfoNamesTheOutputOfASingleObjectConfig) {
+    CliWorkspace ws("info-object-output");
+    ws.Write("a.js", "console.log(1);\n");
+    ws.Write("guchho.config.json",
+             "{\"build\":{\"entry\":\"a.js\",\"outfile\":\"dist/a.js\",\"format\":\"cjs\"}}");
+
+    const guchho::test::CliResult result = RunCli({"info"});
+
+    EXPECT_EQ(result.exit_code, kSuccess);
+    EXPECT_TRUE(OutputContains(result.out, "Build Targets: 1"));
+    EXPECT_TRUE(OutputContains(result.out, "dist/a.js"));
+    EXPECT_TRUE(OutputContains(result.out, "CJS"));
+}
+
 TEST(CliProject, InfoHelpIsItsOwnAndSucceeds) {
     CliWorkspace ws("info-help");
 

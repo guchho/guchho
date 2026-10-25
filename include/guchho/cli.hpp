@@ -619,6 +619,8 @@ namespace guchho::cli {
         const std::string& arg, bool default_value);
     std::optional<ErrorWithNote> parseLogLevel(
         const std::string& value, const std::string& arg, api::LogLevel& out);
+    std::optional<ErrorWithNote> parseLintLevel(
+        const std::string& value, const std::string& arg, api::LintLevel& out);
     std::optional<ErrorWithNote> parseTargets(
         const std::vector<std::string>& targets,
         const std::string& arg,

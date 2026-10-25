@@ -176,6 +176,12 @@ namespace guchho::logger {
         kAPI_FormatIgnoredForHTMLEntry,
         kAPI_ExportsAutoMixedExports,
 
+        // JavaScript lint diagnostics. Appended here so existing numeric
+        // values (and the configuration-file ID ranges) stay stable.
+        kJS_UndefinedVariable,
+        kJS_UnusedVariable,
+        kJS_UnusedParameter,
+
         kEND,
     };
 
@@ -251,6 +257,31 @@ namespace guchho::logger {
         void    ExpandBy(const Range& b);
     };
 
+    // Describes how safe it is to apply a structured fix without human
+    // review. Safe fixes are mechanical corrections such as replacing a
+    // misspelled keyword. Fixes requiring judgment may change program
+    // behavior and should only be applied on explicit request.
+    enum class FixSafety : uint8_t {
+        kSafe,
+        kRequiresJudgment,
+    };
+
+    // A structured source edit attached to a diagnostic. An empty-length
+    // range represents an insertion at the range's start offset; otherwise
+    // the range's bytes are replaced by `replacement`.
+    //
+    //   Fix{Range{Loc{4}, 3}, "let", FixSafety::kSafe}
+    //     -> replace bytes 4..6 with "let"
+    //
+    //   Fix{Range{Loc{9}, 0}, ";", FixSafety::kSafe}
+    //     -> insert ";" at byte 9
+    struct Fix {
+        Range       range{};
+        std::string replacement;
+        FixSafety   safety{FixSafety::kSafe};
+        std::string explanation;
+    };
+
     // Selects whether paths are printed as relative or absolute in
     // diagnostic output. The user toggles this via --path-style.
     enum class PathStyle : uint8_t {
@@ -318,6 +349,7 @@ namespace guchho::logger {
         std::shared_ptr<MsgLocation> location{};
         std::string                  text;
         bool                         disable_maximum_width{};
+        std::vector<Fix>             fixes{};
     };
 
     // Terminal capabilities detected at startup. Width and height are used
@@ -389,6 +421,13 @@ namespace guchho::logger {
 
         // Like AddID, but attaches diagnostic notes.
         void AddIDWithNotes(MsgID id, MsgKind kind, struct LineColumnTracker* tracker, Range r, const std::string& text, const std::vector<MsgData>& notes);
+
+        // Like AddError, but attaches structured source fixes.
+        void AddErrorWithFixes(struct LineColumnTracker* tracker, Range r, const std::string& text, std::vector<Fix> fixes);
+
+        // Like AddID, but attaches structured source fixes. Subject to the
+        // same override/silence logic as AddID.
+        void AddIDWithFixes(MsgID id, MsgKind kind, struct LineColumnTracker* tracker, Range r, const std::string& text, std::vector<Fix> fixes);
 
         // Low-level insertion: adds a pre-built message, applying the
         // override map to reclassify its kind if necessary.
@@ -1126,6 +1165,15 @@ namespace guchho::logger {
         kJS_ImportNamespaceCrash,
         kJS_ImportNamespaceDefaultImportNote,
         kJS_ImportNamespaceESModuleInteropNote,
+
+        // -------------------------------------------------------------------
+        // JavaScript lint (js_parser.cpp)
+        // -------------------------------------------------------------------
+        kJS_UndefinedVariable,
+        kJS_UnusedVariable,
+        kJS_UnusedParameter,
+        kJS_DidYouMeanSuggestion,
+        kJS_ExpectedInsertionSuggestion,
 
         // -------------------------------------------------------------------
         // TypeScript parser (ts_parser.cpp)

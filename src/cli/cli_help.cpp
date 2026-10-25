@@ -164,6 +164,7 @@ void printUsage(std::ostream& os) {
        << "  clean               Remove build output\n"
        << "  info                Show environment info\n"
        << "  transform           Transform source from stdin\n"
+       << "  lint [files...]     Lint JavaScript and TypeScript\n"
        << "  pack <input...>     Create an archive\n"
        << "  unpack <archive>    Extract an archive\n"
        << "\n"
@@ -261,8 +262,6 @@ void printBuildHelp(std::ostream& os) {
        << "  --jsx=<mode>           JSX: transform, preserve, automatic\n"
        << "  --tsconfig=<file>      Path to tsconfig.json\n"
        << "  --log-level=<level>    verbose, debug, info, warning, error, silent\n"
-       << "  --lint=<checks>        Enable lint checks: undefined, unused\n"
-       << "  --lint-level=<c>=<l>   Set one check to off, warning, or error\n"
        << "  --color / --no-color   Force color on/off\n"
        << "  --quiet                Minimal output\n"
        << "  --verbose              Detailed output\n"
@@ -527,23 +526,50 @@ void printInfoHelp(std::ostream& os) {
 // waiting to happen. "-f" is taken by init for the same reason it is
 // unabbreviated here.
 //
-// The examples are the ones in the plan for this command, in the order a
-// person is likely to need them: the bare one, the one that names a file, the
-// one with two trees in it, the one that changes how the archive is
-// compressed, and the two that name a format other than the default.
+// The examples cover the shapes a person is likely to need: the bare command,
+// an explicit file, a directory, a quoted glob, a safe fix, watch mode, an
+// inline rule override, and JSON output. The paragraph before the options
+// states the discovery defaults and the exit-code contract, because neither is
+// visible from the flag list alone and both apply to every run.
 //
-// The paragraph between the sentence and the options is where the two
-// behaviours a person cannot guess from the flags are stated: what each input
-// is called inside the archive, and what happens to a symlink. Both are
-// otherwise learned by opening the archive, or by an archive that quietly
-// does not contain the file somebody pointed at. The build help is the other
-// command with a paragraph there, and for the same reason — it is information
-// about every run rather than about one flag.
-//
-// Input:  called by the pack command when the argument list contains --help or
+// Input:  called by the lint command when the argument list contains --help or
 //         -h
-// Output: the usage line, one sentence saying what it creates, the paragraph
-//         above, the five options, and six examples.
+// Output: the usage line, a one-sentence summary, the paragraph above, the
+//         options, and the examples.
+void printLintHelp(std::ostream& os) {
+    os << "Usage: guchho lint [files...] [options]\n"
+       << "\n"
+       << "Lint JavaScript and TypeScript files without building them.\n"
+       << "With no paths, lint every source file under the current directory.\n"
+       << "\n"
+       << "Configuration is read from guchho.lint.config.js, .mjs, .cjs, or .json,\n"
+       << "searching upward from the current directory.\n"
+       << "\n"
+       << "Options:\n"
+       << "  --fix                  Apply safe fixes to files\n"
+       << "  --fix-dry-run          Apply safe fixes in memory only\n"
+       << "  --watch                Re-lint when files change\n"
+       << "  --quiet                Hide warning messages\n"
+       << "  --format=<format>      Output format: human, stylish, json\n"
+       << "  --max-warnings=<n>     Fail when there are more than n warnings\n"
+       << "  --rule=<name>:<level>  Override a rule: off, warning, error\n"
+       << "  --config=<file>        Use a specific configuration file\n"
+       << "  --                     Treat all following arguments as paths\n"
+       << "  --help                 Show this help\n"
+       << "\n"
+       << "Rules:\n"
+       << "  no-undef, no-unused-vars, no-redeclare, no-use-before-define,\n"
+       << "  no-shadow, no-unreachable, no-duplicate-imports, no-constant-condition,\n"
+       << "  valid-typeof, no-console, eqeqeq, no-debugger, no-duplicate-case,\n"
+       << "  no-empty, import/no-unresolved\n"
+       << "\n"
+       << "Examples:\n"
+       << "  guchho lint src/index.ts\n"
+       << "  guchho lint --rule no-console:error --format=json\n"
+       << "  guchho lint --fix src\n";
+}
+
+
 void printPackHelp(std::ostream& os) {
     os << "Usage: guchho pack <input...> [options]\n"
        << "\n"

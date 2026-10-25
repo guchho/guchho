@@ -1,7 +1,10 @@
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -21,6 +24,147 @@
 
 
 namespace guchho::javascript {
+
+    namespace {
+
+        // Small, dependency-free helpers for high-confidence keyword typo
+        // detection at statement boundaries. The parser only attaches a fix
+        // when the following token structurally fits the candidate keyword.
+        bool IsIdentifierStartByte(char c) {
+            return std::isalpha(static_cast<unsigned char>(c)) || c == '_' || c == '$' ||
+                   static_cast<unsigned char>(c) >= 0x80;
+        }
+
+        bool IsExpressionStartByte(char c) {
+            return IsIdentifierStartByte(c) || std::isdigit(static_cast<unsigned char>(c)) ||
+                   c == '"' || c == '\'' || c == '`' || c == '(' || c == '[' || c == '{' ||
+                   c == '!' || c == '~' || c == '+' || c == '-' || c == '/';
+        }
+
+        char NextNonSpaceByte(std::string_view text, int32_t offset) {
+            if (offset < 0 || offset >= static_cast<int32_t>(text.size())) {
+                return '\0';
+            }
+            size_t i = static_cast<size_t>(offset);
+            while (i < text.size() && (text[i] == ' ' || text[i] == '\t' || text[i] == '\r' || text[i] == '\n')) {
+                i++;
+            }
+            return i < text.size() ? text[i] : '\0';
+        }
+
+        int BoundedEditDistance(std::string_view a, std::string_view b, int max_distance) {
+            int n = static_cast<int>(a.size());
+            int m = static_cast<int>(b.size());
+            if (std::abs(n - m) > max_distance) {
+                return max_distance + 1;
+            }
+
+            std::vector<int> prev2(static_cast<size_t>(m + 1));
+            std::vector<int> prev(static_cast<size_t>(m + 1));
+            std::vector<int> cur(static_cast<size_t>(m + 1));
+            for (int j = 0; j <= m; j++) {
+                prev[static_cast<size_t>(j)] = j;
+            }
+
+            for (int i = 1; i <= n; i++) {
+                cur[0] = i;
+                for (int j = 1; j <= m; j++) {
+                    int cost = a[static_cast<size_t>(i - 1)] == b[static_cast<size_t>(j - 1)] ? 0 : 1;
+                    cur[static_cast<size_t>(j)] = std::min({
+                        prev[static_cast<size_t>(j)] + 1,
+                        cur[static_cast<size_t>(j - 1)] + 1,
+                        prev[static_cast<size_t>(j - 1)] + cost,
+                    });
+                    if (i > 1 && j > 1 &&
+                        a[static_cast<size_t>(i - 1)] == b[static_cast<size_t>(j - 2)] &&
+                        a[static_cast<size_t>(i - 2)] == b[static_cast<size_t>(j - 1)]) {
+                        cur[static_cast<size_t>(j)] = std::min(
+                            cur[static_cast<size_t>(j)], prev2[static_cast<size_t>(j - 2)] + 1);
+                    }
+                }
+                prev2.swap(prev);
+                prev.swap(cur);
+            }
+            return prev[static_cast<size_t>(m)];
+        }
+
+        bool FollowingTokenFitsKeyword(std::string_view keyword, char c, bool at_end) {
+            if (keyword == "const" || keyword == "let" || keyword == "var") {
+                return IsIdentifierStartByte(c) || c == '{' || c == '[';
+            }
+            if (keyword == "function") {
+                return IsIdentifierStartByte(c) || c == '*' || c == '(';
+            }
+            if (keyword == "class") {
+                return IsIdentifierStartByte(c) || c == '{';
+            }
+            if (keyword == "if" || keyword == "for" || keyword == "while" ||
+                keyword == "switch" || keyword == "catch") {
+                return c == '(';
+            }
+            if (keyword == "else" || keyword == "try" || keyword == "finally" || keyword == "do") {
+                return c == '{';
+            }
+            if (keyword == "return" || keyword == "throw") {
+                return !at_end && c != ';' && c != '}';
+            }
+            if (keyword == "break" || keyword == "continue") {
+                return at_end || c == ';' || c == '}' || IsIdentifierStartByte(c);
+            }
+            if (keyword == "debugger") {
+                return at_end || c == ';' || c == '}';
+            }
+            if (keyword == "import" || keyword == "export") {
+                return IsIdentifierStartByte(c) || c == '{' || c == '*' || c == '"' || c == '\'';
+            }
+            if (keyword == "new" || keyword == "typeof" || keyword == "void" || keyword == "delete") {
+                return IsExpressionStartByte(c);
+            }
+            if (keyword == "async") {
+                return IsIdentifierStartByte(c) || c == '(' || c == '*';
+            }
+            return false;
+        }
+
+        std::string ClosestKeyword(std::string_view name) {
+            static constexpr std::string_view candidates[] = {
+                "const", "let", "var", "function", "class", "if", "else", "for", "while",
+                "switch", "catch", "try", "finally", "do", "return", "throw", "break",
+                "continue", "debugger", "import", "export", "new", "typeof", "void",
+                "delete", "async",
+            };
+
+            int max_distance = name.size() >= 5 ? 2 : 1;
+            int best_distance = max_distance + 1;
+            std::string best;
+            bool ambiguous = false;
+
+            for (std::string_view candidate : candidates) {
+                int distance = BoundedEditDistance(name, candidate, max_distance);
+                if (distance == 0) {
+                    return {};
+                }
+                if (distance < best_distance) {
+                    best_distance = distance;
+                    best = std::string(candidate);
+                    ambiguous = false;
+                } else if (distance == best_distance) {
+                    ambiguous = true;
+                }
+            }
+
+            if (best_distance > max_distance || ambiguous) {
+                return {};
+            }
+            return best;
+        }
+
+        struct PendingFixClearer {
+            Lexer& lexer;
+            ~PendingFixClearer() { lexer.ClearPendingFixes(); }
+        };
+
+    } // namespace
 
     // Declares all identifier bindings found in a binding pattern (simple names,
     // array destructuring, object destructuring, defaults, rest elements).
@@ -1598,6 +1742,24 @@ namespace guchho::javascript {
             bool isIdentifier = this->lexer.token == T::kIdentifier;
             logger::Range nameRange = this->lexer.Range();
             std::string name = this->lexer.identifier.str;
+
+            // If a statement starts with an identifier that is one or two edits
+            // away from a keyword and the following token fits that keyword,
+            // attach a structured fix to whichever syntax error is reported
+            // while parsing this statement. The existing error text and range
+            // remain unchanged.
+            std::optional<PendingFixClearer> pending_clearer;
+            if (isIdentifier) {
+                char next = NextNonSpaceByte(this->source.contents, nameRange.End());
+                std::string keyword = ClosestKeyword(name);
+                if (!keyword.empty() && FollowingTokenFitsKeyword(keyword, next, next == '\0')) {
+                    std::string suggestion = logger::FormatMsg(logger::MsgCat::kJS_DidYouMeanSuggestion, keyword);
+                    this->lexer.SetPendingFixes(
+                        {logger::Fix{nameRange, keyword, logger::FixSafety::kSafe, suggestion}},
+                        suggestion);
+                    pending_clearer.emplace(this->lexer);
+                }
+            }
 
             // Parse either an async function, an async expression, or a normal expression
             Expr expr;

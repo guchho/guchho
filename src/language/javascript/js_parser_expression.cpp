@@ -718,13 +718,15 @@ namespace guchho::javascript {
     // error because x has no initializer.
     //
     //   Input:  kind=kUsing, decls=[{binding=x, value=nil}]
-    //   Output: error logged: "The name \"x\" must be initialized"
+    //   Output: error logged: "Missing initializer in using declaration for \"x\""
     void Parser::requireInitializers(LocalKind kind, std::vector<Decl> decls) {
         for (Decl &d : decls) {
             if (IsNil(d.value_or_nil.data)) {
-                std::string what = "constant";
+                std::string what = "const";
                 if (kind == LocalKind::kUsing) {
-                    what = "declaration";
+                    what = "using";
+                } else if (kind == LocalKind::kAwaitUsing) {
+                    what = "await using";
                 }
                 if (auto id = Get<BIdentifier>(d.binding.data)) {
                     logger::Range r = RangeOfIdentifier(this->source, d.binding.loc);

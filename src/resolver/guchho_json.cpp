@@ -21,12 +21,14 @@
 
 #include "guchho/resolver.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
 #include <optional>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "guchho/compat.hpp"
@@ -172,6 +174,42 @@ namespace guchho::resolver {
                 return config::SourceMap::kInlineAndExternal;
             }
             return std::nullopt;
+        }
+
+        std::optional<config::LintLevel> ParseLintLevel(std::string_view text)
+        {
+            std::string lower = helpers::ToLowerASCII(text);
+            if (lower == "off" || lower == "false") return config::LintLevel::kOff;
+            if (lower == "warning" || lower == "warn" || lower == "true") return config::LintLevel::kWarning;
+            if (lower == "error") return config::LintLevel::kError;
+            return std::nullopt;
+        }
+
+        std::string SuggestLintCheck(std::string_view name)
+        {
+            static const char* kChecks[] = {
+                "undefined", "unused", "unused-variable", "unused-parameter",
+            };
+            std::string best;
+            size_t best_distance = std::string::npos;
+            for (const char* candidate : kChecks) {
+                std::string rhs = candidate;
+                std::vector<size_t> prev(rhs.size() + 1), curr(rhs.size() + 1);
+                for (size_t j = 0; j <= rhs.size(); ++j) prev[j] = j;
+                for (size_t i = 1; i <= name.size(); ++i) {
+                    curr[0] = i;
+                    for (size_t j = 1; j <= rhs.size(); ++j) {
+                        size_t cost = name[i - 1] == rhs[j - 1] ? 0 : 1;
+                        curr[j] = std::min({prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost});
+                    }
+                    std::swap(prev, curr);
+                }
+                if (prev[rhs.size()] < best_distance) {
+                    best_distance = prev[rhs.size()];
+                    best = rhs;
+                }
+            }
+            return best_distance <= 3 ? best : std::string();
         }
 
         // The following "Apply*Value" helpers own the assignment for a single
@@ -629,7 +667,7 @@ namespace guchho::resolver {
             "entry", "outdir", "outfile", "format", "platform", "target",
             "minify", "sourcemap", "splitting", "clean", "treeShaking",
             "pretty", "minifyHtml", "bundle", "name", "globalName", "exports",
-            "banner", "define",
+            "banner", "define", "lint",
         };
         if (auto build_prop = internal::GetProperty(json, "build")) {
             const javascript::Expr& build = build_prop->first;
@@ -774,6 +812,60 @@ namespace guchho::resolver {
             if (auto minify_html = internal::GetProperty(build, "minifyHtml")) {
                 if (auto value = internal::GetBool(minify_html->first)) {
                     opts.MinifyHtml = *value;
+                }
+            }
+            // "lint" accepts the same shapes as "minify": a boolean for all
+            // checks, a check name or array of names to enable at warning
+            // level, or an object mapping a check name to a level. Values that
+            // are not understood are reported rather than guessed at.
+            if (auto lint = internal::GetProperty(build, "lint")) {
+                auto apply_check = [&](std::string_view name, config::LintLevel level,
+                                       const javascript::Expr& where) {
+                    if (name == "undefined") {
+                        opts.Lint.UndefinedVariables = level;
+                    } else if (name == "unused") {
+                        opts.Lint.UnusedVariables = level;
+                        opts.Lint.UnusedParameters = level;
+                    } else if (name == "unused-variable" || name == "unused-variables") {
+                        opts.Lint.UnusedVariables = level;
+                    } else if (name == "unused-parameter" || name == "unused-parameters") {
+                        opts.Lint.UnusedParameters = level;
+                    } else {
+                        std::string text = "Invalid lint check \"" + std::string(name) + "\"";
+                        if (auto suggestion = SuggestLintCheck(name); !suggestion.empty()) {
+                            text += ". Did you mean \"" + suggestion + "\"?";
+                        }
+                        log.AddError(&tracker, source.RangeOfString(where.loc), text);
+                    }
+                };
+
+                if (auto value = internal::GetBool(lint->first)) {
+                    auto level = *value ? config::LintLevel::kWarning : config::LintLevel::kOff;
+                    opts.Lint.UndefinedVariables = level;
+                    opts.Lint.UnusedVariables = level;
+                    opts.Lint.UnusedParameters = level;
+                } else if (auto str = internal::GetString(lint->first)) {
+                    apply_check(*str, config::LintLevel::kWarning, lint->first);
+                } else if (auto* array =
+                               std::get_if<std::shared_ptr<javascript::EArray>>(&lint->first.data)) {
+                    for (const auto& item : (*array)->items) {
+                        if (auto str = internal::GetString(item)) {
+                            apply_check(*str, config::LintLevel::kWarning, item);
+                        }
+                    }
+                } else if (auto* object =
+                               std::get_if<std::shared_ptr<javascript::EObject>>(&lint->first.data)) {
+                    for (const auto& p : (*object)->properties) {
+                        std::string key = PropertyKeyText(p);
+                        if (auto str = internal::GetString(p.value_or_nil)) {
+                            if (auto level = ParseLintLevel(*str)) {
+                                apply_check(key, *level, p.value_or_nil);
+                            } else {
+                                log.AddError(&tracker, source.RangeOfString(p.value_or_nil.loc),
+                                    "Invalid lint level \"" + *str + "\"");
+                            }
+                        }
+                    }
                 }
             }
             // A banner takes the same two spellings the command line takes: a

@@ -23,6 +23,7 @@ add_subdirectory(linker)
 add_subdirectory(bundler)
 add_subdirectory(api)
 add_subdirectory(cli)
+add_subdirectory(lint)
 add_subdirectory(npm)
 
 
@@ -306,6 +307,31 @@ guchho_set_warnings(guchho_api_tests)
 guchho_enable_sanitizers(guchho_api_tests)
 
 guchho_discover_tests(guchho_api_tests PREFIX "api." WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/api")
+
+
+# lint test executable
+
+add_executable(guchho_lint_tests
+    test_assertions.cpp
+    $<TARGET_OBJECTS:guchho_lint_test_objects>
+)
+
+target_link_libraries(
+    guchho_lint_tests
+    PRIVATE
+        guchho_lint
+)
+
+target_include_directories(
+    guchho_lint_tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+guchho_set_warnings(guchho_lint_tests)
+guchho_enable_sanitizers(guchho_lint_tests)
+
+guchho_discover_tests(guchho_lint_tests PREFIX "lint." WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/lint")
 
 
 # cli test executable

@@ -1,6 +1,6 @@
 ---
 title: CLI overview
-description: The ten Guchho commands at a glance.
+description: The eleven Guchho commands at a glance.
 ---
 
 # CLI overview
@@ -17,6 +17,7 @@ Commands:
   clean               Remove build output
   info                Show environment info
   transform           Transform source from stdin
+  lint [files...]     Lint JavaScript and TypeScript
   pack <input...>     Create an archive
   unpack <archive>    Extract an archive
 ```
@@ -31,6 +32,7 @@ guchho init -y                      # scaffold
 guchho dev                          # develop with live rebuilds
 guchho build --minify --sourcemap   # production build
 guchho serve                        # preview the output
+guchho lint src                     # check source without building
 guchho pack dist -o release.zip     # archive it
 guchho unpack release.zip -o check  # extract a copy
 ```
@@ -47,5 +49,6 @@ Each command has a full page:
 - [clean](../reference/cli/clean.md)
 - [info](../reference/cli/info.md)
 - [transform](../reference/cli/transform.md)
+- [lint](../reference/cli/lint.md)
 - [pack](../reference/cli/pack.md)
 - [unpack](../reference/cli/unpack.md)

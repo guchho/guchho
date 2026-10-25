@@ -585,6 +585,39 @@ namespace guchho::javascript {
         bool is_inside_with_scope;
     };
 
+    // A source-level declaration recorded while the parser binds symbols. The
+    // dedicated lint command uses this alongside SourceReference for the
+    // scope-sensitive rules (redeclaration, shadowing, and use-before-define).
+    struct LintDeclaration {
+        std::string name;
+        logger::Loc loc;
+        compiler::Ref ref;
+        Scope *scope;
+        compiler::SymbolKind kind;
+    };
+
+    // A declaration that merged with an earlier one in the same scope. The
+    // parser reports illegal merges as syntax errors itself, so this records
+    // the legal cases (for example "var x; var x;") that "no-redeclare" is
+    // about.
+    struct LintRedeclaration {
+        std::string name;
+        logger::Loc new_loc;
+        logger::Loc old_loc;
+        Scope *scope;
+        compiler::SymbolKind new_kind;
+        compiler::SymbolKind old_kind;
+    };
+
+    // Optional analysis data returned by Parse(). The caller owns the storage;
+    // the pointers inside point into the AST's scope tree and are valid for as
+    // long as the AST is alive.
+    struct LintData {
+        std::vector<SourceReference> references;
+        std::vector<LintDeclaration> declarations;
+        std::vector<LintRedeclaration> redeclarations;
+    };
+
     // Result of a symbol lookup during the visit pass.
     struct findSymbolResult {
         compiler::Ref ref;
@@ -806,6 +839,8 @@ namespace guchho::javascript {
         std::vector<Scope *> scopesForCurrentPart;
         std::vector<compiler::Symbol> symbols;
         std::vector<SourceReference> sourceReferences;
+        std::vector<LintDeclaration> lintDeclarations;
+        std::vector<LintRedeclaration> lintRedeclarations;
         HelperContext astHelpers;
         std::vector<uint32_t> tsUseCounts;
         std::vector<compiler::Ref> injectedDefineSymbols;
@@ -1830,7 +1865,8 @@ namespace guchho::javascript {
     // Parses a JavaScript/TypeScript source file into an AST. This is the
     // main entry point for the parser. Returns the AST and whether parsing
     // succeeded without errors.
-    std::pair<AST, bool> Parse(logger::Log log, logger::Source source, Options options);
+    std::pair<AST, bool> Parse(logger::Log log, logger::Source source, Options options,
+                               LintData *lint_data = nullptr);
 
     // Creates an AST for a lazy export expression. The expression is
     // evaluated at link time rather than parse time.

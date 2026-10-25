@@ -548,6 +548,41 @@ namespace guchho::config {
         bool NoAmbiguousLessThan{};
     };
 
+    // LintLevel
+    // ---------
+    // Severity of an optional JavaScript lint check. Every check defaults
+    // to kOff so ordinary builds produce exactly the diagnostics they did
+    // before lint support existed.
+    enum class LintLevel : uint8_t {
+        kOff,
+        kWarning,
+        kError,
+    };
+
+    // LintOptions
+    // -----------
+    // Opt-in static checks performed after the parser has resolved the
+    // file's scopes. These are deliberately separate from syntax errors:
+    // they describe suspicious but valid code, and every one can be turned
+    // off without changing whether the file parses.
+    //
+    //   UndefinedVariables  Report references that resolve to no binding
+    //                       and are not known globals.
+    //   UnusedVariables     Report local declarations that are never read.
+    //   UnusedParameters    Report function parameters that are never read.
+    struct LintOptions {
+        LintLevel UndefinedVariables{LintLevel::kOff};
+        LintLevel UnusedVariables{LintLevel::kOff};
+        LintLevel UnusedParameters{LintLevel::kOff};
+    };
+
+    // Best-effort lookup for a bare global name. The registry is the same one
+    // tree shaking uses, plus the Node.js runtime globals, filtered by the
+    // target platform. It is intentionally conservative: unknown names are
+    // not treated as globals, and the caller should prefer silence over a
+    // false warning.
+    bool IsKnownGlobalName(std::string_view name, Platform platform);
+
     // JSXOptions
     // ----------
     // JSX transform settings for the output.  Controls which factory
@@ -1136,6 +1171,7 @@ namespace guchho::config {
         compat::CSSFeature UnsupportedCSSFeatureOverridesMask{};
 
         TSOptions TS{};
+        LintOptions Lint{};
 
         std::string PublicPath{};
         std::vector<std::string> InjectPaths{};

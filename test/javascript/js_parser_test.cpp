@@ -270,14 +270,14 @@ TEST(JsParser, TestStrictMode) {
     expectPrinted("arguments = 0", "arguments = 0;\n");
     expectPrinted("arguments += 0", "arguments += 0;\n");
     expectPrinted("[arguments] = 0", "[arguments] = 0;\n");
-    expectParseError("'use strict'; eval++", "<stdin>: ERROR: Invalid assignment target\n");
-    expectParseError("'use strict'; eval = 0", "<stdin>: ERROR: Invalid assignment target\n");
-    expectParseError("'use strict'; eval += 0", "<stdin>: ERROR: Invalid assignment target\n");
-    expectParseError("'use strict'; [eval] = 0", "<stdin>: ERROR: Invalid assignment target\n");
-    expectParseError("'use strict'; arguments++", "<stdin>: ERROR: Invalid assignment target\n");
-    expectParseError("'use strict'; arguments = 0", "<stdin>: ERROR: Invalid assignment target\n");
-    expectParseError("'use strict'; arguments += 0", "<stdin>: ERROR: Invalid assignment target\n");
-    expectParseError("'use strict'; [arguments] = 0", "<stdin>: ERROR: Invalid assignment target\n");
+    expectParseError("'use strict'; eval++", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
+    expectParseError("'use strict'; eval = 0", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
+    expectParseError("'use strict'; eval += 0", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
+    expectParseError("'use strict'; [eval] = 0", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
+    expectParseError("'use strict'; arguments++", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
+    expectParseError("'use strict'; arguments = 0", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
+    expectParseError("'use strict'; arguments += 0", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
+    expectParseError("'use strict'; [arguments] = 0", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
 
     
     expectPrinted("let protected", "let protected;\n");
@@ -376,7 +376,7 @@ TEST(JsParser, TestStrictModeKeyword) {
 
 TEST(JsParser, TestStrictModeDeclaredError) {
     const std::string fAlreadyDeclaredError =
-        std::string("<stdin>: ERROR: The symbol \"f\" has already been declared\n") +
+        std::string("<stdin>: ERROR: \"f\" has already been declared in this scope\n") +
         "<stdin>: NOTE: The symbol \"f\" was originally declared here:\n";
     const std::string nestedNote = "<stdin>: NOTE: Duplicate function declarations are not allowed in nested blocks";
     const std::string moduleNote =
@@ -589,14 +589,14 @@ TEST(JsParser, TestDecls) {
     expectParseError( "for (const x of y) ;", "");
     expectParseError( "var x", "");
     expectParseError( "let x", "");
-    expectParseError( "const x", "<stdin>: ERROR: The constant \"x\" must be initialized\n");
-    expectParseError( "const {}", "<stdin>: ERROR: This constant must be initialized\n");
-    expectParseError( "const []", "<stdin>: ERROR: This constant must be initialized\n");
+    expectParseError( "const x", "<stdin>: ERROR: Missing initializer in const declaration for \"x\"\n");
+    expectParseError( "const {}", "<stdin>: ERROR: Missing initializer in const declaration\n");
+    expectParseError( "const []", "<stdin>: ERROR: Missing initializer in const declaration\n");
     expectParseError( "for (var x;;) ;", "");
     expectParseError( "for (let x;;) ;", "");
-    expectParseError( "for (const x;;) ;", "<stdin>: ERROR: The constant \"x\" must be initialized\n");
-    expectParseError( "for (const {};;) ;", "<stdin>: ERROR: This constant must be initialized\n");
-    expectParseError( "for (const [];;) ;", "<stdin>: ERROR: This constant must be initialized\n");
+    expectParseError( "for (const x;;) ;", "<stdin>: ERROR: Missing initializer in const declaration for \"x\"\n");
+    expectParseError( "for (const {};;) ;", "<stdin>: ERROR: Missing initializer in const declaration\n");
+    expectParseError( "for (const [];;) ;", "<stdin>: ERROR: Missing initializer in const declaration\n");
     // Make sure bindings are visited during parsing
     expectPrinted( "var {[x]: y} = {}", "var { [x]: y } = {};\n");
     expectPrinted( "var {...x} = {}", "var { ...x } = {};\n");
@@ -630,10 +630,10 @@ TEST(JsParser, TestDecls) {
     expectPrinted( "([[]] = [[]])", "[[]] = [[]];\n");
     expectPrinted( "({x: {}} = {x: {}})", "({ x: {} } = { x: {} });\n");
     expectPrinted( "(x) = y", "x = y;\n");
-    expectParseError( "([]) = []", "<stdin>: ERROR: Invalid assignment target\n");
-    expectParseError( "({}) = {}", "<stdin>: ERROR: Invalid assignment target\n");
-    expectParseError( "[([])] = [[]]", "<stdin>: ERROR: Invalid assignment target\n");
-    expectParseError( "({x: ({})} = {x: {}})", "<stdin>: ERROR: Invalid assignment target\n");
+    expectParseError( "([]) = []", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
+    expectParseError( "({}) = {}", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
+    expectParseError( "[([])] = [[]]", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
+    expectParseError( "({x: ({})} = {x: {}})", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
     expectParseError( "(([]) = []) => {}", "<stdin>: ERROR: Invalid binding pattern\n");
     expectParseError( "(({}) = {}) => {}", "<stdin>: ERROR: Invalid binding pattern\n");
     expectParseError( "function f(([]) = []) {}", "<stdin>: ERROR: Expected identifier but found \"(\"\n");
@@ -642,14 +642,14 @@ TEST(JsParser, TestDecls) {
     expectPrinted( "for ([] in y) ;", "for ([] in y) ;\n");
     expectPrinted( "for ({} in y) ;", "for ({} in y) ;\n");
     expectPrinted( "for ((x) in y) ;", "for (x in y) ;\n");
-    expectParseError( "for (([]) in y) ;", "<stdin>: ERROR: Invalid assignment target\n");
-    expectParseError( "for (({}) in y) ;", "<stdin>: ERROR: Invalid assignment target\n");
+    expectParseError( "for (([]) in y) ;", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
+    expectParseError( "for (({}) in y) ;", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
     expectPrinted( "for (x of y) ;", "for (x of y) ;\n");
     expectPrinted( "for ([] of y) ;", "for ([] of y) ;\n");
     expectPrinted( "for ({} of y) ;", "for ({} of y) ;\n");
     expectPrinted( "for ((x) of y) ;", "for (x of y) ;\n");
-    expectParseError( "for (([]) of y) ;", "<stdin>: ERROR: Invalid assignment target\n");
-    expectParseError( "for (({}) of y) ;", "<stdin>: ERROR: Invalid assignment target\n");
+    expectParseError( "for (([]) of y) ;", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
+    expectParseError( "for (({}) of y) ;", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
     expectParseError( "[[...a, b]] = c", "<stdin>: ERROR: Unexpected \",\" after rest pattern\n");
     expectParseError( "[{...a, b}] = c", "<stdin>: ERROR: Unexpected \",\" after rest pattern\n");
     expectParseError( "({x: [...a, b]} = c)", "<stdin>: ERROR: Unexpected \",\" after rest pattern\n");
@@ -798,7 +798,7 @@ TEST(JsParser, TestFor) {
     expectParseError( "for (async of []) ;", "<stdin>: ERROR: For loop initializers cannot start with \"async of\"\n");
     expectParseError( "for (async o\\u0066 []) ;", "<stdin>: ERROR: Expected \";\" but found \"o\\\\u0066\"\n");
     expectParseError( "for await (async of => {}) ;", "<stdin>: ERROR: Expected \"of\" but found \")\"\n");
-    expectParseError( "for await (async of => {} of []) ;", "<stdin>: ERROR: Invalid assignment target\n");
+    expectParseError( "for await (async of => {} of []) ;", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
     expectParseError( "for await (async o\\u0066 []) ;", "<stdin>: ERROR: Expected \"of\" but found \"o\\\\u0066\"\n");
     // Can't use await at the top-level without top-level await
     const std::string err = "<stdin>: ERROR: Top-level await is not available in the configured target environment\n";
@@ -810,7 +810,7 @@ TEST(JsParser, TestFor) {
 }
 
 TEST(JsParser, TestScope) {
-    const std::string errorText = "<stdin>: ERROR: The symbol \"x\" has already been declared\n"
+    const std::string errorText = "<stdin>: ERROR: \"x\" has already been declared in this scope\n"
         "<stdin>: NOTE: The symbol \"x\" was originally declared here:\n"
         "";
     expectParseError( "var x; var y", "");
@@ -924,7 +924,7 @@ TEST(JsParser, TestScope) {
     expectParseError( "function f() { function *x() {} function *x() {} }", "");
     expectParseError( "function f() { async function x() {} function x() {} }", "");
     expectParseError( "function f() { async function x() {} async function x() {} }", "");
-    const std::string text = "<stdin>: ERROR: The symbol \"x\" has already been declared\n<stdin>: NOTE: The symbol \"x\" was originally declared here:\n";
+    const std::string text = "<stdin>: ERROR: \"x\" has already been declared in this scope\n<stdin>: NOTE: The symbol \"x\" was originally declared here:\n";
     for (const std::string& scope : std::vector<std::string>{"", "with (x)", "while (x)", "if (x)"}) {
         expectParseError( scope+"{ function x() {} function x() {} }", "");
         expectParseError( scope+"{ function x() {} function *x() {} }", text);
@@ -954,9 +954,9 @@ TEST(JsParser, TestASI) {
     expectPrinted( "async\nfunction foo() {}", "async;\nfunction foo() {\n}\n");
     expectPrinted( "export default async\nx => {}", "export default async;\n(x) => {\n};\n");
     expectPrinted( "export default async\nfunction foo() {}", "export default async;\nfunction foo() {\n}\n");
-    expectParseError( "async\n() => {}", "<stdin>: ERROR: Expected \";\" but found \"=>\"\n");
+    expectParseError( "async\n() => {}", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectParseError( "export async\nfunction foo() {}", "<stdin>: ERROR: Unexpected newline after \"async\"\n");
-    expectParseError( "export default async\n() => {}", "<stdin>: ERROR: Expected \";\" but found \"=>\"\n");
+    expectParseError( "export default async\n() => {}", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectParseError( "(async\nx => {})", "<stdin>: ERROR: Expected \")\" but found \"x\"\n");
     expectParseError( "(async\n() => {})", "<stdin>: ERROR: Expected \")\" but found \"=>\"\n");
     expectParseError( "(async\nfunction foo() {})", "<stdin>: ERROR: Expected \")\" but found \"function\"\n");
@@ -970,9 +970,9 @@ TEST(JsParser, TestASI) {
     expectPrinted( "let\n{x} = 0", "let { x } = 0;\n");
     expectPrinted( "let\n[x] = 0", "let [x] = 0;\n");
     expectParseError( "function *foo() { let\nyield 0 }",
-        "<stdin>: ERROR: Cannot use \"yield\" as an identifier here:\n<stdin>: ERROR: Expected \";\" but found \"0\"\n");
+        "<stdin>: ERROR: Cannot use \"yield\" as an identifier here:\n<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectParseError( "async function foo() { let\nawait 0 }",
-        "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n<stdin>: ERROR: Expected \";\" but found \"0\"\n");
+        "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     // This is a weird corner case where ASI applies without a newline
     expectPrinted( "do x;while(y)z", "do\n  x;\nwhile (y);\nz;\n");
     expectPrinted( "do x;while(y);z", "do\n  x;\nwhile (y);\nz;\n");
@@ -1044,13 +1044,13 @@ TEST(JsParser, TestAssignTarget) {
     expectParseError( "({ (y) } = 0)", "<stdin>: ERROR: Expected identifier but found \"(\"\n");
     expectParseError( "({ y: (z) } = 0)", "");
     expectParseError( "({ ...(y) } = 0)", "");
-    expectParseError( "[...x = y] = 0", "<stdin>: ERROR: Invalid assignment target\n");
-    expectParseError( "x() = 0", "<stdin>: ERROR: Invalid assignment target\n");
-    expectParseError( "x?.y = 0", "<stdin>: ERROR: Invalid assignment target\n");
-    expectParseError( "x?.[y] = 0", "<stdin>: ERROR: Invalid assignment target\n");
-    expectParseError( "({x: 0} = 0)", "<stdin>: ERROR: Invalid assignment target\n");
-    expectParseError( "({x() {}} = 0)", "<stdin>: ERROR: Invalid assignment target\n");
-    expectParseError( "({x: 0 = y} = 0)", "<stdin>: ERROR: Invalid assignment target\n");
+    expectParseError( "[...x = y] = 0", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
+    expectParseError( "x() = 0", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
+    expectParseError( "x?.y = 0", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
+    expectParseError( "x?.[y] = 0", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
+    expectParseError( "({x: 0} = 0)", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
+    expectParseError( "({x() {}} = 0)", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
+    expectParseError( "({x: 0 = y} = 0)", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
 }
 
 TEST(JsParser, TestObject) {
@@ -1268,7 +1268,7 @@ TEST(JsParser, TestFunction) {
     expectPrintedMangle( "var f; function f() { x() } function f() { y() }", "var f;\nfunction f() {\n  y();\n}\n");
     expectPrintedMangle( "function f() { x() } function f() { y() } var f", "function f() {\n  y();\n}\nvar f;\n");
     expectPrintedMangle( "function f() { x() } var f; function f() { y() }", "function f() {\n  x();\n}\nvar f;\nfunction f() {\n  y();\n}\n");
-    const std::string redeclaredError = "<stdin>: ERROR: The symbol \"f\" has already been declared\n" "<stdin>: NOTE: The symbol \"f\" was originally declared here:\n";
+    const std::string redeclaredError = "<stdin>: ERROR: \"f\" has already been declared in this scope\n" "<stdin>: NOTE: The symbol \"f\" was originally declared here:\n";
     expectParseError( "function *f() {} function *f() {}", "");
     expectParseError( "function f() {} let f", redeclaredError);
     expectParseError( "function f() {} var f", "");
@@ -1628,19 +1628,19 @@ TEST(JsParser, TestClassFields) {
     expectPrinted( "class Foo { a }", "class Foo {\n  a;\n}\n");
     expectPrinted( "class Foo { a = 1 }", "class Foo {\n  a = 1;\n}\n");
     expectPrinted( "class Foo { a = 1; b }", "class Foo {\n  a = 1;\n  b;\n}\n");
-    expectParseError( "class Foo { a = 1 b }", "<stdin>: ERROR: Expected \";\" but found \"b\"\n");
+    expectParseError( "class Foo { a = 1 b }", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectPrinted( "class Foo { [a] }", "class Foo {\n  [a];\n}\n");
     expectPrinted( "class Foo { [a] = 1 }", "class Foo {\n  [a] = 1;\n}\n");
     expectPrinted( "class Foo { [a] = 1; [b] }", "class Foo {\n  [a] = 1;\n  [b];\n}\n");
-    expectParseError( "class Foo { [a] = 1 b }", "<stdin>: ERROR: Expected \";\" but found \"b\"\n");
+    expectParseError( "class Foo { [a] = 1 b }", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectPrinted( "class Foo { static a }", "class Foo {\n  static a;\n}\n");
     expectPrinted( "class Foo { static a = 1 }", "class Foo {\n  static a = 1;\n}\n");
     expectPrinted( "class Foo { static a = 1; b }", "class Foo {\n  static a = 1;\n  b;\n}\n");
-    expectParseError( "class Foo { static a = 1 b }", "<stdin>: ERROR: Expected \";\" but found \"b\"\n");
+    expectParseError( "class Foo { static a = 1 b }", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectPrinted( "class Foo { static [a] }", "class Foo {\n  static [a];\n}\n");
     expectPrinted( "class Foo { static [a] = 1 }", "class Foo {\n  static [a] = 1;\n}\n");
     expectPrinted( "class Foo { static [a] = 1; [b] }", "class Foo {\n  static [a] = 1;\n  [b];\n}\n");
-    expectParseError( "class Foo { static [a] = 1 b }", "<stdin>: ERROR: Expected \";\" but found \"b\"\n");
+    expectParseError( "class Foo { static [a] = 1 b }", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectParseError( "class Foo { get a }", "<stdin>: ERROR: Expected \"(\" but found \"}\"\n");
     expectParseError( "class Foo { set a }", "<stdin>: ERROR: Expected \"(\" but found \"}\"\n");
     expectParseError( "class Foo { async a }", "<stdin>: ERROR: Expected \"(\" but found \"}\"\n");
@@ -1680,8 +1680,8 @@ TEST(JsParser, TestClassStaticBlocks) {
     expectPrinted( "class Foo { static { this.foo() } }", "class Foo {\n  static {\n    this.foo();\n  }\n}\n");
     expectParseError( "class Foo { static { yield } }",
         "<stdin>: ERROR: \"yield\" is a reserved word and cannot be used in strict mode\n" "<stdin>: NOTE: All code inside a class is implicitly in strict mode\n");
-    expectParseError( "class Foo { static { await } }", "<stdin>: ERROR: The keyword \"await\" cannot be used here:\n");
-    expectParseError( "class Foo { static { return } }", "<stdin>: ERROR: A return statement cannot be used here:\n");
+    expectParseError( "class Foo { static { await } }", "<stdin>: ERROR: Cannot use \"await\" in this context:\n");
+    expectParseError( "class Foo { static { return } }", "<stdin>: ERROR: Cannot use \"return\" outside a function:\n");
     expectParseError( "class Foo { static { break } }", "<stdin>: ERROR: Cannot use \"break\" here:\n");
     expectParseError( "class Foo { static { continue } }", "<stdin>: ERROR: Cannot use \"continue\" here:\n");
     expectParseError( "x: { class Foo { static { break x } } }", "<stdin>: ERROR: There is no containing label named \"x\"\n");
@@ -1714,17 +1714,17 @@ TEST(JsParser, TestAutoAccessors) {
     expectPrinted( "Foo = class { static accessor x = y }", "Foo = class {\n  static accessor x = y;\n};\n");
     expectPrinted( "class Foo { accessor get }", "class Foo {\n  accessor get;\n}\n");
     expectPrinted( "class Foo { get accessor() {} }", "class Foo {\n  get accessor() {\n  }\n}\n");
-    expectParseError( "class Foo { accessor x() {} }", "<stdin>: ERROR: Expected \";\" but found \"(\"\n");
-    expectParseError( "class Foo { accessor get x() {} }", "<stdin>: ERROR: Expected \";\" but found \"x\"\n");
+    expectParseError( "class Foo { accessor x() {} }", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "class Foo { accessor get x() {} }", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectParseError( "class Foo { get accessor x() {} }", "<stdin>: ERROR: Expected \"(\" but found \"x\"\n");
     expectPrinted( "Foo = { get accessor() {} }", "Foo = { get accessor() {\n} };\n");
     expectParseError( "Foo = { accessor x }", "<stdin>: ERROR: Expected \"}\" but found \"x\"\n");
     expectParseError( "Foo = { accessor x() {} }", "<stdin>: ERROR: Expected \"}\" but found \"x\"\n");
     expectParseError( "Foo = { get accessor x() {} }", "<stdin>: ERROR: Expected \"(\" but found \"x\"\n");
-    expectParseError( "class Foo { accessor x, y }", "<stdin>: ERROR: Expected \";\" but found \",\"\n");
-    expectParseError( "class Foo { static accessor x, y }", "<stdin>: ERROR: Expected \";\" but found \",\"\n");
-    expectParseError( "Foo = class { accessor x, y }", "<stdin>: ERROR: Expected \";\" but found \",\"\n");
-    expectParseError( "Foo = class { static accessor x, y }", "<stdin>: ERROR: Expected \";\" but found \",\"\n");
+    expectParseError( "class Foo { accessor x, y }", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "class Foo { static accessor x, y }", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "Foo = class { accessor x, y }", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "Foo = class { static accessor x, y }", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
 }
 
 TEST(JsParser, TestDecorators) {
@@ -1743,7 +1743,7 @@ TEST(JsParser, TestDecorators) {
     expectPrinted( "class Foo { @x static #y() {} }", "class Foo {\n  @x static #y() {\n  }\n}\n");
     expectPrinted( "class Foo { @x accessor #y }", "class Foo {\n  @x accessor #y;\n}\n");
     expectParseError( "class Foo { x(@y z) {} }", "<stdin>: ERROR: Parameter decorators are not allowed in JavaScript\n");
-    expectParseError( "class Foo { @x static {} }", "<stdin>: ERROR: Expected \";\" but found \"{\"\n");
+    expectParseError( "class Foo { @x static {} }", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectPrinted( "@\na\n(\n)\n@\n(\nb\n)\nclass\nFoo\n{\n}\n", "@a()\n@b\nclass Foo {\n}\n");
     expectPrinted( "@(a, b) class Foo {}", "@(a, b) class Foo {\n}\n");
     expectPrinted( "@x() class Foo {}", "@x() class Foo {\n}\n");
@@ -1751,7 +1751,7 @@ TEST(JsParser, TestDecorators) {
     expectPrinted( "@(() => {}) class Foo {}", "@(() => {\n}) class Foo {\n}\n");
     expectPrinted( "class Foo { #x = @y.#x.y.#x class {} }", "class Foo {\n  #x = @y.#x.y.#x class {\n  };\n}\n");
     expectParseError( "@123 class Foo {}", "<stdin>: ERROR: Expected identifier but found \"123\"\n");
-    expectParseError( "@x[y] class Foo {}", "<stdin>: ERROR: Expected \";\" but found \"class\"\n");
+    expectParseError( "@x[y] class Foo {}", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectParseError( "@x?.() class Foo {}", "<stdin>: ERROR: Expected identifier but found \"(\"\n");
     expectParseError( "@x?.y() class Foo {}",
         "<stdin>: ERROR: JavaScript decorator syntax does not allow \"?.\" here\n" "<stdin>: NOTE: Wrap this decorator in parentheses to allow arbitrary expressions:\n");
@@ -1844,7 +1844,7 @@ TEST(JsParser, TestDecorators) {
         "__privateAdd(Foo, _x, __runInitializers(_init, 8, Foo)), __runInitializers(_init, 11, Foo);\n"
         "");
     // Check ASI for "abstract"
-    expectParseError( "@x abstract class Foo {}", "<stdin>: ERROR: Expected \";\" but found \"class\"\n");
+    expectParseError( "@x abstract class Foo {}", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectParseError( "@x abstract\nclass Foo {}", "<stdin>: ERROR: Decorators are not valid here\n");
     // Check decorator locations in relation to the "export" keyword
     expectPrinted( "@x export class Foo {}", "@x export class Foo {\n}\n");
@@ -1866,8 +1866,8 @@ TEST(JsParser, TestDecorators) {
 TEST(JsParser, TestGenerator) {
     expectParseError( "(class { * foo })", "<stdin>: ERROR: Expected \"(\" but found \"}\"\n");
     expectParseError( "(class { * *foo() {} })", "<stdin>: ERROR: Unexpected \"*\"\n");
-    expectParseError( "(class { get*foo() {} })", "<stdin>: ERROR: Expected \";\" but found \"*\"\n");
-    expectParseError( "(class { set*foo() {} })", "<stdin>: ERROR: Expected \";\" but found \"*\"\n");
+    expectParseError( "(class { get*foo() {} })", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "(class { set*foo() {} })", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectParseError( "(class { *get foo() {} })", "<stdin>: ERROR: Expected \"(\" but found \"foo\"\n");
     expectParseError( "(class { *set foo() {} })", "<stdin>: ERROR: Expected \"(\" but found \"foo\"\n");
     expectParseError( "(class { *static foo() {} })", "<stdin>: ERROR: Expected \"(\" but found \"foo\"\n");
@@ -1975,8 +1975,8 @@ TEST(JsParser, TestAsync) {
     expectParseError( "async x;", "<stdin>: ERROR: Expected \"=>\" but found \";\"\n");
     expectParseError( "async (...x,) => {}", "<stdin>: ERROR: Unexpected \",\" after rest pattern\n");
     expectParseError( "async => await 0", friendlyAwaitErrorWithNote);
-    expectParseError( "new async => {}", "<stdin>: ERROR: Expected \";\" but found \"=>\"\n");
-    expectParseError( "new async () => {}", "<stdin>: ERROR: Expected \";\" but found \"=>\"\n");
+    expectParseError( "new async => {}", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "new async () => {}", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectPrinted( "(async x => y), z", "(async (x) => y), z;\n");
     expectPrinted( "(async x => y, z)", "async (x) => y, z;\n");
     expectPrinted( "(async x => (y, z))", "(async (x) => (y, z));\n");
@@ -1989,15 +1989,15 @@ TEST(JsParser, TestAsync) {
     expectPrinted( "async (x) => (y, z)", "async (x) => (y, z);\n");
     expectPrinted( "export default async x => (y, z)", "export default async (x) => (y, z);\n");
     expectPrinted( "export default async (x) => (y, z)", "export default async (x) => (y, z);\n");
-    expectParseError( "export default async x => y, z", "<stdin>: ERROR: Expected \";\" but found \",\"\n");
-    expectParseError( "export default async (x) => y, z", "<stdin>: ERROR: Expected \";\" but found \",\"\n");
+    expectParseError( "export default async x => y, z", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "export default async (x) => y, z", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectPrinted( "class Foo { async async() {} }", "class Foo {\n  async async() {\n  }\n}\n");
     expectPrinted( "(class { async async() {} })", "(class {\n  async async() {\n  }\n});\n");
     expectPrinted( "({ async async() {} })", "({ async async() {\n} });\n");
     expectParseError( "class Foo { async async }", "<stdin>: ERROR: Expected \"(\" but found \"}\"\n");
     expectParseError( "(class { async async })", "<stdin>: ERROR: Expected \"(\" but found \"}\"\n");
     expectParseError( "({ async async })", "<stdin>: ERROR: Expected \"(\" but found \"}\"\n");
-    const std::string noAwait = "<stdin>: ERROR: The keyword \"await\" cannot be used here:\n";
+    const std::string noAwait = "<stdin>: ERROR: Cannot use \"await\" in this context:\n";
     expectParseError( "async function bar(x = await y) {}", noAwait+"<stdin>: ERROR: Expected \")\" but found \"y\"\n");
     expectParseError( "async (function(x = await y) {})", friendlyAwaitError);
     expectParseError( "async ({ foo(x = await y) {} })", friendlyAwaitError);
@@ -2008,9 +2008,9 @@ TEST(JsParser, TestAsync) {
     expectParseError( "async function foo() { ({ foo(x = await y) {} }) }", friendlyAwaitError);
     expectParseError( "async function foo() { class Foo { foo(x = await y) {} } }", friendlyAwaitError);
     expectParseError( "async function foo() { (class { foo(x = await y) {} }) }", friendlyAwaitError);
-    expectParseError( "async function foo() { (x = await y) => {} }", "<stdin>: ERROR: Cannot use an \"await\" expression here:\n");
-    expectParseError( "async function foo(x = await y) {}", "<stdin>: ERROR: The keyword \"await\" cannot be used here:\n<stdin>: ERROR: Expected \")\" but found \"y\"\n");
-    expectParseError( "async function foo({ [await y]: x }) {}", "<stdin>: ERROR: The keyword \"await\" cannot be used here:\n<stdin>: ERROR: Expected \"]\" but found \"y\"\n");
+    expectParseError( "async function foo() { (x = await y) => {} }", "<stdin>: ERROR: Cannot use an \"await\" expression in this context:\n");
+    expectParseError( "async function foo(x = await y) {}", "<stdin>: ERROR: Cannot use \"await\" in this context:\n<stdin>: ERROR: Expected \")\" but found \"y\"\n");
+    expectParseError( "async function foo({ [await y]: x }) {}", "<stdin>: ERROR: Cannot use \"await\" in this context:\n<stdin>: ERROR: Expected \"]\" but found \"y\"\n");
     expectPrinted( "async function foo() { (x = await y) }", "async function foo() {\n  x = await y;\n}\n");
     expectParseError( "function foo() { (x = await y) }", friendlyAwaitErrorWithNote);
     // Newlines
@@ -2034,11 +2034,11 @@ TEST(JsParser, TestAsync) {
     expectPrinted( "(class { foo(x = await) {} })", "(class {\n  foo(x = await) {\n  }\n});\n");
     expectParseError( "(class { foo(x = await y) {} })", friendlyAwaitError);
     expectParseError( "(x = await) => {}", "<stdin>: ERROR: Unexpected \")\"\n");
-    expectParseError( "(x = await y) => {}", "<stdin>: ERROR: Cannot use an \"await\" expression here:\n");
+    expectParseError( "(x = await y) => {}", "<stdin>: ERROR: Cannot use an \"await\" expression in this context:\n");
     expectParseError( "(x = await)", "<stdin>: ERROR: Unexpected \")\"\n");
     expectPrinted( "(x = await y)", "x = await y;\n");
     expectParseError( "async (x = await) => {}", "<stdin>: ERROR: Unexpected \")\"\n");
-    expectParseError( "async (x = await y) => {}", "<stdin>: ERROR: Cannot use an \"await\" expression here:\n");
+    expectParseError( "async (x = await y) => {}", "<stdin>: ERROR: Cannot use an \"await\" expression in this context:\n");
     expectPrinted( "async(x = await y)", "async(x = await y);\n");
     // Keywords with escapes
     expectPrinted( "\\u0061sync", "async;\n");
@@ -2049,9 +2049,9 @@ TEST(JsParser, TestAsync) {
     expectParseError( "var \\u0061wait", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n");
     expectParseError( "async function foo() { \\u0061wait }", "<stdin>: ERROR: The keyword \"await\" cannot be escaped\n");
     expectParseError( "async function foo() { var \\u0061wait }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n");
-    expectParseError( "\\u0061sync x => {}", "<stdin>: ERROR: Expected \";\" but found \"x\"\n");
-    expectParseError( "\\u0061sync () => {}", "<stdin>: ERROR: Expected \";\" but found \"=>\"\n");
-    expectParseError( "\\u0061sync function foo() {}", "<stdin>: ERROR: Expected \";\" but found \"function\"\n");
+    expectParseError( "\\u0061sync x => {}", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "\\u0061sync () => {}", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "\\u0061sync function foo() {}", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectParseError( "({ \\u0061sync foo() {} })", "<stdin>: ERROR: Expected \"}\" but found \"foo\"\n");
     expectParseError( "({ \\u0061sync *foo() {} })", "<stdin>: ERROR: Expected \"}\" but found \"*\"\n");
     // For-await
@@ -2137,7 +2137,7 @@ TEST(JsParser, TestArrow) {
     expectParseError( "(async ()\n=> {})", "<stdin>: ERROR: Unexpected newline before \"=>\"\n");
     expectPrinted( "(() => {}) ? a : b", "(() => {\n}) ? a : b;\n");
     expectPrintedMangle( "(() => {}) ? a : b", "a;\n");
-    expectParseError( "() => {} ? a : b", "<stdin>: ERROR: Expected \";\" but found \"?\"\n");
+    expectParseError( "() => {} ? a : b", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectPrinted( "1 < (() => {})", "1 < (() => {\n});\n");
     expectParseError( "1 < () => {}", "<stdin>: ERROR: Unexpected \")\"\n");
     expectParseError( "(...x = y) => {}", "<stdin>: ERROR: A rest argument cannot have a default initializer\n");
@@ -2152,10 +2152,10 @@ TEST(JsParser, TestArrow) {
     // Cannot add an arrow function
     expectPrinted( "1 + function () {}", "1 + function() {\n};\n");
     expectPrinted( "1 + async function () {}", "1 + async function() {\n};\n");
-    expectParseError( "1 + x => {}", "<stdin>: ERROR: Expected \";\" but found \"=>\"\n");
+    expectParseError( "1 + x => {}", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectParseError( "1 + () => {}", "<stdin>: ERROR: Unexpected \")\"\n");
-    expectParseError( "1 + (x) => {}", "<stdin>: ERROR: Expected \";\" but found \"=>\"\n");
-    expectParseError( "1 + async x => {}", "<stdin>: ERROR: Expected \";\" but found \"x\"\n");
+    expectParseError( "1 + (x) => {}", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "1 + async x => {}", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectParseError( "1 + async () => {}", "<stdin>: ERROR: Unexpected \"=>\"\n");
     expectParseError( "1 + async (x) => {}", "<stdin>: ERROR: Unexpected \"=>\"\n");
     // Cannot extend an arrow function
@@ -2173,14 +2173,14 @@ TEST(JsParser, TestArrow) {
     expectParseError( "(class extends async x => {} {})", "<stdin>: ERROR: Expected \"{\" but found \"x\"\n");
     expectParseError( "(class extends async () => {} {})", "<stdin>: ERROR: Unexpected \"=>\"\n");
     expectParseError( "(class extends async (x) => {} {})", "<stdin>: ERROR: Unexpected \"=>\"\n");
-    expectParseError( "() => {}(0)", "<stdin>: ERROR: Expected \";\" but found \"(\"\n");
-    expectParseError( "x => {}(0)", "<stdin>: ERROR: Expected \";\" but found \"(\"\n");
-    expectParseError( "async () => {}(0)", "<stdin>: ERROR: Expected \";\" but found \"(\"\n");
-    expectParseError( "async x => {}(0)", "<stdin>: ERROR: Expected \";\" but found \"(\"\n");
-    expectParseError( "async (x) => {}(0)", "<stdin>: ERROR: Expected \";\" but found \"(\"\n");
-    expectParseError( "0, async () => {}(0)", "<stdin>: ERROR: Expected \";\" but found \"(\"\n");
-    expectParseError( "0, async x => {}(0)", "<stdin>: ERROR: Expected \";\" but found \"(\"\n");
-    expectParseError( "0, async (x) => {}(0)", "<stdin>: ERROR: Expected \";\" but found \"(\"\n");
+    expectParseError( "() => {}(0)", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "x => {}(0)", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "async () => {}(0)", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "async x => {}(0)", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "async (x) => {}(0)", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "0, async () => {}(0)", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "0, async x => {}(0)", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "0, async (x) => {}(0)", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectPrinted( "() => {}\n(0)", "() => {\n};\n0;\n");
     expectPrinted( "x => {}\n(0)", "(x) => {\n};\n0;\n");
     expectPrinted( "async () => {}\n(0)", "async () => {\n};\n0;\n");
@@ -2196,11 +2196,11 @@ TEST(JsParser, TestArrow) {
     expectPrinted( "(async () => {})\n(0)", "(async () => {\n})(0);\n");
     expectPrinted( "(async x => {})\n(0)", "(async (x) => {\n})(0);\n");
     expectPrinted( "(async (x) => {})\n(0)", "(async (x) => {\n})(0);\n");
-    expectParseError( "y = () => {}(0)", "<stdin>: ERROR: Expected \";\" but found \"(\"\n");
-    expectParseError( "y = x => {}(0)", "<stdin>: ERROR: Expected \";\" but found \"(\"\n");
-    expectParseError( "y = async () => {}(0)", "<stdin>: ERROR: Expected \";\" but found \"(\"\n");
-    expectParseError( "y = async x => {}(0)", "<stdin>: ERROR: Expected \";\" but found \"(\"\n");
-    expectParseError( "y = async (x) => {}(0)", "<stdin>: ERROR: Expected \";\" but found \"(\"\n");
+    expectParseError( "y = () => {}(0)", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "y = x => {}(0)", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "y = async () => {}(0)", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "y = async x => {}(0)", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "y = async (x) => {}(0)", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectPrinted( "y = () => {}\n(0)", "y = () => {\n};\n0;\n");
     expectPrinted( "y = x => {}\n(0)", "y = (x) => {\n};\n0;\n");
     expectPrinted( "y = async () => {}\n(0)", "y = async () => {\n};\n0;\n");
@@ -2268,9 +2268,9 @@ TEST(JsParser, TestTemplate) {
     expectParseError( "`\\00${x}`", "<stdin>: ERROR: Legacy octal escape sequences cannot be used in template literals\n");
     expectParseError( "`${x}\\00`", "<stdin>: ERROR: Legacy octal escape sequences cannot be used in template literals\n");
     expectParseError( "`${x}\\00${y}`", "<stdin>: ERROR: Legacy octal escape sequences cannot be used in template literals\n");
-    expectParseError( "`\\unicode`", "<stdin>: ERROR: Syntax error \"n\"\n");
-    expectParseError( "`\\unicode${x}`", "<stdin>: ERROR: Syntax error \"n\"\n");
-    expectParseError( "`${x}\\unicode`", "<stdin>: ERROR: Syntax error \"n\"\n");
+    expectParseError( "`\\unicode`", "<stdin>: ERROR: Invalid or unexpected token \"n\"\n");
+    expectParseError( "`\\unicode${x}`", "<stdin>: ERROR: Invalid or unexpected token \"n\"\n");
+    expectParseError( "`${x}\\unicode`", "<stdin>: ERROR: Invalid or unexpected token \"n\"\n");
     expectParseError( "`\\u{10FFFFF}`", "<stdin>: ERROR: Unicode escape sequence is out of range\n");
     expectPrinted( "tag`\\7`", "tag`\\7`;\n");
     expectPrinted( "tag`\\8`", "tag`\\8`;\n");
@@ -2805,9 +2805,9 @@ TEST(JsParser, TestExportDuplicates) {
 }
 
 TEST(JsParser, TestExportDefault) {
-    expectParseError( "export default 1, 2", "<stdin>: ERROR: Expected \";\" but found \",\"\n");
+    expectParseError( "export default 1, 2", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectPrinted( "export default (1, 2)", "export default (1, 2);\n");
-    expectParseError( "export default async, 0", "<stdin>: ERROR: Expected \";\" but found \",\"\n");
+    expectParseError( "export default async, 0", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
     expectPrinted( "export default async", "export default async;\n");
     expectPrinted( "export default async()", "export default async();\n");
     expectPrinted( "export default async + 1", "export default async + 1;\n");
@@ -2829,7 +2829,7 @@ TEST(JsParser, TestExportDefault) {
     expectPrinted( "export default class Foo {} - after", "export default class Foo {\n}\n-after;\n");
     // Check ASI for "abstract"
     expectPrinted( "export default abstract\nclass Foo {}", "export default abstract;\nclass Foo {\n}\n");
-    expectParseError( "export default abstract class {}", "<stdin>: ERROR: Expected \";\" but found \"class\"\n");
+    expectParseError( "export default abstract class {}", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
 }
 
 TEST(JsParser, TestExportClause) {
@@ -2855,7 +2855,7 @@ TEST(JsParser, TestCatch) {
     expectPrinted( "try {} catch (e) { if (1) function e() {} }", "try {\n} catch (e) {\n  if (1) {\n    let e = function() {\n    };\n    var e = e;\n  }\n}\n");
     expectPrinted( "try {} catch (e) { if (0) ; else function e() {} }", "try {\n} catch (e) {\n  if (0) ;\n  else {\n    let e = function() {\n    };\n    var e = e;\n  }\n}\n");
     expectPrinted( "try {} catch ({ e }) { { function e() {} } }", "try {\n} catch ({ e }) {\n  {\n    let e = function() {\n    };\n    var e = e;\n  }\n}\n");
-    const std::string errorText = "<stdin>: ERROR: The symbol \"e\" has already been declared\n"
+    const std::string errorText = "<stdin>: ERROR: \"e\" has already been declared in this scope\n"
         "<stdin>: NOTE: The symbol \"e\" was originally declared here:\n"
         "";
     expectParseError( "try {} catch (e) { function e() {} }", errorText);
@@ -5388,7 +5388,7 @@ TEST(JsParser, TestPrivateIdentifiers) {
     expectPrinted( "class Foo { #fo\\u006f; foo = this.#foo }", "class Foo {\n  #foo;\n  foo = this.#foo;\n}\n");
     expectParseError( "class Foo { #\\u0020oo }", "<stdin>: ERROR: Invalid identifier: \"# oo\"\n");
     expectParseError( "class Foo { #fo\\u0020 }", "<stdin>: ERROR: Invalid identifier: \"#fo \"\n");
-    const std::string errorText = "<stdin>: ERROR: The symbol \"#foo\" has already been declared\n"
+    const std::string errorText = "<stdin>: ERROR: \"#foo\" has already been declared in this scope\n"
         "<stdin>: NOTE: The symbol \"#foo\" was originally declared here:\n"
         "";
     // Scope tests
@@ -5990,9 +5990,9 @@ TEST(JsParser, TestUsing) {
     expectPrinted( "using [x]", "using[x];\n");
     expectPrinted( "using [x] = y", "using[x] = y;\n");
     expectPrinted( "using \n [x] = y", "using[x] = y;\n");
-    expectParseError( "using x", "<stdin>: ERROR: The declaration \"x\" must be initialized\n");
-    expectParseError( "using {x}", "<stdin>: ERROR: Expected \";\" but found \"{\"\n");
-    expectParseError( "using x = y, z", "<stdin>: ERROR: The declaration \"z\" must be initialized\n");
+    expectParseError( "using x", "<stdin>: ERROR: Missing initializer in using declaration for \"x\"\n");
+    expectParseError( "using {x}", "<stdin>: ERROR: Expected \";\" after this statement or declaration.\n");
+    expectParseError( "using x = y, z", "<stdin>: ERROR: Missing initializer in using declaration for \"z\"\n");
     expectParseError( "using x = y, [z] = _", "<stdin>: ERROR: Expected identifier but found \"[\"\n");
     expectParseError( "using x = y, {z} = _", "<stdin>: ERROR: Expected identifier but found \"{\"\n");
     expectParseError( "export using x = y", "<stdin>: ERROR: Unexpected \"using\"\n");
@@ -6007,7 +6007,7 @@ TEST(JsParser, TestUsing) {
     expectParseError( "for (using of of x) ;", "<stdin>: ERROR: Expected \")\" but found \"x\"\n");
     expectParseError( "for (using of of of) ;", "<stdin>: ERROR: Expected \")\" but found \"of\"\n");
     expectParseError( "for (using x in y) ;", "<stdin>: ERROR: \"using\" declarations are not allowed here\n");
-    expectParseError( "for (using x;;) ;", "<stdin>: ERROR: The declaration \"x\" must be initialized\n");
+    expectParseError( "for (using x;;) ;", "<stdin>: ERROR: Missing initializer in using declaration for \"x\"\n");
     expectParseError( "for (using x = y of z) ;", "<stdin>: ERROR: for-of loop variables cannot have an initializer\n");
     expectParseError( "for (using \n x of y) ;", "<stdin>: ERROR: Expected \";\" but found \"x\"\n");
     expectParseError( "for await (using x = y of z) ;", "<stdin>: ERROR: for-of loop variables cannot have an initializer\n");
@@ -6017,7 +6017,7 @@ TEST(JsParser, TestUsing) {
     expectPrinted( "await using [x]", "await using[x];\n");
     expectPrinted( "await using ([x] = y)", "await using([x] = y);\n");
     expectPrinted( "await (using [x] = y)", "await (using[x] = y);\n");
-    expectParseError( "await using [x] = y", "<stdin>: ERROR: Invalid assignment target\n");
+    expectParseError( "await using [x] = y", "<stdin>: ERROR: Invalid assignment target. Expected a variable or assignable expression.\n");
     expectParseError( "for (await using x in y) ;", "<stdin>: ERROR: \"await using\" declarations are not allowed here\n");
     expectParseError( "for (await using x = y;;) ;", "<stdin>: ERROR: \"await using\" declarations are not allowed here\n");
     expectParseError( "for (await using of x) ;", "<stdin>: ERROR: Expected \";\" but found \"x\"\n");

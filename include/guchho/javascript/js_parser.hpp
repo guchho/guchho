@@ -134,6 +134,7 @@ namespace guchho::javascript {
         compat::JSFeature unsupportedJSFeatureOverridesMask;
 
         config::TSOptions ts;
+        config::LintOptions lint;
         config::Mode mode;
         config::Platform platform;
         config::Format outputFormat;
@@ -563,6 +564,27 @@ namespace guchho::javascript {
         stmtsFnBody,         // function body (affects return/arguments)
     };
 
+    // How a source reference uses its binding. Only reads are candidates for
+    // undefined-variable diagnostics; writes, deletes, and typeof operands are
+    // deliberately excluded by the default lint policy.
+    enum class SourceReferenceMode : uint8_t {
+        kRead,
+        kWrite,
+        kDelete,
+        kTypeof,
+    };
+
+    // A reference to a name after symbol resolution. The scope is retained so
+    // later analysis can ask which declarations were visible at this point.
+    struct SourceReference {
+        std::string name;
+        logger::Loc loc;
+        compiler::Ref ref;
+        Scope *scope;
+        SourceReferenceMode mode;
+        bool is_inside_with_scope;
+    };
+
     // Result of a symbol lookup during the visit pass.
     struct findSymbolResult {
         compiler::Ref ref;
@@ -783,6 +805,7 @@ namespace guchho::javascript {
         Scope *currentScope;
         std::vector<Scope *> scopesForCurrentPart;
         std::vector<compiler::Symbol> symbols;
+        std::vector<SourceReference> sourceReferences;
         HelperContext astHelpers;
         std::vector<uint32_t> tsUseCounts;
         std::vector<compiler::Ref> injectedDefineSymbols;
@@ -844,6 +867,7 @@ namespace guchho::javascript {
         E dotOrIndexTarget;
         E templateTag;
         E deleteTarget;
+        E typeofTarget;
         S *loopBody;
         E suspiciousLogicalOperatorInsideArrow;
         Scope *moduleScope;
@@ -1384,6 +1408,12 @@ namespace guchho::javascript {
 
         // Prepares the parser for the visit pass by resetting visit-specific state.
         void prepareForVisitPass();
+
+        // Emits opt-in diagnostics for unresolved reads after the visit pass.
+        void lintUndefinedVariables();
+
+        // Emits opt-in diagnostics for local bindings that are never read.
+        void lintUnusedVariables();
 
         // Declares a CommonJS module.exports or require symbol.
         compiler::Ref declareCommonJSSymbol(compiler::SymbolKind kind, const std::string &name);

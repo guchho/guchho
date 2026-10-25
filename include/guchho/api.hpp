@@ -373,6 +373,16 @@ enum class TreeShaking : uint8_t {
     kTrue,
 };
 
+// Severity for an optional JavaScript lint check.
+//   kOff     - the check is disabled (the default).
+//   kWarning - findings are reported as warnings and the build continues.
+//   kError   - findings are reported as errors and fail the build.
+enum class LintLevel : uint8_t {
+    kOff,
+    kWarning,
+    kError,
+};
+
 // Which debugging constructs are deleted from the output. These are bit flags,
 // so they combine with operator| and are tested with Has():
 //
@@ -684,6 +694,13 @@ struct BuildOptions {
     int            log_limit{}; // cap on reported messages; 0 means no cap
     std::unordered_map<std::string, LogLevel> log_override; // per-subsystem levels
     AbsPathsFlags  abs_paths{AbsPathsFlags::kNone};
+
+    // -- Optional lint checks ----------------------------------------------
+    // These are off by default. They inspect the resolved scope graph after
+    // parsing, so enabling one never changes whether a file parses.
+    LintLevel lint_undefined_variables{LintLevel::kOff};
+    LintLevel lint_unused_variables{LintLevel::kOff};
+    LintLevel lint_unused_parameters{LintLevel::kOff};
 
     // -- Source maps -------------------------------------------------------
     SourceMap      sourcemap{SourceMap::kNone};
@@ -1020,6 +1037,11 @@ struct TransformOptions {
     int log_limit{};
     std::unordered_map<std::string, LogLevel> log_override;
     AbsPathsFlags abs_paths{AbsPathsFlags::kNone};
+
+    // -- Optional lint checks ----------------------------------------------
+    LintLevel lint_undefined_variables{LintLevel::kOff};
+    LintLevel lint_unused_variables{LintLevel::kOff};
+    LintLevel lint_unused_parameters{LintLevel::kOff};
 
     // -- Source maps -------------------------------------------------------
     SourceMap sourcemap{SourceMap::kNone};

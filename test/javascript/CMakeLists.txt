@@ -7,6 +7,8 @@ add_library(guchho_js_test_objects OBJECT
     js_printer_test.cpp
     json_parser_test.cpp
     js_parser_lower_test.cpp
+    js_diagnostics_test.cpp
+    js_lint_test.cpp
 
 )
 

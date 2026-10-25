@@ -101,6 +101,31 @@ See [Formats](../formats.md) and [Platforms](../platforms.md).
 | `define` | Identifiers to replace, and their replacements. |
 | `preserveSymlinks` | Follow symlinks rather than bundling their targets. |
 
+## Optional lint checks
+
+These checks are off by default. Enabling one adds diagnostics without changing
+whether the build succeeds, unless the check is set to `error`.
+
+| Option | Values | Meaning |
+| --- | --- | --- |
+| `lint` | `boolean`, check name, array, or object | Enable checks. `true` enables all at `warning`. |
+| `lint.undefined` | `off`, `warning`, `error` | Report references with no visible binding and no known global. |
+| `lint.unused` | `off`, `warning`, `error` | Report unused local variables and parameters. |
+| `lint.unused-variable` | `off`, `warning`, `error` | Report unused local variables only. |
+| `lint.unused-parameter` | `off`, `warning`, `error` | Report unused parameters only. |
+
+A string or array enables the named checks at `warning` level:
+
+```json
+{ "build": { "lint": ["undefined", "unused"] } }
+```
+
+An object sets a level per check:
+
+```json
+{ "build": { "lint": { "undefined": "error", "unused": "warning" } } }
+```
+
 ## Output and diagnostics
 
 | Option | Meaning |

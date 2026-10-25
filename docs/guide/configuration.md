@@ -60,6 +60,24 @@ Any option a flag accepts may be set here, using the flag's name in camelCase
 (`outdir`, `minifyHtml`, `treeShaking`, `logLevel`, …). Unknown fields are
 reported as warnings rather than ignored, so a typo is visible.
 
+Optional JavaScript lint checks are off by default. Enable them with `lint`:
+
+```js
+export default {
+  build: {
+    entry: 'src/index.js',
+    lint: {
+      undefined: 'warning',
+      unused: 'error',
+    },
+  },
+}
+```
+
+`lint: true` enables every check at `warning`, and a string or array such as
+`lint: ['undefined']` enables just those checks. See the
+[build options reference](../reference/config/build.md#optional-lint-checks).
+
 `define` values are the JavaScript expression to substitute, written as a
 string: bare `false`, `true` and numbers need no quoting of their own, while
 string values carry their quotes inside the text (`__VERSION__: '"1.0.0"'`). A

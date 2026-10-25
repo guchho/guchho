@@ -18,6 +18,7 @@ Commands:
   clean               Remove build output
   info                Show environment info
   transform           Transform source from stdin
+  lint [files...]     Lint JavaScript and TypeScript
   pack <input...>     Create an archive
   unpack <archive>    Extract an archive
 
@@ -37,6 +38,7 @@ Run 'guchho --version' for version information.
 | `clean` | [clean.md](clean.md) | Remove generated build output. |
 | `info` | [info.md](info.md) | Report environment and configuration. |
 | `transform` | [transform.md](transform.md) | Transform source read from stdin. |
+| `lint` | [lint.md](lint.md) | Lint JavaScript and TypeScript without building. |
 | `pack` | [pack.md](pack.md) | Create a zip, tar or tar.gz archive. |
 | `unpack` | [unpack.md](unpack.md) | Extract a zip, tar or tar.gz archive. |
 
@@ -54,13 +56,15 @@ spelling of an option every command shares:
 | `--log-level=<level>` | `verbose`, `debug`, `info`, `warning`, `error`, `silent`. |
 | `--color` / `--no-color` | Force colour on or off. |
 
-## Lint flags
+## Linting
 
-Commands that build or transform JavaScript (`build`, `dev`, `watch` and
-`transform`) accept `--lint` and `--lint-level` to enable the optional lint
-checks. They are off by default; see
-[the build options reference](../config/build.md#optional-lint-checks) for the
-accepted values.
+`guchho lint` is the standalone linter for JavaScript and TypeScript. It runs
+the full rule set, supports safe autofixes and uses its own configuration file;
+see [lint.md](lint.md).
+
+The optional parser checks used during a build are configured through
+`build.lint`, not command-line flags. See
+[the build options reference](../config/build.md#optional-lint-checks).
 
 ## Precedence
 

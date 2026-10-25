@@ -64,9 +64,11 @@ build: {
 }
 ```
 
-The same checks are available on the command line with
-`--lint=undefined,unused` and `--lint-level=<check>=<level>`. See the
-[build options reference](../reference/config/build.md#optional-lint-checks).
+These build-time checks are configured only through `build.lint`. For the full
+rule set, autofixes, file discovery and a dedicated configuration file, use
+[`guchho lint`](../reference/cli/lint.md). See the
+[build options reference](../reference/config/build.md#optional-lint-checks)
+for the build-time fields.
 
 ## Compiler stages
 

@@ -55,6 +55,7 @@
 #include "guchho/filesystem.hpp"
 #include "guchho/logger.hpp"
 
+#include <algorithm>
 #include <iostream>
 #include <optional>
 #include <string>
@@ -105,6 +106,36 @@ namespace guchho::cli {
 // Output: a complaint reading "Invalid build flag: \"--nope\"", and a build
 //         whose platform is already browser — the flag before the failure is
 //         still in place.
+// The lint check names a caller is most likely to have meant. A close typo
+// gets a direct suggestion; a name with no close match only gets the list of
+// valid names in the note.
+std::string SuggestLintCheck(const std::string& name)
+{
+    static const char* kChecks[] = {
+        "undefined", "unused", "unused-variable", "unused-parameter",
+    };
+    std::string best;
+    size_t best_distance = std::string::npos;
+    for (const char* candidate : kChecks) {
+        std::string rhs = candidate;
+        std::vector<size_t> prev(rhs.size() + 1), curr(rhs.size() + 1);
+        for (size_t j = 0; j <= rhs.size(); ++j) prev[j] = j;
+        for (size_t i = 1; i <= name.size(); ++i) {
+            curr[0] = i;
+            for (size_t j = 1; j <= rhs.size(); ++j) {
+                size_t cost = name[i - 1] == rhs[j - 1] ? 0 : 1;
+                curr[j] = std::min({prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost});
+            }
+            std::swap(prev, curr);
+        }
+        if (prev[rhs.size()] < best_distance) {
+            best_distance = prev[rhs.size()];
+            best = rhs;
+        }
+    }
+    return best_distance <= 3 ? best : std::string();
+}
+
 std::optional<ErrorWithNote> parseOptionsImpl(
     const std::vector<std::string>& os_args,
     api::BuildOptions* build_opts,
@@ -1079,6 +1110,77 @@ std::optional<ErrorWithNote> parseOptionsImpl(
             else transform_opts->color = color;
             continue;
         }
+        if (arg.starts_with("--lint=")) {
+            auto value = arg.substr(std::string_view("--lint=").size());
+            auto checks = splitWithEmptyCheck(value, ',');
+            if (checks.empty()) {
+                return MakeErrorWithNote(
+                    "Missing value in " + helpers::QuoteSingle(arg, true),
+                    "Valid check names are \"undefined\" and \"unused\".");
+            }
+            for (const auto& check : checks) {
+                if (check == "undefined") {
+                    if (build_opts) build_opts->lint_undefined_variables = api::LintLevel::kWarning;
+                    else transform_opts->lint_undefined_variables = api::LintLevel::kWarning;
+                } else if (check == "unused") {
+                    if (build_opts) {
+                        build_opts->lint_unused_variables = api::LintLevel::kWarning;
+                        build_opts->lint_unused_parameters = api::LintLevel::kWarning;
+                    } else {
+                        transform_opts->lint_unused_variables = api::LintLevel::kWarning;
+                        transform_opts->lint_unused_parameters = api::LintLevel::kWarning;
+                    }
+                } else {
+                    std::string note = "Valid check names are \"undefined\" and \"unused\".";
+                    if (auto suggestion = SuggestLintCheck(check); !suggestion.empty()) {
+                        note = "Did you mean \"" + suggestion + "\"? " + note;
+                    }
+                    return MakeErrorWithNote(
+                        "Invalid lint check " + helpers::QuoteSingle(check, true) + " in " + helpers::QuoteSingle(arg, true),
+                        note);
+                }
+            }
+            continue;
+        }
+        if (arg.starts_with("--lint-level=")) {
+            auto value = arg.substr(std::string_view("--lint-level=").size());
+            auto eq = value.find('=');
+            if (eq == std::string::npos) {
+                return MakeErrorWithNote(
+                    "Missing \"=\" in " + helpers::QuoteSingle(arg, true),
+                    "Use \"--lint-level=<check>=<level>\", for example \"--lint-level=undefined=warning\".");
+            }
+            std::string check = value.substr(0, eq);
+            api::LintLevel level;
+            if (auto err = parseLintLevel(value.substr(eq + 1), arg, level)) return err;
+            if (check == "undefined") {
+                if (build_opts) build_opts->lint_undefined_variables = level;
+                else transform_opts->lint_undefined_variables = level;
+            } else if (check == "unused") {
+                if (build_opts) {
+                    build_opts->lint_unused_variables = level;
+                    build_opts->lint_unused_parameters = level;
+                } else {
+                    transform_opts->lint_unused_variables = level;
+                    transform_opts->lint_unused_parameters = level;
+                }
+            } else if (check == "unused-variable" || check == "unused-variables") {
+                if (build_opts) build_opts->lint_unused_variables = level;
+                else transform_opts->lint_unused_variables = level;
+            } else if (check == "unused-parameter" || check == "unused-parameters") {
+                if (build_opts) build_opts->lint_unused_parameters = level;
+                else transform_opts->lint_unused_parameters = level;
+            } else {
+                std::string note = "Valid check names are \"undefined\", \"unused\", \"unused-variable\", or \"unused-parameter\".";
+                if (auto suggestion = SuggestLintCheck(check); !suggestion.empty()) {
+                    note = "Did you mean \"" + suggestion + "\"? " + note;
+                }
+                return MakeErrorWithNote(
+                    "Invalid lint check " + helpers::QuoteSingle(check, true) + " in " + helpers::QuoteSingle(arg, true),
+                    note);
+            }
+            continue;
+        }
         if (arg.starts_with("--log-level=")) {
             auto value = arg.substr(std::string_view("--log-level=").size());
             api::LogLevel ll;
@@ -1138,7 +1240,7 @@ std::optional<ErrorWithNote> parseOptionsImpl(
                 "cors-origin", "drop-labels", "entry-names", "exports", "footer", "format",
                 "global-name", "ignore-annotations", "jsx-factory", "jsx-fragment",
                 "jsx-import-source", "jsx", "keep-names", "keyfile", "legal-comments",
-                "loader", "log-level", "log-limit", "main-fields", "mangle-cache",
+                "lint", "lint-level", "loader", "log-level", "log-limit", "main-fields", "mangle-cache",
                 "mangle-props", "mangle-quoted", "metafile", "minify-html",
                 "minify-identifiers",
                 "minify-syntax", "minify-whitespace", "minify", "name", "outbase",

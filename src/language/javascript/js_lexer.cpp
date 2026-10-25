@@ -3225,8 +3225,6 @@ namespace guchho::javascript {
 
     // Reports a lexer error with a suggested fix attached to the error message.
     void Lexer::addRangeErrorWithSuggestion(logger::Range r, const std::string& text, const std::string& suggestion) {
-        bool has_pending = !pending_fixes_.empty() || !pending_suggestion_.empty();
-
         // Avoid duplicate errors at the same source location
         if (r.loc.start == prev_error_loc.start) {
             ClearPendingFixes();

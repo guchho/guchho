@@ -1099,9 +1099,15 @@ namespace guchho::javascript {
     //
     // If neither condition holds, a semicolon is expected and an error is reported.
     void Lexer::ExpectOrInsertSemicolon() {
-        if (token == T::kSemicolon ||
-            (!has_newline_before && token != T::kCloseBrace && token != T::kEndOfFile)) {
-            Expect(T::kSemicolon);
+        if (token == T::kSemicolon) {
+            Next();
+        } else if (!has_newline_before && token != T::kCloseBrace && token != T::kEndOfFile) {
+            if (prev_token_was_await_keyword) {
+                ExpectedString("\";\"");
+            }
+            addRangeErrorWithSuggestion(Range(),
+                logger::FormatMsg(logger::MsgCat::kJS_ExpectedSemicolonAfterStatement), ";");
+            throw LexerPanic{};
         }
     }
 
@@ -2149,7 +2155,8 @@ namespace guchho::javascript {
                         break;
 
                     case -1:
-                        addRangeError(logger::Range{logger::Loc{static_cast<int32_t>(end)}}, logger::FormatMsg(logger::MsgCat::kJS_UnterminatedStringLiteral));
+                        addRangeError(logger::Range{logger::Loc{static_cast<int32_t>(end)}},
+                            logger::FormatMsg(quote == '`' ? logger::MsgCat::kJS_UnterminatedTemplateLiteral : logger::MsgCat::kJS_UnterminatedStringLiteral));
                         throw LexerPanic{};
 
                         needs_slow_path = true;

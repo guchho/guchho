@@ -21,6 +21,7 @@
 #include <span>
 #include <string>
 #include <tuple>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -113,6 +114,9 @@ namespace guchho::javascript {
             this->ts.Config.VerbatimModuleSyntax == other.ts.Config.VerbatimModuleSyntax &&
             this->ts.Parse == other.ts.Parse &&
             this->ts.NoAmbiguousLessThan == other.ts.NoAmbiguousLessThan &&
+            this->lint.UndefinedVariables == other.lint.UndefinedVariables &&
+            this->lint.UnusedVariables == other.lint.UnusedVariables &&
+            this->lint.UnusedParameters == other.lint.UnusedParameters &&
             this->mode == other.mode &&
             this->platform == other.platform &&
             this->outputFormat == other.outputFormat &&
@@ -160,6 +164,7 @@ namespace guchho::javascript {
         result.optionsThatSupportStructuralEquality.unsupportedJSFeatureOverridesMask = options->UnsupportedJSFeatureOverridesMask;
         result.optionsThatSupportStructuralEquality.originalTargetEnv = options->OriginalTargetEnv;
         result.optionsThatSupportStructuralEquality.ts = options->TS;
+        result.optionsThatSupportStructuralEquality.lint = options->Lint;
         result.optionsThatSupportStructuralEquality.mode = options->BuildMode;
         result.optionsThatSupportStructuralEquality.platform = options->OutputPlatform;
         result.optionsThatSupportStructuralEquality.outputFormat = options->OutputFormat;
@@ -1987,6 +1992,387 @@ namespace guchho::javascript {
     // 9. Analyze cross-part symbol dependencies for tree shaking
     // 10. Determine module type (ESM vs CommonJS)
     // 11. Package everything into the final AST struct
+    void Parser::lintUndefinedVariables() {
+        config::LintLevel level = this->options.optionsThatSupportStructuralEquality.lint.UndefinedVariables;
+        if (level == config::LintLevel::kOff) {
+            return;
+        }
+
+        // Files inside "node_modules" are third-party code. The parser already
+        // suppresses heuristic warnings there, so lint diagnostics follow the
+        // same policy instead of flooding builds with findings the user cannot
+        // act on.
+        if (this->suppressWarningsAboutWeirdCode) {
+            return;
+        }
+
+        logger::MsgKind kind = level == config::LintLevel::kError
+            ? logger::MsgKind::kError
+            : logger::MsgKind::kWarning;
+
+        // The processed define tables always contain every known global (with a
+        // null expression), so only entries the user actually configured count
+        // as definitions here. Platform filtering happens separately below.
+        auto hasUserDefine = [&](std::string_view name) {
+            if (this->options.defines == nullptr) {
+                return false;
+            }
+            auto it = this->options.defines->IdentifierDefines.find(std::string(name));
+            if (it != this->options.defines->IdentifierDefines.end() &&
+                it->second.DefineExprData != nullptr) {
+                return true;
+            }
+            for (const auto &entry : this->options.defines->DotDefines) {
+                for (const config::DefineData &data : entry.second) {
+                    if (data.DefineExprData != nullptr && !data.KeyParts.empty() &&
+                        data.KeyParts.front() == name) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+
+        auto hasDirectEval = [](Scope *scope) {
+            for (Scope *s = scope; s != nullptr; s = s->parent) {
+                if (s->contains_direct_eval) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        auto distance = [](std::string_view a, std::string_view b) {
+            std::vector<size_t> prev(b.size() + 1), curr(b.size() + 1);
+            for (size_t j = 0; j <= b.size(); ++j) prev[j] = j;
+            for (size_t i = 1; i <= a.size(); ++i) {
+                curr[0] = i;
+                for (size_t j = 1; j <= b.size(); ++j) {
+                    size_t cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                    curr[j] = std::min({prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost});
+                }
+                std::swap(prev, curr);
+            }
+            return prev[b.size()];
+        };
+
+        std::unordered_set<int32_t> seen;
+        static const char *commonGlobals[] = {
+            "Array", "Boolean", "Buffer", "Date", "Error", "JSON", "Map",
+            "Math", "Number", "Object", "Promise", "Reflect", "RegExp",
+            "Set", "String", "Symbol", "URL", "WeakMap", "WeakSet", "console",
+            "document", "fetch", "globalThis", "process", "setTimeout", "window",
+        };
+
+        for (const SourceReference &reference : this->sourceReferences) {
+            if (reference.mode != SourceReferenceMode::kRead || reference.is_inside_with_scope) {
+                continue;
+            }
+            if (reference.loc.start < 0 || !seen.insert(reference.loc.start).second) {
+                continue;
+            }
+
+            compiler::Symbol &symbol = this->symbols[reference.ref.inner_index];
+            if (symbol.kind != compiler::SymbolKind::kUnbound) {
+                continue;
+            }
+            if (hasDirectEval(reference.scope)) {
+                continue;
+            }
+            if (hasUserDefine(reference.name)) {
+                continue;
+            }
+            if (config::IsKnownGlobalName(reference.name,
+                    this->options.optionsThatSupportStructuralEquality.platform)) {
+                continue;
+            }
+
+            size_t limit = reference.name.size() < 5 ? 1 : 2;
+            size_t bestDistance = std::string::npos;
+            bool tie = false;
+            std::string suggestion;
+
+            auto consider = [&](std::string_view candidate) {
+                if (candidate.empty() || candidate == reference.name) {
+                    return;
+                }
+                // A candidate whose length differs by more than the edit budget
+                // can never be within the limit, so skip the distance matrix.
+                size_t lengthDelta = candidate.size() > reference.name.size()
+                    ? candidate.size() - reference.name.size()
+                    : reference.name.size() - candidate.size();
+                if (lengthDelta > limit) {
+                    return;
+                }
+                size_t d = distance(reference.name, candidate);
+                if (d < bestDistance) {
+                    bestDistance = d;
+                    suggestion = std::string(candidate);
+                    tie = false;
+                } else if (d == bestDistance) {
+                    tie = true;
+                }
+            };
+
+            for (Scope *scope = reference.scope; scope != nullptr; scope = scope->parent) {
+                for (const auto &entry : scope->members) {
+                    compiler::Symbol &candidate = this->symbols[entry.second.ref.inner_index];
+                    // Only suggest real declarations. The module scope also
+                    // caches unresolved names, and generated temporaries are not
+                    // meaningful replacements.
+                    if (candidate.kind != compiler::SymbolKind::kUnbound &&
+                        candidate.kind != compiler::SymbolKind::kMangledProp &&
+                        entry.second.loc.start >= 0) {
+                        consider(entry.first);
+                    }
+                }
+            }
+            for (const char *candidate : commonGlobals) {
+                if (config::IsKnownGlobalName(candidate,
+                        this->options.optionsThatSupportStructuralEquality.platform)) {
+                    consider(candidate);
+                }
+            }
+
+            if (tie || bestDistance > limit) {
+                suggestion.clear();
+            }
+
+            std::string text = logger::FormatMsg(logger::MsgCat::kJS_UndefinedVariable, reference.name);
+            std::vector<logger::Fix> fixes;
+            if (!suggestion.empty()) {
+                text += " " + logger::FormatMsg(logger::MsgCat::kJS_DidYouMeanSuggestion, suggestion);
+                fixes.push_back(logger::Fix{
+                    RangeOfIdentifier(this->source, reference.loc),
+                    suggestion,
+                    logger::FixSafety::kRequiresJudgment,
+                    "Replace with the visible binding \"" + suggestion + "\"",
+                });
+            }
+
+            this->log.AddIDWithFixes(logger::MsgID::kJS_UndefinedVariable, kind,
+                &this->tracker, RangeOfIdentifier(this->source, reference.loc), text, fixes);
+        }
+    }
+
+    void Parser::lintUnusedVariables() {
+        const config::LintOptions &lint = this->options.optionsThatSupportStructuralEquality.lint;
+        const bool reportVariables = lint.UnusedVariables != config::LintLevel::kOff;
+        const bool reportParameters = lint.UnusedParameters != config::LintLevel::kOff;
+        if (!reportVariables && !reportParameters) {
+            return;
+        }
+        if (this->suppressWarningsAboutWeirdCode || this->moduleScope == nullptr) {
+            return;
+        }
+
+        // Dynamic name lookup makes it impossible to know whether a binding is
+        // really unused, so stay silent instead of risking a false positive.
+        {
+            std::vector<Scope *> stack{this->moduleScope};
+            while (!stack.empty()) {
+                Scope *scope = stack.back();
+                stack.pop_back();
+                if (scope->kind == ScopeKind::kWith || scope->contains_direct_eval) {
+                    return;
+                }
+                for (Scope *child : scope->children) {
+                    stack.push_back(child);
+                }
+            }
+        }
+
+        // Count real source references. This deliberately does not use
+        // Symbol::use_count_estimate, which is mutated by optimization passes
+        // such as import cleanup, constant folding, and name mangling.
+        std::unordered_map<uint32_t, uint32_t> useCounts;
+        for (const SourceReference &reference : this->sourceReferences) {
+            if (reference.ref.source_index == 0) {
+                useCounts[reference.ref.inner_index]++;
+            }
+        }
+
+        auto follow = [&](compiler::Ref ref) {
+            for (int i = 0; i < 64 && ref.source_index == 0; i++) {
+                compiler::Ref link = this->symbols[ref.inner_index].link;
+                if (link == compiler::kInvalidRef) {
+                    break;
+                }
+                ref = link;
+            }
+            return ref;
+        };
+
+        auto isUsed = [&](compiler::Ref ref) {
+            std::unordered_set<uint32_t> visited;
+            for (int i = 0; i < 64 && ref.source_index == 0; i++) {
+                if (!visited.insert(ref.inner_index).second) {
+                    break;
+                }
+                if (useCounts.count(ref.inner_index) != 0) {
+                    return true;
+                }
+                if (this->options.optionsThatSupportStructuralEquality.ts.Parse &&
+                    ref.inner_index < this->tsUseCounts.size() &&
+                    this->tsUseCounts[ref.inner_index] != 0) {
+                    return true;
+                }
+                compiler::Ref link = this->symbols[ref.inner_index].link;
+                if (link == compiler::kInvalidRef) {
+                    break;
+                }
+                ref = link;
+            }
+            return false;
+        };
+
+        std::unordered_set<uint32_t> exportedRefs;
+        for (const auto &entry : this->namedExports) {
+            compiler::Ref ref = follow(entry.second.ref);
+            if (ref.source_index == 0) {
+                exportedRefs.insert(ref.inner_index);
+            }
+        }
+
+        auto isDeclarationKind = [](compiler::SymbolKind kind) {
+            switch (kind) {
+            case compiler::SymbolKind::kHoisted:
+            case compiler::SymbolKind::kHoistedFunction:
+            case compiler::SymbolKind::kGeneratorOrAsyncFunction:
+            case compiler::SymbolKind::kConst:
+            case compiler::SymbolKind::kClass:
+            case compiler::SymbolKind::kCatchIdentifier:
+            case compiler::SymbolKind::kImport:
+            case compiler::SymbolKind::kOther:
+                return true;
+            default:
+                return false;
+            }
+        };
+
+        struct Finding {
+            logger::Loc loc;
+            std::string name;
+            bool isParameter;
+        };
+        std::vector<Finding> findings;
+        std::unordered_set<uint32_t> reported;
+        std::unordered_set<uint32_t> parameterRefs;
+
+        auto walk = [&](auto &&self, Scope *scope) -> void {
+            const bool isFunctionArgs = scope->kind == ScopeKind::kFunctionArgs;
+            const bool isModule = scope == this->moduleScope;
+
+            // Function parameters are copied into the function body scope during
+            // parsing. Record them first so the copies are not reported twice
+            // (and so they obey the parameter-specific policy).
+            if (isFunctionArgs) {
+                for (const auto &entry : scope->members) {
+                    if (entry.second.ref.source_index == 0) {
+                        parameterRefs.insert(entry.second.ref.inner_index);
+                    }
+                }
+            }
+
+            bool reportScope = true;
+            if (isModule && !this->isFileConsideredESM) {
+                // Top-level script bindings are externally observable.
+                reportScope = false;
+            }
+            if (isFunctionArgs && !reportParameters) {
+                reportScope = false;
+            }
+
+            if (reportScope) {
+                std::unordered_set<uint32_t> generatedRefs;
+                for (compiler::Ref ref : scope->generated) {
+                    if (ref.source_index == 0) {
+                        generatedRefs.insert(ref.inner_index);
+                    }
+                }
+                for (const ScopeMember &member : scope->replaced) {
+                    if (member.ref.source_index == 0) {
+                        generatedRefs.insert(member.ref.inner_index);
+                    }
+                }
+
+                for (const auto &entry : scope->members) {
+                    compiler::Ref ref = entry.second.ref;
+                    if (ref.source_index != 0) {
+                        continue;
+                    }
+                    if (!isFunctionArgs && parameterRefs.count(ref.inner_index) != 0) {
+                        continue;
+                    }
+                    if (generatedRefs.count(ref.inner_index) != 0) {
+                        continue;
+                    }
+
+                    compiler::Symbol &symbol = this->symbols[ref.inner_index];
+                    if (!isDeclarationKind(symbol.kind)) {
+                        continue;
+                    }
+                    if (symbol.original_name == "arguments" ||
+                        symbol.original_name == "_this" ||
+                        symbol.original_name == "_arguments") {
+                        continue;
+                    }
+                    if (entry.second.loc.start < 0) {
+                        continue;
+                    }
+                    // Annex B sloppy-mode block functions keep a second symbol
+                    // for references outside the block. Treat them as used to
+                    // avoid a false positive.
+                    if (this->hoistedRefForSloppyModeBlockFn.count(ref) != 0) {
+                        continue;
+                    }
+                    if (isUsed(ref)) {
+                        continue;
+                    }
+                    compiler::Ref followed = follow(ref);
+                    if (followed.source_index == 0 && exportedRefs.count(followed.inner_index) != 0) {
+                        continue;
+                    }
+                    if (!reported.insert(ref.inner_index).second) {
+                        continue;
+                    }
+
+                    findings.push_back(Finding{entry.second.loc, symbol.original_name, isFunctionArgs});
+                }
+            }
+
+            for (Scope *child : scope->children) {
+                self(self, child);
+            }
+        };
+        walk(walk, this->moduleScope);
+
+        std::sort(findings.begin(), findings.end(), [](const Finding &a, const Finding &b) {
+            if (a.loc.start != b.loc.start) {
+                return a.loc.start < b.loc.start;
+            }
+            return a.name < b.name;
+        });
+
+        for (const Finding &finding : findings) {
+            config::LintLevel level = finding.isParameter ? lint.UnusedParameters : lint.UnusedVariables;
+            if (level == config::LintLevel::kOff) {
+                continue;
+            }
+            logger::MsgKind kind = level == config::LintLevel::kError
+                ? logger::MsgKind::kError
+                : logger::MsgKind::kWarning;
+            logger::MsgID id = finding.isParameter
+                ? logger::MsgID::kJS_UnusedParameter
+                : logger::MsgID::kJS_UnusedVariable;
+            logger::MsgCat cat = finding.isParameter
+                ? logger::MsgCat::kJS_UnusedParameter
+                : logger::MsgCat::kJS_UnusedVariable;
+            this->log.AddID(id, kind, &this->tracker, RangeOfIdentifier(this->source, finding.loc),
+                logger::FormatMsg(cat, finding.name));
+        }
+    }
+
     AST Parser::toAST(std::vector<Part> before, std::vector<Part> parts, std::vector<Part> after, const std::string &hashbang, std::vector<std::string> directives) {
         // Insert an import statement for any runtime imports we generated
         if (!this->runtimeImports.empty()) {
@@ -2589,7 +2975,13 @@ namespace guchho::javascript {
             // Pop the module scope to apply the "ContainsDirectEval" rules
             p->popScope();
 
+            p->lintUndefinedVariables();
+
             result = p->toAST(before, parts, after, hashbang, directives);
+
+            // Unused-binding analysis needs the export table, which is populated
+            // while toAST() scans imports and exports.
+            p->lintUnusedVariables();
             result.source_map_comment = p->lexer.source_mapping_url;
         } catch (const LexerPanic &) {
             ok = false;

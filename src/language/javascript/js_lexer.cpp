@@ -1041,6 +1041,19 @@ namespace guchho::javascript {
             suggestion = std::string(text.substr(1, text.size() - 2));
         }
 
+        // A missing closing delimiter is safe to insert before the token that
+        // interrupted the construct. Keep this restricted to delimiters that
+        // unambiguously belong at the current position.
+        if (pending_fixes_.empty() && start < static_cast<int>(source_.contents.size()) &&
+            (suggestion == ")" || suggestion == "]" || suggestion == "}")) {
+            pending_fixes_.push_back(logger::Fix{
+                logger::Range{logger::Loc{static_cast<int32_t>(start)}, 0},
+                suggestion,
+                logger::FixSafety::kSafe,
+                logger::FormatMsg(logger::MsgCat::kJS_ExpectedInsertionSuggestion, suggestion, found),
+            });
+        }
+
         addRangeErrorWithSuggestion(Range(),
             logger::FormatMsg(logger::MsgCat::kJS_ExpectedWithSuffix, std::string(text), error_suffix, found), suggestion);
         throw LexerPanic{};
@@ -3163,50 +3176,98 @@ namespace guchho::javascript {
         current += width;
     }
 
+    void Lexer::SetPendingFixes(std::vector<logger::Fix> fixes, std::string suggestion) {
+        pending_fixes_ = std::move(fixes);
+        pending_suggestion_ = std::move(suggestion);
+    }
+
+    void Lexer::ClearPendingFixes() {
+        pending_fixes_.clear();
+        pending_suggestion_.clear();
+    }
+
     // Reports a lexer error at the given range, suppressing duplicate errors at
     // the same location.
     void Lexer::addRangeError(logger::Range r, const std::string& text) {
+        bool has_pending = !pending_fixes_.empty() || !pending_suggestion_.empty();
+
         // Avoid duplicate errors at the same source location
         if (r.loc.start == prev_error_loc.start) {
+            ClearPendingFixes();
             return;
         }
         prev_error_loc = r.loc;
 
         if (!is_log_disabled) {
-            log_.AddError(&tracker_, r, text);
+            if (has_pending) {
+                logger::MsgData data = tracker_.MakeMsgData(r, text);
+                if (data.location && !pending_suggestion_.empty()) {
+                    data.location->suggestion = pending_suggestion_;
+                }
+                data.fixes = std::move(pending_fixes_);
+                logger::Msg msg;
+                msg.kind = logger::MsgKind::kError;
+                msg.data = std::move(data);
+                log_.add_msg(std::move(msg));
+            } else {
+                log_.AddError(&tracker_, r, text);
+            }
         }
+        ClearPendingFixes();
     }
 
     // Reports a lexer error with a suggested fix attached to the error message.
     void Lexer::addRangeErrorWithSuggestion(logger::Range r, const std::string& text, const std::string& suggestion) {
+        bool has_pending = !pending_fixes_.empty() || !pending_suggestion_.empty();
+
         // Avoid duplicate errors at the same source location
         if (r.loc.start == prev_error_loc.start) {
+            ClearPendingFixes();
             return;
         }
         prev_error_loc = r.loc;
 
         if (!is_log_disabled) {
-             logger::MsgData data = tracker_.MakeMsgData(r, text);
+            logger::MsgData data = tracker_.MakeMsgData(r, text);
             if (data.location) {
-                data.location->suggestion = suggestion;
+                data.location->suggestion = pending_suggestion_.empty() ? suggestion : pending_suggestion_;
             }
+            data.fixes = std::move(pending_fixes_);
             logger::Msg msg;
             msg.kind = logger::MsgKind::kError;
             msg.data = std::move(data);
             log_.add_msg(std::move(msg));
         }
+        ClearPendingFixes();
     }
 
     void Lexer::AddRangeErrorWithNotes(logger::Range r, const std::string& text, const std::vector< logger::MsgData>& notes) {
+        bool has_pending = !pending_fixes_.empty() || !pending_suggestion_.empty();
+
         // Avoid duplicate errors at the same source location
         if (r.loc.start == prev_error_loc.start) {
+            ClearPendingFixes();
             return;
         }
         prev_error_loc = r.loc;
 
         if (!is_log_disabled) {
-            log_.AddErrorWithNotes(&tracker_, r, text, notes);
+            if (has_pending) {
+                logger::MsgData data = tracker_.MakeMsgData(r, text);
+                if (data.location && !pending_suggestion_.empty()) {
+                    data.location->suggestion = pending_suggestion_;
+                }
+                data.fixes = std::move(pending_fixes_);
+                logger::Msg msg;
+                msg.kind = logger::MsgKind::kError;
+                msg.notes = notes;
+                msg.data = std::move(data);
+                log_.add_msg(std::move(msg));
+            } else {
+                log_.AddErrorWithNotes(&tracker_, r, text, notes);
+            }
         }
+        ClearPendingFixes();
     }
 
     // Processes a comment's text to detect special annotations:

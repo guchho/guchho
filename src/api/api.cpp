@@ -626,6 +626,24 @@ static bool validate_tree_shaking(api::TreeShaking value, bool bundle, api::Form
     }
 }
 
+// Maps a public lint level onto the internal one. An out-of-range enum value
+// cannot come from the CLI, but an embedder can cast one, so it is reported
+// rather than silently treated as "off".
+static config::LintLevel validate_lint_level(logger::Log& log, api::LintLevel value, const char* check) {
+    switch (value) {
+        case api::LintLevel::kOff:
+            return config::LintLevel::kOff;
+        case api::LintLevel::kWarning:
+            return config::LintLevel::kWarning;
+        case api::LintLevel::kError:
+            return config::LintLevel::kError;
+        default:
+            log.AddError(nullptr, logger::Range{},
+                std::string("Invalid lint level for \"") + check + "\"");
+            return config::LintLevel::kOff;
+    }
+}
+
 // Maps a public loader onto the internal one. The public "no loader" value is
 // kept distinct from the public "use the default" value on purpose: the first
 // means the caller has said nothing and the resolver will guess from the file
@@ -3236,6 +3254,9 @@ validate_build_options(api::BuildOptions& build_opts, logger::Log& log, filesyst
     options.ASCIIOnly = validate_ascii_only(build_opts.charset);
     options.IgnoreDCEAnnotations = build_opts.ignore_annotations;
     options.TreeShaking = validate_tree_shaking(build_opts.tree_shaking, build_opts.bundle, build_opts.format);
+    options.Lint.UndefinedVariables = validate_lint_level(log, build_opts.lint_undefined_variables, "undefined variables");
+    options.Lint.UnusedVariables = validate_lint_level(log, build_opts.lint_unused_variables, "unused variables");
+    options.Lint.UnusedParameters = validate_lint_level(log, build_opts.lint_unused_parameters, "unused parameters");
     auto global_name = validate_global_name(log, build_opts.global_name, "(global name)");
     options.GlobalName = std::move(global_name);
     options.Amd.auto_id = build_opts.amd_auto_id;
@@ -3565,6 +3586,9 @@ api::TransformResult transform_impl(const std::string& input,
     options.ASCIIOnly = validate_ascii_only(opts.charset);
     options.IgnoreDCEAnnotations = opts.ignore_annotations;
     options.TreeShaking = validate_tree_shaking(opts.tree_shaking, false, opts.format);
+    options.Lint.UndefinedVariables = validate_lint_level(log, opts.lint_undefined_variables, "undefined variables");
+    options.Lint.UnusedVariables = validate_lint_level(log, opts.lint_unused_variables, "unused variables");
+    options.Lint.UnusedParameters = validate_lint_level(log, opts.lint_unused_parameters, "unused parameters");
     options.AbsOutputFile = opts.sourcefile + "-out";
     options.KeepNames = opts.keep_names;
     options.CodePathStyle = extract_path_style(opts.abs_paths, api::AbsPathsFlags::kCodeAbsPath);

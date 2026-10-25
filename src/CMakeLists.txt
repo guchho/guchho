@@ -390,6 +390,40 @@ guchho_enable_sanitizers(guchho_bundler)
 
 
 # ============================================================
+# Lint library (the dedicated lint engine)
+# ============================================================
+
+add_library(guchho_lint STATIC)
+
+target_sources(guchho_lint
+    PRIVATE
+        lint/lint_config.cpp
+        lint/lint_discovery.cpp
+        lint/lint_engine.cpp
+        lint/lint_output.cpp
+        lint/lint_project.cpp
+        lint/lint_rules.cpp
+)
+
+target_include_directories(guchho_lint
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(guchho_lint
+    PUBLIC
+        guchho_common
+        guchho_js
+        guchho_cache
+        guchho_resolver
+        guchho_bundler
+)
+
+guchho_set_warnings(guchho_lint)
+guchho_enable_sanitizers(guchho_lint)
+
+
+# ============================================================
 # API library (public one-shot / context / server entry points)
 # ============================================================
 
@@ -468,6 +502,7 @@ set(GUCHHO_CLI_SOURCES
     cli/cli_compile.cpp
     cli/cli_watch.cpp
     cli/cli_mangle.cpp
+    cli/cli_lint.cpp
     cli/cli_pack.cpp
     cli/cli_unpack.cpp
     service/json.cpp
@@ -504,6 +539,7 @@ target_include_directories(guchho_cli
 target_link_libraries(guchho_cli
     PUBLIC
         guchho_api
+        guchho_lint
 )
 
 # The version the command line reports, taken from the project() version at the

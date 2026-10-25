@@ -23,6 +23,15 @@ const Msg* FindMessageWithFixes(const std::vector<Msg>& msgs) {
     return nullptr;
 }
 
+bool HasMessageContaining(const std::vector<Msg>& msgs, const std::string& text) {
+    for (const Msg& msg : msgs) {
+        if (msg.data.text.find(text) != std::string::npos) {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 TEST(JsDiagnosticsTest, KeywordTypoAttachesReplacementFix) {
@@ -130,6 +139,64 @@ TEST(JsDiagnosticsTest, MultilineKeywordTypoFixKeepsOriginalRange) {
     ASSERT_EQ(msg->data.fixes.size(), 1u);
     EXPECT_EQ(msg->data.fixes[0].range.loc.start, 0);
     EXPECT_EQ(msg->data.fixes[0].range.len, 6);
+}
+
+TEST(JsDiagnosticsTest, UnterminatedStringExplainsExpectedQuote) {
+    auto msgs = MessagesFor("let x = \"abc");
+    EXPECT_TRUE(HasMessageContaining(msgs, "Unterminated string literal. Expected a closing quote."));
+}
+
+TEST(JsDiagnosticsTest, UnterminatedTemplateExplainsExpectedBacktick) {
+    auto msgs = MessagesFor("let x = `abc");
+    EXPECT_TRUE(HasMessageContaining(msgs, "Unterminated template literal. Expected a closing backtick."));
+}
+
+TEST(JsDiagnosticsTest, UnterminatedRegexpExplainsExpectedSlash) {
+    auto msgs = MessagesFor("let x = /abc");
+    EXPECT_TRUE(HasMessageContaining(msgs, "Unterminated regular expression. Expected a closing \"/\"."));
+}
+
+TEST(JsDiagnosticsTest, UnexpectedEndOfFileExplainsIncompleteInput) {
+    auto msgs = MessagesFor("let x = 0x");
+    EXPECT_TRUE(HasMessageContaining(msgs, "Unexpected end of file. The statement or expression is incomplete."));
+}
+
+TEST(JsDiagnosticsTest, InvalidTokenUsesClearWording) {
+    auto msgs = MessagesFor("let x = 1x;");
+    EXPECT_TRUE(HasMessageContaining(msgs, "Invalid or unexpected token \"x\""));
+}
+
+TEST(JsDiagnosticsTest, MissingSemicolonExplainsStatementTerminator) {
+    auto msgs = MessagesFor("foo bar;");
+    EXPECT_TRUE(HasMessageContaining(msgs, "Expected \";\" after this statement or declaration."));
+}
+
+TEST(JsDiagnosticsTest, DuplicateDeclarationMentionsScope) {
+    auto msgs = MessagesFor("let x; let x;");
+    EXPECT_TRUE(HasMessageContaining(msgs, "\"x\" has already been declared in this scope"));
+}
+
+TEST(JsDiagnosticsTest, InvalidAssignmentTargetExplainsExpectedOperand) {
+    auto msgs = MessagesFor("x + 1 = 2;");
+    EXPECT_TRUE(HasMessageContaining(msgs, "Invalid assignment target. Expected a variable or assignable expression."));
+}
+
+TEST(JsDiagnosticsTest, ConstInitializerMessageIsSpecific) {
+    auto msgs = MessagesFor("const x;");
+    EXPECT_TRUE(HasMessageContaining(msgs, "Missing initializer in const declaration for \"x\""));
+}
+
+TEST(JsDiagnosticsTest, MultilineMissingSemicolonIsStillReported) {
+    auto msgs = MessagesFor("if (ready) {\n  foo bar\n}");
+    EXPECT_TRUE(HasMessageContaining(msgs, "Expected \";\" after this statement or declaration."));
+}
+
+TEST(JsDiagnosticsTest, ValidStringAndTemplateProduceNoMessages) {
+    EXPECT_TRUE(MessagesFor("let a = \"ok\";\nlet b = `ok`;").empty());
+}
+
+TEST(JsDiagnosticsTest, NewlineStillAllowsSemicolonInsertion) {
+    EXPECT_TRUE(MessagesFor("foo\nbar").empty());
 }
 
 TEST(JsDiagnosticsTest, ParseDoesNotModifySourceBuffer) {

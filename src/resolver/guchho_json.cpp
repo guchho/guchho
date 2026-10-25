@@ -849,20 +849,20 @@ namespace guchho::resolver {
                 } else if (auto* array =
                                std::get_if<std::shared_ptr<javascript::EArray>>(&lint->first.data)) {
                     for (const auto& item : (*array)->items) {
-                        if (auto str = internal::GetString(item)) {
-                            apply_check(*str, config::LintLevel::kWarning, item);
+                        if (auto item_str = internal::GetString(item)) {
+                            apply_check(*item_str, config::LintLevel::kWarning, item);
                         }
                     }
                 } else if (auto* object =
                                std::get_if<std::shared_ptr<javascript::EObject>>(&lint->first.data)) {
                     for (const auto& p : (*object)->properties) {
                         std::string key = PropertyKeyText(p);
-                        if (auto str = internal::GetString(p.value_or_nil)) {
-                            if (auto level = ParseLintLevel(*str)) {
+                        if (auto property_str = internal::GetString(p.value_or_nil)) {
+                            if (auto level = ParseLintLevel(*property_str)) {
                                 apply_check(key, *level, p.value_or_nil);
                             } else {
                                 log.AddError(&tracker, source.RangeOfString(p.value_or_nil.loc),
-                                    "Invalid lint level \"" + *str + "\"");
+                                    "Invalid lint level \"" + *property_str + "\"");
                             }
                         }
                     }

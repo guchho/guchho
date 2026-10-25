@@ -44,8 +44,6 @@ config file, and the config file wins over the built-in defaults.
 | `--analyze` | off | Analyze bundle size. |
 | `--jsx=<mode>` | - | `transform`, `preserve`, `automatic`. |
 | `--tsconfig=<file>` | - | Path to `tsconfig.json`. |
-| `--lint=<checks>` | off | Enable checks: `undefined`, `unused`. Repeatable with commas. |
-| `--lint-level=<check>=<level>` | `warning` | Severity for one check: `off`, `warning`, `error`. |
 | `--log-level=<level>` | `info` | `verbose`, `debug`, `info`, `warning`, `error`, `silent`. |
 | `--color` / `--no-color` | auto | Force colour on or off. |
 | `--quiet` | off | Minimal output. |
@@ -60,13 +58,12 @@ name and a value.
 ```bash
 guchho build src/index.html --outdir=dist
 guchho build src/app.js --minify --sourcemap
-guchho build src/app.js --lint=undefined,unused
-guchho build src/app.js --lint=undefined --lint-level=undefined=error
 guchho build --watch
 ```
 
 ## See also
 
 - [Configuration: build](../config/build.md)
+- [`guchho lint`](lint.md)
 - [Bundling & splitting](../../guide/bundling-and-splitting.md)
 - [Minification](../../guide/minification.md)

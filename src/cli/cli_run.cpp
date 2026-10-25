@@ -183,6 +183,7 @@ Command detectCommand(const std::vector<std::string>& args, bool& has_entry) {
     if (first == "clean")  return Command::kClean;
     if (first == "info")   return Command::kInfo;
     if (first == "transform") return Command::kTransform;
+    if (first == "lint")   return Command::kLint;
     if (first == "pack") return Command::kPack;
     if (first == "unpack") return Command::kUnpack;
 
@@ -466,6 +467,8 @@ static int runImpl(const std::vector<std::string>& os_args,
     }
     case Command::kTransform:
         return runTransform(os_args);
+    case Command::kLint:
+        return runLint(os_args);
     case Command::kWatch: {
 #if defined(GUCHHO_WASM)
         return wasmUnsupported("watch", os_args);

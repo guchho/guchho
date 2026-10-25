@@ -1,6 +1,9 @@
 #include "guchho/config.hpp"
 #include "guchho/helpers.hpp"
 
+#include <string_view>
+#include <unordered_set>
+
 namespace guchho::config {
 
     namespace {
@@ -1017,5 +1020,59 @@ namespace guchho::config {
 
         return result;
     }
-    
+
+    bool IsKnownGlobalName(std::string_view name, Platform platform)
+    {
+        // The tree-shaking registry covers the browser and ECMAScript names.
+        // Node's runtime names are not in it because they are not useful for
+        // dead-code elimination, so they are listed separately here.
+        static const std::unordered_set<std::string_view> kNodeGlobals = {
+            "AbortController", "AbortSignal", "AggregateError", "Array",
+            "ArrayBuffer", "Atomics", "BigInt", "BigInt64Array",
+            "BigUint64Array", "Boolean", "Buffer", "DataView", "Date",
+            "decodeURI", "decodeURIComponent", "encodeURI",
+            "encodeURIComponent", "Error", "eval", "EvalError", "Event",
+            "EventTarget", "fetch", "FinalizationRegistry", "Float16Array",
+            "Float32Array", "Float64Array", "Function", "global",
+            "globalThis", "Infinity", "Int8Array", "Int16Array", "Int32Array",
+            "Intl", "isFinite", "isNaN", "JSON", "Map", "Math", "module",
+            "NaN", "Number", "Object", "parseFloat", "parseInt", "performance",
+            "process", "Promise", "Proxy", "RangeError", "ReferenceError",
+            "Reflect", "RegExp", "require", "Set", "SharedArrayBuffer",
+            "String", "Symbol", "SyntaxError", "TextDecoder", "TextEncoder",
+            "TypeError", "URIError", "URL", "URLSearchParams", "Uint8Array",
+            "Uint8ClampedArray", "Uint16Array", "Uint32Array", "undefined",
+            "WeakMap", "WeakRef", "WeakSet", "WebAssembly", "clearImmediate",
+            "clearInterval", "clearTimeout", "console", "queueMicrotask",
+            "setImmediate", "setInterval", "setTimeout", "__dirname",
+            "__filename", "exports",
+        };
+
+        static const std::unordered_set<std::string_view> kNodeOnly = {
+            "Buffer", "__dirname", "__filename", "clearImmediate", "exports",
+            "global", "module", "process", "require", "setImmediate",
+        };
+
+        // Flatten the dotted-path registry into the set of bare global names
+        // once so lint lookups stay O(1). Only single-element paths are bare
+        // globals; dotted paths are property chains such as "Math.PI".
+        static const std::unordered_set<std::string_view> kBrowserGlobals = [] {
+            std::unordered_set<std::string_view> result;
+            for (const auto& path : GetKnownGlobals()) {
+                if (path.size() == 1) {
+                    result.insert(path[0]);
+                }
+            }
+            return result;
+        }();
+
+        if (platform == Platform::kNode) {
+            return kNodeGlobals.count(name) != 0;
+        }
+        if (platform == Platform::kNeutral) {
+            return kNodeGlobals.count(name) != 0 && kNodeOnly.count(name) == 0;
+        }
+
+        return kBrowserGlobals.count(name) != 0;
+    }
 }

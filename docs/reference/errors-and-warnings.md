@@ -51,8 +51,8 @@ errors list, not the warnings list.
 
 ## Lint diagnostics
 
-Optional lint checks are disabled by default and can be enabled through
-`build.lint` or `--lint`. They report suspicious but syntactically valid code:
+Optional build-time lint checks are disabled by default and can be enabled
+through `build.lint`. They report suspicious but syntactically valid code:
 
 | ID | Default text |
 | --- | --- |
@@ -66,6 +66,10 @@ scopes, user defines and the configured output platform, and stays silent in
 `with` scopes and files containing direct `eval`. Unused-parameter reporting is
 off unless explicitly enabled. See the
 [build options reference](config/build.md#optional-lint-checks).
+
+The standalone [`guchho lint`](cli/lint.md) command reports a different set of
+rule IDs (`no-undef`, `no-unused-vars`, `eqeqeq`, …) with its own configuration
+and exit-code policy.
 
 ## See also
 

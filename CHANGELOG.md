@@ -8,6 +8,16 @@ All notable changes to Guchho. Newest first. Full release notes live in
 
 ### Added
 
+- Optional JavaScript lint checks, off by default: `undefined` reports
+  unresolved identifier reads and `unused` reports unreferenced local
+  bindings. Enable them with `build.lint` or `--lint`, set per-check severity
+  with `--lint-level`, and silence or promote individual findings through the
+  existing `log_override` mechanism. Unused parameters are a separate opt-in
+  check. Analysis is platform-aware and stays silent in `with` scopes and
+  files containing direct `eval`.
+- Context-aware JavaScript syntax diagnostics: misspelled keywords and missing
+  closing delimiters now carry structured suggestions while keeping the
+  existing fallback message text unchanged.
 - `guchho unpack` extracts zip, tar and tar.gz archives, with `--outdir`,
   `--format`, `--overwrite` and `--strip-components`. Absolute paths and `..`
   components are refused, and symlinks are skipped with a warning. Tar

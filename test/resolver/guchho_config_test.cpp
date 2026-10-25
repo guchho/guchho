@@ -1445,3 +1445,118 @@ TEST(GuchhoConfig, ArrayElementsHaveIndependentDefineTexts)
     EXPECT_EQ(result.builds[0].opts.DefineTexts.at("A"), std::string("1"));
     EXPECT_EQ(result.builds[1].opts.DefineTexts.at("B"), std::string("2"));
 }
+
+// ---------------------------------------------------------------------------
+// Optional lint checks
+// ---------------------------------------------------------------------------
+
+TEST(GuchhoConfig, LintBooleanEnablesEveryCheck)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json", "{\"build\":{\"lint\":true}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+    auto result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].opts.Lint.UndefinedVariables, config::LintLevel::kWarning);
+    EXPECT_EQ(result.builds[0].opts.Lint.UnusedVariables, config::LintLevel::kWarning);
+    EXPECT_EQ(result.builds[0].opts.Lint.UnusedParameters, config::LintLevel::kWarning);
+}
+
+TEST(GuchhoConfig, LintArrayEnablesOnlyNamedChecks)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json", "{\"build\":{\"lint\":[\"undefined\"]}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+    auto result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].opts.Lint.UndefinedVariables, config::LintLevel::kWarning);
+    EXPECT_EQ(result.builds[0].opts.Lint.UnusedVariables, config::LintLevel::kOff);
+    EXPECT_EQ(result.builds[0].opts.Lint.UnusedParameters, config::LintLevel::kOff);
+}
+
+TEST(GuchhoConfig, LintObjectAcceptsPerCheckLevels)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "{\"build\":{\"lint\":{\"undefined\":\"error\",\"unused\":\"warning\"}}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+    auto result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].opts.Lint.UndefinedVariables, config::LintLevel::kError);
+    EXPECT_EQ(result.builds[0].opts.Lint.UnusedVariables, config::LintLevel::kWarning);
+    EXPECT_EQ(result.builds[0].opts.Lint.UnusedParameters, config::LintLevel::kWarning);
+}
+
+TEST(GuchhoConfig, InvalidLintLevelIsReported)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json",
+               "{\"build\":{\"lint\":{\"undefined\":\"loud\"}}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+    auto result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].opts.Lint.UndefinedVariables, config::LintLevel::kOff);
+    EXPECT_NE(AllMessagesText(log).find("Invalid lint level"), std::string::npos);
+}
+
+TEST(GuchhoConfig, InvalidLintCheckIsReported)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json", "{\"build\":{\"lint\":[\"undefned\"]}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+    auto result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_NE(AllMessagesText(log).find("Invalid lint check"), std::string::npos);
+}
+
+TEST(GuchhoConfig, LintIsDisabledByDefault)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json", "{\"build\":{\"entry\":\"src/main.js\"}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+    auto result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].opts.Lint.UndefinedVariables, config::LintLevel::kOff);
+    EXPECT_EQ(result.builds[0].opts.Lint.UnusedVariables, config::LintLevel::kOff);
+    EXPECT_EQ(result.builds[0].opts.Lint.UnusedParameters, config::LintLevel::kOff);
+}
+
+TEST(GuchhoConfig, LintArrayEnablesUnusedOnly)
+{
+    TestFs fs;
+    fs.SetFile("/project/guchho.config.json", "{\"build\":{\"lint\":[\"unused\"]}}");
+
+    config::Options  opts;
+    cache::JSONCache json_cache;
+    logger::Log      log = NewLog();
+    auto result = resolver::LoadGuchhoConfig(log, json_cache, fs, opts, "/project");
+
+    ASSERT_EQ(result.builds.size(), size_t(1));
+    EXPECT_EQ(result.builds[0].opts.Lint.UndefinedVariables, config::LintLevel::kOff);
+    EXPECT_EQ(result.builds[0].opts.Lint.UnusedVariables, config::LintLevel::kWarning);
+    EXPECT_EQ(result.builds[0].opts.Lint.UnusedParameters, config::LintLevel::kWarning);
+}

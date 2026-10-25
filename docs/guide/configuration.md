@@ -78,6 +78,22 @@ export default {
 `lint: ['undefined']` enables just those checks. See the
 [build options reference](../reference/config/build.md#optional-lint-checks).
 
+The standalone linter uses a separate file, not this `build.lint` section:
+
+```js
+// guchho.lint.config.mjs
+export default {
+  include: ['src/**/*.{js,ts}'],
+  rules: {
+    'no-console': 'error',
+    'no-unused-vars': 'warn',
+  },
+}
+```
+
+It looks for `guchho.lint.config.js`, `.mjs`, `.cjs`, or `.json`, and `--config`
+can name one explicitly. See [`guchho lint`](../reference/cli/lint.md).
+
 `define` values are the JavaScript expression to substitute, written as a
 string: bare `false`, `true` and numbers need no quoting of their own, while
 string values carry their quotes inside the text (`__VERSION__: '"1.0.0"'`). A

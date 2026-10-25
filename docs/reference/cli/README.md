@@ -54,6 +54,14 @@ spelling of an option every command shares:
 | `--log-level=<level>` | `verbose`, `debug`, `info`, `warning`, `error`, `silent`. |
 | `--color` / `--no-color` | Force colour on or off. |
 
+## Lint flags
+
+Commands that build or transform JavaScript (`build`, `dev`, `watch` and
+`transform`) accept `--lint` and `--lint-level` to enable the optional lint
+checks. They are off by default; see
+[the build options reference](../config/build.md#optional-lint-checks) for the
+accepted values.
+
 ## Precedence
 
 An option set on the command line wins over the same option in a configuration

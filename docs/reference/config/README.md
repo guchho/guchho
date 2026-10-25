@@ -45,6 +45,10 @@ same option at both levels is refused rather than resolved.
 | `server` | [server.md](server.md) | Host, port, served directory, SPA fallback. |
 | `watch` | [watch.md](watch.md) | Rebuild delay and interval. |
 
+The standalone linter uses a separate `guchho.lint.config.*` file, documented in
+[`guchho lint`](../cli/lint.md). The `build.lint` section only controls the
+optional parser checks run during a build.
+
 ## See also
 
 - [Configuration guide](../../guide/configuration.md)

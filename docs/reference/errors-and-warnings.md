@@ -49,6 +49,24 @@ whatever a plugin put there, passed through untouched.
 A build with warnings is a build that worked; `result.success` reflects the
 errors list, not the warnings list.
 
+## Lint diagnostics
+
+Optional lint checks are disabled by default and can be enabled through
+`build.lint` or `--lint`. They report suspicious but syntactically valid code:
+
+| ID | Default text |
+| --- | --- |
+| `undefined-variable` | `"<name>" is not defined` |
+| `unused-variable` | `"<name>" is declared but never used` |
+| `unused-parameter` | `"<name>" is declared but never used` |
+
+Each ID can be silenced, promoted or demoted with the existing `log_override`
+configuration. Undefined-name analysis is best-effort: it understands lexical
+scopes, user defines and the configured output platform, and stays silent in
+`with` scopes and files containing direct `eval`. Unused-parameter reporting is
+off unless explicitly enabled. See the
+[build options reference](config/build.md#optional-lint-checks).
+
 ## See also
 
 - [Exit codes](exit-codes.md)

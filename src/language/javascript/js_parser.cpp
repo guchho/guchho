@@ -117,6 +117,7 @@ namespace guchho::javascript {
             this->lint.UndefinedVariables == other.lint.UndefinedVariables &&
             this->lint.UnusedVariables == other.lint.UnusedVariables &&
             this->lint.UnusedParameters == other.lint.UnusedParameters &&
+            this->lint.Globals == other.lint.Globals &&
             this->mode == other.mode &&
             this->platform == other.platform &&
             this->outputFormat == other.outputFormat &&
@@ -845,6 +846,16 @@ namespace guchho::javascript {
         // Allocate a new symbol
         compiler::Ref ref = this->newSymbol(kind, name);
 
+        const bool is_source_declaration = loc.start >= 0 && this->currentScope != nullptr &&
+            kind != compiler::SymbolKind::kArguments &&
+            kind != compiler::SymbolKind::kLabel &&
+            !compiler::SymbolKindIsPrivate(kind) &&
+            kind != compiler::SymbolKind::kMangledProp;
+        if (is_source_declaration) {
+            this->lintDeclarations.push_back(LintDeclaration{
+                name, loc, ref, this->currentScope, kind});
+        }
+
         // Check for a collision in the declaring scope
         auto existingIt = this->currentScope->members.find(name);
         if (existingIt != this->currentScope->members.end()) {
@@ -857,11 +868,19 @@ namespace guchho::javascript {
 
             case mergeKeepExisting:
                 ref = existingIt->second.ref;
+                if (loc.start >= 0 && existingIt->second.loc.start >= 0) {
+                    this->lintRedeclarations.push_back(LintRedeclaration{
+                        name, loc, existingIt->second.loc, this->currentScope, kind, symbol->kind});
+                }
                 break;
 
             case mergeReplaceWithNew:
                 symbol->link = ref;
                 this->currentScope->replaced.push_back(existingIt->second);
+                if (loc.start >= 0 && existingIt->second.loc.start >= 0) {
+                    this->lintRedeclarations.push_back(LintRedeclaration{
+                        name, loc, existingIt->second.loc, this->currentScope, kind, symbol->kind});
+                }
 
                 // If these are both functions, remove the overwritten declaration
                 if (this->options.optionsThatSupportStructuralEquality.minifySyntax && compiler::SymbolKindIsFunction(kind) && compiler::SymbolKindIsFunction(symbol->kind)) {
@@ -880,6 +899,10 @@ namespace guchho::javascript {
                 break;
 
             case mergeOverwriteWithNew:
+                if (loc.start >= 0 && existingIt->second.loc.start >= 0) {
+                    this->lintRedeclarations.push_back(LintRedeclaration{
+                        name, loc, existingIt->second.loc, this->currentScope, kind, symbol->kind});
+                }
                 break;
             }
         }
@@ -2086,6 +2109,9 @@ namespace guchho::javascript {
                     this->options.optionsThatSupportStructuralEquality.platform)) {
                 continue;
             }
+            if (this->options.optionsThatSupportStructuralEquality.lint.Globals.count(reference.name) != 0) {
+                continue;
+            }
 
             size_t limit = reference.name.size() < 5 ? 1 : 2;
             size_t bestDistance = std::string::npos;
@@ -2705,7 +2731,8 @@ namespace guchho::javascript {
     //   4. Inject file imports, handle using declarations
     //   5. Visit all parts (symbol binding, lowering)
     //   6. Pop module scope, assemble final AST
-    std::pair<AST, bool> Parse(logger::Log log, logger::Source source, Options options) {
+    std::pair<AST, bool> Parse(logger::Log log, logger::Source source, Options options,
+                               LintData *lint_data) {
         bool ok = true;
 
         // Default options for JSX elements
@@ -2985,6 +3012,38 @@ namespace guchho::javascript {
             result.source_map_comment = p->lexer.source_mapping_url;
         } catch (const LexerPanic &) {
             ok = false;
+        }
+
+        if (lint_data != nullptr) {
+            std::unordered_set<Scope *> reachable;
+            std::vector<Scope *> stack;
+            if (p->moduleScope != nullptr) {
+                reachable.insert(p->moduleScope);
+                stack.push_back(p->moduleScope);
+            }
+            while (!stack.empty()) {
+                Scope *scope = stack.back();
+                stack.pop_back();
+                for (Scope *child : scope->children) {
+                    if (reachable.insert(child).second) {
+                        stack.push_back(child);
+                    }
+                }
+            }
+
+            lint_data->references = p->sourceReferences;
+            lint_data->declarations.clear();
+            for (const LintDeclaration &declaration : p->lintDeclarations) {
+                if (declaration.scope != nullptr && reachable.count(declaration.scope) != 0) {
+                    lint_data->declarations.push_back(declaration);
+                }
+            }
+            lint_data->redeclarations.clear();
+            for (const LintRedeclaration &redeclaration : p->lintRedeclarations) {
+                if (redeclaration.scope != nullptr && reachable.count(redeclaration.scope) != 0) {
+                    lint_data->redeclarations.push_back(redeclaration);
+                }
+            }
         }
 
         return {std::move(result), ok};

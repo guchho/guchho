@@ -15,14 +15,14 @@ TEST(JsParser, TestJSONString) {
     // Newlines
     expectPrintedJSON("\"\u2028\"", "\"\\u2028\"");
     expectPrintedJSON("\"\u2029\"", "\"\\u2029\"");
-    expectParseErrorJSON("\"\r\"", "<stdin>: ERROR: Unterminated string literal\n");
-    expectParseErrorJSON("\"\n\"", "<stdin>: ERROR: Unterminated string literal\n");
+    expectParseErrorJSON("\"\r\"", "<stdin>: ERROR: Unterminated string literal. Expected a closing quote.\n");
+    expectParseErrorJSON("\"\n\"", "<stdin>: ERROR: Unterminated string literal. Expected a closing quote.\n");
 
     // Control characters
     for (int c = 0; c < 0x20; c++) {
         if (c != '\r' && c != '\n') {
             char message[64];
-            std::snprintf(message, sizeof(message), "<stdin>: ERROR: Syntax error \"\\x%02X\"\n", c);
+            std::snprintf(message, sizeof(message), "<stdin>: ERROR: Invalid or unexpected token \"\\x%02X\"\n", c);
             expectParseErrorJSON("\"" + std::string(1, static_cast<char>(c)) + "\"", message);
         }
     }
@@ -43,23 +43,23 @@ TEST(JsParser, TestJSONString) {
     expectPrintedJSON("\"\\uDC00\"", "\"\\uDC00\"");
 
     // Invalid escapes
-    expectParseErrorJSON("\"\\", "<stdin>: ERROR: Unterminated string literal\n");
-    expectParseErrorJSON("\"\\0\"", "<stdin>: ERROR: Syntax error \"0\"\n");
-    expectParseErrorJSON("\"\\1\"", "<stdin>: ERROR: Syntax error \"1\"\n");
-    expectParseErrorJSON("\"\\'\"", "<stdin>: ERROR: Syntax error \"'\"\n");
-    expectParseErrorJSON("\"\\a\"", "<stdin>: ERROR: Syntax error \"a\"\n");
-    expectParseErrorJSON("\"\\v\"", "<stdin>: ERROR: Syntax error \"v\"\n");
-    expectParseErrorJSON("\"\\\n\"", "<stdin>: ERROR: Syntax error \"\\x0A\"\n");
-    expectParseErrorJSON("\"\\x78\"", "<stdin>: ERROR: Syntax error \"x\"\n");
-    expectParseErrorJSON("\"\\u{1234}\"", "<stdin>: ERROR: Syntax error \"{\"\n");
-    expectParseErrorJSON("\"\\uG\"", "<stdin>: ERROR: Syntax error \"G\"\n");
-    expectParseErrorJSON("\"\\uDG\"", "<stdin>: ERROR: Syntax error \"G\"\n");
-    expectParseErrorJSON("\"\\uDEG\"", "<stdin>: ERROR: Syntax error \"G\"\n");
-    expectParseErrorJSON("\"\\uDEFG\"", "<stdin>: ERROR: Syntax error \"G\"\n");
-    expectParseErrorJSON("\"\\u\"", "<stdin>: ERROR: Syntax error '\"'\n");
-    expectParseErrorJSON("\"\\uD\"", "<stdin>: ERROR: Syntax error '\"'\n");
-    expectParseErrorJSON("\"\\uDE\"", "<stdin>: ERROR: Syntax error '\"'\n");
-    expectParseErrorJSON("\"\\uDEF\"", "<stdin>: ERROR: Syntax error '\"'\n");
+    expectParseErrorJSON("\"\\", "<stdin>: ERROR: Unterminated string literal. Expected a closing quote.\n");
+    expectParseErrorJSON("\"\\0\"", "<stdin>: ERROR: Invalid or unexpected token \"0\"\n");
+    expectParseErrorJSON("\"\\1\"", "<stdin>: ERROR: Invalid or unexpected token \"1\"\n");
+    expectParseErrorJSON("\"\\'\"", "<stdin>: ERROR: Invalid or unexpected token \"'\"\n");
+    expectParseErrorJSON("\"\\a\"", "<stdin>: ERROR: Invalid or unexpected token \"a\"\n");
+    expectParseErrorJSON("\"\\v\"", "<stdin>: ERROR: Invalid or unexpected token \"v\"\n");
+    expectParseErrorJSON("\"\\\n\"", "<stdin>: ERROR: Invalid or unexpected token \"\\x0A\"\n");
+    expectParseErrorJSON("\"\\x78\"", "<stdin>: ERROR: Invalid or unexpected token \"x\"\n");
+    expectParseErrorJSON("\"\\u{1234}\"", "<stdin>: ERROR: Invalid or unexpected token \"{\"\n");
+    expectParseErrorJSON("\"\\uG\"", "<stdin>: ERROR: Invalid or unexpected token \"G\"\n");
+    expectParseErrorJSON("\"\\uDG\"", "<stdin>: ERROR: Invalid or unexpected token \"G\"\n");
+    expectParseErrorJSON("\"\\uDEG\"", "<stdin>: ERROR: Invalid or unexpected token \"G\"\n");
+    expectParseErrorJSON("\"\\uDEFG\"", "<stdin>: ERROR: Invalid or unexpected token \"G\"\n");
+    expectParseErrorJSON("\"\\u\"", "<stdin>: ERROR: Invalid or unexpected token '\"'\n");
+    expectParseErrorJSON("\"\\uD\"", "<stdin>: ERROR: Invalid or unexpected token '\"'\n");
+    expectParseErrorJSON("\"\\uDE\"", "<stdin>: ERROR: Invalid or unexpected token '\"'\n");
+    expectParseErrorJSON("\"\\uDEF\"", "<stdin>: ERROR: Invalid or unexpected token '\"'\n");
 }
 
 TEST(JsParser, TestJSONNumber) {

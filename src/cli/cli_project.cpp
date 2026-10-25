@@ -38,16 +38,22 @@
 // understood is worth 2, and a working directory that cannot be used is worth
 // 1, because nothing about what was asked for was wrong.
 // =============================================================================
+#include "guchho/cache.hpp"
 #include "guchho/cli.hpp"
+#include "guchho/config.hpp"
 #include "guchho/filesystem.hpp"
+#include "guchho/logger.hpp"
 #include "guchho/resolver.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <string>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 namespace guchho::cli {
@@ -220,43 +226,51 @@ int runClean(const std::vector<std::string>& args) {
 // Command: info
 // =============================================================================
 //
-// Three facts about the machine and the project, and the first thing anybody
-// pastes into a bug report.
+// The machine, the project and the builds the project describes, and the first
+// thing anybody pastes into a bug report.
 //
 // It is the shortest of the nine commands and the only one with no settings at
 // all, and that is a deliberate answer to the question of what to print. A
 // person who has typed "guchho info" has usually just seen something they did
-// not expect, and the useful thing to tell them is which machine they are on
-// and which build they are running — not a list of things that could be
-// configured. Anything configurable is the flag that configures it, and a
-// report that repeated the defaults would be three more lines of nothing.
+// not expect, and the useful thing to tell them is which machine they are on,
+// which build they are running and what the project will produce — not a list
+// of settings that could have changed any of it.
 //
-// Nothing here is detected. The platform and the build type are decided when
-// this file is compiled, because both are properties of the binary rather than
-// of the project, and a report that asked the operating system at run time
-// could disagree with the binary it was printed by.
+// The environment half is not detected. The platform and the build type are
+// decided when this file is compiled, because both are properties of the binary
+// rather than of the project, and a report that asked the operating system at
+// run time could disagree with the binary it was printed by. The project half
+// is read from the working directory through the same loader a build uses, so
+// it describes what this project would actually build.
 
-// Prints the platform, the build type and the configuration file in use.
+// Prints the machine, the project and the configurations the project describes.
 //
 // Reads "--help" and "-h" and nothing else. There is no flag to change what is
-// printed, because there is no version of this report that is more or less
-// detailed: the three lines are the three facts that are useful.
+// printed, because a report of the environment is the whole answer and a flag
+// would only be a way to ask for less of it.
 //
 // Prints its own banner. The commands that build print theirs before they run,
 // and this one is not one of them, so a run of it produces exactly one banner
 // rather than none or two.
 //
-// The filesystem is created only to look for the configuration file, and unlike
-// the two commands above, a failure to create it is not reported and does not
-// affect the result: the report is still true, and "none" is a fair thing to
-// say about a configuration file that could not be looked for.
+// The filesystem is created to look for the configuration file. A failure to
+// create it is not reported and does not affect the result: the environment
+// half of the report is still true, and "none" is a fair thing to say about a
+// configuration file that could not be looked for.
+//
+// Discovery here is deliberately limited to the working directory. The loader
+// walks upwards, which is what a build wants, but a report that named a parent
+// directory's file as "the" configuration while standing in a project without
+// one would be answering a different question. The file is loaded only after it
+// has been found here, so the loader stops at this directory.
 //
 // Input:  { "info" } in a project holding guchho.config.js
-// Output: the banner, "  Platform:", "  Build:" and "  Config:" lines each
-//         naming one thing, a blank line, and 0.
+// Output: the banner, the environment, the project and its targets, a blank
+//         line, and 0.
 //
 // Input:  { "info" } in a directory with no configuration file
-// Output: the same, with "none" where the configuration would be, and 0.
+// Output: the same, with "none" where the configuration would be, no outputs,
+//         and 0.
 //
 // Input:  { "info", "--help" }
 // Output: the info help text, two lines, and 0 — no banner, because help is
@@ -293,44 +307,121 @@ int runInfo(const std::vector<std::string>& args) {
         "Debug";
 #endif
 
-    // Which of the names is a file that is actually there, in the order the
-    // loader looks. The order is the resolver's, not this command's: a report
-    // that named a different file from the one a build would have read would be
-    // worse than no report at all, and the two have already been out of step —
-    // this list once put "guchho.json" ahead of "guchho.config.json", which is
-    // the opposite of the order the loader takes. The first match is the one this
-    // command's own sibling writes, so a project created by "guchho init" reports
-    // the file it was given.
     filesystem::RealFsOptions fs_opts;
     std::string fs_err;
     auto fs = filesystem::MakeRealFS(fs_opts, fs_err);
+
+    std::string working_dir;
     std::string config = "none";
+    resolver::GuchhoConfig loaded;
+    bool config_found = false;
+
     if (fs) {
-        auto cwd = fs->Cwd();
+        working_dir = fs->Cwd();
+
+        // Which of the names is a file that is actually there, in the order the
+        // loader looks. The order is the resolver's, not this command's: a
+        // report that named a different file from the one a build would have
+        // read would be worse than no report at all. A directory with a
+        // configuration file's name on it is not a configuration file.
         for (const auto& name : resolver::GuchhoConfigFileNames()) {
-            std::string full_path = fs->Join({cwd, name});
-            // The same probe the init command uses to decide whether to skip a
-            // file: list the directory, find the name in the listing, and ask
-            // what kind of entry it is. A directory with a configuration file's
-            // name on it is not a configuration file.
+            std::string full_path = fs->Join({working_dir, name});
             auto entries = fs->ReadDirectory(fs->Dir(full_path));
             if (entries.Ok()) {
                 auto [entry, diff] = entries.value.Get(fs->Base(full_path));
+                (void)diff;
                 if (entry && entry->Kind(*fs) == filesystem::EntryKind::kFile) {
-                    config = name;
+                    config       = name;
+                    config_found = true;
                     break;
                 }
             }
         }
+
+        // The configuration is read through the same loader a build uses, so
+        // the number of targets and their output files are the build's answer
+        // rather than a second interpretation of the file. An array root is one
+        // configuration per element; the loader has already flattened it, so
+        // the entries below are build targets and not configuration files.
+        if (config_found) {
+            std::unique_ptr<cache::CacheSet> caches = cache::MakeCacheSet();
+            // This is a report, not a build: warnings about settings a build
+            // would ignore (plugins, for one) belong to the command that would
+            // ignore them. Errors still come through, so a config that cannot
+            // be read is not silently reported as having no targets.
+            logger::OutputOptions log_options;
+            log_options.log_level = logger::LogLevel::kError;
+            logger::Log log = logger::NewStderrLog(log_options);
+            config::Options base;
+            loaded = resolver::LoadGuchhoConfig(log, caches->json_cache, *fs, base, working_dir);
+        }
     }
 
     // The names are padded to a common width so that the values line up as a
-    // column, which is what makes three lines readable as one fact each rather
-    // than as three sentences.
-    std::cout << "  Platform:      " << platform << "\n"
+    // column, which is what makes each line readable as one fact rather than as
+    // a sentence.
+    std::cout << "  Environment\n"
+              << "  Platform:      " << platform << "\n"
               << "  Build:         " << build_type << "\n"
+              << "  Executable:    Guchho\n"
+              << "\n"
+              << "  Project\n"
+              << "  Working Dir:   " << (working_dir.empty() ? "unknown" : working_dir) << "\n"
               << "  Config:        " << config << "\n"
-              << "\n";
+              << "  Build Targets: " << loaded.builds.size() << "\n";
+
+    // One line per target that names an output file. A target that only names
+    // an output directory has no file to report, which is why the section is
+    // absent rather than filled with a guess about what the build will call
+    // its output.
+    std::vector<std::pair<std::string, std::string>> outputs;
+    if (fs) {
+        for (const resolver::GuchhoBuildConfig& build : loaded.builds) {
+            if (build.opts.AbsOutputFile.empty()) {
+                continue;
+            }
+
+            std::string path = build.opts.AbsOutputFile;
+            if (std::optional<std::string> rel = fs->Rel(working_dir, path)) {
+                path = *rel;
+            }
+            // The report is read as text, and a path with the platform's
+            // separators in it is one more thing to translate when it is
+            // pasted somewhere else. Outputs are shown with "/" on every
+            // platform for the same reason the rest of the documentation is.
+            std::replace(path.begin(), path.end(), '\\', '/');
+
+            std::string format(config::FormatToString(build.opts.OutputFormat));
+            if (!format.empty()) {
+                std::transform(format.begin(), format.end(), format.begin(),
+                               [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+                if (build.opts.MinifyWhitespace || build.opts.MinifyIdentifiers ||
+                    build.opts.MinifySyntax) {
+                    format += " (minified)";
+                }
+            }
+            outputs.emplace_back(std::move(path), std::move(format));
+        }
+    }
+
+    if (!outputs.empty()) {
+        size_t width = 0;
+        for (const auto& output : outputs) {
+            width = std::max(width, output.first.size());
+        }
+
+        std::cout << "\n  Outputs\n";
+        for (size_t i = 0; i < outputs.size(); ++i) {
+            std::cout << "  " << (i + 1) << ". " << outputs[i].first;
+            if (!outputs[i].second.empty()) {
+                std::cout << std::string(width - outputs[i].first.size() + 3, ' ')
+                          << outputs[i].second;
+            }
+            std::cout << "\n";
+        }
+    }
+
+    std::cout << "\n";
 
     return static_cast<int>(ExitCode::kSuccess);
 }

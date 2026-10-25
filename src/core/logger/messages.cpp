@@ -103,7 +103,7 @@ namespace guchho::logger {
         case MsgCat::kJS_LetWrappedInParens: return "\"let\" must be wrapped in parentheses to be used as an expression here:";
         case MsgCat::kJS_UsingDeclarationsNotAllowed: return "\"using\" declarations are not allowed here";
         case MsgCat::kJS_AwaitUsingDeclarationsNotAllowed: return "\"await using\" declarations are not allowed here";
-        case MsgCat::kJS_ReturnNotUsableHere: return "A return statement cannot be used here:";
+        case MsgCat::kJS_ReturnNotUsableHere: return "Cannot use \"return\" outside a function:";
         case MsgCat::kJS_NewlineAfterThrow: return "Unexpected newline after \"throw\"";
         case MsgCat::kJS_UnexpectedInterface: return "Unexpected \"interface\"";
         case MsgCat::kJS_ExpressionNotReturned: return "The following expression is not returned because of an automatically-inserted semicolon";
@@ -293,7 +293,7 @@ namespace guchho::logger {
         case MsgCat::kJS_AssignToInjectedImport: return "Cannot assign to \"{}\" because it's an import from an injected file";
         case MsgCat::kJS_AssignToInjectedImportNote: return "The symbol \"{}\" was exported from \"{}\" here:";
         case MsgCat::kJS_CannotEscapeName: return "\"{}\" cannot be escaped in {} but you can set the charset to \"utf8\" to allow unescaped Unicode characters";
-        case MsgCat::kJS_SymbolAlreadyDeclared: return "The symbol \"{}\" has already been declared";
+        case MsgCat::kJS_SymbolAlreadyDeclared: return "\"{}\" has already been declared in this scope";
         case MsgCat::kJS_SymbolOriginalDeclaredNote: return "The symbol \"{}\" was originally declared here:";
         case MsgCat::kJS_DuplicateFunctionNestedBlocks: return "Duplicate function declarations are not allowed in nested blocks {}. {}";
         case MsgCat::kJS_UnexpectedParenInRegexp: return "Unexpected \")\" in regular expression";
@@ -342,7 +342,7 @@ namespace guchho::logger {
         case MsgCat::kJS_DuplicateLabel: return "Duplicate label \"{}\"";
         case MsgCat::kJS_DuplicateLabelOriginalNote: return "The original label \"{}\" is here:";
         case MsgCat::kJS_TopLevelReturnInESM: return "Top-level return cannot be used inside an ECMAScript module";
-        case MsgCat::kJS_InvalidAssignmentTarget: return "Invalid assignment target";
+        case MsgCat::kJS_InvalidAssignmentTarget: return "Invalid assignment target. Expected a variable or assignable expression.";
         case MsgCat::kJS_CannotUseNewTarget: return "Cannot use \"new.target\" here:";
         case MsgCat::kJS_LegacyOctalInTemplate: return "Legacy octal escape sequences cannot be used in template literals";
         case MsgCat::kJS_ImportMetaNotAvailable: return "\"import.meta\" is not available with the \"{}\" output format and will be empty";
@@ -378,14 +378,14 @@ namespace guchho::logger {
         // -------------------------------------------------------------------
         // JavaScript parser (js_parser.cpp)
         // -------------------------------------------------------------------
-        case MsgCat::kJS_SymbolAlreadyDeclared_2: return "The symbol \"{}\" has already been declared";
+        case MsgCat::kJS_SymbolAlreadyDeclared_2: return "\"{}\" has already been declared in this scope";
         case MsgCat::kJS_SymbolOriginalDeclared_2: return "The symbol \"{}\" was originally declared here:";
         case MsgCat::kJS_UnexpectedEquals: return "Unexpected \"=\"";
         case MsgCat::kJS_UnexpectedToken: return "Unexpected \"{}\"";
         case MsgCat::kJS_InvalidBindingPattern: return "Invalid binding pattern";
         case MsgCat::kJS_OperatorsWithoutParens: return "Cannot use \"{}\" with \"{}\" without parentheses";
         case MsgCat::kJS_OperatorsWithoutParensNote: return "Expressions of the form \"x {} y {} z\" are not allowed in JavaScript. You must disambiguate between \"(x {} y) {} z\" and \"x {} (y {} z)\" by adding parentheses.";
-        case MsgCat::kJS_AwaitExpressionHere: return "Cannot use an \"await\" expression here:";
+        case MsgCat::kJS_AwaitExpressionHere: return "Cannot use an \"await\" expression in this context:";
         case MsgCat::kJS_YieldExpressionHere: return "Cannot use a \"yield\" expression here:";
         case MsgCat::kJS_TopLevelAwaitNotSupported: return "Top-level await is currently not supported with the \"{}\" output format";
         case MsgCat::kJS_ArbitraryImportSecondArg: return "Using an arbitrary value as the second argument to \"import()\" is not possible in {}";
@@ -415,11 +415,11 @@ namespace guchho::logger {
         case MsgCat::kJS_UnexpectedColon: return "Unexpected \":\"";
         case MsgCat::kJS_UnexpectedEllipsis: return "Unexpected \"...\"";
         case MsgCat::kJS_ForLoopAsyncOf: return "For loop initializers cannot start with \"async of\"";
-        case MsgCat::kJS_NameMustBeInitialized: return "The {} \"{}\" must be initialized";
-        case MsgCat::kJS_ThisMustBeInitialized: return "This {} must be initialized";
+        case MsgCat::kJS_NameMustBeInitialized: return "Missing initializer in {} declaration for \"{}\"";
+        case MsgCat::kJS_ThisMustBeInitialized: return "Missing initializer in {} declaration";
         case MsgCat::kJS_UnexpectedSuper: return "Unexpected \"super\"";
         case MsgCat::kJS_CannotUseThis: return "Cannot use \"this\" here:";
-        case MsgCat::kJS_AwaitCannotBeUsed: return "The keyword \"await\" cannot be used here:";
+        case MsgCat::kJS_AwaitCannotBeUsed: return "Cannot use \"await\" in this context:";
         case MsgCat::kJS_AwaitCannotBeEscaped: return "The keyword \"await\" cannot be escaped";
         case MsgCat::kJS_YieldCannotBeUsed: return "The keyword \"yield\" cannot be used here:";
         case MsgCat::kJS_YieldCannotBeEscaped: return "The keyword \"yield\" cannot be escaped";
@@ -468,13 +468,14 @@ namespace guchho::logger {
         // -------------------------------------------------------------------
         // JS legacy lexer (js_lexer.cpp)
         // -------------------------------------------------------------------
-        case MsgCat::kJS_UnexpectedEOF: return "Unexpected end of file";
-        case MsgCat::kJS_SyntaxError: return "Syntax error \"{}\"";
-        case MsgCat::kJS_SyntaxErrorHex: return "Syntax error \"\\x{:02X}\"";
-        case MsgCat::kJS_SyntaxErrorUnicode: return "Syntax error \"\\u{{{:x}}}\"";
-        case MsgCat::kJS_SyntaxErrorQuote: return "Syntax error '\"'";
+        case MsgCat::kJS_UnexpectedEOF: return "Unexpected end of file. The statement or expression is incomplete.";
+        case MsgCat::kJS_SyntaxError: return "Invalid or unexpected token \"{}\"";
+        case MsgCat::kJS_SyntaxErrorHex: return "Invalid or unexpected token \"\\x{:02X}\"";
+        case MsgCat::kJS_SyntaxErrorUnicode: return "Invalid or unexpected token \"\\u{{{:x}}}\"";
+        case MsgCat::kJS_SyntaxErrorQuote: return "Invalid or unexpected token '\"'";
         case MsgCat::kJS_AwaitInAsyncFunction: return "\"await\" can only be used inside an \"async\" function";
         case MsgCat::kJS_ConsiderAddingAsyncNote: return "Consider adding the \"async\" keyword here:";
+        case MsgCat::kJS_ExpectedSemicolonAfterStatement: return "Expected \";\" after this statement or declaration.";
         case MsgCat::kJS_ExpectedWithSuffix: return "Expected {}{} but found {}";
         case MsgCat::kJS_UnexpectedXF: return "Unexpected {}{}";
         case MsgCat::kJS_CharNotValidInJSX: return "The character \"{}\" is not valid inside a JSX element";
@@ -482,12 +483,13 @@ namespace guchho::logger {
         case MsgCat::kJS_DidYouMeanEscape: return "Did you mean to escape it as {} instead?";
         case MsgCat::kJS_ExpectedCommentTerminator: return "Expected \"*/\" to terminate multi-line comment";
         case MsgCat::kJS_CommentStartsHere: return "The multi-line comment starts here:";
-        case MsgCat::kJS_UnterminatedStringLiteral: return "Unterminated string literal";
+        case MsgCat::kJS_UnterminatedStringLiteral: return "Unterminated string literal. Expected a closing quote.";
+        case MsgCat::kJS_UnterminatedTemplateLiteral: return "Unterminated template literal. Expected a closing backtick.";
         case MsgCat::kJS_TreatingAsLegacyHTMLComment: return "Treating \"{}\" as the start of a legacy HTML single-line comment";
         case MsgCat::kJS_JSONNoComments: return "JSON does not support comments";
         case MsgCat::kJS_JSONStringsDoubleQuotes: return "JSON strings must use double quotes";
         case MsgCat::kJS_InvalidIdentifier: return "Invalid identifier: {}";
-        case MsgCat::kJS_UnterminatedRegexp: return "Unterminated regular expression";
+        case MsgCat::kJS_UnterminatedRegexp: return "Unterminated regular expression. Expected a closing \"/\".";
         case MsgCat::kJS_DuplicateRegexpFlag: return "Duplicate flag \"{}\" in regular expression";
         case MsgCat::kJS_UnicodeEscapeOutOfRange: return "Unicode escape sequence is out of range";
 

@@ -336,6 +336,56 @@ TEST(CacheAst, JSCacheMissesWhenOptionsChange) {
     EXPECT_FALSE(was_cached);
 }
 
+TEST(CacheAst, JSCacheMissesWhenLintOptionsChange) {
+    config::Options plain_config{};
+    js::Options plain_options = js::OptionsFromConfig(&plain_config);
+
+    config::Options lint_config{};
+    lint_config.Lint.UndefinedVariables = config::LintLevel::kWarning;
+    js::Options lint_options = js::OptionsFromConfig(&lint_config);
+
+    cache::JSCache container;
+    Source source = MakeSource("var x = 1;", "app.js");
+    Log log = NewLog();
+
+    bool was_cached = false;
+    container.Parse(log, source, plain_options, &was_cached);
+    EXPECT_FALSE(was_cached);
+
+    was_cached = false;
+    container.Parse(log, source, lint_options, &was_cached);
+    EXPECT_FALSE(was_cached);
+}
+
+TEST(CacheAst, JSCacheReplaysLintMessages) {
+    config::Options config_options{};
+    config_options.Lint.UndefinedVariables = config::LintLevel::kWarning;
+    js::Options options = js::OptionsFromConfig(&config_options);
+
+    cache::JSCache container;
+    Source source = MakeSource("missing;", "app.js");
+
+    Log first_log = NewLog();
+    bool was_cached = false;
+    container.Parse(first_log, source, options, &was_cached);
+    EXPECT_FALSE(was_cached);
+
+    Log second_log = NewLog();
+    container.Parse(second_log, source, options, &was_cached);
+    EXPECT_TRUE(was_cached);
+
+    size_t first = 0;
+    for (const auto& msg : first_log.done()) {
+        if (msg.id == guchho::logger::MsgID::kJS_UndefinedVariable) first++;
+    }
+    size_t second = 0;
+    for (const auto& msg : second_log.done()) {
+        if (msg.id == guchho::logger::MsgID::kJS_UndefinedVariable) second++;
+    }
+    EXPECT_EQ(first, 1u);
+    EXPECT_EQ(second, first);
+}
+
 TEST(CacheAst, JSCacheMissesWhenContentUnderSameKeyPathChanges) {
     config::Options config_options{};
     js::Options options = js::OptionsFromConfig(&config_options);

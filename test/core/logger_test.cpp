@@ -1170,6 +1170,84 @@ TEST(LogAddIDTest, SilentOverrideDrops)
 }
 
 // ---------------------------------------------------------------------------
+// Fix metadata
+// ---------------------------------------------------------------------------
+
+TEST(FixTest, Defaults)
+{
+    Fix fix;
+    EXPECT_EQ(fix.range.loc.start, 0);
+    EXPECT_EQ(fix.range.len, 0);
+    EXPECT_TRUE(fix.replacement.empty());
+    EXPECT_EQ(fix.safety, FixSafety::kSafe);
+    EXPECT_TRUE(fix.explanation.empty());
+}
+
+TEST(LogAddErrorWithFixesTest, FixesPreservedThroughDeferLog)
+{
+    Log log = NewDeferLog(DeferLogKind::kDeferLogAll, {});
+    log.AddErrorWithFixes(nullptr, Range{Loc{4}, 3}, "unexpected token", {
+        Fix{Range{Loc{4}, 3}, "let", FixSafety::kSafe, "Replace with let"},
+        Fix{Range{Loc{9}, 0}, ";", FixSafety::kRequiresJudgment, "Insert semicolon"},
+    });
+
+    auto msgs = log.peek();
+    ASSERT_EQ(msgs.size(), 1u);
+    ASSERT_EQ(msgs[0].data.fixes.size(), 2u);
+    EXPECT_EQ(msgs[0].data.fixes[0].range.loc.start, 4);
+    EXPECT_EQ(msgs[0].data.fixes[0].range.len, 3);
+    EXPECT_EQ(msgs[0].data.fixes[0].replacement, "let");
+    EXPECT_EQ(msgs[0].data.fixes[0].safety, FixSafety::kSafe);
+    EXPECT_EQ(msgs[0].data.fixes[1].range.loc.start, 9);
+    EXPECT_EQ(msgs[0].data.fixes[1].range.len, 0);
+    EXPECT_EQ(msgs[0].data.fixes[1].replacement, ";");
+    EXPECT_EQ(msgs[0].data.fixes[1].safety, FixSafety::kRequiresJudgment);
+}
+
+TEST(FixTest, MetadataDoesNotAffectFormatting)
+{
+    Msg without_fix;
+    without_fix.kind = MsgKind::kError;
+    without_fix.data.text = "unexpected token";
+
+    Msg with_fix = without_fix;
+    with_fix.data.fixes.push_back(Fix{Range{Loc{4}, 3}, "let", FixSafety::kSafe, "Replace with let"});
+
+    OutputOptions opts;
+    TerminalInfo term;
+    EXPECT_EQ(with_fix.String(opts, term), without_fix.String(opts, term));
+}
+
+TEST(LogAddIDWithFixesTest, NewWarningCanBePromoted)
+{
+    std::unordered_map<MsgID, LogLevel> overrides;
+    overrides[MsgID::kJS_UndefinedVariable] = LogLevel::kError;
+
+    Log log = NewDeferLog(DeferLogKind::kDeferLogAll, overrides);
+    log.AddIDWithFixes(MsgID::kJS_UndefinedVariable, MsgKind::kWarning, nullptr,
+                       Range{Loc{0}, 6}, "\"consol\" is not defined",
+                       {Fix{Range{Loc{0}, 6}, "console", FixSafety::kSafe, "Did you mean console?"}});
+
+    auto msgs = log.peek();
+    ASSERT_EQ(msgs.size(), 1u);
+    EXPECT_EQ(msgs[0].kind, MsgKind::kError);
+    EXPECT_EQ(msgs[0].id, MsgID::kJS_UndefinedVariable);
+    EXPECT_EQ(msgs[0].data.fixes.size(), 1u);
+}
+
+TEST(LogAddIDWithFixesTest, NewWarningCanBeSuppressed)
+{
+    std::unordered_map<MsgID, LogLevel> overrides;
+    overrides[MsgID::kJS_UnusedVariable] = LogLevel::kSilent;
+
+    Log log = NewDeferLog(DeferLogKind::kDeferLogAll, overrides);
+    log.AddIDWithFixes(MsgID::kJS_UnusedVariable, MsgKind::kWarning, nullptr,
+                       Range{Loc{6}, 7}, "\"message\" is declared but never used", {});
+
+    EXPECT_TRUE(log.peek().empty());
+}
+
+// ---------------------------------------------------------------------------
 // SummaryTableEntry
 // ---------------------------------------------------------------------------
 

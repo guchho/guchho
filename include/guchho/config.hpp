@@ -5,6 +5,7 @@
 
 #include <optional>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <cstdint>
 #include <memory>
@@ -570,10 +571,15 @@ namespace guchho::config {
     //                       and are not known globals.
     //   UnusedVariables     Report local declarations that are never read.
     //   UnusedParameters    Report function parameters that are never read.
+    //   Globals             Additional names treated as defined globals. The
+    //                       dedicated lint command fills this from its
+    //                       "globals" configuration; ordinary builds leave it
+    //                       empty.
     struct LintOptions {
         LintLevel UndefinedVariables{LintLevel::kOff};
         LintLevel UnusedVariables{LintLevel::kOff};
         LintLevel UnusedParameters{LintLevel::kOff};
+        std::unordered_set<std::string> Globals{};
     };
 
     // Best-effort lookup for a bare global name. The registry is the same one

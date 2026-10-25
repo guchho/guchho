@@ -5446,6 +5446,17 @@ namespace guchho::javascript {
             eId->must_keep_due_to_with_stmt = result.isInsideWithScope;
             eId->ref = result.ref;
 
+            SourceReferenceMode mode = SourceReferenceMode::kRead;
+            if (isDeleteTarget) {
+                mode = SourceReferenceMode::kDelete;
+            } else if (in.assignTarget != AssignTarget::kNone) {
+                mode = SourceReferenceMode::kWrite;
+            } else if (this->typeofTarget != E{} && IsSameNodeAs(this->typeofTarget, expr.data)) {
+                mode = SourceReferenceMode::kTypeof;
+            }
+            this->sourceReferences.push_back(SourceReference{
+                name, expr.loc, result.ref, this->currentScope, mode, result.isInsideWithScope});
+
             // Handle referencing a class name within that class's computed property
             // key. This is not allowed, and must fail at run-time:
             //
@@ -6341,7 +6352,9 @@ namespace guchho::javascript {
         } else if (auto *eUn = Get<EUnary>(expr.data); eUn != nullptr) {
             switch (eUn->op) {
             case OpCode::kUnOpTypeof:
+                this->typeofTarget = eUn->value.data;
                 eUn->value = this->visitExprInOut(eUn->value, exprIn{/*isMethod=*/false, /*isLoweredPrivateMethod=*/false, /*hasChainParent=*/false, /*storeThisArgForParentOptionalChain=*/false, /*shouldMangleStringsAsProps=*/false, /*assignTarget=*/UnaryAssignTarget(eUn->op)}).first;
+                this->typeofTarget = E{};
 
                 // Compile-time "typeof" evaluation
                 if (std::optional<std::string> typeof_ = TypeofWithoutSideEffects(eUn->value.data)) {

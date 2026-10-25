@@ -261,6 +261,8 @@ void printBuildHelp(std::ostream& os) {
        << "  --jsx=<mode>           JSX: transform, preserve, automatic\n"
        << "  --tsconfig=<file>      Path to tsconfig.json\n"
        << "  --log-level=<level>    verbose, debug, info, warning, error, silent\n"
+       << "  --lint=<checks>        Enable lint checks: undefined, unused\n"
+       << "  --lint-level=<c>=<l>   Set one check to off, warning, or error\n"
        << "  --color / --no-color   Force color on/off\n"
        << "  --quiet                Minimal output\n"
        << "  --verbose              Detailed output\n"

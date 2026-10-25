@@ -49,6 +49,25 @@ build: {
 programmatic form of a `/* @__PURE__ */` annotation). `keepNames` preserves
 function and class names while minifying.
 
+## Optional lint checks
+
+Guchho can report two suspicious-but-valid patterns: references to names that
+are not defined (`undefined`) and declarations that are never read (`unused`).
+Both are off by default.
+
+```js
+build: {
+  lint: {
+    undefined: 'warning',
+    unused: 'error',
+  },
+}
+```
+
+The same checks are available on the command line with
+`--lint=undefined,unused` and `--lint-level=<check>=<level>`. See the
+[build options reference](../reference/config/build.md#optional-lint-checks).
+
 ## Compiler stages
 
 The lexer, parser and printer are exposed through the

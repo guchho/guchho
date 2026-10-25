@@ -341,6 +341,13 @@ namespace guchho::javascript {
 
         void AddRangeErrorWithNotes(logger::Range r, const std::string& text, const std::vector<logger::MsgData>& notes);
 
+        // Attaches structured fixes and an optional inline suggestion to the
+        // next lexer error. The parser uses this when it has enough context to
+        // propose a correction before an error is reported. Pending metadata is
+        // consumed by the next error and cleared when the statement finishes.
+        void SetPendingFixes(std::vector<logger::Fix> fixes, std::string suggestion);
+        void ClearPendingFixes();
+
 
         std::vector<logger::Range> legal_comments_before_token;
         std::vector<logger::Range> comments_before_token;
@@ -447,6 +454,8 @@ namespace guchho::javascript {
         // comments containing @license, @preserve, Pure, BenchPacket, etc.
         void scanCommentText();
 
+        std::vector<logger::Fix> pending_fixes_;
+        std::string pending_suggestion_;
         logger::Log log_;
         logger::Source source_;
         logger::LineColumnTracker tracker_;

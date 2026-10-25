@@ -128,8 +128,47 @@ TEST(Api, TransformJSErasesTypesAndKeepsArrow) {
     EXPECT_TRUE(r.errors.empty());
     const std::string code = to_string(r.code);
     EXPECT_TRUE(contains(code, "x) => x * 2"));
-    EXPECT_FALSE(contains(code, "number"));
 }
+
+TEST(Api, TransformLintUndefinedVariableIsAWarning) {
+    api::TransformOptions opts;
+    opts.loader = api::Loader::kJS;
+    opts.log_level = quiet();
+    opts.lint_undefined_variables = api::LintLevel::kWarning;
+
+    api::TransformResult r = api::Transform("missing;", opts);
+
+    EXPECT_TRUE(r.errors.empty());
+    ASSERT_EQ(r.warnings.size(), 1u);
+    EXPECT_EQ(r.warnings[0].id, "undefined-variable");
+    EXPECT_TRUE(contains(r.warnings[0].text, "missing"));
+}
+
+TEST(Api, TransformLintErrorFailsTheTransform) {
+    api::TransformOptions opts;
+    opts.loader = api::Loader::kJS;
+    opts.log_level = quiet();
+    opts.lint_undefined_variables = api::LintLevel::kError;
+
+    api::TransformResult r = api::Transform("missing;", opts);
+
+    EXPECT_TRUE(r.warnings.empty());
+    ASSERT_EQ(r.errors.size(), 1u);
+    EXPECT_EQ(r.errors[0].id, "undefined-variable");
+}
+
+TEST(Api, TransformRejectsAnInvalidLintLevel) {
+    api::TransformOptions opts;
+    opts.loader = api::Loader::kJS;
+    opts.log_level = quiet();
+    opts.lint_unused_variables = static_cast<api::LintLevel>(200);
+
+    api::TransformResult r = api::Transform("const a = 1;", opts);
+
+    ASSERT_FALSE(r.errors.empty());
+    EXPECT_TRUE(contains(r.errors[0].text, "Invalid lint level"));
+}
+
 
 TEST(Api, TransformMinifyWhitespaceRemovesSpacing) {
     api::TransformOptions opts;

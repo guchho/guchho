@@ -262,6 +262,26 @@ std::optional<ErrorWithNote> parseLogLevel(
         "Valid values are \"verbose\", \"debug\", \"info\", \"warning\", \"error\", or \"silent\".");
 }
 
+// Parses the severity for an optional lint check.
+//
+// Input:  value = "warning"
+// Output: out = api::LintLevel::kWarning and an empty optional.
+//
+// Input:  value = "loud"
+// Output: out = api::LintLevel::kOff, and a complaint naming the three levels.
+std::optional<ErrorWithNote> parseLintLevel(
+    const std::string& value, const std::string& arg, api::LintLevel& out)
+{
+    if (value == "off")     { out = api::LintLevel::kOff;     return std::nullopt; }
+    if (value == "warning") { out = api::LintLevel::kWarning; return std::nullopt; }
+    if (value == "error")   { out = api::LintLevel::kError;   return std::nullopt; }
+
+    out = api::LintLevel::kOff;
+    return MakeErrorWithNote(
+        "Invalid value " + helpers::QuoteSingle(value, true) + " in " + helpers::QuoteSingle(arg, true),
+        "Valid values are \"off\", \"warning\", or \"error\".");
+}
+
 // =============================================================================
 // Comma separated lists
 // =============================================================================

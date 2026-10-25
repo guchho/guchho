@@ -58,6 +58,9 @@ namespace guchho::logger{
             MATCH("unsupported-jsx-comment",        kJS_UnsupportedJSXComment)
             MATCH("unsupported-regexp",             kJS_UnsupportedRegExp)
             MATCH("unsupported-require-call",       kJS_UnsupportedRequireCall)
+            MATCH("undefined-variable",             kJS_UndefinedVariable)
+            MATCH("unused-variable",                kJS_UnusedVariable)
+            MATCH("unused-parameter",               kJS_UnusedParameter)
 
             // CSS
             MATCH("css-syntax-error",               kCSS_CSSSyntaxError)
@@ -176,6 +179,9 @@ namespace guchho::logger{
             case MsgID::kJS_UnsupportedJSXComment:      return "unsupported-jsx-comment";
             case MsgID::kJS_UnsupportedRegExp:          return "unsupported-regexp";
             case MsgID::kJS_UnsupportedRequireCall:     return "unsupported-require-call";
+            case MsgID::kJS_UndefinedVariable:          return "undefined-variable";
+            case MsgID::kJS_UnusedVariable:             return "unused-variable";
+            case MsgID::kJS_UnusedParameter:            return "unused-parameter";
 
             // CSS
             case MsgID::kCSS_CSSSyntaxError:            return "css-syntax-error";
@@ -860,6 +866,14 @@ namespace guchho::logger{
         return kind;
     }
 
+    // Returns true when the user explicitly silenced this message. This cannot
+    // be inferred from the MsgKind returned by AllowOverride() because
+    // MsgKind::kError and the "silent" sentinel share the same numeric value.
+    bool IsSilentOverride(const std::unordered_map<MsgID, LogLevel>& overrides, MsgID id) {
+        auto it = overrides.find(id);
+        return it != overrides.end() && it->second == LogLevel::kSilent;
+    }
+
     // Parses command-line arguments to build an OutputOptions struct.
     //
     // Recognized flags:
@@ -919,7 +933,7 @@ namespace guchho::logger{
     // Output: message is appended with the overridden kind (or the original)
     void Log::AddID(MsgID id, MsgKind kind, LineColumnTracker* tracker, Range r, const std::string& text) {
         MsgKind overrideKind = AllowOverride(overrides, id, kind);
-        if (static_cast<uint8_t>(overrideKind) == 0 && overrides.count(id)) return;
+        if (IsSilentOverride(overrides, id)) return;
         Msg msg;
         msg.id = id;
         msg.kind = overrideKind;
@@ -950,7 +964,7 @@ namespace guchho::logger{
     // Subject to the same override/silence logic as AddID.
     void Log::AddIDWithNotes(MsgID id, MsgKind kind, LineColumnTracker* tracker, Range r, const std::string& text, const std::vector<MsgData>& notes) {
         MsgKind overrideKind = AllowOverride(overrides, id, kind);
-        if (static_cast<uint8_t>(overrideKind) == 0 && overrides.count(id)) return;
+        if (IsSilentOverride(overrides, id)) return;
         Msg msg;
         msg.id = id;
         msg.kind = overrideKind;
@@ -963,12 +977,44 @@ namespace guchho::logger{
         add_msg(std::move(msg));
     }
 
+    // Records an error message with structured source fixes. The fixes are
+    // carried on the primary message data and are ignored by current
+    // rendering, so terminal output is unchanged.
+    void Log::AddErrorWithFixes(LineColumnTracker* tracker, Range r, const std::string& text, std::vector<Fix> fixes) {
+        Msg msg;
+        msg.kind = MsgKind::kError;
+        if (tracker) {
+            msg.data = tracker->MakeMsgData(r, text);
+        } else {
+            msg.data.text = text;
+        }
+        msg.data.fixes = std::move(fixes);
+        add_msg(std::move(msg));
+    }
+
+    // Records a MsgID-identified diagnostic with structured source fixes.
+    // Subject to the same override/silence logic as AddID.
+    void Log::AddIDWithFixes(MsgID id, MsgKind kind, LineColumnTracker* tracker, Range r, const std::string& text, std::vector<Fix> fixes) {
+        MsgKind overrideKind = AllowOverride(overrides, id, kind);
+        if (IsSilentOverride(overrides, id)) return;
+        Msg msg;
+        msg.id = id;
+        msg.kind = overrideKind;
+        if (tracker) {
+            msg.data = tracker->MakeMsgData(r, text);
+        } else {
+            msg.data.text = text;
+        }
+        msg.data.fixes = std::move(fixes);
+        add_msg(std::move(msg));
+    }
+
     // Re-applies a MsgID to an existing Msg, updating its id and effective
     // kind via the override map.  Used when re-classifying a message that
     // was originally constructed without an ID.
     void Log::AddMsgID(MsgID id, const Msg& msg) {
         MsgKind overrideKind = AllowOverride(overrides, id, msg.kind);
-        if (static_cast<uint8_t>(overrideKind) == 0 && overrides.count(id)) return;
+        if (IsSilentOverride(overrides, id)) return;
         Msg m = msg;
         m.id = id;
         m.kind = overrideKind;

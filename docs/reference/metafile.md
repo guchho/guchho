@@ -48,6 +48,14 @@ Each output's `imports` lists what it still imports at runtime - anything not
 inlined. Because `bundle` defaults to `false`, a relative sibling import is
 listed here and left alone on purpose.
 
+`imports` is an array in the JSON the engine emits, not an object keyed by
+path. Each item is `{ "path": string, "kind": string, "external"?: boolean }`;
+`kind` is the edge kind (`import-statement`, `dynamic-import`, `require-call`,
+`import-rule`, and so on). The top-level `inputs` entry carries the same array
+plus `bytes` and, for inputs the engine recognised, `format`. Each output's
+`inputs` is an object keyed by source path with `bytesInOutput`, and `bytes`
+counts the finished output, including its map or wrapper when one is emitted.
+
 ## Analysis
 
 - `analyze(options)` runs a build with `write: false` and answers with an

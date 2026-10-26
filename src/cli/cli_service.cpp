@@ -1421,6 +1421,166 @@ namespace guchho::cli {
             });
         }
 
+        // One lint diagnostic as a value, in the same shape the CLI's JSON
+        // writer produces. "with_path" is false for the copy nested under a
+        // file, where the enclosing object already names the file.
+        service::Value LintMessageValue(const lint::Diagnostic& diagnostic,
+                                        bool with_path) {
+            std::vector<std::pair<std::string, service::Value>> fields;
+            if (with_path) {
+                fields.emplace_back("path", service::Value::String(diagnostic.path));
+            }
+            fields.emplace_back("ruleId", service::Value::String(diagnostic.rule_id));
+            fields.emplace_back("severity", service::Value::String(
+                std::string(lint::SeverityName(diagnostic.severity))));
+            fields.emplace_back("message", service::Value::String(diagnostic.message));
+            fields.emplace_back("line", service::Value::Number(diagnostic.line));
+            fields.emplace_back("column", service::Value::Number(diagnostic.column));
+            fields.emplace_back("endLine", service::Value::Number(diagnostic.end_line));
+            fields.emplace_back("endColumn", service::Value::Number(diagnostic.end_column));
+            fields.emplace_back("syntax", service::Value::Bool(diagnostic.is_syntax));
+            fields.emplace_back("fixCount", service::Value::Number(
+                static_cast<int32_t>(diagnostic.fixes.size())));
+            return service::Value::Object(std::move(fields));
+        }
+
+        // The response body for a finished lint run.
+        //
+        // It deliberately has no "errors" field. The host's unwrap() treats a
+        // populated errors array as a failed request, and a lint finding is an
+        // answer rather than a refusal. The counts travel under the CLI's own
+        // names, which are the names the JavaScript result publishes too.
+        service::Value LintResponse(const lint::Report& report) {
+            std::vector<service::Value> files;
+            std::vector<service::Value> messages;
+            files.reserve(report.files.size());
+
+            for (const lint::FileReport& file : report.files) {
+                std::vector<service::Value> file_messages;
+                file_messages.reserve(file.diagnostics.size());
+                for (const lint::Diagnostic& diagnostic : file.diagnostics) {
+                    file_messages.push_back(LintMessageValue(diagnostic, false));
+                    messages.push_back(LintMessageValue(diagnostic, true));
+                }
+                files.push_back(service::Value::Object({
+                    {"path", service::Value::String(file.path)},
+                    {"errorCount", service::Value::Number(file.errors)},
+                    {"warningCount", service::Value::Number(file.warnings)},
+                    {"messages", service::Value::Array(std::move(file_messages))},
+                }));
+            }
+
+            return service::Value::Object({
+                {"files", service::Value::Array(std::move(files))},
+                {"messages", service::Value::Array(std::move(messages))},
+                {"errorCount", service::Value::Number(report.errors)},
+                {"warningCount", service::Value::Number(report.warnings)},
+                {"fixCount", service::Value::Number(report.fixes)},
+                {"filesWithProblems", service::Value::Number(
+                    report.files_with_problems)},
+            });
+        }
+
+        // Lints a project, using the command line's own argument grammar.
+        //
+        // "files" is separate from "flags" so a path beginning with "-" cannot
+        // be mistaken for an option: everything after the synthetic "--" is a
+        // path. Presentation flags such as --format and --json are accepted by
+        // the grammar but have no effect here; the answer is data by definition.
+        service::Value HandleLint(const service::Value& request) {
+            std::vector<std::string> flags;
+            service::Value error;
+            if (!FlagsFromRequest(request, flags, error)) return error;
+
+            std::vector<std::string> files;
+            if (const service::Value* list = request.Find("files");
+                list != nullptr && !list->IsNull()) {
+                if (!list->IsArray()) {
+                    return ErrorResponse(ProtocolError(
+                        "\"files\" must be an array of non-empty strings"));
+                }
+                for (const service::Value& entry : list->AsArray()) {
+                    if (!entry.IsString() || entry.AsString().empty()) {
+                        return ErrorResponse(ProtocolError(
+                            "every entry in \"files\" must be a non-empty string"));
+                    }
+                    files.push_back(entry.AsString());
+                }
+            }
+
+            std::string abs_working_dir;
+            if (const service::Value* dir = request.Find("absWorkingDir");
+                dir != nullptr && !dir->IsNull()) {
+                if (!dir->IsString()) {
+                    return ErrorResponse(ProtocolError(
+                        "\"absWorkingDir\" must be a string"));
+                }
+                abs_working_dir = dir->AsString();
+            }
+
+            std::vector<std::string> args{"lint"};
+            args.insert(args.end(), flags.begin(), flags.end());
+            if (!files.empty()) {
+                args.push_back("--");
+                args.insert(args.end(), files.begin(), files.end());
+            }
+
+            LintArgs parsed;
+            if (auto complaint = ParseLintArgs(args, parsed)) {
+                std::string text = complaint->text;
+                if (!complaint->note.empty()) {
+                    text += " ";
+                    text += complaint->note;
+                }
+                return ErrorResponse(EngineError("invalid-lint-options",
+                                                 std::move(text)));
+            }
+            if (parsed.help) {
+                return ErrorResponse(ProtocolError(
+                    "a lint service request cannot ask for help"));
+            }
+            if (parsed.options.watch) {
+                return ErrorResponse(EngineError(
+                    "unsupported", "lint watch is not supported by the service"));
+            }
+
+            filesystem::RealFsOptions fs_options;
+            fs_options.abs_working_dir = abs_working_dir;
+            std::string fs_error;
+            std::unique_ptr<filesystem::Fs> fs =
+                filesystem::MakeRealFS(fs_options, fs_error);
+            if (!fs) {
+                return ErrorResponse(EngineError("invalid-lint-options",
+                                                 std::move(fs_error)));
+            }
+
+            const std::string cwd = fs->Cwd();
+            parsed.options.cwd = cwd;
+            parsed.options.color = false;
+
+            lint::Config config;
+            std::string lint_error;
+            if (!lint::LoadConfig(*fs, cwd, parsed.options.config_path,
+                                  config, lint_error)) {
+                return ErrorResponse(EngineError("lint-failed",
+                                                 std::move(lint_error)));
+            }
+            for (const auto& [name, severity] : parsed.options.rule_overrides) {
+                config.rules[name] = severity;
+            }
+
+            lint::Project project;
+            project.config = std::move(config);
+            project.options = std::move(parsed.options);
+
+            lint::Report report;
+            if (!lint::LintProject(*fs, project, report, lint_error)) {
+                return ErrorResponse(EngineError("lint-failed",
+                                                 std::move(lint_error)));
+            }
+            return LintResponse(report);
+        }
+
         // The live builds, keyed by the number the host chose for them.
         //
         // This is a plain map and not something more elaborate because the
@@ -1724,6 +1884,7 @@ namespace guchho::cli {
             if (name == "cancel") return HandleCancel(request);
             if (name == "dispose") return HandleDispose(request);
             if (name == "transform") return HandleTransform(request);
+            if (name == "lint") return HandleLint(request);
             if (name == "pack") return HandlePack(request);
             if (name == "unpack") return HandleUnpack(request);
             if (name == "format-msgs") return HandleFormatMessages(request);

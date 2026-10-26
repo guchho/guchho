@@ -298,6 +298,8 @@ function(guchho_discover_tests TARGET)
 
             "-DTEST_OUTPUT=${gdt_tests_file}"
 
+            "-DTEST_CROSSCOMPILING=${CMAKE_CROSSCOMPILING}"
+
             -P
             "${CMAKE_SOURCE_DIR}/cmake/GuchhoDiscoverTests.cmake"
 

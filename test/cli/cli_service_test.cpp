@@ -620,6 +620,127 @@ TEST(CliService, FormatMessagesWithNoMessagesIsRefused) {
 }
 
 // ---------------------------------------------------------------------------
+// lint
+// ---------------------------------------------------------------------------
+
+// Findings are an answer, so they travel under their own fields and never under
+// "errors": the host treats a populated errors array as a refused request.
+TEST(CliService, LintReturnsFindingsWithoutAnErrorsField) {
+    CliWorkspace ws("svc-lint");
+    ws.Write("src/a.js", "missing();\n");
+
+    const Value response = guchho::cli::RunServiceRequest(Value::Object({
+        {"command", Value::String("lint")},
+        {"absWorkingDir", Value::String(ws.path())},
+        {"files", Value::Array({Value::String("src/a.js")})},
+    }));
+
+    EXPECT_TRUE(ErrorOf(response).empty()) << ErrorOf(response);
+    EXPECT_TRUE(response.Find("errors") == nullptr)
+        << "lint findings must not be mistaken for a refused request";
+
+    const Value* errors = response.Find("errorCount");
+    ASSERT_TRUE(errors != nullptr);
+    EXPECT_EQ(errors->AsNumber(), 1);
+
+    const Value* warnings = response.Find("warningCount");
+    ASSERT_TRUE(warnings != nullptr);
+    EXPECT_EQ(warnings->AsNumber(), 0);
+
+    EXPECT_EQ(CountOf(response, "files"), 1);
+    EXPECT_EQ(CountOf(response, "messages"), 1);
+
+    const Value& file = response.Find("files")->AsArray().front();
+    EXPECT_EQ(file.Find("path")->AsString(), std::string("src/a.js"));
+    EXPECT_EQ(CountOf(file, "messages"), 1);
+
+    const Value& nested = file.Find("messages")->AsArray().front();
+    EXPECT_TRUE(nested.Find("path") == nullptr)
+        << "the file already names the path";
+
+    const Value& message = response.Find("messages")->AsArray().front();
+    EXPECT_EQ(message.Find("path")->AsString(), std::string("src/a.js"));
+    EXPECT_EQ(message.Find("ruleId")->AsString(), std::string("no-undef"));
+    EXPECT_EQ(message.Find("severity")->AsString(), std::string("error"));
+    EXPECT_FALSE(message.Find("syntax")->AsBool());
+}
+
+// A rule override reaches the config the run uses.
+TEST(CliService, LintAppliesRuleOverrides) {
+    CliWorkspace ws("svc-lint-rule");
+    ws.Write("src/a.js", "missing();\n");
+
+    const Value response = guchho::cli::RunServiceRequest(Value::Object({
+        {"command", Value::String("lint")},
+        {"absWorkingDir", Value::String(ws.path())},
+        {"files", Value::Array({Value::String("src/a.js")})},
+        {"flags", Value::Array({Value::String("--rule=no-undef:off")})},
+    }));
+
+    EXPECT_TRUE(ErrorOf(response).empty()) << ErrorOf(response);
+    EXPECT_EQ(response.Find("errorCount")->AsNumber(), 0);
+    EXPECT_EQ(CountOf(response, "messages"), 0);
+}
+
+// The fix count is reported, and a dry run does not write.
+TEST(CliService, LintFixDryRunDoesNotWrite) {
+    CliWorkspace ws("svc-lint-dry");
+    ws.Write("src/a.js", "debugger;\n");
+
+    const Value response = guchho::cli::RunServiceRequest(Value::Object({
+        {"command", Value::String("lint")},
+        {"absWorkingDir", Value::String(ws.path())},
+        {"files", Value::Array({Value::String("src/a.js")})},
+        {"flags", Value::Array({Value::String("--fix-dry-run")})},
+    }));
+
+    EXPECT_TRUE(ErrorOf(response).empty()) << ErrorOf(response);
+    EXPECT_EQ(response.Find("fixCount")->AsNumber(), 1);
+    EXPECT_EQ(ws.Read("src/a.js"), std::string("debugger;\n"));
+}
+
+// The same request with --fix writes the change the dry run reported.
+TEST(CliService, LintFixWritesTheChange) {
+    CliWorkspace ws("svc-lint-fix");
+    ws.Write("src/a.js", "debugger;\n");
+
+    const Value response = guchho::cli::RunServiceRequest(Value::Object({
+        {"command", Value::String("lint")},
+        {"absWorkingDir", Value::String(ws.path())},
+        {"files", Value::Array({Value::String("src/a.js")})},
+        {"flags", Value::Array({Value::String("--fix")})},
+    }));
+
+    EXPECT_TRUE(ErrorOf(response).empty()) << ErrorOf(response);
+    EXPECT_EQ(response.Find("fixCount")->AsNumber(), 1);
+    EXPECT_EQ(ws.Read("src/a.js").find("debugger"), std::string::npos);
+}
+
+// A watch request is refused rather than left running with no watcher to end it.
+TEST(CliService, LintWatchIsRefused) {
+    CliWorkspace ws("svc-lint-watch");
+
+    const Value response = guchho::cli::RunServiceRequest(Value::Object({
+        {"command", Value::String("lint")},
+        {"absWorkingDir", Value::String(ws.path())},
+        {"flags", Value::Array({Value::String("--watch")})},
+    }));
+
+    EXPECT_TRUE(response.Find("errors") != nullptr);
+    EXPECT_FALSE(ErrorOf(response).empty());
+}
+
+// "files" is a list, so a host that sent one string is told rather than guessed at.
+TEST(CliService, LintFilesMustBeAnArray) {
+    const Value response = guchho::cli::RunServiceRequest(Value::Object({
+        {"command", Value::String("lint")},
+        {"files", Value::String("src/a.js")},
+    }));
+
+    EXPECT_FALSE(ErrorOf(response).empty());
+}
+
+// ---------------------------------------------------------------------------
 // analyze-metafile
 // ---------------------------------------------------------------------------
 

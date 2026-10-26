@@ -44,8 +44,8 @@ an archive cannot escape the directory you named.
 - The output file must not exist unless you pass `--allow-overwrite`.
 - Multiple inputs become one archive with one top-level entry each.
 
-The programmatic form is [`pack()`](../api/README.md#pack), which hands back the
-archive bytes rather than writing a file.
+The programmatic form is [`pack()`](../api/README.md#pack), which writes the
+archive to `outFile` and returns its path, size and warnings.
 
 ## See also
 

@@ -86,9 +86,44 @@ console.log(await version());
   chdirs into the mount point for `cwd`. Returns `{ FS, root, virtual }`.
   `createGuchho()` does this for you unless a `files` map says otherwise.
   Node only.
+- **`pack(options)`**, **`unpack(options)`** — archive creation and extraction
+  inside the engine's filesystem, with the same options as the native package.
+- **`packBytes(options)`**, **`unpackBytes(bytes, options?)`** — the same two,
+  keeping the archive and extracted files in memory.
 
 All of these share one lazily-created engine. Call `configure()` before any of
 them; after that, everything routes to the same instance.
+
+## Archives
+
+`pack()` and `unpack()` mirror the native package's options, but every path is
+a path inside the engine's filesystem — the host tree under `/host` on Node,
+`/` with a `files` map in the browser:
+
+```js
+import { pack, unpack, packBytes, unpackBytes } from "@guchho/wasm";
+
+await pack({ inputs: ["dist"], outFile: "release.zip", level: 9 });
+await unpack({ archive: "release.zip", outDir: "check" });
+
+const { bytes } = await packBytes({ inputs: ["dist"], format: "tar.gz" });
+const { files } = await unpackBytes(bytes, { format: "tar.gz" });
+// files is { "dist/index.html": Uint8Array, ... }
+```
+
+- **`pack(options)`** — `inputs` and `outFile` are required. `format`
+  (`"zip"`, `"tar"`, `"tar.gz"`), `level`, `overwrite`, `date` and `mode` match
+  the native `pack()`.
+- **`unpack(options)`** — `archive` is required. `outDir`, `format`,
+  `overwrite`, `stripComponents`, `preservePermissions` and
+  `preserveTimestamps` match the native `unpack()`.
+- **`packBytes(options)`** — the same options without `outFile`; resolves with
+  the archive as a `Uint8Array`.
+- **`unpackBytes(bytes, options?)`** — the same options without `archive` or
+  `outDir`; resolves with the extracted files as `{ path: Uint8Array }`.
+
+Unlike the `guchho` package's browser entry, `unpack()` works here: both
+directions stay inside the engine's own filesystem.
 
 ## Browser
 

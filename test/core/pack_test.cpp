@@ -1140,7 +1140,12 @@ TEST(PackCreateTest, AFailedRunLeavesNoTemporaryFileBehind)
         const std::string name = PathToUTF8(entry.path().filename());
         if (name != "tree" && name != "out.zip") leftovers.push_back(name);
     }
-    ASSERT_TRUE(leftovers.empty()) << leftovers.front();
+    std::string leftover_list;
+    for (const std::string& name : leftovers) {
+        if (!leftover_list.empty()) leftover_list += ", ";
+        leftover_list += name;
+    }
+    ASSERT_TRUE(leftovers.empty()) << leftover_list;
 }
 
 // ===========================================================================

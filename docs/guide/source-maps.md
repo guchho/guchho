@@ -19,6 +19,16 @@ description: Inline, linked and external source maps.
 guchho build src/app.js --sourcemap --outdir=dist
 ```
 
+The same choice through the API:
+
+```js
+await build({ entrypoints: ['src/app.js'], outdir: 'dist', sourcemap: 'linked' })
+```
+
+`true` is the short spelling of the default mode (`linked`). `both` writes the
+map into the file and beside it; the config-file alias is
+`inline-and-external`.
+
 ## Sources content
 
 `sourcesContent` decides whether the pre-transform source text is embedded:

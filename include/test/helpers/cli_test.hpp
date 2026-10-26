@@ -100,7 +100,7 @@ public:
     // than assumed.
     explicit CliWorkspace(const std::string& label) {
         static int counter = 0;
-        native_path_ = std::filesystem::temp_directory_path() /
+        native_path_ = WorkspaceRoot() /
                        ("guchho-cli-test-" + label + "-" + std::to_string(counter++) + "-" +
                         std::to_string(static_cast<long long>(
                             std::chrono::high_resolution_clock::now()
@@ -278,6 +278,26 @@ public:
     }
 
 private:
+    // The directory the per-test workspaces live in.
+    //
+    // Commands discover a project configuration by walking from the working
+    // directory up to the filesystem root, so a workspace that sits under the
+    // user's home directory would pick up the developer's own
+    // "guchho.config.js" and every test would run against it. The system
+    // temporary directory is under the home directory on Windows, so on that
+    // platform the workspaces go beside the drive root instead. The temp
+    // directory is still the fallback when that cannot be created.
+    static std::filesystem::path WorkspaceRoot() {
+#ifdef _WIN32
+        const std::filesystem::path temp = std::filesystem::temp_directory_path();
+        const std::filesystem::path root = temp.root_path() / "guchho-cli-tests";
+        std::error_code             ec;
+        std::filesystem::create_directories(root, ec);
+        if (!ec) return root;
+#endif
+        return std::filesystem::temp_directory_path();
+    }
+
     // The shared definition of "this name is one of the ones being counted":
     // long enough, starts with prefix, ends with suffix. Only the fixed parts
     // of the name take part in the match — the content hash in between is

@@ -109,6 +109,7 @@ TEST(CliLint, WarningsAreReportedWithoutFailingTheCommand) {
         guchho::test::OutputContains(result.out, "  1 | var unused = 1;"));
     EXPECT_TRUE(guchho::test::OutputContains(
         result.out, "1 problem (0 errors, 1 warning)"));
+    EXPECT_FALSE(guchho::test::OutputContains(result.out, "\033["));
 }
 
 TEST(CliLint, ErrorsFailTheCommand) {
@@ -118,6 +119,7 @@ TEST(CliLint, ErrorsFailTheCommand) {
         {"lint", "--rule", "no-unused-vars:off", "src/a.js"});
     EXPECT_EQ(result.exit_code, 1);
     EXPECT_TRUE(guchho::test::OutputContains(result.out, "no-redeclare"));
+    EXPECT_FALSE(guchho::test::OutputContains(result.out, "\033["));
 }
 
 TEST(CliLint, MaxWarningsZeroTurnsAWarningIntoAFailure) {

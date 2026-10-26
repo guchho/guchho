@@ -17,8 +17,9 @@ see the [API overview](../README.md). Classes live on
 
 ## Options
 
-The options a caller hands to `build`, `transform`, `pack`, `serve`, `watch` and `analyze`, plus the sections of a configuration file. [Full page](options.md).
+The options a caller hands to `build`, `transform`, `lint`, `pack`, `serve`, `watch` and `analyze`, plus the sections of a configuration file. [Full page](options.md).
 
+- [`LintOptions`](options.md#lintoptions)
 - [`CommonOptions`](options.md#commonoptions)
 - [`BuildOptions`](options.md#buildoptions)
 - [`BuildOptionsNested`](options.md#buildoptionsnested)
@@ -40,6 +41,11 @@ Diagnostics, files, the metafile, the loaders/formats/platforms vocabularies and
 - [`OutputSummary`](types.md#outputsummary)
 - [`InputSummary`](types.md#inputsummary)
 - [`AnalysisReport`](types.md#analysisreport)
+- [`LintRuleLevel`](types.md#lintrulelevel)
+- [`LintFileMessage`](types.md#lintfilemessage)
+- [`LintMessage`](types.md#lintmessage)
+- [`LintFileResult`](types.md#lintfileresult)
+- [`LintResult`](types.md#lintresult)
 - [`BuildResult`](types.md#buildresult)
 - [`Loader`](types.md#loader)
 - [`Format`](types.md#format)

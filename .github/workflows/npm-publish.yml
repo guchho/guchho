@@ -576,8 +576,12 @@ jobs:
           release: "14"
           arch: x86_64
           sync: rsync
+          # node is a test dependency, not a build one: `guchho init` writes a
+          # guchho.config.js when a JavaScript runtime exists and several CLI
+          # tests read or build the project it generated, so the suite assumes
+          # the runtime is on PATH.
           prepare: |
-            pkg install -y cmake ninja
+            pkg install -y cmake ninja node22
           run: |
             set -e
 

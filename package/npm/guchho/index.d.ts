@@ -677,6 +677,81 @@ export interface AnalysisReport {
   totalBytes: number
 }
 
+/** How a lint rule behaves: silent, a warning, or an error. */
+export type LintRuleLevel = 'off' | 'warn' | 'warning' | 'error'
+
+/** What lint() checks, and how it should report and fix what it finds. */
+export interface LintOptions {
+  /**
+   * The files to lint. Omit it to lint the project's default files; an empty
+   * array is a TypeError rather than a request to lint nothing.
+   */
+  files?: string | string[]
+  /** Per-rule levels, keyed by the rule names the lint config uses. */
+  rules?: Record<string, LintRuleLevel>
+  /** The config file to read instead of discovering one. */
+  config?: string
+  /** Apply the fixes that are available. */
+  fix?: boolean
+  /** Report the fixes that would be applied, without writing them. */
+  fixDryRun?: boolean
+  /**
+   * The warning count above which `maxWarningsExceeded` is true. Lint findings
+   * are results, not failures, so reaching it never rejects the promise.
+   */
+  maxWarnings?: number
+  /** Where relative paths resolve from. */
+  absWorkingDir?: string
+}
+
+/** One lint finding as it appears inside its file's entry. */
+export interface LintFileMessage {
+  ruleId: string
+  severity: 'error' | 'warning'
+  message: string
+  /** 1-based */
+  line: number
+  /** 1-based */
+  column: number
+  /** 1-based */
+  endLine: number
+  /** 1-based */
+  endColumn: number
+  /** Whether the finding came from parsing rather than from a rule. */
+  syntax: boolean
+  /** The number of fixes the finding carries. */
+  fixCount: number
+}
+
+/** One lint finding, with the file it belongs to. */
+export interface LintMessage extends LintFileMessage {
+  path: string
+}
+
+/** Every finding in one file, and that file's counts. */
+export interface LintFileResult {
+  path: string
+  errorCount: number
+  warningCount: number
+  messages: LintFileMessage[]
+}
+
+/** What lint() found, in the flat shape the command line's JSON output uses. */
+export interface LintResult {
+  files: LintFileResult[]
+  messages: LintMessage[]
+  errorCount: number
+  warningCount: number
+  /**
+   * Fixes applied, or fixes that would be applied when fixDryRun is true.
+   * Zero when neither was requested.
+   */
+  fixCount: number
+  filesWithProblems: number
+  /** True when maxWarnings was given and warningCount is above it. */
+  maxWarningsExceeded: boolean
+}
+
 export interface TransformOptions extends CommonOptions {
   loader?: Loader
   /** The name a diagnostic should blame. Worth setting. */
@@ -1022,6 +1097,24 @@ export declare function transform(
   code: string | Uint8Array,
   options?: TransformOptions
 ): Promise<TransformResult>
+
+/**
+ * Checks a project for lint findings.
+ *
+ * Findings are an answer, not a failure: the promise resolves with the result
+ * even when there are errors. Options that are malformed or the wrong type are
+ * a TypeError, and a project that cannot be read or configured is a
+ * BuildFailure.
+ *
+ * Available in the browser when the config file is JSON. A JavaScript lint
+ * config is native-only, because evaluating it needs a child process the
+ * WebAssembly engine does not have.
+ *
+ * @throws {TypeError} When an option has the wrong type, `files` is empty, or
+ *   `fix` and `fixDryRun` are both true.
+ * @throws {BuildFailure} When the lint run could not be configured or finished.
+ */
+export declare function lint(options?: LintOptions): Promise<LintResult>
 
 /**
  * Writes an archive from files and directories already on disk.

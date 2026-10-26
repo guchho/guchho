@@ -266,7 +266,7 @@ namespace guchho::logger{
     //
     // Input:  MsgKind::kWarning
     // Output: "WARNING"
-    std::string MsgKindToString(MsgKind kind) {
+    std::string_view MsgKindToString(MsgKind kind) {
         switch (kind) {
             case MsgKind::kError:   return "ERROR";
             case MsgKind::kWarning: return "WARNING";

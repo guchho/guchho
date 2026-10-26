@@ -11,9 +11,11 @@ Usage: guchho build [entry...] [options]
 
 Production-oriented build. Processes HTML, JS, CSS and assets.
 
-Every option below can also be set in `guchho.config.js`, `guchho.config.json`
-or `guchho.json` next to the project. A flag on the command line wins over the
-config file, and the config file wins over the built-in defaults.
+Every option below can be set on the command line, and most can also live in a
+config file. The native config parser reads the subset documented in the
+[configuration reference](../config/README.md); an option outside it is a
+command-line flag or a JavaScript API option. A flag on the command line wins
+over the config file, and the config file wins over the built-in defaults.
 
 ## Options
 
@@ -27,14 +29,14 @@ config file, and the config file wins over the built-in defaults.
 | `--minify-syntax` | - | Optimize syntax only. |
 | `--minify-html` | off | Minify the markup. |
 | `--pretty` | on | Indent the markup. |
-| `--sourcemap` | - | Enable source maps. |
+| `--sourcemap=<mode>` | `none` | `none`, `inline`, `external`, `linked` or `both`; bare `--sourcemap` means the default linked map. |
 | `--target=<target>` | - | Target (`es2020`, `chrome80`, `node16`, …). |
 | `--format=<format>` | - | `iife`, `cjs`, `esm`, `umd`, `amd`, `system`. |
 | `--name=<name>` | - | Global namespace for `umd` and `iife` output. |
 | `--exports=<value>` | - | Entry exports: `named`, `default`, `none`, `auto`. |
 | `--platform=<p>` | - | Platform: `browser`, `node`, `neutral`. |
 | `--splitting` | off | Enable code splitting. |
-| `--tree-shaking` | off | Enable tree shaking. |
+| `--tree-shaking` | default | Enable tree shaking. The default already enables it when bundling or emitting an IIFE. |
 | `--bundle` | off | Bundle all imports. |
 | `--external:<pkg>` | - | Mark a package as external. Repeatable. |
 | `--define:<k>=<v>` | - | Replace an identifier with a value. Repeatable. |

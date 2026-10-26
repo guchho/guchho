@@ -13,6 +13,7 @@ Report SampleReport() {
     Report report;
     FileReport file;
     file.path = "src/a.js";
+    file.source = "const a = 1;\nif (a == b) {}\n";
     Diagnostic warning;
     warning.path = file.path;
     warning.rule_id = "eqeqeq";
@@ -36,13 +37,18 @@ bool Contains(const std::string& text, const std::string& needle) {
 
 } // namespace
 
-TEST(LintOutput, HumanReportPrintsLocationRuleAndSummary) {
+TEST(LintOutput, HumanReportPrintsLocationRuleSnippetAndSummary) {
     std::ostringstream out;
     PrintReport(out, SampleReport(), Options{});
-    const std::string text = out.str();
-    EXPECT_TRUE(Contains(text, "src/a.js:2:7: warning"));
-    EXPECT_TRUE(Contains(text, "eqeqeq"));
-    EXPECT_TRUE(Contains(text, "1 problem (0 errors, 1 warning)"));
+    const std::string expected =
+        "src/a.js:2:7: warning  [eqeqeq]  Expected '===' and instead saw "
+        "'=='.\n"
+        "  2 | if (a == b) {}\n"
+        "    |       ^^\n"
+        "\n"
+        "\xE2\x9C\x96 1 problem (0 errors, 1 warning)\n";
+    EXPECT_EQ(out.str(), expected);
+    EXPECT_FALSE(Contains(out.str(), "\033["));
 }
 
 TEST(LintOutput, QuietHidesWarningLinesButKeepsCounts) {
@@ -52,7 +58,67 @@ TEST(LintOutput, QuietHidesWarningLinesButKeepsCounts) {
     PrintReport(out, SampleReport(), options);
     const std::string text = out.str();
     EXPECT_FALSE(Contains(text, "src/a.js:2:7"));
-    EXPECT_TRUE(Contains(text, "1 problem (0 errors, 1 warning)"));
+    EXPECT_FALSE(Contains(text, "if (a == b)"));
+    EXPECT_EQ(text, "\xE2\x9C\x96 1 problem (0 errors, 1 warning)\n");
+}
+
+TEST(LintOutput, HumanReportOmitsSnippetWhenSourceIsUnavailable) {
+    Report report = SampleReport();
+    report.files[0].source.clear();
+    std::ostringstream out;
+    PrintReport(out, report, Options{});
+    const std::string text = out.str();
+    EXPECT_TRUE(Contains(text, "src/a.js:2:7: warning  [eqeqeq]"));
+    EXPECT_FALSE(Contains(text, "  2 |"));
+    EXPECT_FALSE(Contains(text, "^^"));
+}
+
+TEST(LintOutput, HumanReportExpandsTabsInSnippets) {
+    Report report;
+    FileReport file;
+    file.path = "src/tab.js";
+    file.source = "\tif (a == b) {}\n";
+    Diagnostic warning;
+    warning.path = file.path;
+    warning.rule_id = "eqeqeq";
+    warning.severity = Severity::kWarning;
+    warning.message = "Expected '===' and instead saw '=='.";
+    warning.line = 1;
+    warning.column = 8;
+    warning.end_line = 1;
+    warning.end_column = 10;
+    file.diagnostics.push_back(warning);
+    file.warnings = 1;
+    report.warnings = 1;
+    report.files.push_back(file);
+
+    std::ostringstream out;
+    PrintReport(out, report, Options{});
+    const std::string text = out.str();
+    EXPECT_TRUE(Contains(text, "  1 |     if (a == b) {}"));
+    EXPECT_TRUE(Contains(text, "^^"));
+}
+
+TEST(LintOutput, HumanReportColorsOutputWhenEnabled) {
+    Options options;
+    options.color = true;
+    std::ostringstream out;
+    PrintReport(out, SampleReport(), options);
+    const std::string text = out.str();
+    EXPECT_TRUE(Contains(text, "\033[1m"));
+    EXPECT_TRUE(Contains(text, "\033[33m"));
+    EXPECT_TRUE(Contains(text, "\033[36m"));
+    EXPECT_TRUE(Contains(text, "\033[0m"));
+}
+
+TEST(LintOutput, HumanReportUsesPluralSummary) {
+    Report report = SampleReport();
+    report.errors = 31;
+    report.warnings = 1;
+    std::ostringstream out;
+    PrintReport(out, report, Options{});
+    EXPECT_TRUE(Contains(out.str(),
+                         "\xE2\x9C\x96 32 problems (31 errors, 1 warning)"));
 }
 
 TEST(LintOutput, HumanReportSaysWhenNothingMatched) {
@@ -66,7 +132,7 @@ TEST(LintOutput, HumanReportSaysWhenNoProblemsWereFound) {
     report.files.push_back(FileReport{});
     std::ostringstream out;
     PrintReport(out, report, Options{});
-    EXPECT_EQ(out.str(), "No problems found.\n");
+    EXPECT_EQ(out.str(), "\xE2\x9C\x94 No problems found.\n");
 }
 
 TEST(LintOutput, HumanReportDescribesDryRunFixes) {

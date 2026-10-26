@@ -41,13 +41,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 REGISTRY="https://registry.npmjs.org"
-DEFAULT_VERSION="1.0.8"
 
 # ========================================
 # Options
 # ========================================
 
-VERSION="${DEFAULT_VERSION}"
+VERSION=""
 OUTDIR="${ROOT_DIR}/dist/zips"
 LIST_PLATFORMS=0
 DRY_RUN=0
@@ -94,7 +93,8 @@ registry (https://registry.npmjs.org/) and create one ZIP archive per
 platform: guchho-<version>-<platform>.zip
 
 Options:
-  --version <x.y.z>     Version to package (default: 1.0.8)
+  --version <x.y.z>     Version to package (default: auto-detected from the
+                        repository's CMakeLists.txt)
   --platform <list>     Only these platforms, comma-separated and/or
                         repeated (default: all published platforms)
   --output <dir>        Output directory (default: dist/zips)
@@ -113,6 +113,30 @@ checksum is written next to each ZIP.
 
 Nothing is executed, published, or uploaded.
 EOF
+}
+
+# ========================================
+# Version detection
+#
+# CMakeLists.txt declares the project
+# version; every other location (including
+# package/npm) repeats it. Read the source
+# of truth, then fall back to the npm package
+# metadata only when CMakeLists.txt is absent.
+# ========================================
+
+detect_version() {
+    local version=""
+
+    if [[ -f "${ROOT_DIR}/CMakeLists.txt" ]]; then
+        version="$(sed -n 's/^[[:space:]]*VERSION[[:space:]]\{1,\}\([^[:space:]]*\).*/\1/p' "${ROOT_DIR}/CMakeLists.txt" | head -1)"
+    fi
+
+    if [[ -z "${version}" && -f "${ROOT_DIR}/package/npm/guchho/package.json" ]]; then
+        version="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${ROOT_DIR}/package/npm/guchho/package.json" | head -1)"
+    fi
+
+    printf '%s' "${version}"
 }
 
 # ========================================
@@ -178,6 +202,13 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [[ -z "${VERSION}" || "${VERSION,,}" == "auto" ]]; then
+    VERSION="$(detect_version)"
+    if [[ -z "${VERSION}" ]]; then
+        die "Could not auto-detect a version from CMakeLists.txt or package/npm/guchho/package.json. Pass --version <x.y.z>."
+    fi
+fi
 
 if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
     die "--version is not a version number: ${VERSION}"

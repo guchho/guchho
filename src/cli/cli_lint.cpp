@@ -295,6 +295,7 @@ int runLint(const std::vector<std::string>& args) {
 
     const std::string cwd = fs->Cwd();
     parsed.options.cwd = cwd;
+    parsed.options.color = logger::GetTerminalInfo(1).use_color_escapes;
 
     lint::Config config;
     std::string error;

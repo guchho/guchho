@@ -38,6 +38,13 @@ struct BuildOptions {
     std::unordered_map<std::string, LogLevel> log_override; // per-subsystem levels
     AbsPathsFlags  abs_paths{AbsPathsFlags::kNone};
 
+    // -- Optional lint checks ----------------------------------------------
+    // These are off by default. They inspect the resolved scope graph after
+    // parsing, so enabling one never changes whether a file parses.
+    LintLevel lint_undefined_variables{LintLevel::kOff};
+    LintLevel lint_unused_variables{LintLevel::kOff};
+    LintLevel lint_unused_parameters{LintLevel::kOff};
+
     // -- Source maps -------------------------------------------------------
     SourceMap      sourcemap{SourceMap::kNone};
     std::string    source_root;  // URL prefix prepended to every source path
@@ -128,7 +135,7 @@ struct BuildOptions {
     //
     // "exports" chooses which entry export the bundle publishes: kUnset
     // keeps the namespace object, kDefault publishes the entry's default
-    // export directly, kNamed is the namespace object spelled the 
+    // export directly, kNamed is the namespace object spelled the Rollup
     // way, kNone publishes nothing, and kAuto lets the entry's actual
     // exports decide. It is spelled "--exports=<value>" on the command line
     // and "exports: '<value>'" through the API or a guchho.json "build"
@@ -230,6 +237,21 @@ struct BuildOptions {
     bool         allow_overwrite{};
     std::vector<Plugin> plugins;
 
+    // Plugins grouped by the config-file element that named them, one group per
+    // resolved build and positionally aligned with the config root's elements.
+    // Empty means "plugins" applies to every build, which is what a host that
+    // thinks in one flat list gets. Non-empty means the i-th build runs only the
+    // i-th group: an element's plugins stay with its own build, so two elements
+    // may name the same plugin name and each build reaches its own instance.
+    // Consumed by ResolveEffectiveBuildConfigs and cleared on each resolved build.
+    std::vector<std::vector<Plugin>> config_plugins;
+
+    // Whether the host that sent this request runs the config file's "plugins"
+    // itself, because it has a JavaScript process in which the plugin functions
+    // are live. The service host does; the command line does not. When true, the
+    // config parser does not warn that the "plugins" field is ignored.
+    bool config_plugins_handled{};
+
     // Which of the above somebody actually said out loud. Filled in by the
     // command-line parser and consumed by ResolveEffectiveBuildConfigs; null
     // means the struct was assembled by hand and every value in it is
@@ -262,6 +284,11 @@ struct TransformOptions {
     int log_limit{};
     std::unordered_map<std::string, LogLevel> log_override;
     AbsPathsFlags abs_paths{AbsPathsFlags::kNone};
+
+    // -- Optional lint checks ----------------------------------------------
+    LintLevel lint_undefined_variables{LintLevel::kOff};
+    LintLevel lint_unused_variables{LintLevel::kOff};
+    LintLevel lint_unused_parameters{LintLevel::kOff};
 
     // -- Source maps -------------------------------------------------------
     SourceMap sourcemap{SourceMap::kNone};

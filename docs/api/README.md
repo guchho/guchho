@@ -6,7 +6,7 @@ description: The programmatic surface of the guchho package.
 # JavaScript / TypeScript API
 
 ```js
-import { build, transform, pack, unpack, serve, watch } from 'guchho'
+import { build, transform, lint, pack, unpack, serve, watch } from 'guchho'
 ```
 
 The package runs the same native engine as the command line, over a long-lived
@@ -20,6 +20,7 @@ answers.
 | --- | --- | --- |
 | `build(options)` | [#build](#build) | Builds a project. |
 | `transform(code, options)` | [#transform](#transform) | Transforms one piece of source. |
+| `lint(options)` | [#lint](#lint) | Checks a project for lint findings. |
 | `pack(options)` | [#pack](#pack) | Writes an archive from files on disk. |
 | `unpack(options)` | [#unpack](#unpack) | Extracts an archive to disk. |
 | `context(options)` | [#context](#context) | Sets up a build that can be repeated. |
@@ -67,6 +68,39 @@ function transform(
   options?: TransformOptions
 ): Promise<TransformResult>
 ```
+
+## lint
+
+```ts
+function lint(options?: LintOptions): Promise<LintResult>
+```
+
+Runs the same rule set and safe fixes as `guchho lint`, and answers with the
+findings as data. Findings are a result rather than a failure: a lint error does
+not reject the promise. Malformed options are a `TypeError`; a project that
+cannot be read or configured is a `BuildFailure`.
+
+```js
+import { lint } from 'guchho'
+
+const result = await lint({
+  files: ['src/app.js', 'src/utils.ts'],
+  rules: { 'no-console': 'off', 'no-unused-vars': 'error' },
+  maxWarnings: 0,
+})
+
+console.log(`${result.errorCount} errors, ${result.warningCount} warnings`)
+```
+
+Omit `files` to lint the project's default files. `fix` writes safe fixes,
+`fixDryRun` reports them without writing, and `maxWarnings` sets the threshold
+for `maxWarningsExceeded`. The result carries `files`, a flat `messages` list,
+the counts, and `filesWithProblems`. Nested file messages omit `path`; flat
+messages include it.
+
+In the browser, linting works when the lint config is JSON. A JavaScript lint
+config is native-only, because evaluating it needs a child process the WASM
+engine does not have.
 
 ## pack
 

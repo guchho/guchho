@@ -51,6 +51,22 @@ function build(entry, options) {
     return load().then((m) => m.build(entry, options));
 }
 
+function pack(options) {
+    return load().then((m) => m.pack(options));
+}
+
+function unpack(options) {
+    return load().then((m) => m.unpack(options));
+}
+
+function packBytes(options) {
+    return load().then((m) => m.packBytes(options));
+}
+
+function unpackBytes(bytes, options) {
+    return load().then((m) => m.unpackBytes(bytes, options));
+}
+
 function request(payload) {
     return load().then((m) => m.request(payload));
 }
@@ -76,6 +92,10 @@ module.exports.lexer = lexer;
 module.exports.parse = parse;
 module.exports.print = print;
 module.exports.build = build;
+module.exports.pack = pack;
+module.exports.unpack = unpack;
+module.exports.packBytes = packBytes;
+module.exports.unpackBytes = unpackBytes;
 module.exports.request = request;
 module.exports.version = version;
 module.exports.toVirtual = toVirtual;

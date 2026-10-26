@@ -22,6 +22,7 @@ on:
           - darwin-x64
           - android-x64
           - android-arm64
+          - freebsd-x64
           - wasm
           - guchho
           - all
@@ -98,7 +99,7 @@ jobs:
           esac
 
           case "$TYPE" in
-            linux-x64|linux-arm64|win32-x64|win32-arm64|win32-ia32|darwin-arm64|darwin-x64|android-x64|android-arm64)
+            linux-x64|linux-arm64|win32-x64|win32-arm64|win32-ia32|darwin-arm64|darwin-x64|android-x64|android-arm64|freebsd-x64)
               PLATFORMS="$TYPE"
               PUBLISH_MAIN="false"
               PUBLISH_WASM="false"
@@ -141,6 +142,7 @@ jobs:
             {"platform":"darwin-x64","runner":"macos-15-intel","method":"native","preset":"release-darwin-x64"},
             {"platform":"android-x64","runner":"ubuntu-latest","method":"android","android_abi":"x86_64","android_api":24},
             {"platform":"android-arm64","runner":"ubuntu-latest","method":"android","android_abi":"arm64-v8a","android_api":24},
+            {"platform":"freebsd-x64","runner":"ubuntu-latest","method":"freebsd_vm","arch":"x86_64","preset":"release-freebsd-x64"},
             {"platform":"win32-x64","runner":"windows-latest","method":"native","preset":"release-win32-x64-ninja"},
             {"platform":"win32-arm64","runner":"windows-latest","method":"msvc_cross","arch":"ARM64"},
             {"platform":"win32-ia32","runner":"windows-latest","method":"msvc_cross","arch":"Win32"}
@@ -568,6 +570,59 @@ jobs:
           fi
 
       # ============================================
+      # FreeBSD (QEMU VM)
+      # ============================================
+      #
+      # GitHub's hosted runners have no FreeBSD image, so the build happens
+      # inside a real FreeBSD VM booted on an Ubuntu runner. The workspace is
+      # synced into the VM before `run` and back out afterwards, so the binary
+      # and the build tree land on the host for the packaging steps below.
+      #
+      # The FreeBSD toolchain strips the binary inside the VM: the host's GNU
+      # strip can read a FreeBSD ELF, but the VM's own strip is the tool that
+      # matches the target and there is no reason to depend on the other.
+      - name: Build and test (FreeBSD VM)
+        if: matrix.method == 'freebsd_vm'
+        uses: vmactions/freebsd-vm@v1
+        with:
+          # FreeBSD guarantees that a binary built on an older release runs on
+          # newer ones, but not the reverse, so build against the current 14.x
+          # line rather than the newest 15.x: one binary then covers both.
+          release: "14"
+          arch: x86_64
+          sync: rsync
+          prepare: |
+            pkg install -y cmake ninja
+          run: |
+            set -e
+
+            cmake --preset ${{ matrix.preset }} --fresh
+            cmake --build --preset ${{ matrix.preset }} --parallel
+
+            if [ "${{ needs.plan.outputs.test_run }}" = "true" ]; then
+              ctest --preset ${{ matrix.preset }} --output-on-failure --no-tests=error
+            fi
+
+            strip "build/${{ matrix.preset }}/bin/guchho" 2>/dev/null || true
+
+      # `sync: rsync` copies the tree back after `run`, so by this point the
+      # binary exists on the host at the same path the native presets use.
+      - name: Find binary (FreeBSD)
+        if: matrix.method == 'freebsd_vm'
+        id: find_binary_freebsd
+        shell: bash
+        run: |
+          FOUND="build/${{ matrix.preset }}/bin/guchho"
+
+          if [[ -f "$FOUND" ]]; then
+            echo "binary_path=${FOUND}" >> "$GITHUB_OUTPUT"
+            echo "Found: ${FOUND}"
+          else
+            echo "::error::Could not find the FreeBSD binary at ${FOUND}"
+            exit 1
+          fi
+
+      # ============================================
       # Copy binary to package directory
       # ============================================
       - name: Prepare package directory
@@ -591,7 +646,8 @@ jobs:
             "${{ steps.find_binary_cross.outputs.binary_path }}" \
             "${{ steps.find_binary_docker.outputs.binary_path }}" \
             "${{ steps.find_binary_msvc.outputs.binary_path }}" \
-            "${{ steps.find_binary_android.outputs.binary_path }}"; do
+            "${{ steps.find_binary_android.outputs.binary_path }}" \
+            "${{ steps.find_binary_freebsd.outputs.binary_path }}"; do
             if [[ -n "$step_output" && -f "$step_output" ]]; then
               BINARY_PATH="$step_output"
               break
@@ -603,13 +659,15 @@ jobs:
 
             # Strip debug symbols on Unix. The runner's strip reads the
             # host's own binaries only, so an Android build is stripped with
-            # the NDK's llvm-strip, which knows the target's format.
+            # the NDK's llvm-strip, which knows the target's format, and a
+            # FreeBSD build is stripped inside the VM (see the FreeBSD build
+            # step above). Both still need the executable bit here.
             if [[ "$PLATFORM" != win32-* ]]; then
               chmod +x "${PKG_DIR}/bin/${BINARY_NAME}"
               NDK_STRIP="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
               if [[ "$PLATFORM" == android-* && -x "${NDK_STRIP}" ]]; then
                 "${NDK_STRIP}" "${PKG_DIR}/bin/${BINARY_NAME}" 2>/dev/null || true
-              else
+              elif [[ "$PLATFORM" != freebsd-* ]]; then
                 strip "${PKG_DIR}/bin/${BINARY_NAME}" 2>/dev/null || true
               fi
             fi

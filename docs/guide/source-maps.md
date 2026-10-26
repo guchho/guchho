@@ -13,7 +13,7 @@ description: Inline, linked and external source maps.
 | `inline` | Appended as a `//# sourceMappingURL=data:…` comment. |
 | `linked` | A `.map` file plus a linking comment. The usual choice for a build uploaded to a web server. |
 | `external` | A `.map` file with no linking comment, for pipelines that upload maps to a symbol server. |
-| `inlineAndExternal` | Both, so the artefact works on its own and a symbol server still has a file. |
+| `both` | Both, so the artefact works on its own and a symbol server still has a file. Config files also accept the alias `inline-and-external`. |
 
 ```bash
 guchho build src/app.js --sourcemap --outdir=dist
@@ -23,9 +23,9 @@ guchho build src/app.js --sourcemap --outdir=dist
 
 `sourcesContent` decides whether the pre-transform source text is embedded:
 
-- `include` (default) - write a `sourcesContent` array, making the map
+- `true` (default) - write a `sourcesContent` array, making the map
   self-contained.
-- `exclude` - omit it, for much smaller maps when the sources are already
+- `false` - omit it, for much smaller maps when the sources are already
   reachable from wherever the debugger runs.
 
 ## Source root

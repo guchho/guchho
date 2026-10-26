@@ -364,6 +364,93 @@ export interface BuildResult {
 }
 
 /**
+ * What pack() writes, and from what.
+ *
+ * Paths are paths in this engine's filesystem: host paths on Node (the host
+ * tree is mounted under /host and the engine is chdir'd into the project), and
+ * paths relative to "/" in a browser. Each input becomes a top-level name in
+ * the archive, taken from its last path component.
+ */
+export interface PackOptions {
+  /** The files and directories to put in the archive. */
+  inputs: string[]
+  /** Where to write the archive, inside the engine's filesystem. */
+  outFile: string
+  /** Archive format. Defaults to "zip"; any other value is a RangeError. */
+  format?: "zip" | "tar" | "tar.gz"
+  /** Deflate level, 0 to 9. Applies to zip and tar.gz, not tar. */
+  level?: number
+  /** Replace an existing outFile. Without it an existing file is an error. */
+  overwrite?: boolean
+  /** Timestamp every entry gets, instead of each source file's own. */
+  date?: Date
+  /** Unix permission bits to record for every entry, e.g. 0o755. */
+  mode?: number
+}
+
+export interface PackResult {
+  /** The archive, as the path it was written to. */
+  path: string
+  /** Its size in bytes. */
+  size: number
+  /** What was deliberately left out, such as a symlink or a cycle. */
+  warnings: string[]
+}
+
+/** The options packBytes() takes: PackOptions without a path to write. */
+export type PackBytesOptions = Omit<PackOptions, "outFile">
+
+export interface PackBytesResult {
+  /** The archive itself, in memory. */
+  bytes: Uint8Array
+  /** What was deliberately left out, such as a symlink or a cycle. */
+  warnings: string[]
+}
+
+/**
+ * What unpack() reads, and where its files go.
+ *
+ * Paths are paths in this engine's filesystem, as in PackOptions. The archive
+ * is the only required option: outDir follows the archive's name, and the
+ * format follows its extension and first bytes.
+ */
+export interface UnpackOptions {
+  /** The archive to extract: a zip, tar or tar.gz file. */
+  archive: string
+  /** Where to extract. Defaults to the archive's name without its extension. */
+  outDir?: string
+  /** Archive format. Detected from the extension and magic bytes when omitted. */
+  format?: "zip" | "tar" | "tar.gz"
+  /** Replace existing files. Without it a collision is an error. */
+  overwrite?: boolean
+  /** Leading path components to drop, like tar --strip-components. */
+  stripComponents?: number
+  /** Restore recorded permissions where the host supports it. Defaults true. */
+  preservePermissions?: boolean
+  /** Restore recorded modification times where the host supports it. Defaults true. */
+  preserveTimestamps?: boolean
+}
+
+export interface UnpackResult {
+  /** The directory the files were extracted into. */
+  outDir: string
+  /** The files written, relative to outDir. */
+  files: string[]
+  /** Entries deliberately skipped, such as symlinks or unsafe paths. */
+  warnings: string[]
+}
+
+/** The options unpackBytes() takes: UnpackOptions without paths on disk. */
+export type UnpackBytesOptions = Omit<UnpackOptions, "archive" | "outDir">
+
+export interface UnpackBytesResult {
+  /** The extracted files, keyed by their path relative to the archive root. */
+  files: { [path: string]: Uint8Array }
+  /** Entries deliberately skipped, such as symlinks or unsafe paths. */
+  warnings: string[]
+}
+
+/**
  * What createGuchho() returns: one engine instance.
  *
  * The compiler stages are the same functions the module-level exports are —
@@ -429,6 +516,30 @@ export interface Engine {
    *   "language" is missing, or when the handle belongs to another language.
    */
   print(ast: AstHandle, options: PrintOptions): Promise<PrintResult>
+
+  /**
+   * Writes an archive from files already in this instance's filesystem.
+   *
+   * @throws {TypeError} When an option is missing or has the wrong type.
+   * @throws {RangeError} When a level, mode or format is out of range.
+   * @throws {Error} When the engine refused the request.
+   */
+  pack(options: PackOptions): Promise<PackResult>
+
+  /**
+   * Extracts an archive into this instance's filesystem.
+   *
+   * @throws {TypeError} When an option is missing or has the wrong type.
+   * @throws {RangeError} When the format or strip count is out of range.
+   * @throws {Error} When the engine refused the request.
+   */
+  unpack(options: UnpackOptions): Promise<UnpackResult>
+
+  /** Packs to memory instead of a path. */
+  packBytes(options: PackBytesOptions): Promise<PackBytesResult>
+
+  /** Unpacks bytes from memory and answers with the extracted files. */
+  unpackBytes(bytes: Uint8Array, options?: UnpackBytesOptions): Promise<UnpackBytesResult>
 
   /** Writes more files into this instance's filesystem after creation. */
   loadFiles(files: FilesMap): void
@@ -544,6 +655,21 @@ export declare function print(ast: AstHandle, options: PrintOptions): Promise<Pr
  * diagnostic when the build fails.
  */
 export declare function build(entry: string, options?: BuildOptions): Promise<BuildResult>
+
+/** Writes an archive through the shared engine. */
+export declare function pack(options: PackOptions): Promise<PackResult>
+
+/** Extracts an archive through the shared engine. */
+export declare function unpack(options: UnpackOptions): Promise<UnpackResult>
+
+/** Packs to memory through the shared engine. */
+export declare function packBytes(options: PackBytesOptions): Promise<PackBytesResult>
+
+/** Unpacks bytes through the shared engine. */
+export declare function unpackBytes(
+  bytes: Uint8Array,
+  options?: UnpackBytesOptions
+): Promise<UnpackBytesResult>
 
 /**
  * One service request against the shared engine. Rejects when the engine

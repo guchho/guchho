@@ -88,9 +88,9 @@ namespace guchho::javascript {
         std::string firstPart = parts[0];
         parts = std::vector<std::string>(parts.begin() + 1, parts.end());
         if (firstPart == "NaN") {
-            value = Expr{std::make_shared<ENumber>(ENumber{NAN}), loc};
+            value = Expr{std::make_shared<ENumber>(ENumber{std::numeric_limits<double>::quiet_NaN()}), loc};
         } else if (firstPart == "Infinity") {
-            value = Expr{std::make_shared<ENumber>(ENumber{INFINITY}), loc};
+            value = Expr{std::make_shared<ENumber>(ENumber{std::numeric_limits<double>::infinity()}), loc};
         } else if (firstPart == "null") {
             value = Expr{kENullShared, loc};
         } else if (firstPart == "undefined") {

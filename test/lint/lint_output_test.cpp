@@ -40,6 +40,22 @@ std::string Icon(guchho::logger::MsgKind kind) {
     return std::string(guchho::logger::MsgKindToIcon(kind));
 }
 
+std::string StripAnsi(const std::string& text) {
+    std::string stripped;
+    stripped.reserve(text.size());
+    for (std::size_t i = 0; i < text.size();) {
+        if (text[i] == '\033' && i + 1 < text.size() && text[i + 1] == '[') {
+            const std::size_t end = text.find('m', i + 2);
+            if (end != std::string::npos) {
+                i = end + 1;
+                continue;
+            }
+        }
+        stripped.push_back(text[i++]);
+    }
+    return stripped;
+}
+
 } // namespace
 
 TEST(LintOutput, HumanReportPrintsLocationRuleSnippetAndSummary) {
@@ -112,10 +128,40 @@ TEST(LintOutput, HumanReportColorsOutputWhenEnabled) {
     std::ostringstream out;
     PrintReport(out, SampleReport(), options);
     const std::string text = out.str();
-    EXPECT_TRUE(Contains(text, "\033[1m"));
-    EXPECT_TRUE(Contains(text, "\033[33m"));
-    EXPECT_TRUE(Contains(text, "\033[36m"));
-    EXPECT_TRUE(Contains(text, "\033[0m"));
+    const auto& colors = guchho::logger::kTerminalColors;
+
+    EXPECT_TRUE(Contains(text, std::string(colors.bold) + "src/a.js:2:7:" +
+                                   std::string(colors.reset) + " "));
+    EXPECT_TRUE(Contains(text, std::string(colors.yellow) + "WARNING" +
+                                   std::string(colors.reset)));
+    EXPECT_TRUE(Contains(text, std::string(colors.cyan) + "[eqeqeq]" +
+                                   std::string(colors.reset)));
+    EXPECT_TRUE(Contains(text, std::string(colors.dim) + "  2 | " +
+                                   std::string(colors.reset) +
+                                   "if (a == b) {}"));
+    EXPECT_TRUE(Contains(text, std::string(colors.dim) + "    | " +
+                                   std::string(colors.reset) + "      " +
+                                   std::string(colors.yellow) + "^^" +
+                                   std::string(colors.reset)));
+    EXPECT_TRUE(Contains(text, std::string(colors.yellow) +
+                                   Icon(guchho::logger::MsgKind::kWarning) +
+                                   std::string(colors.reset) +
+                                   " 1 problem (0 errors, 1 warning)"));
+}
+
+TEST(LintOutput, HumanReportPlainTextMatchesColoredFormatting) {
+    Options colored;
+    colored.color = true;
+    Options plain;
+    plain.color = false;
+
+    std::ostringstream colored_out;
+    std::ostringstream plain_out;
+    PrintReport(colored_out, SampleReport(), colored);
+    PrintReport(plain_out, SampleReport(), plain);
+
+    EXPECT_FALSE(Contains(plain_out.str(), "\033["));
+    EXPECT_EQ(StripAnsi(colored_out.str()), plain_out.str());
 }
 
 TEST(LintOutput, HumanReportUsesPluralSummary) {
@@ -215,6 +261,14 @@ TEST(LintOutput, JsonReportMatchesTheDocumentedSchema) {
 }
 )json";
     EXPECT_EQ(out.str(), expected);
+}
+
+TEST(LintOutput, JsonReportIgnoresColorOption) {
+    Options options;
+    options.color = true;
+    std::ostringstream out;
+    PrintJsonReport(out, SampleReport(), options);
+    EXPECT_FALSE(Contains(out.str(), "\033["));
 }
 
 TEST(LintOutput, JsonReportIsDeterministic) {

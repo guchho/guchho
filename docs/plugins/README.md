@@ -15,8 +15,8 @@ import { build } from 'guchho'
 
 const env = {
   name: 'env-define',
-  setup() {
-    // …
+  buildStart(options) {
+    // inspect or validate options before the build starts
   },
 }
 
@@ -27,10 +27,10 @@ Pass a single plugin or an array through the `plugins` option; the
 configuration file nests it under a top-level `plugins` key.
 
 When the config root is an array of configurations, each element may carry its
-own `plugins`. The host runs one list for the whole run, so the plugins from
-every element are collected in order into a single list, and a plugin named by
-more than one element is attached once. A plugin is not scoped to the element
-that named it - it sees every build in the run.
+own `plugins`. Since v1.0.6 the plugins on an element run only for that
+element's build, so a plugin named by two elements is instantiated once per
+build and sees only its own build. A single-configuration root and a flat
+top-level `plugins` list apply to every build in the run.
 
 ## The shape
 
@@ -77,7 +77,7 @@ The exact type declarations live in the
 | `PluginContext` | `this` inside a hook. |
 | `PluginOrder` | `'pre' \| 'post'`. |
 | `ResolveIdOptions` | Where a `resolveId` was asked from. |
-| `ResolvedId` | A `resolveId` answer: `id`, `external`, `namespace`, `meta`. |
+| `ResolvedId` | A `resolveId` answer: `id`, `external`, `moduleSideEffects`, `namespace`, `meta`. |
 | `LoadResult` | A `load` answer: `code`, `loader`, `resolveDir`, `meta`. |
 | `SourceDescription` | A `transform` answer: `code` and an optional `map`. |
 | `OutputChunk` / `OutputAsset` | One file in the bundle a bundle hook sees. |
@@ -92,6 +92,17 @@ The engine is a native service; a plugin cannot hook into its internals, only
 into the calls listed above. There is no plugin that runs on the compiler's
 side of the wire, and no hook past what the engine implements is declared -
 every hook in the type has a runtime implementation behind it.
+
+Two parts of the declared surface are not wired into the pipeline yet in this
+version:
+
+- `transform` is declared but is not run by the engine's pipeline.
+- `this.resolve` always rejects with a sentence naming the limitation rather
+  than resolving to a wrong answer.
+
+`this.emitFile` accepts assets only; a chunk request is refused with an
+explanation. It returns `void`, and `getFileName` is deliberately not
+declared.
 
 ## See also
 

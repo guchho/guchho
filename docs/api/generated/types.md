@@ -363,6 +363,7 @@ A loader name, as the grammar spells it.
 ```ts
 export type Loader =
   | 'js' | 'jsx' | 'ts' | 'tsx' | 'json' | 'text' | 'css' | 'html'
+  | 'base64' | 'dataurl' | 'file' | 'binary' | 'copy' | 'empty'
 ```
 
 ## Format

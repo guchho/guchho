@@ -116,21 +116,103 @@ opt-in.
 ## Reproducible metadata
 
 The programmatic `pack()` accepts `date` and `mode` to give every entry the same
-timestamp and permission bits. They are **recorded, not applied**: the values are
+timestamp and permission bits. Both are **recorded, not applied**: the values are
 written into the archive's entry headers and describe the files to whoever
 extracts them; packing does not chmod or touch the files on disk. The command
-line has no flags for them.
+line has no flags for them, because a release script that needs them is already
+able to call the API.
 
-The format decides how much of a value survives:
+### A fixed timestamp
 
-- `tar` stores whole seconds for any date from the epoch onwards, and uses an
-  extended header when the fixed field cannot hold the value.
-- `zip` stores an MS-DOS timestamp with two-second precision, interpreted in the
-  machine's local time zone. It covers 1980 through 2107; a date outside that
-  range is rejected for `zip` rather than wrapped.
-- `mode` is masked to `07777`, keeping setuid, setgid and sticky bits. When a
-  mode is given, a directory also gets its execute bits set, so a file-style
-  value such as `0644` never produces a directory nobody can enter.
+`date` takes a `Date` and writes it into every entry header:
+
+```js
+const built = new Date('2024-01-01T00:00:00Z')
+
+await pack({
+  inputs: ['dist'],
+  outFile: 'release.zip',
+  date: built,
+})
+```
+
+Without it each entry keeps the modification time of the file it came from, so
+two archives of identical content can differ in bytes merely because they were
+made at different times. With it, the archive is a function of the files and the
+date alone.
+
+The date is cut to whole seconds before it reaches the engine, and then stored at
+the precision the format has - not the precision of the `Date`:
+
+| Format | Field | Range | Precision |
+| --- | --- | --- | --- |
+| `zip` | MS-DOS date and time, in local time | 1980-01-01 through 2107-12-31 | 2 seconds |
+| `tar` | Unix seconds | 1970-01-01 onwards | 1 second |
+| `tar.gz` | Unix seconds inside the tar | 1970-01-01 onwards | 1 second |
+
+A date outside the format's range is refused, not wrapped or clamped. The epoch
+(`new Date(0)`) is therefore valid for `tar` and `tar.gz` and refused for `zip`;
+that asymmetry is the MS-DOS field, not a choice this library made.
+
+Because ZIP interprets its field in the machine's local time zone, the same
+`Date` can produce different bytes on two machines in different zones. Pin the
+zone when byte-identical zips matter:
+
+```bash
+TZ=UTC node release.js
+```
+
+`tar` stores an absolute instant and has no such dependency.
+
+### Permission bits
+
+`mode` is masked to `07777`, keeping setuid, setgid and sticky bits. When a mode
+is given, a directory also gets its execute bits set, so a file-style value such
+as `0644` never produces a directory nobody can enter.
+
+### A reproducible release, step by step
+
+1. Pick the timestamp the archive should carry. `SOURCE_DATE_EPOCH` is the
+   convention reproducible-build tools already set, and a fixed date is the
+   fallback when it is absent:
+
+   ```js
+   const epoch = Number(process.env.SOURCE_DATE_EPOCH)
+   const date = Number.isFinite(epoch)
+     ? new Date(epoch * 1000)
+     : new Date('2024-01-01T00:00:00Z')
+   ```
+
+2. Build the files that will be archived, as usual.
+
+3. Pack them with that date, and with `mode` if the permissions should not
+   depend on the machine that produced them:
+
+   ```js
+   const archive = await pack({
+     inputs: ['dist'],
+     outFile: 'release.zip',
+     date,
+     mode: 0o644,
+   })
+   ```
+
+4. Pin the time zone for the run so ZIP's local-time field does not move with
+   the machine. Pack the same inputs again with a second `outFile` (and the same
+   `date` and `mode`), then compare the two byte for byte. Equal files are the
+   proof that the archive depends only on the inputs and the chosen metadata:
+
+   ```bash
+   TZ=UTC node release.js
+   cmp release.zip release-copy.zip
+   ```
+
+   For `tar` and `tar.gz` the `TZ` prefix is unnecessary; their timestamp is an
+   absolute instant.
+
+5. Keep the date with the release rather than recomputing it. A release that
+   regains "today's" timestamp is no longer the same release, and consumers
+   comparing archives will see a difference that is not in the files.
 
 ## Programmatic
 

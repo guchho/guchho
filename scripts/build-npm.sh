@@ -14,6 +14,7 @@ set -euo pipefail
 #   win32-x64
 #   linux-x64
 #   darwin-arm64
+#   freebsd-x64
 # ========================================
 
 
@@ -62,6 +63,10 @@ detect_platform() {
             os="darwin"
             ;;
 
+        FreeBSD*)
+            os="freebsd"
+            ;;
+
         MINGW*|MSYS*|CYGWIN*|Windows_NT)
             os="win32"
             ;;
@@ -88,7 +93,7 @@ detect_platform() {
     local platform="${os}-${arch}"
 
     case "${platform}" in
-        win32-x64|linux-x64|darwin-arm64)
+        win32-x64|linux-x64|darwin-arm64|freebsd-x64)
             echo "${platform}"
             ;;
 
@@ -119,6 +124,10 @@ platform_to_preset() {
             echo "release-darwin-arm64"
             ;;
 
+        freebsd-x64)
+            echo "release-freebsd-x64"
+            ;;
+
         *)
             error "No CMake preset configured for: ${platform}"
             ;;
@@ -138,7 +147,7 @@ platform_to_binary_name() {
             echo "guchho.exe"
             ;;
 
-        linux-x64|darwin-arm64)
+        linux-x64|darwin-arm64|freebsd-x64)
             echo "guchho"
             ;;
 

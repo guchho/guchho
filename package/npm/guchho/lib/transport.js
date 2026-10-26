@@ -2,7 +2,7 @@
 
 // The one place a compiler-stage request and a service come from.
 //
-// The high-level API — build, transform, pack, analyze, context and the three
+// The high-level API — build, transform, lint, pack, analyze, context and the three
 // compiler stages — is written once and runs against whichever engine the
 // entry point registered here. lib/transport-node.js registers the native
 // service (a child process over a pipe); lib/browser/index.js registers the

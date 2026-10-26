@@ -36,6 +36,25 @@ An `EntryPoint` is one of:
 | `treeShaking` | `boolean` | Enable tree shaking. |
 | `write` | `boolean` | Whether to write outputs (default `true`). |
 
+## Defaults worth knowing
+
+Most options are off or unset until named. The ones that resolve to something
+are:
+
+| Option | Unset means |
+| --- | --- |
+| `platform` | `browser` |
+| `format` | Derived: `iife` for a browser bundle, `cjs` for a node bundle, `esm` for a neutral bundle; a non-bundled transform keeps the input's module syntax. |
+| `bundle` | `false`, except that an HTML entry point turns it on when it was not specified either way. |
+| `treeShaking` | `default`, which is on when bundling or emitting an IIFE and off for a plain ESM transform. |
+| `packages` | `bundle` - bare specifiers are resolved and inlined. |
+| `sourcemap` | `none`. |
+| `write` | `true` for `build()` and `guchho build`; a transform returns bytes instead. |
+| `charset` | `ascii`. |
+| `pretty` | `true` for HTML output. |
+| `minify*` | `false`. |
+| `logLevel` | `info`. |
+
 See [Formats](../formats.md) and [Platforms](../platforms.md).
 
 ## Minification
@@ -54,7 +73,7 @@ See [Formats](../formats.md) and [Platforms](../platforms.md).
 | Option | Meaning |
 | --- | --- |
 | `sourcemap` | `true`, `none`, `inline`, `external`, `linked` or `both`. |
-| `sourcesContent` | Embed original sources in the map. |
+| `sourcesContent` | `boolean` (default `true`) | Embed the original source text in the map. |
 | `legalComments` | `none`, `inline`, `eof`, `linked` or `external`. |
 | `banner` | Text placed at the top of every generated JS file. |
 | `footer` | Text placed at the bottom of every generated JS file. |
@@ -135,7 +154,7 @@ An object sets a level per check:
 | `publicPath` | The prefix on every generated URL. |
 | `sourceRoot` | Where `file` in a diagnostic is resolved against. |
 | `logLevel` | `verbose`, `debug`, `info`, `warning`, `error` or `silent`. |
-| `logLimit` | How many log lines to keep. |
+| `logLimit` | How many log lines to keep. `0` means no cap. |
 | `color` | Colour in diagnostics, or `auto`. |
 | `sourcemapRaw` | A source map to embed rather than write beside the output. |
 

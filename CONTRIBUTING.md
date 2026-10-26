@@ -202,7 +202,15 @@ Binary output: `build/<preset>/bin/guchho`
 
 ### 3.4 FreeBSD / OpenBSD / NetBSD / Solaris (SunOS) / AIX
 
-These platforms are not covered by CMake presets. They are built ad-hoc with CMake and are consumed through the npm `@guchho/*` prebuilt packages. Building from source requires:
+FreeBSD has a `release-freebsd-x64` preset and can be built natively with:
+
+```bash
+bash scripts/build-npm.sh
+```
+
+OpenBSD, NetBSD, Solaris (SunOS) and AIX are not covered by CMake presets.
+They are built ad-hoc with CMake and are consumed through the npm `@guchho/*`
+prebuilt packages. Building from source requires:
 
 - A C++20 compiler (Clang is the default on the BSDs).
 - CMake ≥ 3.25.
@@ -335,7 +343,27 @@ docker run --rm --platform linux/loong64 \
     cmake --build build/release-linux-loong64 --parallel"
 ```
 
-### 5.5 Installing a prebuilt npm binary (no build required)
+### 5.5 FreeBSD (QEMU VM)
+
+GitHub Actions has no FreeBSD runner, so `.github/workflows/npm-publish.yml`
+builds `freebsd-x64` inside a real FreeBSD VM with
+[`vmactions/freebsd-vm`](https://github.com/vmactions/freebsd-vm), booted on an
+Ubuntu runner. The workspace is synced into the VM, the project is built with
+the `release-freebsd-x64` preset, and the binary is synced back out for
+packaging. Install the toolchain inside the VM with:
+
+```sh
+pkg install -y cmake ninja
+cmake --preset release-freebsd-x64 --fresh
+cmake --build --preset release-freebsd-x64 --parallel
+ctest --preset release-freebsd-x64 --output-on-failure --no-tests=error
+```
+
+The same preset works on a native FreeBSD host, where `bash
+scripts/build-npm.sh` builds and stages the binary in
+`package/npm/@guchho/freebsd-x64/bin/`.
+
+### 5.6 Installing a prebuilt npm binary (no build required)
 
 If you just want to use guchho, install the prebuilt npm package instead of building:
 
@@ -412,7 +440,7 @@ bash scripts/test.sh --test-verbose --log test.log            # verbose + log
 
 ### 6.3 `scripts/build-npm.sh` - Native binary → npm package
 
-Builds the current platform's native binary and copies it into `package/npm/@guchho/<platform>/bin/`. Supported platforms: `win32-x64`, `linux-x64`, `darwin-arm64`.
+Builds the current platform's native binary and copies it into `package/npm/@guchho/<platform>/bin/`. Supported platforms: `win32-x64`, `linux-x64`, `darwin-arm64`, `freebsd-x64`.
 
 ```bash
 bash scripts/build-npm.sh

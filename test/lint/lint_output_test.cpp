@@ -1,6 +1,7 @@
 #include "test/guchho_test.hpp"
 
 #include "guchho/lint.hpp"
+#include "guchho/logger.hpp"
 
 #include <sstream>
 #include <string>
@@ -35,18 +36,23 @@ bool Contains(const std::string& text, const std::string& needle) {
     return text.find(needle) != std::string::npos;
 }
 
+std::string Icon(guchho::logger::MsgKind kind) {
+    return std::string(guchho::logger::MsgKindToIcon(kind));
+}
+
 } // namespace
 
 TEST(LintOutput, HumanReportPrintsLocationRuleSnippetAndSummary) {
     std::ostringstream out;
     PrintReport(out, SampleReport(), Options{});
     const std::string expected =
-        "src/a.js:2:7: warning  [eqeqeq]  Expected '===' and instead saw "
-        "'=='.\n"
-        "  2 | if (a == b) {}\n"
-        "    |       ^^\n"
-        "\n"
-        "\xE2\x9C\x96 1 problem (0 errors, 1 warning)\n";
+        std::string("src/a.js:2:7: WARNING  [eqeqeq]  Expected '===' and "
+                    "instead saw '=='.\n"
+                    "  2 | if (a == b) {}\n"
+                    "    |       ^^\n"
+                    "\n") +
+        Icon(guchho::logger::MsgKind::kWarning) +
+        " 1 problem (0 errors, 1 warning)\n";
     EXPECT_EQ(out.str(), expected);
     EXPECT_FALSE(Contains(out.str(), "\033["));
 }
@@ -59,7 +65,8 @@ TEST(LintOutput, QuietHidesWarningLinesButKeepsCounts) {
     const std::string text = out.str();
     EXPECT_FALSE(Contains(text, "src/a.js:2:7"));
     EXPECT_FALSE(Contains(text, "if (a == b)"));
-    EXPECT_EQ(text, "\xE2\x9C\x96 1 problem (0 errors, 1 warning)\n");
+    EXPECT_EQ(text, Icon(guchho::logger::MsgKind::kWarning) +
+                        " 1 problem (0 errors, 1 warning)\n");
 }
 
 TEST(LintOutput, HumanReportOmitsSnippetWhenSourceIsUnavailable) {
@@ -68,7 +75,7 @@ TEST(LintOutput, HumanReportOmitsSnippetWhenSourceIsUnavailable) {
     std::ostringstream out;
     PrintReport(out, report, Options{});
     const std::string text = out.str();
-    EXPECT_TRUE(Contains(text, "src/a.js:2:7: warning  [eqeqeq]"));
+    EXPECT_TRUE(Contains(text, "src/a.js:2:7: WARNING  [eqeqeq]"));
     EXPECT_FALSE(Contains(text, "  2 |"));
     EXPECT_FALSE(Contains(text, "^^"));
 }
@@ -118,7 +125,8 @@ TEST(LintOutput, HumanReportUsesPluralSummary) {
     std::ostringstream out;
     PrintReport(out, report, Options{});
     EXPECT_TRUE(Contains(out.str(),
-                         "\xE2\x9C\x96 32 problems (31 errors, 1 warning)"));
+                         Icon(guchho::logger::MsgKind::kError) +
+                             " 32 problems (31 errors, 1 warning)"));
 }
 
 TEST(LintOutput, HumanReportSaysWhenNothingMatched) {
@@ -132,7 +140,8 @@ TEST(LintOutput, HumanReportSaysWhenNoProblemsWereFound) {
     report.files.push_back(FileReport{});
     std::ostringstream out;
     PrintReport(out, report, Options{});
-    EXPECT_EQ(out.str(), "\xE2\x9C\x94 No problems found.\n");
+    EXPECT_EQ(out.str(), std::string(guchho::logger::SuccessIcon()) +
+                             " No problems found.\n");
 }
 
 TEST(LintOutput, HumanReportDescribesDryRunFixes) {

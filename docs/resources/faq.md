@@ -24,9 +24,16 @@ protocol.
 
 **What platforms are supported?**
 
-npm ships prebuilt binaries for the major desktop platforms (Linux, macOS,
-Windows), plus `android-x64` since 1.0.4. If your platform has no prebuilt
-binary, build from source - see
+npm ships prebuilt binaries for these targets:
+
+- **Linux**: x64, arm, arm64, ia32, loong64, mips64el, ppc64, riscv64, s390x
+- **macOS**: x64, arm64
+- **Windows**: x64, arm64, ia32
+- **BSD**: FreeBSD x64/arm64, NetBSD x64/arm64, OpenBSD x64/arm64
+- **Other**: AIX ppc64, Solaris x64, Android arm/arm64/x64, OpenHarmony arm64
+
+There is also a `wasm` build. If your platform has no prebuilt binary, build
+from source - see
 [CONTRIBUTING.md](https://github.com/guchho/guchho/blob/main/CONTRIBUTING.md).
 
 ## Building

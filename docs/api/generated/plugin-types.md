@@ -75,8 +75,8 @@ export interface ResolvedId {
   /** True to leave the import in the output rather than bundle it. */
   external?: boolean
   /**
-   * True to promise the module has no side effects, so it can be dropped when
-   * nothing imports from it. Only meaningful as `true`.
+   * False to promise the module has no side effects, so it can be dropped when
+   * nothing imports from it. True (the default) keeps it even when unused.
    */
   moduleSideEffects?: boolean
   /** A virtual filesystem the id belongs to. "file" by default. */
@@ -197,6 +197,7 @@ A file a plugin asks the build to emit with `this.emitFile`.
 ```ts
 export type EmittedFile =
   | { type: 'asset'; name?: string; fileName?: string; source: string | Uint8Array }
+  | { type: 'chunk'; id: string; name?: string; fileName?: string }
 ```
 
 ## GuchhoLog
@@ -242,6 +243,9 @@ export interface PluginContext {
    * then hands back the answer. This is how a plugin asks where an import
    * points without claiming it. Returns `null` when nothing resolves it.
    *
+   * Not wired yet in this version: always rejects with a sentence naming the
+   * limitation, rather than resolving to a wrong answer.
+   *
    * `custom: true` is set on the question so a plugin that answers resolution
    * can tell its own question from the engine's and decline it.
    */
@@ -251,12 +255,10 @@ export interface PluginContext {
     options?: ResolveIdOptions
   ): Promise<ResolvedId | null>
   /**
-   * Adds a file to the build's output. Returns a reference id that names the
-   * file for `getFileName`, and that can be handed to another `emitFile`.
+   * Adds a file to the build's output. Assets only in this version; chunks
+   * are refused with a sentence rather than silently dropped.
    */
-  emitFile(file: EmittedFile): string
-  /** The output path a reference id from `emitFile` resolves to. */
-  getFileName(referenceId: string): string
+  emitFile(file: EmittedFile): void
   /** Reports a warning against this plugin. Does not fail the build. */
   warn(message: string | GuchhoLog): void
   /** Fails the build with this message. Never returns. */
@@ -309,6 +311,8 @@ export interface Plugin {
   /**
    * Transforms a module's source after it has been loaded and before it is
    * parsed. `code` is the text the previous step produced.
+   *
+   * Declared but not yet run by the engine's pipeline in this version.
    */
   transform?(
     this: PluginContext,

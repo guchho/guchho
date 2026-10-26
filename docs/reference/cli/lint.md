@@ -148,8 +148,10 @@ src/app.js:3:10: ERROR  [no-undef]  "missing" is not defined.
 Summary lines use `✘ N problems (N errors, N warnings)` when there are errors,
 `▲ N problems (...)` for warning-only runs, or `✓ No problems found.` Colors are
 enabled only when stdout is a terminal and `NO_COLOR` is not set; the caret
-layout remains readable without colors. Summary icons follow the same Windows
-Command Prompt fallbacks as build diagnostics (`X` and `+`). `--quiet` hides
+layout remains readable without colors. On Windows, color escapes are rendered
+as console attributes instead of being written as literal ANSI bytes. Summary
+icons follow the same Windows Command Prompt fallbacks as build diagnostics
+(`X` and `+`). `--quiet` hides
 warning blocks but keeps their counts. JSON output contains a `files` array with
 per-file `messages` and counts, a flat `messages` array, and top-level
 `errorCount`, `warningCount`, `fixCount`, and `filesWithProblems` fields. Each

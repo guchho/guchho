@@ -107,11 +107,12 @@ namespace guchho::lint {
     };
 
     struct FileReport {
-        std::string            path;
+        std::string             path;
+        std::string             source;
         std::vector<Diagnostic> diagnostics;
-        int                    errors{};
-        int                    warnings{};
-        int                    fixes{};
+        int                     errors{};
+        int                     warnings{};
+        int                     fixes{};
     };
 
     struct Report {
@@ -133,6 +134,7 @@ namespace guchho::lint {
         bool                                      quiet{};
         bool                                      watch{};
         bool                                      json{};
+        bool                                      color{};
     };
 
     struct Project {

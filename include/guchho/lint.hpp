@@ -106,8 +106,8 @@ namespace guchho::lint {
     };
 
     struct FileReport {
-        std::string            source;
         std::string            path;
+        std::string            source;
         std::vector<Diagnostic> diagnostics;
         int                    errors{};
         int                    warnings{};

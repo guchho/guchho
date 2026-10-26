@@ -35,6 +35,7 @@ const { build, analyzeMetafile } = require("./build");
 const { analyze } = require("./analyze");
 const { transform } = require("./transform");
 const { pack } = require("./pack");
+const { lint } = require("./lint");
 const { unpack } = require("./unpack");
 const { context, BuildContext } = require("./context");
 const { watch, Watcher } = require("./watch");
@@ -52,6 +53,7 @@ module.exports = {
     build,
     transform,
     pack,
+    lint,
     unpack,
     context,
     analyze,

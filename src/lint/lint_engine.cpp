@@ -1254,6 +1254,9 @@ Analysis AnalyzeSource(const std::string& path, const std::string& source,
         if (diagnostic.severity == Severity::kError) analysis.report.errors++;
         if (diagnostic.severity == Severity::kWarning) analysis.report.warnings++;
     }
+    if (!analysis.report.diagnostics.empty()) {
+        analysis.report.source = source;
+    }
     return analysis;
 }
 

@@ -39,6 +39,7 @@ const PUBLIC_API = [
     "build",
     "context",
     "lexer",
+    "lint",
     "parse",
     "print",
     "serve",
@@ -105,6 +106,7 @@ describe("the package's CommonJS entry", () => {
         const { analyze } = require("../guchho/lib/analyze");
         const { transform } = require("../guchho/lib/transform");
         const { pack } = require("../guchho/lib/pack");
+        const { lint } = require("../guchho/lib/lint");
         const { unpack } = require("../guchho/lib/unpack");
         const { context, BuildContext } = require("../guchho/lib/context");
         const { watch, Watcher } = require("../guchho/lib/watch");
@@ -116,6 +118,7 @@ describe("the package's CommonJS entry", () => {
         assert.equal(guchho.build, build);
         assert.equal(guchho.transform, transform);
         assert.equal(guchho.pack, pack);
+        assert.equal(guchho.lint, lint);
         assert.equal(guchho.unpack, unpack);
         assert.equal(guchho.context, context);
         assert.equal(guchho.analyze, analyze);

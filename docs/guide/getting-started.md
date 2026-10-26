@@ -33,7 +33,9 @@ npx guchho init -y
 ```
 
 This writes a starter project - `src/index.html`, `src/main.js`, `src/style.css`
-and `guchho.config.js`. Choose a different shape with `--type` and `--template`:
+and a config file. The config is `guchho.config.js` when a JavaScript runtime is
+available, or `guchho.json` when none is found. Choose a different shape with
+`--type` and `--template`:
 
 ```bash
 guchho init --type=lib --template=ts

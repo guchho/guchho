@@ -133,7 +133,7 @@ namespace guchho::lint {
         bool                                      quiet{};
         bool                                      watch{};
         bool                                      json{};
-        bool                                      color = true;
+        bool                                      color{};
     };
 
     struct Project {

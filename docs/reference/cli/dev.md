@@ -26,11 +26,17 @@ Start a development server with file watching and automatic rebuilds.
 | `--sourcemap` | - | Enable source maps. |
 | `--target=<target>` | - | Target environment. |
 | `--log-level=<level>` | `info` | Log level. |
+| `--quiet` | off | Suppress progress lines; errors still print. |
 | `--color` / `--no-color` | auto | Force colour on or off. |
 | `--quiet` | off | Minimal output. |
 | `--verbose` | off | Detailed output. |
 
 The build flags are the same ones [`guchho build`](build.md) accepts.
+
+`dev` writes output, logs at `info` (or `error` with `--quiet`), and keeps the
+last six build messages. It enables live reload: every HTML response gets a
+script tag for `/guchho.js`, and the page reloads when a rebuild changes an
+output. `serve` has neither behaviour.
 
 ## Examples
 

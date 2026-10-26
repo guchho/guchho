@@ -3,8 +3,8 @@
 // lib/browser/index.js is what the "browser" export condition resolves to. It
 // installs the WebAssembly transport and re-exports the same orchestrators the
 // Node entry uses, so the API a browser bundle gets is the API the package
-// documents: build, transform, pack, analyze, analyzeMetafile, context and the
-// three compiler stages. watch and serve need a host process, unpack needs a
+// documents: build, transform, pack, lint, analyze, analyzeMetafile, context and
+// the three compiler stages. watch and serve need a host process, unpack needs a
 // host filesystem, and all three are kept as names that refuse; configure and
 // loadFiles are the browser's own knobs.
 //
@@ -65,6 +65,18 @@ function answer(payload) {
     }
     if (command === "pack") {
         return { errors: [], warnings: [], path: payload.outFile, size: "0" };
+    }
+    if (command === "lint") {
+        return {
+            errors: [],
+            warnings: [],
+            files: [{ path: "src/a.js", errorCount: 0, warningCount: 0, messages: [] }],
+            messages: [],
+            errorCount: 0,
+            warningCount: 0,
+            fixCount: 0,
+            filesWithProblems: 0,
+        };
     }
     if (command === "build" || command === "context" || command === "rebuild") {
         return { errors: [], warnings: [], outputFiles: [], key: 7 };
@@ -154,6 +166,23 @@ describe("the browser entry", () => {
         const result = await guchho.pack({ inputs: ["dist"], outFile: "dist.zip" });
         assert.equal(result.path, "dist.zip");
         assert.ok(state().requests.some((r) => r.command === "pack"));
+    });
+
+    it("routes lint to @guchho/wasm", async () => {
+        const result = await guchho.lint({
+            files: ["src/a.js"],
+            rules: { "no-undef": "error" },
+            maxWarnings: 0,
+        });
+
+        assert.equal(result.files[0].path, "src/a.js");
+        assert.equal(result.maxWarningsExceeded, false);
+
+        const request = state().requests.find((r) => r.command === "lint");
+        assert.ok(request, "a lint request should have reached the stub");
+        assert.deepEqual(request.files, ["src/a.js"]);
+        assert.ok(request.flags.includes("--rule=no-undef:error"));
+        assert.ok(request.flags.includes("--max-warnings=0"));
     });
 
     it("refuses watch, serve and unpack with a sentence naming the native package", () => {

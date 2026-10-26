@@ -15,6 +15,7 @@ export const {
     build,
     transform,
     pack,
+    lint,
     context,
     analyze,
     analyzeMetafile,

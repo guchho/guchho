@@ -212,13 +212,23 @@ config file, and the config file wins over built-in defaults, so the command
 above and the command below can describe the same project:
 
 ```bash
-npx guchho build src/index.html --outdir=dist --format=esm --minify --sourcemap
+npx guchho build src/index.html --outdir=dist --minify
 ```
 
-Here `--outdir` names the output directory, `--format=esm` emits ES modules,
-`--minify` compresses the output, and `--sourcemap` writes linked source maps
-beside it. A build without a config file uses the same engine and the same
-defaults; it simply takes every setting from the command line.
+Here `--outdir` names the output directory and `--minify` compresses the output.
+A build without a config file uses the same engine and the same defaults; it
+simply takes every setting from the command line.
+
+When the entry point is JavaScript rather than HTML, the module format and the
+source map are named directly:
+
+```bash
+npx guchho build src/main.js --outdir=dist --format=esm --minify --sourcemap
+```
+
+`--format=esm` emits ES modules, `--minify` compresses the output, and
+`--sourcemap` writes linked source maps beside it. An HTML entry point chooses
+the format its document needs, so a `--format` flag has nothing to decide there.
 
 The starter produces a document, a script and a stylesheet. The names carry a
 content hash so a changed file gets a new URL:
@@ -254,25 +264,25 @@ to their loader.
 A few everyday variations are worth knowing before reaching for a config file:
 
 ```bash
-# An older browser target, with source maps embedded in the output.
-npx guchho build --target=es2020 --sourcemap=inline
+# An older language target, with source maps embedded in the output.
+npx guchho build src/main.js --target=es2020 --sourcemap=inline
 
 # Replace a compile-time identifier.
-npx guchho build --define:__DEV__=false
+npx guchho build src/index.html --define:__DEV__=false
 
 # Treat SVG files as data URLs instead of separate assets.
 npx guchho build src/index.html --loader:.svg=dataurl
 
-# Describe what was built without guessing from the file system.
-npx guchho build --metafile --analyze
+# Print a size report from the build's own dependency graph.
+npx guchho build src/index.html --analyze
 ```
 
 `--target` names the language level the output must stay within. `--sourcemap`
 accepts `inline`, `external`, `linked` or `both`; a bare `--sourcemap` means a
 linked map. `--define:` substitutes the identifier that follows it, which is a
 cheap way to remove development-only branches. `--loader:` takes an extension
-and a loader name, and `--metafile --analyze` writes the build's own dependency
-graph and prints a size report from it.
+and a loader name, and `--analyze` prints a size report read from the build's
+own dependency graph.
 
 For a reusable library, the settings point away from the browser defaults:
 

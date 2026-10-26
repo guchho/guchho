@@ -12,9 +12,6 @@ namespace guchho::lint {
 
 namespace {
 
-constexpr std::string_view kProblemIcon = "\xE2\x9C\x96";
-constexpr std::string_view kSuccessIcon = "\xE2\x9C\x94";
-
 std::string_view SeverityText(Severity severity) {
     switch (severity) {
     case Severity::kError:
@@ -24,6 +21,16 @@ std::string_view SeverityText(Severity severity) {
     default:
         return "off";
     }
+}
+
+logger::MsgKind SeverityKind(Severity severity) {
+    return severity == Severity::kError ? logger::MsgKind::kError
+                                        : logger::MsgKind::kWarning;
+}
+
+std::string_view SeverityLabel(Severity severity) {
+    if (severity == Severity::kOff) return "off";
+    return logger::MsgKindToString(SeverityKind(severity));
 }
 
 std::string_view SeverityColor(Severity severity,
@@ -77,7 +84,7 @@ void PrintHeader(std::ostream& os, const Diagnostic& diagnostic,
     os << colors.bold << diagnostic.path << ":" << diagnostic.line << ":"
        << diagnostic.column << ":" << colors.reset << " ";
 
-    const std::string_view severity = SeverityText(diagnostic.severity);
+    const std::string_view severity = SeverityLabel(diagnostic.severity);
     os << SeverityColor(diagnostic.severity, colors) << severity
        << colors.reset;
     if (severity.size() < 7) {
@@ -178,12 +185,16 @@ void PrintReport(std::ostream& os, const Report& report,
 
     const int problems = report.errors + report.warnings;
     if (problems == 0) {
-        os << colors.green << kSuccessIcon << colors.reset
+        os << colors.green << logger::SuccessIcon() << colors.reset
            << " No problems found.\n";
     } else {
+        const logger::MsgKind kind =
+            report.errors > 0 ? logger::MsgKind::kError
+                              : logger::MsgKind::kWarning;
         const std::string_view color =
             report.errors > 0 ? colors.red : colors.yellow;
-        os << color << kProblemIcon << colors.reset << " " << problems
+        os << color << logger::MsgKindToIcon(kind) << colors.reset << " "
+           << problems
            << (problems == 1 ? " problem" : " problems") << " ("
            << report.errors << (report.errors == 1 ? " error" : " errors")
            << ", " << report.warnings

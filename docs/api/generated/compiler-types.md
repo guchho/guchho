@@ -45,7 +45,7 @@ export type CompileSource = string | Uint8Array
 
 ## AstHandle
 
-The handle a parse returned. Opaque to this package: it is the service's id for a tree it holds, and only transform* and print* may use it, in the same language it came from.
+The handle a parse returned. Opaque to this package: it is the service's id for a tree it holds, and only print() may use it, in the same language it came from. There is no transformAst — the engine's transform work happens on source, not on a handle.
 
 ```ts
 export type AstHandle = number
@@ -152,6 +152,13 @@ export interface PrintOptions extends CompileOptions, CssMinifyOptions {
 ```ts
 export type HtmlTokenKind =
   | 'comment'
+  | 'doctype'
+  | 'start-tag'
+  | 'end-tag'
+  | 'eof'
+  | 'character'
+  | 'null-character'
+  | 'whitespace-character'
 ```
 
 ## HtmlToken
@@ -170,6 +177,12 @@ export interface HtmlToken extends SourcePosition {
 ```ts
 export type CssTokenKind =
   | 'endOfFile' | 'atKeyword' | 'unterminatedString' | 'badUrl' | 'cdc' | 'cdo'
+  | 'closeBrace' | 'closeBracket' | 'closeParen' | 'colon' | 'comma' | 'delim'
+  | 'ampersand' | 'asterisk' | 'bar' | 'caret' | 'dollar' | 'dot' | 'equals'
+  | 'exclamation' | 'greaterThan' | 'lessThan' | 'minus' | 'plus' | 'slash'
+  | 'tilde' | 'dimension' | 'function' | 'hash' | 'ident' | 'number'
+  | 'openBrace' | 'openBracket' | 'openParen' | 'percentage' | 'semicolon'
+  | 'string' | 'url' | 'whitespace' | 'symbol'
 ```
 
 ## CssToken
@@ -276,7 +289,7 @@ export interface ParseResult extends CompileResult {
   nodes?: HtmlNode[]
   /** HTML. */
   nodeCount?: number
-  /** HTML, only when collectImportRecords was set. */
+  /** HTML and CSS. The number of import records the parser found. */
   importRecords?: number
   /** HTML, only when collectInlineCode was set. */
   inlineScripts?: number

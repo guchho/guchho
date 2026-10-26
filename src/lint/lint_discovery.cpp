@@ -1,6 +1,5 @@
 #include "guchho/lint.hpp"
 
-#include "guchho/helpers.hpp"
 
 #include <algorithm>
 #include <optional>

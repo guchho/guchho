@@ -1061,6 +1061,20 @@ std::string Extension(const std::string& path) {
     return extension;
 }
 
+void ApplyParserMode(const std::string& extension, config::Options& options) {
+    if (extension == ".tsx") {
+        options.TS.Parse = true;
+        options.JSX.Parse = true;
+    } else if (extension == ".ts") {
+        options.TS.Parse = true;
+    } else if (extension == ".mts" || extension == ".cts") {
+        options.TS.Parse = true;
+        options.TS.NoAmbiguousLessThan = true;
+    } else if (extension == ".jsx") {
+        options.JSX.Parse = true;
+    }
+}
+
 } // namespace
 
 SourcePosition PositionForOffset(const std::string& source, int32_t offset) {
@@ -1115,6 +1129,7 @@ Analysis AnalyzeSource(const std::string& path, const std::string& source,
     } else {
         build_options.ModuleTypeData.type = javascript::ModuleType::kESM_MJS;
     }
+    ApplyParserMode(extension, build_options);
 
     const Severity undef = config.rules.contains("no-undef")
                                ? config.rules.at("no-undef")

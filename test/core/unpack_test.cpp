@@ -404,10 +404,10 @@ TEST(Unpack, PreserveFlagsAreIndependent)
     };
 
     auto toSeconds = [](fs::file_time_type value) {
-        const auto system = std::chrono::system_clock::now() +
-                            (value - fs::file_time_type::clock::now());
-        return static_cast<long long>(
-            std::chrono::system_clock::to_time_t(system));
+        const auto diff = value - fs::file_time_type::clock::now();
+        const auto system = std::chrono::time_point_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now() + std::chrono::duration_cast<std::chrono::system_clock::duration>(diff));
+        return static_cast<long long>(std::chrono::system_clock::to_time_t(system));
     };
 
     // Permissions on, timestamps off: the extracted file keeps the moment it

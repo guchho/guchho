@@ -112,6 +112,21 @@ TEST(JsLintUndefined, BrowserGlobalsAreKnown) {
     EXPECT_TRUE(Undefined("console.log(window.document.title);").empty());
 }
 
+TEST(JsLintUndefined, WebStorageGlobalsAreKnown) {
+    EXPECT_TRUE(Undefined("localStorage.length; sessionStorage.length;").empty());
+    EXPECT_FALSE(config::IsKnownGlobalName("localStorage", config::Platform::kNode));
+    EXPECT_FALSE(config::IsKnownGlobalName("sessionStorage", config::Platform::kNode));
+}
+
+TEST(JsLintUndefined, ModernBrowserApisAreKnown) {
+    EXPECT_TRUE(Undefined(
+        "crypto.subtle; caches.open('v1'); new AudioContext(); "
+        "new WebGL2RenderingContext(); navigation.currentEntry; "
+        "scheduler.postTask(() => {}); visualViewport;")
+                    .empty());
+    EXPECT_FALSE(config::IsKnownGlobalName("AudioContext", config::Platform::kNode));
+}
+
 TEST(JsLintUndefined, NodeGlobalsAreKnownForNode) {
     EXPECT_TRUE(Undefined("process.exit(0);", config::Platform::kNode).empty());
 }

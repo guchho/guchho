@@ -59,8 +59,8 @@ and on Node the two do not fall back the same way:
 - **`lexer`, `parse` and `print`** fall back to this engine too, but
   native-first: a native binary, when one is installed, answers them without
   loading the WebAssembly module at all.
-- **`build`, `transform`, `pack`, `analyze`, `analyzeMetafile`, `context`,
-  `watch` and `serve`** are native-only on Node. They speak the service
+- **`build`, `transform`, `lint`, `pack`, `analyze`, `analyzeMetafile`,
+  `context`, `watch` and `serve`** are native-only on Node. They speak the service
   protocol to a child process, and there is no WebAssembly fallback for that
   path: with only this package installed, `require("guchho").build()` fails
   while `npx guchho build` succeeds. In a browser the same functions run
@@ -138,7 +138,7 @@ resolves `import { build } from "guchho"` for a browser target, it picks up
 orchestrators to the WASM transport instead of the native pipe:
 
 ```js
-import { configure, build, transform, lexer } from "guchho";
+import { configure, build, transform, lint, lexer } from "guchho";
 
 // Supply the project's files before the first call.
 configure({
@@ -169,9 +169,12 @@ Differences from the Node surface:
   sentence explaining what the browser lacks: a host process for the first two,
   and a host filesystem for `unpack`.
 - **`stop()` is a no-op.** The in-process engine frees itself with the page.
+- **JSON lint configs work; JavaScript configs do not.** `lint()` reaches the
+  engine through the same transport, but a `.js`, `.mjs` or `.cjs` lint config
+  is evaluated by Node in a child process, which the browser does not have.
 
-`analyze`, `analyzeMetafile`, `context` and `pack` all work through the same
-transport.
+`lint`, `analyze`, `analyzeMetafile`, `context` and `pack` all work through the
+same transport.
 
 ## Choosing an engine
 

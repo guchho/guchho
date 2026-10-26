@@ -50,8 +50,10 @@ A plugin that rewrites imports but must not answer its own questions checks
 `options.custom` and declines when it is `true`, because `this.resolve` sets it.
 
 To claim a module has no side effects - so it can be dropped when nothing
-imports from it - return it with `moduleSideEffects: true`. This is the hook
-that [tree shaking](../guide/tree-shaking.md) points at.
+imports from it - return it with `moduleSideEffects: false`. The default,
+`true`, keeps the module even when it is unused. Despite the name, this field
+follows Guchho's engine value rather than Rollup's inverted spelling. This is
+the hook that [tree shaking](../guide/tree-shaking.md) points at.
 
 ## load
 
@@ -86,6 +88,9 @@ Transforms a module's source after it has been loaded and before it is parsed.
 Return the transformed source, optionally with a sourcemap for it. It is the
 place to strip a loader, rewrite imports textually, or preprocess a module that
 is not a plain JavaScript/TypeScript input.
+
+**Declared but not yet run by the engine's pipeline in this version.** The hook
+is accepted and typed, but the build will not call it.
 
 ## buildEnd
 

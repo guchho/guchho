@@ -44,6 +44,11 @@ if(NOT DEFINED TEST_PREFIX)
 endif()
 
 
+if(NOT DEFINED TEST_CROSSCOMPILING)
+    set(TEST_CROSSCOMPILING FALSE)
+endif()
+
+
 if(NOT DEFINED TEST_WORKING_DIR OR TEST_WORKING_DIR STREQUAL "")
     set(TEST_WORKING_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 endif()
@@ -72,6 +77,29 @@ get_filename_component(
 
 if(NOT TEST_OUTPUT_DIR STREQUAL "")
     file(MAKE_DIRECTORY "${TEST_OUTPUT_DIR}")
+endif()
+
+
+# ------------------------------------------------------------
+# Skip cross-compiled targets
+#
+# A test binary built for another architecture (Android, WASM,
+# ...) cannot be executed on the host, so discovery would only
+# produce "Exec format error" noise. Leave the output file
+# absent so the parent logic installs its NOT_BUILT placeholder.
+# ------------------------------------------------------------
+
+if(TEST_CROSSCOMPILING)
+    if(EXISTS "${TEST_OUTPUT}")
+        file(REMOVE "${TEST_OUTPUT}")
+    endif()
+
+    message(
+        STATUS
+        "Skipping test discovery for cross-compiled target: ${TEST_EXECUTABLE}"
+    )
+
+    return()
 endif()
 
 

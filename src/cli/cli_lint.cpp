@@ -9,6 +9,7 @@
 #include <csignal>
 #include <iostream>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <utility>
@@ -23,12 +24,6 @@ static std::atomic<bool> g_lint_interrupted{false};
 void LintSignalHandler(int) {
     g_lint_interrupted.store(true, std::memory_order_relaxed);
 }
-
-struct LintArgs {
-    lint::Options options;
-    bool help{};
-    bool format_json{};
-};
 
 bool TakeValue(const std::vector<std::string>& args, size_t& i,
                std::string_view option, std::string& value) {
@@ -45,6 +40,8 @@ bool TakeValue(const std::vector<std::string>& args, size_t& i,
     }
     return false;
 }
+
+} // namespace
 
 std::optional<ErrorWithNote> ParseLintArgs(
     const std::vector<std::string>& args, LintArgs& out) {
@@ -165,6 +162,8 @@ std::optional<ErrorWithNote> ParseLintArgs(
     return std::nullopt;
 }
 
+namespace {
+
 void ApplyOverrides(lint::Config& config, const lint::Options& options) {
     for (const auto& [name, severity] : options.rule_overrides) {
         config.rules[name] = severity;
@@ -179,6 +178,13 @@ bool LoadLintConfig(filesystem::Fs& fs, const std::string& cwd,
     }
     ApplyOverrides(config, options);
     return true;
+}
+
+void PrintHumanReport(const lint::Report& report, const lint::Options& options) {
+    std::ostringstream rendered;
+    lint::PrintReport(rendered, report, options);
+    std::cout.flush();
+    logger::WriteStringWithColor(1, rendered.str());
 }
 
 bool LintOnce(filesystem::Fs& fs, const std::string& cwd,
@@ -203,7 +209,7 @@ bool LintOnce(filesystem::Fs& fs, const std::string& cwd,
     if (options.json) {
         lint::PrintJsonReport(std::cout, report, options);
     } else {
-        lint::PrintReport(std::cout, report, options);
+        PrintHumanReport(report, options);
     }
 
     if (!options.json && options.max_warnings >= 0 &&

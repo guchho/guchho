@@ -74,6 +74,7 @@
 #include "guchho/api.hpp"
 #include "guchho/service.hpp"
 #include "guchho/filesystem.hpp"
+#include "guchho/lint.hpp"
 
 namespace guchho::cli {
 
@@ -718,6 +719,20 @@ namespace guchho::cli {
     //
     // One per file. Each takes the arguments as given, drops the command word,
     // answers --help itself, and returns one of the ExitCode values above.
+
+    // The lint flags, after one pass of the grammar.
+    //
+    // This lives here rather than in cli_lint.cpp because the service parses a
+    // lint request with the same grammar the command line does. A second mapping
+    // from request fields to options would be the first place the two drifted.
+    struct LintArgs {
+        lint::Options options;
+        bool help{};
+        bool format_json{};
+    };
+
+    std::optional<ErrorWithNote> ParseLintArgs(
+        const std::vector<std::string>& args, LintArgs& out);
 
     int runBuild(const std::vector<std::string>& args, bool quiet,
                  const std::vector<api::Plugin>& plugins,

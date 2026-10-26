@@ -104,6 +104,10 @@ TEST(CliLint, WarningsAreReportedWithoutFailingTheCommand) {
     EXPECT_EQ(result.exit_code, 0);
     EXPECT_TRUE(guchho::test::OutputContains(result.out, "src/a.js:1:5: warning"));
     EXPECT_TRUE(guchho::test::OutputContains(result.out, "no-unused-vars"));
+    EXPECT_TRUE(
+        guchho::test::OutputContains(result.out, "  1 | var unused = 1;"));
+    EXPECT_TRUE(guchho::test::OutputContains(
+        result.out, "\xE2\x9C\x96 1 problem (0 errors, 1 warning)"));
 }
 
 TEST(CliLint, ErrorsFailTheCommand) {
@@ -198,7 +202,7 @@ TEST(CliLint, WatchNoticesDeletedFiles) {
     stopper.join();
     EXPECT_EQ(result.exit_code, guchho::test::kInterrupted);
     EXPECT_TRUE(guchho::test::OutputContains(result.out, "1 problem"));
-    const std::string tail = "No problems found.\n";
+    const std::string tail = "\xE2\x9C\x94 No problems found.\n";
     ASSERT_GE(result.out.size(), tail.size());
     EXPECT_EQ(result.out.compare(result.out.size() - tail.size(), tail.size(),
                                  tail),

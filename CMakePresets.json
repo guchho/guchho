@@ -318,6 +318,20 @@
     },
 
     {
+      "name": "release-freebsd-x64",
+      "displayName": "FreeBSD x64 Release",
+      "inherits": "base-ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "FreeBSD"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+
+    {
       "name": "asan-linux-x64",
       "displayName": "Linux x64 ASan",
       "inherits": "debug-linux-x64",
@@ -512,6 +526,13 @@
       "displayName": "Build macOS x64 MinSizeRel",
       "configurePreset": "minsizerel-darwin-x64",
       "configuration": "MinSizeRel"
+    },
+
+    {
+      "name": "release-freebsd-x64",
+      "displayName": "Build FreeBSD x64 Release",
+      "configurePreset": "release-freebsd-x64",
+      "configuration": "Release"
     },
 
     {
@@ -724,6 +745,19 @@
     },
 
     {
+      "name": "release-freebsd-x64",
+      "displayName": "Test FreeBSD x64 Release",
+      "configurePreset": "release-freebsd-x64",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true
+      }
+    },
+
+    {
       "name": "asan-linux-x64",
       "displayName": "Test Linux x64 ASan",
       "configurePreset": "asan-linux-x64",
@@ -891,6 +925,24 @@
         {
           "type": "test",
           "name": "release-darwin-arm64"
+        }
+      ]
+    },
+    {
+      "name": "release-freebsd-x64",
+      "displayName": "FreeBSD x64 Release Workflow",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "release-freebsd-x64"
+        },
+        {
+          "type": "build",
+          "name": "release-freebsd-x64"
+        },
+        {
+          "type": "test",
+          "name": "release-freebsd-x64"
         }
       ]
     },

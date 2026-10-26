@@ -13,6 +13,7 @@ In this page:
 
 - [`Run`](#run)
 - [`RunWithPlugins`](#runwithplugins)
+- [`RunWithPluginGroups`](#runwithplugingroups)
 - [`RunService`](#runservice)
 - [`RunServiceRequest`](#runservicerequest)
 - [`RunServiceCompileRequest`](#runservicecompilerequest)
@@ -80,6 +81,22 @@ Output: the same build, its summary, and 0, with the plugin's hooks
 ```cpp
 int RunWithPlugins(const std::vector<std::string>& os_args,
                        const std::vector<api::Plugin>& plugins);
+```
+
+## RunWithPluginGroups
+
+The same thing again, with the plugins grouped by the config-file element
+that named them. One group per element, positionally aligned with the
+config root's elements, so that each resolved build runs only the plugins
+its own element named. A plugin named by two elements is reached as two
+separate instances, one per build, which a single flat list cannot do.
+
+An empty group list is the same as RunWithPlugins with no plugins. A host
+that has a single flat list should keep using RunWithPlugins.
+
+```cpp
+int RunWithPluginGroups(const std::vector<std::string>& os_args,
+                        const std::vector<std::vector<api::Plugin>>& plugin_groups);
 ```
 
 ## RunService
@@ -395,7 +412,9 @@ enum class Command : uint8_t {
         kClean,
         kInfo,
         kTransform,
+        kLint,
         kPack,
+        kUnpack,
     };
 ```
 

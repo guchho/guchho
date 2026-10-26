@@ -18,6 +18,7 @@ on:
           - linux-s390x
           - linux-ppc64
           - linux-riscv64
+          - linux-mips64el
           - win32-x64
           - win32-arm64
           - win32-ia32
@@ -102,7 +103,7 @@ jobs:
           esac
 
           case "$TYPE" in
-            linux-x64|linux-arm64|linux-s390x|linux-ppc64|linux-riscv64|win32-x64|win32-arm64|win32-ia32|darwin-arm64|darwin-x64|android-x64|android-arm64|freebsd-x64)
+            linux-x64|linux-arm64|linux-s390x|linux-ppc64|linux-riscv64|linux-mips64el|win32-x64|win32-arm64|win32-ia32|darwin-arm64|darwin-x64|android-x64|android-arm64|freebsd-x64)
               PLATFORMS="$TYPE"
               PUBLISH_MAIN="false"
               PUBLISH_WASM="false"
@@ -144,6 +145,7 @@ jobs:
             {"platform":"linux-s390x","runner":"ubuntu-latest","method":"cross","cc":"s390x-linux-gnu-gcc","cxx":"s390x-linux-gnu-g++","cross_packages":"gcc-s390x-linux-gnu g++-s390x-linux-gnu"},
             {"platform":"linux-ppc64","runner":"ubuntu-latest","method":"cross","cc":"powerpc64le-linux-gnu-gcc","cxx":"powerpc64le-linux-gnu-g++","cross_packages":"gcc-powerpc64le-linux-gnu g++-powerpc64le-linux-gnu"},
             {"platform":"linux-riscv64","runner":"ubuntu-latest","method":"cross","cc":"riscv64-linux-gnu-gcc","cxx":"riscv64-linux-gnu-g++","cross_packages":"gcc-riscv64-linux-gnu g++-riscv64-linux-gnu"},
+            {"platform":"linux-mips64el","runner":"ubuntu-latest","method":"cross","cc":"mips64el-linux-gnuabi64-gcc","cxx":"mips64el-linux-gnuabi64-g++","cross_packages":"gcc-mips64el-linux-gnuabi64 g++-mips64el-linux-gnuabi64"},
             {"platform":"darwin-arm64","runner":"macos-latest","method":"native","preset":"release-darwin-arm64"},
             {"platform":"darwin-x64","runner":"macos-15-intel","method":"native","preset":"release-darwin-x64"},
             {"platform":"android-x64","runner":"ubuntu-latest","method":"android","android_abi":"x86_64","android_api":24},
@@ -220,13 +222,6 @@ jobs:
       #   cxx: g++
       #   cross_packages: gcc-multilib g++-multilib
       #   cmake_flags: -DCMAKE_C_FLAGS=-m32 -DCMAKE_CXX_FLAGS=-m32
-      #
-      # - platform: linux-mips64el
-      #   runner: ubuntu-latest
-      #   method: cross
-      #   cc: mips64el-linux-gnuabi64-gcc
-      #   cxx: mips64el-linux-gnuabi64-g++
-      #   cross_packages: gcc-mips64el-linux-gnuabi64 g++-mips64el-linux-gnuabi64
       #
       # ---- Docker (only where no cross-compiler exists) ----
       # - platform: linux-loong64

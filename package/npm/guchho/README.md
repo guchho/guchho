@@ -181,6 +181,31 @@ const { code, map, errors, warnings } = await transform('const add = (a, b) => a
 
 Loaders: `js`, `jsx`, `ts`, `tsx`, `json`, `text`, `css`, `html`, `base64`, `dataurl`, `file`, `binary`, `copy`, `empty`. A `transform` takes a single loader name; a `build` takes a loader **map** keyed by extension.
 
+### Lint
+
+The rule set and safe fixes from `guchho lint`, as a function. Findings are a
+result rather than a failure, so a lint error does not reject the promise.
+
+```js
+import { lint } from 'guchho'
+
+const result = await lint({
+  files: ['src/app.js', 'src/utils.ts'],
+  rules: { 'no-console': 'off', 'no-unused-vars': 'error' },
+  maxWarnings: 0,
+})
+
+console.log(`${result.errorCount} errors, ${result.warningCount} warnings`)
+```
+
+Omit `files` to lint the project's default files. `fix` writes safe fixes,
+`fixDryRun` reports them without writing, and `maxWarningsExceeded` follows the
+`maxWarnings` threshold. `config` names a lint config file and `absWorkingDir`
+sets where relative paths resolve from.
+
+In the browser, use a JSON lint config. JavaScript configs need a Node child
+process, so they are native-only.
+
 ### Plugins
 
 A plugin is a plain object with a `name` and any of the hooks below, run in your process while the service builds. Pass one plugin or an array through `plugins` - a virtual module, resolved and loaded in the host:

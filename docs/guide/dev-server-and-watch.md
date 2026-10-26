@@ -46,9 +46,13 @@ Options are the same as `guchho build`.
 
 ## Watch behaviour
 
-- **`watch` in a config** - `true` means "build and keep watching".
-- **`server` in a config** - the dev server reads its options from the
-  configuration's `server` section.
+- **`watch` in a config** - `true` means "build and keep watching". The
+  JavaScript API's `watch()` reads it; the CLI's `guchho watch` takes the same
+  setting as `--watch-delay` and warns that a config `watch` section is
+  ignored.
+- **`server` in a config** - the JavaScript API's `serve()` reads it. The CLI's
+  `guchho dev` and `guchho serve` do not: pass `--host`, `--port`, `--servedir`
+  and `--open` instead.
 
 The [JavaScript API](../api/README.md#watch) exposes the same watcher and dev server as
 `watch()` and `serve()`, returning a `Watcher` / `DevServer` you can rebuild and

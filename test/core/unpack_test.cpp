@@ -406,12 +406,12 @@ TEST(Unpack, PreserveFlagsAreIndependent)
     };
 
     auto toSeconds = [](fs::file_time_type value) {
-        const auto system = std::chrono::system_clock::time_point{
+        const auto system = std::chrono::system_clock::now() +
             std::chrono::duration_cast<std::chrono::system_clock::duration>(
-                value - fs::file_time_type::clock::now()) +
-            std::chrono::system_clock::now().time_since_epoch()};
+                value - fs::file_time_type::clock::now());
         return static_cast<long long>(
-            std::chrono::system_clock::to_time_t(system));
+            std::chrono::duration_cast<std::chrono::seconds>(
+                system.time_since_epoch()).count());
     };
 
     // Permissions on, timestamps off: the extracted file keeps the moment it

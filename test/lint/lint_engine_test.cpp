@@ -204,6 +204,46 @@ TEST(LintEngine, SyntaxErrorsAreReportedAsDiagnostics) {
     EXPECT_EQ(diagnostic->severity, Severity::kError);
 }
 
+TEST(LintEngine, ParsesTypeScriptSources) {
+    const std::string source =
+        "import type { Mode } from \"./mode\";\n"
+        "interface Options {\n"
+        "  mode: Mode;\n"
+        "}\n"
+        "export type Handler = (options: Options) => void;\n"
+        "const handler: Handler = (options) => { void options.mode; };\n"
+        "handler({ mode: \"debug\" });\n";
+    FileReport report =
+        LintSource("/project/src/a.ts", source, DefaultConfig());
+    EXPECT_FALSE(Has(report, "syntax"));
+}
+
+TEST(LintEngine, ParsesTsxSources) {
+    const std::string source =
+        "const label: string = \"hello\";\n"
+        "const view: JSX.Element = <span>{label}</span>;\n"
+        "view;\n";
+    FileReport report =
+        LintSource("/project/src/a.tsx", source, DefaultConfig());
+    EXPECT_FALSE(Has(report, "syntax"));
+}
+
+TEST(LintEngine, ParsesJsxSources) {
+    const std::string source =
+        "const view = <span>hello</span>;\n"
+        "view;\n";
+    FileReport report =
+        LintSource("/project/src/a.jsx", source, DefaultConfig());
+    EXPECT_FALSE(Has(report, "syntax"));
+}
+
+TEST(LintEngine, JavaScriptSourcesRejectTypeAnnotations) {
+    FileReport report = LintSource("/project/src/a.js",
+                                   "const value: number = 1;\nvalue;\n",
+                                   DefaultConfig());
+    EXPECT_TRUE(Has(report, "syntax"));
+}
+
 TEST(LintEngine, ConfiguredGlobalsSuppressUndefinedReports) {
     Config config = DefaultConfig();
     config.globals["missing"] = true;

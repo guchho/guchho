@@ -24,6 +24,7 @@ In this page:
 - [`EngineName`](#enginename)
 - [`StderrColor`](#stderrcolor)
 - [`LogLevel`](#loglevel)
+- [`LintLevel`](#lintlevel)
 - [`Charset`](#charset)
 - [`TreeShaking`](#treeshaking)
 - [`DropFlags`](#dropflags)
@@ -365,6 +366,21 @@ enum class LogLevel : uint8_t {
     kVerbose,
     kDebug,
     kInfo,
+    kWarning,
+    kError,
+};
+```
+
+## LintLevel
+
+Severity for an optional JavaScript lint check.
+  kOff     - the check is disabled (the default).
+  kWarning - findings are reported as warnings and the build continues.
+  kError   - findings are reported as errors and fail the build.
+
+```cpp
+enum class LintLevel : uint8_t {
+    kOff,
     kWarning,
     kError,
 };

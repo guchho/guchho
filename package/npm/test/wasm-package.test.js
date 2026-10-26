@@ -305,6 +305,71 @@ describe("@guchho/wasm engine", () => {
         );
     });
 
+    it("packs and unpacks inside the engine's filesystem", { skip: !hasBuiltEngine() }, async () => {
+        const e = await makeEngine({
+            files: {
+                "archive/src/app.js": 'console.log("packed");\n',
+                "archive/src/index.html": "<!doctype html><p>hi</p>\n",
+            },
+        });
+
+        const packed = await e.pack({
+            inputs: ["archive/src"],
+            outFile: "archive/release.zip",
+            level: 9,
+            date: new Date("2024-01-02T03:04:05Z"),
+        });
+        assert.equal(packed.path, "archive/release.zip");
+        assert.ok(packed.size > 0, "the archive should have a size");
+        assert.deepEqual(packed.warnings, []);
+
+        const bytes = e.FS.readFile("archive/release.zip");
+        assert.deepEqual(
+            Array.from(bytes.subarray(0, 4)),
+            [0x50, 0x4b, 0x03, 0x04],
+            "the archive should carry the ZIP local-file signature"
+        );
+
+        const unpacked = await e.unpack({ archive: "archive/release.zip", outDir: "archive/check" });
+        assert.equal(unpacked.outDir, "archive/check");
+        assert.deepEqual([...unpacked.files].sort(), ["src/app.js", "src/index.html"]);
+        assert.deepEqual(unpacked.warnings, []);
+
+        const app = e.FS.readFile("archive/check/src/app.js", { encoding: "utf8" });
+        assert.match(app, /packed/, "the extracted file should keep its contents");
+    });
+
+    it("packs and unpacks bytes without naming an archive path", { skip: !hasBuiltEngine() }, async () => {
+        const e = await makeEngine({
+            files: { "bytes/src/app.js": 'console.log("from bytes");\n' },
+        });
+
+        const packed = await e.packBytes({ inputs: ["bytes/src"], format: "tar.gz" });
+        assert.ok(packed.bytes instanceof Uint8Array);
+        assert.deepEqual(Array.from(packed.bytes.subarray(0, 2)), [0x1f, 0x8b], "gzip magic");
+        assert.deepEqual(packed.warnings, []);
+
+        const unpacked = await e.unpackBytes(packed.bytes, { format: "tar.gz" });
+        assert.deepEqual(Object.keys(unpacked.files), ["src/app.js"]);
+        const text = new TextDecoder().decode(unpacked.files["src/app.js"]);
+        assert.match(text, /from bytes/);
+        assert.deepEqual(unpacked.warnings, []);
+    });
+
+    it("validates pack and unpack options before reaching the engine", { skip: !hasBuiltEngine() }, async () => {
+        const e = await engine();
+
+        assert.throws(() => e.pack({ inputs: [], outFile: "a.zip" }), TypeError);
+        assert.throws(() => e.pack({ inputs: ["a"], outFile: "" }), TypeError);
+        assert.throws(() => e.pack({ inputs: ["a"], outFile: "a.zip", format: "rar" }), RangeError);
+        assert.throws(() => e.pack({ inputs: ["a"], outFile: "a.zip", level: 10 }), RangeError);
+
+        assert.throws(() => e.unpack({}), TypeError);
+        assert.throws(() => e.unpack({ archive: "a.zip", stripComponents: -1 }), RangeError);
+        assert.throws(() => e.unpackBytes("not bytes"), TypeError);
+        assert.throws(() => e.packBytes({ inputs: ["a"], format: "rar" }), RangeError);
+    });
+
     it("surfaces a syntax error with the file and line it is in", { skip: !hasBuiltEngine() }, async () => {
         const diagnostics = [];
         const e = await makeEngine({

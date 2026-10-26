@@ -361,6 +361,294 @@ function compilerFor(module) {
     return { lexer, parse, print };
 }
 
+// =========================================================================
+// pack / unpack
+// =========================================================================
+//
+// The service protocol already carries both commands, so these are option-object
+// wrappers over send(), not a second implementation. Paths are paths inside the
+// engine's filesystem: the host tree under /host on Node, MEMFS in a browser.
+//
+// packBytes() and unpackBytes() are the byte-shaped half. They keep the archive
+// inside the engine's filesystem — a scratch file the caller never names and
+// never has to clean up — so a browser caller, which has no host disk to write
+// an archive to, can still pack and unpack.
+
+const ARCHIVE_FORMATS = ["zip", "tar", "tar.gz"];
+
+function requireOptions(options, name) {
+    if (options === null || typeof options !== "object" || Array.isArray(options)) {
+        throw new TypeError(`${name} takes an options object`);
+    }
+    return options;
+}
+
+function archiveFormatOf(options) {
+    if (options.format === undefined) return undefined;
+    if (typeof options.format !== "string") {
+        throw new TypeError('"format" must be a string');
+    }
+    if (!ARCHIVE_FORMATS.includes(options.format)) {
+        throw new RangeError(
+            `"format" is ${JSON.stringify(options.format)}; this engine reads and writes ` +
+                ARCHIVE_FORMATS.map((format) => `"${format}"`).join(", ")
+        );
+    }
+    return options.format;
+}
+
+function packPayload(options, outFile) {
+    const inputs = options.inputs;
+    if (!Array.isArray(inputs) || inputs.length === 0) {
+        throw new TypeError('pack needs "inputs": a non-empty array of paths');
+    }
+    for (const input of inputs) {
+        if (typeof input !== "string" || input === "") {
+            throw new TypeError('every entry in "inputs" must be a non-empty string');
+        }
+    }
+    if (typeof outFile !== "string" || outFile === "") {
+        throw new TypeError('pack needs "outFile": the archive path to write');
+    }
+
+    const payload = { command: "pack", inputs, outFile };
+
+    const format = archiveFormatOf(options);
+    if (format !== undefined) payload.format = format;
+
+    if (options.level !== undefined) {
+        if (
+            typeof options.level !== "number" ||
+            !Number.isInteger(options.level) ||
+            options.level < 0 ||
+            options.level > 9
+        ) {
+            throw new RangeError('"level" must be a whole number from 0 to 9');
+        }
+        payload.level = options.level;
+    }
+
+    if (options.overwrite !== undefined) {
+        if (typeof options.overwrite !== "boolean") {
+            throw new TypeError('"overwrite" must be a boolean');
+        }
+        payload.overwrite = options.overwrite;
+    }
+
+    if (options.date !== undefined) {
+        if (!(options.date instanceof Date) || Number.isNaN(options.date.getTime())) {
+            throw new TypeError('"date" must be a Date');
+        }
+        payload.date = String(Math.floor(options.date.getTime() / 1000));
+    }
+
+    if (options.mode !== undefined) {
+        if (
+            typeof options.mode !== "number" ||
+            !Number.isInteger(options.mode) ||
+            options.mode < 0
+        ) {
+            throw new RangeError('"mode" must be a non-negative whole number');
+        }
+        payload.mode = options.mode;
+    }
+
+    return payload;
+}
+
+function unpackPayload(options, archive, outDir) {
+    if (typeof archive !== "string" || archive === "") {
+        throw new TypeError('unpack needs "archive": the archive path to read');
+    }
+
+    const payload = { command: "unpack", archive };
+    if (typeof outDir === "string" && outDir !== "") payload.outDir = outDir;
+
+    const format = archiveFormatOf(options);
+    if (format !== undefined) payload.format = format;
+
+    if (options.overwrite !== undefined) {
+        if (typeof options.overwrite !== "boolean") {
+            throw new TypeError('"overwrite" must be a boolean');
+        }
+        payload.overwrite = options.overwrite;
+    }
+
+    if (options.stripComponents !== undefined) {
+        if (
+            typeof options.stripComponents !== "number" ||
+            !Number.isInteger(options.stripComponents) ||
+            options.stripComponents < 0
+        ) {
+            throw new RangeError('"stripComponents" must be a non-negative whole number');
+        }
+        payload.stripComponents = options.stripComponents;
+    }
+
+    for (const name of ["preservePermissions", "preserveTimestamps"]) {
+        if (options[name] !== undefined) {
+            if (typeof options[name] !== "boolean") {
+                throw new TypeError(`"${name}" must be a boolean`);
+            }
+            payload[name] = options[name];
+        }
+    }
+
+    return payload;
+}
+
+function packResultOf(response) {
+    return {
+        path: response.path,
+        size: Number(response.size),
+        warnings: Array.isArray(response.warnings) ? response.warnings : [],
+    };
+}
+
+function unpackResultOf(response) {
+    return {
+        outDir: response.outDir,
+        files: Array.isArray(response.files) ? response.files : [],
+        warnings: Array.isArray(response.warnings) ? response.warnings : [],
+    };
+}
+
+// A path in the engine's filesystem that is not in use. The serial keeps two
+// calls in the same millisecond apart; the FS.stat keeps a caller's own file by
+// the same name from being overwritten.
+let scratchSerial = 0;
+
+function scratchPath(FS, prefix, extension = "") {
+    for (;;) {
+        const suffix = extension === "" ? "" : `.${extension}`;
+        const path = `/${prefix}-${Date.now()}-${scratchSerial++}${suffix}`;
+        try {
+            FS.stat(path);
+        } catch {
+            return path;
+        }
+    }
+}
+
+function removeQuietly(FS, path) {
+    try {
+        FS.unlink(path);
+    } catch {
+        // Already gone, or never written.
+    }
+}
+
+function removeTreeQuietly(FS, root) {
+    let names;
+    try {
+        names = FS.readdir(root);
+    } catch {
+        return;
+    }
+    for (const name of names) {
+        if (name === "." || name === "..") continue;
+        const path = `${root}/${name}`;
+        let stat;
+        try {
+            stat = FS.stat(path);
+        } catch {
+            continue;
+        }
+        if (FS.isDir(stat.mode)) {
+            removeTreeQuietly(FS, path);
+        } else {
+            removeQuietly(FS, path);
+        }
+    }
+    try {
+        FS.rmdir(root);
+    } catch {
+        // Already gone.
+    }
+}
+
+// Reads an extracted tree back as { relativePath: Uint8Array }. Directories are
+// not entries, matching unpack()'s own "files" list.
+function readTree(FS, root) {
+    const files = {};
+    const walk = (dir, prefix) => {
+        for (const name of FS.readdir(dir)) {
+            if (name === "." || name === "..") continue;
+            const path = `${dir}/${name}`;
+            const relative = prefix === "" ? name : `${prefix}/${name}`;
+            const stat = FS.stat(path);
+            if (FS.isDir(stat.mode)) {
+                walk(path, relative);
+            } else if (FS.isFile(stat.mode)) {
+                files[relative] = new Uint8Array(FS.readFile(path));
+            }
+        }
+    };
+    walk(root, "");
+    return files;
+}
+
+// Builds the pack/unpack surface bound to one module.
+function archiveFor(module) {
+    function pack(options) {
+        const resolved = requireOptions(options, "pack");
+        return Promise.resolve(
+            packResultOf(send(module, packPayload(resolved, resolved.outFile)))
+        );
+    }
+
+    function unpack(options) {
+        const resolved = requireOptions(options, "unpack");
+        if (resolved.outDir !== undefined && typeof resolved.outDir !== "string") {
+            throw new TypeError('"outDir" must be a string');
+        }
+        return Promise.resolve(
+            unpackResultOf(
+                send(module, unpackPayload(resolved, resolved.archive, resolved.outDir))
+            )
+        );
+    }
+
+    function packBytes(options) {
+        const resolved = requireOptions(options, "packBytes");
+        const format = resolved.format === undefined ? "zip" : archiveFormatOf(resolved);
+        const outFile = scratchPath(module.FS, "guchho-pack", format);
+        try {
+            const response = send(module, packPayload(resolved, outFile));
+            return Promise.resolve({
+                bytes: new Uint8Array(module.FS.readFile(outFile)),
+                warnings: Array.isArray(response.warnings) ? response.warnings : [],
+            });
+        } finally {
+            removeQuietly(module.FS, outFile);
+        }
+    }
+
+    function unpackBytes(bytes, options = {}) {
+        const resolved = requireOptions(options, "unpackBytes");
+        if (!(bytes instanceof Uint8Array)) {
+            throw new TypeError("unpackBytes needs the archive as a Uint8Array");
+        }
+        const format = resolved.format === undefined ? "bin" : archiveFormatOf(resolved);
+        const archive = scratchPath(module.FS, "guchho-unpack", format);
+        const outDir = scratchPath(module.FS, "guchho-unpack-out");
+
+        module.FS.writeFile(archive, bytes);
+        try {
+            const response = send(module, unpackPayload(resolved, archive, outDir));
+            return Promise.resolve({
+                files: readTree(module.FS, outDir),
+                warnings: Array.isArray(response.warnings) ? response.warnings : [],
+            });
+        } finally {
+            removeQuietly(module.FS, archive);
+            removeTreeQuietly(module.FS, outDir);
+        }
+    }
+
+    return { pack, unpack, packBytes, unpackBytes };
+}
+
 // The absolute, normalised form of a virtual path — the two posix operations
 // writeFiles needs, without node:path, which does not exist in a browser. A
 // leading "/" is always produced; "." and empty segments are dropped and ".."
@@ -406,7 +694,8 @@ function writeFiles(FS, files) {
 //                             MEMFS before the first call (browser / sandbox).
 //         options.print / options.printErr
 //                           — replace the console sinks diagnostics use.
-// Output: an engine object: { module, FS, callMain, build, version }.
+// Output: an engine object: { module, FS, callMain, build, pack, unpack,
+//         packBytes, unpackBytes, version }.
 export async function createGuchho(options = {}) {
     const module = await instantiate(options);
 
@@ -488,6 +777,11 @@ export async function createGuchho(options = {}) {
         // The engine's own lexer, parser and printer, told which language they
         // are for. Same public shapes as the guchho package publishes.
         ...compilerFor(module),
+
+        // Archive creation and extraction, over the same service protocol.
+        // Paths live in this engine's filesystem; packBytes/unpackBytes keep
+        // the archive in memory for a caller with no host disk to name.
+        ...archiveFor(module),
 
         // Mounts a files map into this instance after creation.
         loadFiles(files) {
@@ -584,6 +878,23 @@ export async function print(ast, options) {
 // One build through the shared engine. See createGuchho().build for options.
 export async function build(entry, options) {
     return (await engine()).build(entry, options);
+}
+
+// Archive creation and extraction through the shared engine.
+export async function pack(options) {
+    return (await engine()).pack(options);
+}
+
+export async function unpack(options) {
+    return (await engine()).unpack(options);
+}
+
+export async function packBytes(options) {
+    return (await engine()).packBytes(options);
+}
+
+export async function unpackBytes(bytes, options) {
+    return (await engine()).unpackBytes(bytes, options);
 }
 
 // The raw service request, for any command the engine serves.

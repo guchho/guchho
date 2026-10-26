@@ -20,8 +20,9 @@ generated from the headers themselves in the
 - **`guchho::api`** - build, transform, watch, serve. This is `--outdir`, the
   incremental context, the dev server, all of it, reachable from your
   process. If your program wants to bundle, this is the surface.
-- **`guchho::cli`** - the command line as a library. `Run(argc, argv)` prints
-  usage and diagnostics like the program would and returns the exit code; the
+- **`guchho::cli`** - the command line as a library.
+  `Run(const std::vector<std::string>& os_args)` prints usage and diagnostics
+  like the program would and returns the exit code; the
   `Parse*Options` functions share the flag grammar but do no I/O, so you can
   find out what a command line would mean without running it.
 - **The service** - what the npm package actually runs. The binary speaks a

@@ -71,7 +71,7 @@ export interface CommonOptions {
   external?: string[]
   /** How chatty the engine is. */
   logLevel?: LogLevel
-  /** Where the engine's own log lines go. */
+  /** The most log messages the engine will emit before truncating. 0 is unlimited. */
   logLimit?: number
   /** Colour in diagnostics, or "auto" to decide from the terminal. */
   color?: boolean
@@ -105,7 +105,7 @@ export interface CommonOptions {
   dropLabels?: string | string[]
   keepNames?: boolean
   mangleQuoted?: boolean
-  /** Only ever true in this package: there is no watch mode option on build. */
+  /** Shorthand: turns on minifyWhitespace, minifyIdentifiers and minifySyntax together. */
   minify?: boolean
   minifyWhitespace?: boolean
   minifyIdentifiers?: boolean

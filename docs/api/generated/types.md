@@ -7,7 +7,7 @@ description: The core types and result shapes of the guchho package.
 
 # Types & results
 
-Diagnostics, files, the metafile, lint results, the loaders/formats/platforms vocabularies and the shapes a build answers with.
+Diagnostics, files, the metafile, the lint, transform, pack and unpack results, the loaders/formats/platforms vocabularies and the shapes a build answers with.
 
 In this page:
 
@@ -25,6 +25,9 @@ In this page:
 - [`LintFileResult`](#lintfileresult)
 - [`LintResult`](#lintresult)
 - [`BuildResult`](#buildresult)
+- [`TransformResult`](#transformresult)
+- [`PackResult`](#packresult)
+- [`UnpackResult`](#unpackresult)
 - [`Loader`](#loader)
 - [`Format`](#format)
 - [`Platform`](#platform)
@@ -293,6 +296,63 @@ export interface BuildResult<Provided extends BuildOptions = BuildOptions> {
   metafile?: Provided['metafile'] extends true ? Metafile : undefined
   /** Only when mangleCache is passed in. */
   mangleCache?: Record<string, string | false>
+}
+```
+
+## TransformResult
+
+What transform() answers with: the transformed code, its sourcemap, and the diagnostics it found.
+
+```ts
+export interface TransformResult {
+  code: string
+  /** Empty when no sourcemap was asked for. */
+  map: string
+  errors: Message[]
+  warnings: Message[]
+}
+```
+
+## PackResult
+
+What pack() wrote: the archive's path, its size, and what the walk deliberately left out.
+
+```ts
+export interface PackResult {
+  /** The archive, as the path it was written to. */
+  path: string
+  /** Its size in bytes. */
+  size: number
+  /**
+   * What was deliberately left out: a symlink the walk would not follow, a
+   * cycle it would not go round, the output file standing inside an input
+   * tree. Never empty because something was missed — empty because nothing
+   * was.
+   */
+  warnings: string[]
+}
+```
+
+## UnpackResult
+
+What unpack() wrote: the destination directory, the files inside it, and what it skipped.
+
+```ts
+export interface UnpackResult {
+  /** The directory the files were extracted into. */
+  outDir: string
+  /**
+   * The files that were written, relative to outDir where the archive allowed
+   * it. Directories are not listed; symlinks and special files are absent
+   * because they are skipped, with a warning.
+   */
+  files: string[]
+  /**
+   * What was deliberately left out: a symlink, a hardlink, a special file, an
+   * entry that would escape the destination, an entry too short to strip.
+   * Empty because nothing was skipped, not because anything was missed.
+   */
+  warnings: string[]
 }
 ```
 

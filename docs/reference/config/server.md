@@ -17,10 +17,10 @@ The options the JavaScript API's `serve()` reads from a configuration's
 | `open` | `boolean` | Accepted by the schema. The engine does not launch a browser; use the CLI's `--open` for that. |
 
 The CLI is a separate surface: `guchho dev` and `guchho serve` take
-`--host`, `--port`, `--servedir` and `--open` as flags, default to
-`localhost:3000`, and warn that a config file's `server` section is ignored
-rather than applying it. Use the JavaScript API when the server must be
-configured from the file.
+`--host`, `--port` and `--open` as flags, plus `guchho serve [dir]` for the
+directory, default to `localhost:3000`, and warn that a config file's `server`
+section is ignored rather than applying it. Use the JavaScript API when the
+server must be configured from the file.
 
 ## See also
 

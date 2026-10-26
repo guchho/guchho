@@ -134,18 +134,25 @@ reported without a fix.
 
 ## Output
 
-Human output prints one line per diagnostic:
+Human output prints each diagnostic with its location, severity, rule, source
+line, and caret range:
 
 ```text
-src/app.js:3:7: error "missing" is not defined (no-undef)
+src/app.js:3:10: error  [no-undef]  "missing" is not defined.
+  3 |   return missing;
+    |          ^^^^^^^
+
+✖ 1 problem (1 error, 0 warnings)
 ```
 
-The summary reports problem, error, warning, and fix counts. `--quiet` hides
-warning lines but keeps their counts. JSON output contains a `files` array with
-per-file `messages` and counts, a flat `messages` array, and top-level
-`errorCount`, `warningCount`, `fixCount`, and `filesWithProblems` fields. Each
-message also carries its own `fixCount`. JSON mode writes no banners or human
-summaries to stdout.
+Summary lines use `✖ N problems (N errors, N warnings)` or
+`✔ No problems found.` Colors are enabled only when stdout is a terminal and
+`NO_COLOR` is not set; the caret layout remains readable without colors.
+`--quiet` hides warning blocks but keeps their counts. JSON output contains a
+`files` array with per-file `messages` and counts, a flat `messages` array, and
+top-level `errorCount`, `warningCount`, `fixCount`, and `filesWithProblems`
+fields. Each message also carries its own `fixCount`. JSON mode writes no
+banners or human summaries to stdout.
 
 Paths are printed relative to the working directory with forward slashes, and
 files and diagnostics are sorted deterministically.

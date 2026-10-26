@@ -109,6 +109,17 @@ if(WIN32)
     target_link_libraries(guchho_common PRIVATE dbghelp)
 endif()
 
+# helpers/thread.cpp calls pthread_create directly on POSIX. glibc merged the
+# pthread functions into libc in 2.34, so Linux links without extra flags, but
+# FreeBSD and the other BSDs keep them in libthr and need -pthread. Ask CMake
+# for the platform's thread flag and make it PUBLIC so every target that links
+# guchho_common (including the tests) inherits it. Emscripten builds are
+# single-threaded and must not be given -pthread.
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+    find_package(Threads REQUIRED)
+    target_link_libraries(guchho_common PUBLIC Threads::Threads)
+endif()
+
 
 # ============================================================
 # HTML library

@@ -337,6 +337,60 @@ function toPackResult(response) {
   };
 }
 
+/** One lint finding, without the file path its enclosing entry already names. */
+function toLintMessage(message, withPath) {
+  const out = {};
+  if (withPath) {
+    out.path = typeof message.path === "string" ? message.path : "";
+  }
+  out.ruleId = typeof message.ruleId === "string" ? message.ruleId : "";
+  out.severity = typeof message.severity === "string" ? message.severity : "error";
+  out.message = typeof message.message === "string" ? message.message : "";
+  out.line = numberOr(message.line, 0);
+  out.column = numberOr(message.column, 0);
+  out.endLine = numberOr(message.endLine, 0);
+  out.endColumn = numberOr(message.endColumn, 0);
+  out.syntax = message.syntax === true;
+  out.fixCount = numberOr(message.fixCount, 0);
+  return out;
+}
+
+/** One file's lint findings, in the shape guchho publishes. */
+function toLintFile(file) {
+  return {
+    path: typeof file.path === "string" ? file.path : "",
+    errorCount: numberOr(file.errorCount, 0),
+    warningCount: numberOr(file.warningCount, 0),
+    messages: Array.isArray(file.messages)
+      ? file.messages.map((message) => toLintMessage(message, false))
+      : [],
+  };
+}
+
+/**
+ * A lint response, in the shape guchho publishes.
+ *
+ * "maxWarningsExceeded" is computed here rather than sent by the engine: the
+ * threshold is a caller's option, and the answer is the one comparison over
+ * the warning count the caller just received. A threshold of undefined means
+ * there was none, so the flag is false rather than a comparison against NaN.
+ */
+function toLintResult(response, maxWarnings) {
+  const warningCount = numberOr(response.warningCount, 0);
+  return {
+    files: Array.isArray(response.files) ? response.files.map(toLintFile) : [],
+    messages: Array.isArray(response.messages)
+      ? response.messages.map((message) => toLintMessage(message, true))
+      : [],
+    errorCount: numberOr(response.errorCount, 0),
+    warningCount,
+    fixCount: numberOr(response.fixCount, 0),
+    filesWithProblems: numberOr(response.filesWithProblems, 0),
+    maxWarningsExceeded:
+      typeof maxWarnings === "number" && warningCount > maxWarnings,
+  };
+}
+
 module.exports = {
   NO_DETAIL,
   isRecord,
@@ -348,6 +402,7 @@ module.exports = {
   toText,
   toBuildResult,
   toTransformResult,
+  toLintResult,
   toPackResult,
   toUnpackResult,
   toInputSummaries,

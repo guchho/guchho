@@ -45,8 +45,8 @@ to discover you have a link pointing at your home directory.
 ## From a program
 
 The command line and the API are the same engine. [`pack()`](../api/README.md#pack)
-returns the archive bytes instead of writing a file, so a caller can upload them
-directly, sign them, or hold them in memory. See the
+writes the archive to `outFile` and returns its path, size and warnings, so a
+release script can upload the finished file without parsing a terminal. See the
 [`pack` recipe](../recipes/pack-a-distribution.md) for the command-line shapes.
 
 ## Where it fits

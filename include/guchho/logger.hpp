@@ -900,6 +900,9 @@ namespace guchho::logger {
     // MsgID::kJS_BigInt -> "kJS_BigInt"). Used in diagnostic output and
     // in the --warning-level flag.
     std::string_view MsgIDToString(MsgID id);
+    std::string_view MsgKindToString(MsgKind kind);
+    std::string_view MsgKindToIcon(MsgKind kind);
+    std::string_view SuccessIcon();
 
     // Parses a string into the highest-severity message ID that starts
     // with the given prefix. Returns kNone if no match is found.

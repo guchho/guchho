@@ -60,6 +60,17 @@ Any option a flag accepts may be set here, using the flag's name in camelCase
 (`outdir`, `minifyHtml`, `treeShaking`, `logLevel`, …). Unknown fields are
 reported as warnings rather than ignored, so a typo is visible.
 
+A config file read by the native CLI parser understands this subset of `build`
+fields: `entry`, `outdir`, `outfile`, `format`, `platform`, `target`, `minify`,
+`sourcemap`, `splitting`, `clean`, `treeShaking`, `pretty`, `minifyHtml`,
+`bundle`, `name`, `globalName`, `exports`, `banner`, `define` and `lint`. It
+also reads the top-level sections `resolve`, `css`, `assets`, `external`,
+`output`, `logLevel`, `plugins` and `entry`. Other options are accepted by the
+JavaScript API and by command-line flags, not by a config file; set one in a
+config and the unknown-field warning says so. The `server` and `watch` sections
+are schema-compatible but the CLI warns that it ignores them - use their flags,
+or the JavaScript API's `serve()`/`watch()`.
+
 Optional JavaScript lint checks are off by default. Enable them with `lint`:
 
 ```js

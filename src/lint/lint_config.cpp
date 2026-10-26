@@ -17,7 +17,6 @@ namespace {
 
 using javascript::EArray;
 using javascript::EBoolean;
-using javascript::ENull;
 using javascript::ENumber;
 using javascript::EObject;
 using javascript::EString;

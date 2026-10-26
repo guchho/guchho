@@ -384,8 +384,10 @@ TEST(Unpack, PreserveFlagsAreIndependent)
     const fs::path source = dir.Path("srcdir/hello.txt");
     std::error_code ec;
     const auto old_system = std::chrono::system_clock::from_time_t(kOldTime);
-    const auto old_file   = fs::file_time_type::clock::now() +
-                          (old_system - std::chrono::system_clock::now());
+    const auto old_file = fs::file_time_type{
+        std::chrono::duration_cast<fs::file_time_type::duration>(
+            old_system - std::chrono::system_clock::now()) +
+        fs::file_time_type::clock::now().time_since_epoch()};
     fs::last_write_time(source, old_file, ec);
     ASSERT_FALSE(ec);
 
@@ -404,10 +406,12 @@ TEST(Unpack, PreserveFlagsAreIndependent)
     };
 
     auto toSeconds = [](fs::file_time_type value) {
-        const auto diff = value - fs::file_time_type::clock::now();
-        const auto system = std::chrono::time_point_cast<std::chrono::seconds>(
-            std::chrono::system_clock::now() + std::chrono::duration_cast<std::chrono::system_clock::duration>(diff));
-        return static_cast<long long>(std::chrono::system_clock::to_time_t(system));
+        const auto system = std::chrono::system_clock::time_point{
+            std::chrono::duration_cast<std::chrono::system_clock::duration>(
+                value - fs::file_time_type::clock::now()) +
+            std::chrono::system_clock::now().time_since_epoch()};
+        return static_cast<long long>(
+            std::chrono::system_clock::to_time_t(system));
     };
 
     // Permissions on, timestamps off: the extracted file keeps the moment it

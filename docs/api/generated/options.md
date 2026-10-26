@@ -7,7 +7,7 @@ description: Every option interface of the guchho package.
 
 # Options
 
-The options a caller hands to `build`, `transform`, `lint`, `pack`, `serve`, `watch` and `analyze`, plus the sections of a configuration file.
+The options a caller hands to `build`, `transform`, `lint`, `pack`, `unpack`, `serve`, `watch` and `analyze`, plus the sections of a configuration file.
 
 In this page:
 
@@ -18,6 +18,7 @@ In this page:
 - [`BuildConfigSections`](#buildconfigsections)
 - [`TransformOptions`](#transformoptions)
 - [`PackOptions`](#packoptions)
+- [`UnpackOptions`](#unpackoptions)
 - [`ServeOptions`](#serveoptions)
 - [`WatchOptions`](#watchoptions)
 
@@ -319,6 +320,52 @@ export interface PackOptions {
    * become executable because a mode was written into it.
    */
   mode?: number
+}
+```
+
+## UnpackOptions
+
+What unpack() reads, and where its files go.
+Every path is a path on disk. The archive is the only required option: the destination follows the archive's name, the format follows its extension and first bytes, and the preserve flags follow what the archive recorded.
+
+```ts
+export interface UnpackOptions {
+  /** The archive to extract: a zip, tar or tar.gz file. */
+  archive: string
+  /**
+   * Where to extract. Created if it is missing. Left out, the archive's name
+   * without its extension is used, and an empty result (an archive called
+   * `.zip`) falls back to `"extracted"`.
+   */
+  outDir?: string
+  /**
+   * Which archive format to read: `"zip"`, `"tar"` or `"tar.gz"`. Leaving this
+   * out detects it from the extension and the archive's magic bytes; an empty
+   * string is a RangeError thrown before the engine is asked.
+   */
+  format?: "zip" | "tar" | "tar.gz"
+  /**
+   * Replace existing files. Without it, a file already at a destination is an
+   * error rather than something to destroy.
+   */
+  overwrite?: boolean
+  /**
+   * Leading path components to drop from every entry, the way
+   * `tar --strip-components` does. Entries with too few components are skipped
+   * with a warning. Defaults to 0.
+   */
+  stripComponents?: number
+  /**
+   * Restore the permissions recorded in the archive where the host file system
+   * supports them. Defaults to true. On Windows only the read-only bit can be
+   * expressed.
+   */
+  preservePermissions?: boolean
+  /**
+   * Restore the modification times recorded in the archive where the host file
+   * system supports them. Defaults to true.
+   */
+  preserveTimestamps?: boolean
 }
 ```
 

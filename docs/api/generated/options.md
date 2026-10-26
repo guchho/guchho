@@ -7,10 +7,11 @@ description: Every option interface of the guchho package.
 
 # Options
 
-The options a caller hands to `build`, `transform`, `pack`, `serve`, `watch` and `analyze`, plus the sections of a configuration file.
+The options a caller hands to `build`, `transform`, `lint`, `pack`, `serve`, `watch` and `analyze`, plus the sections of a configuration file.
 
 In this page:
 
+- [`LintOptions`](#lintoptions)
 - [`CommonOptions`](#commonoptions)
 - [`BuildOptions`](#buildoptions)
 - [`BuildOptionsNested`](#buildoptionsnested)
@@ -19,6 +20,33 @@ In this page:
 - [`PackOptions`](#packoptions)
 - [`ServeOptions`](#serveoptions)
 - [`WatchOptions`](#watchoptions)
+
+## LintOptions
+
+```ts
+export interface LintOptions {
+  /**
+   * The files to lint. Omit it to lint the project's default files; an empty
+   * array is a TypeError rather than a request to lint nothing.
+   */
+  files?: string | string[]
+  /** Per-rule levels, keyed by the rule names the lint config uses. */
+  rules?: Record<string, LintRuleLevel>
+  /** The config file to read instead of discovering one. */
+  config?: string
+  /** Apply the fixes that are available. */
+  fix?: boolean
+  /** Report the fixes that would be applied, without writing them. */
+  fixDryRun?: boolean
+  /**
+   * The warning count above which `maxWarningsExceeded` is true. Lint findings
+   * are results, not failures, so reaching it never rejects the promise.
+   */
+  maxWarnings?: number
+  /** Where relative paths resolve from. */
+  absWorkingDir?: string
+}
+```
 
 ## CommonOptions
 

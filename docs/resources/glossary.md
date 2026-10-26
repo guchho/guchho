@@ -63,7 +63,9 @@ debugger can show the code you wrote.
 **Transform** - a single-file compile with no graph: one input, one output. See
 the [transform recipe](../recipes/transform-single-files.md).
 
-**Tree shaking** - removing exports that no reachable code uses. Off by default;
-enabled with `treeShaking`.
+**Tree shaking** - removing exports and statements that no reachable code uses.
+`treeShaking` defaults to `"default"`, which enables it when bundling or when
+the output is an IIFE; a plain non-bundled ESM transform leaves it off because
+a consumer may still import the unused names.
 
 **Watch** - rebuilding automatically when a file the build read changes.

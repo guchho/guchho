@@ -29,7 +29,7 @@ its index, so the whole tree is readable directly on GitHub.
 | [Why Guchho](guide/why-guchho.md) | Native engine, one tool |
 | [Core concepts](guide/core-concepts.md) | Entries, graph, loaders |
 | [Configuration](guide/configuration.md) | `guchho.config.js` and friends |
-| [CLI overview](guide/cli-overview.md) | The nine commands at a glance |
+| [CLI overview](guide/cli-overview.md) | The eleven commands at a glance |
 | [HTML pipeline](guide/html-pipeline.md) | Document entries, URL rewriting |
 | [JavaScript & TypeScript](guide/javascript-and-typescript.md) | Parsing, targets, JSX |
 | [CSS pipeline](guide/css-pipeline.md) | CSS, scoping, imports |

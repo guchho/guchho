@@ -41,7 +41,13 @@ statement in the output:
 guchho build src/app.js --bundle --external:react --external:react-dom
 ```
 
-`packages` is the package-wide switch: `bundle` (default) or `external`.
+An entry matches either exactly or as a `prefix*` / `*suffix` / `*middle*`
+wildcard, so `--external:'@scope/*'` keeps a whole scope out. Entry points are
+never external: an entry has to be a real file.
+
+`packages` is the package-wide switch: `bundle` (default) or `external`. It
+applies to bare specifiers; relative and absolute paths still follow `external`
+and the graph.
 
 ## Aliasing
 

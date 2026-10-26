@@ -104,7 +104,19 @@ so the package can be served from any path.
 you do not need to manage an instance for one-off calls:
 
 ```js
-import { configure, loadFiles, lexer, parse, print, build, version } from "@guchho/wasm";
+import {
+  configure,
+  loadFiles,
+  lexer,
+  parse,
+  print,
+  build,
+  pack,
+  unpack,
+  packBytes,
+  unpackBytes,
+  version,
+} from "@guchho/wasm";
 
 configure({
   files: { "src/main.js": 'console.log("hello");' },
@@ -117,6 +129,12 @@ const parsed = await parse(source, { language: "js" });
 const { code } = await print(parsed.ast, { language: "js" });
 
 const output = await build("src/main.js", { outdir: "dist" });
+
+await pack({ inputs: ["dist"], outFile: "release.zip" });
+const { bytes } = await packBytes({ inputs: ["dist"], format: "tar.gz" });
+const { files } = await unpackBytes(bytes, { format: "tar.gz" });
+await unpack({ archive: "release.zip", outDir: "check" });
+
 console.log(await version());
 ```
 
@@ -124,6 +142,13 @@ console.log(await version());
 path, and an options object naming the language — one of `"html"`, `"css"` or
 `"js"`. `print` takes the numeric handle `parse` returned as `ast`. The tree
 `configure()` installs is what `build()` reads.
+
+`pack` and `unpack` take the native package's options, with paths resolved
+inside the engine's filesystem. `packBytes` and `unpackBytes` are the
+memory-only halves: no archive path is named, and the bytes or extracted files
+come back as data, which is what a browser caller needs. Both directions work
+in the browser, unlike the `guchho` package's browser `unpack`, which has no
+filesystem of its own to extract into.
 
 `configure()` must be called before the first engine use; it throws if the
 engine already exists. `loadFiles(files)` writes more files into the

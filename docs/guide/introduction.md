@@ -31,7 +31,7 @@ application behind it.
 ## Two ways to drive it
 
 - **The CLI** - `guchho build`, `dev`, `serve`, `watch`, `init`, `clean`,
-  `info`, `transform`, `pack`.
+  `info`, `transform`, `lint`, `pack`, `unpack`.
 - **The JavaScript API** - the same engine, callable from Node with full
   TypeScript declarations. See the [API reference](../api/README.md).
 

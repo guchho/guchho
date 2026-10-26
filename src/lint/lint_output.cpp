@@ -2,6 +2,8 @@
 
 #include "guchho/helpers.hpp"
 
+#include <algorithm>
+#include <cstddef>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -9,6 +11,9 @@
 namespace guchho::lint {
 
 namespace {
+
+constexpr std::string_view kProblemIcon = "\xE2\x9C\x96";
+constexpr std::string_view kSuccessIcon = "\xE2\x9C\x94";
 
 std::string_view SeverityText(Severity severity) {
     switch (severity) {
@@ -21,14 +26,110 @@ std::string_view SeverityText(Severity severity) {
     }
 }
 
-void PrintMessage(std::ostream& os, const Diagnostic& diagnostic) {
-    os << diagnostic.path << ":" << diagnostic.line << ":"
-       << diagnostic.column << ": " << SeverityText(diagnostic.severity)
-       << " " << diagnostic.message;
-    if (!diagnostic.rule_id.empty()) {
-        os << " (" << diagnostic.rule_id << ")";
+std::string_view SeverityColor(Severity severity,
+                               const logger::Colors& colors) {
+    switch (severity) {
+    case Severity::kError:
+        return colors.red;
+    case Severity::kWarning:
+        return colors.yellow;
+    default:
+        return {};
     }
-    os << "\n";
+}
+
+std::string ExpandTabs(std::string_view text) {
+    std::string expanded;
+    expanded.reserve(text.size());
+    for (char ch : text) {
+        if (ch == '\t') {
+            const std::size_t spaces = 4 - (expanded.size() % 4);
+            expanded.append(spaces, ' ');
+        } else {
+            expanded.push_back(ch);
+        }
+    }
+    return expanded;
+}
+
+bool FindSourceLine(const std::string& source, int line_number,
+                    std::string_view& out) {
+    if (line_number < 1 || source.empty()) return false;
+
+    std::size_t start = 0;
+    for (int current = 1; current < line_number; ++current) {
+        const std::size_t newline = source.find('\n', start);
+        if (newline == std::string::npos) return false;
+        start = newline + 1;
+    }
+    if (start >= source.size()) return false;
+
+    std::size_t end = source.find('\n', start);
+    if (end == std::string::npos) end = source.size();
+    std::string_view line(source.data() + start, end - start);
+    if (!line.empty() && line.back() == '\r') line.remove_suffix(1);
+    out = line;
+    return true;
+}
+
+void PrintHeader(std::ostream& os, const Diagnostic& diagnostic,
+                 const logger::Colors& colors) {
+    os << colors.bold << diagnostic.path << ":" << diagnostic.line << ":"
+       << diagnostic.column << ":" << colors.reset << " ";
+
+    const std::string_view severity = SeverityText(diagnostic.severity);
+    os << SeverityColor(diagnostic.severity, colors) << severity
+       << colors.reset;
+    if (severity.size() < 7) {
+        os << std::string(7 - severity.size(), ' ');
+    }
+
+    if (!diagnostic.rule_id.empty()) {
+        os << "  " << colors.cyan << "[" << diagnostic.rule_id << "]"
+           << colors.reset;
+    }
+    os << "  " << diagnostic.message << "\n";
+}
+
+void PrintSnippet(std::ostream& os, const Diagnostic& diagnostic,
+                  const FileReport& file,
+                  const logger::Colors& colors) {
+    std::string_view line;
+    if (!FindSourceLine(file.source, diagnostic.line, line)) return;
+
+    const std::string number = std::to_string(diagnostic.line);
+    const std::string expanded = ExpandTabs(line);
+    os << colors.dim << std::string(2, ' ') << number << " | " << colors.reset
+       << expanded << "\n";
+
+    std::size_t start = 0;
+    if (diagnostic.column > 1) {
+        start = std::min<std::size_t>(
+            static_cast<std::size_t>(diagnostic.column - 1), line.size());
+    }
+
+    std::size_t length = 1;
+    if (diagnostic.end_line == diagnostic.line &&
+        diagnostic.end_column > diagnostic.column) {
+        length = static_cast<std::size_t>(
+            diagnostic.end_column - diagnostic.column);
+    }
+    if (start < line.size()) {
+        length = std::min(length, line.size() - start);
+    } else {
+        length = 1;
+    }
+    if (length == 0) length = 1;
+
+    const std::string prefix = ExpandTabs(line.substr(0, start));
+    const std::string marker = ExpandTabs(line.substr(start, length));
+    const std::size_t caret_width =
+        std::max<std::size_t>(1, marker.size());
+
+    os << colors.dim << std::string(number.size() + 3, ' ') << "| "
+       << colors.reset << std::string(prefix.size(), ' ')
+       << SeverityColor(diagnostic.severity, colors)
+       << std::string(caret_width, '^') << colors.reset << "\n";
 }
 
 std::string JsonString(std::string_view value) {
@@ -61,21 +162,30 @@ void PrintReport(std::ostream& os, const Report& report,
         return;
     }
 
+    logger::Colors colors{};
+    if (options.color) colors = logger::kTerminalColors;
+
     for (const FileReport& file : report.files) {
         for (const Diagnostic& diagnostic : file.diagnostics) {
             if (options.quiet && diagnostic.severity == Severity::kWarning) {
                 continue;
             }
-            PrintMessage(os, diagnostic);
+            PrintHeader(os, diagnostic, colors);
+            PrintSnippet(os, diagnostic, file, colors);
+            os << "\n";
         }
     }
 
     const int problems = report.errors + report.warnings;
     if (problems == 0) {
-        os << "No problems found.\n";
+        os << colors.green << kSuccessIcon << colors.reset
+           << " No problems found.\n";
     } else {
-        os << problems << (problems == 1 ? " problem" : " problems")
-           << " (" << report.errors << (report.errors == 1 ? " error" : " errors")
+        const std::string_view color =
+            report.errors > 0 ? colors.red : colors.yellow;
+        os << color << kProblemIcon << colors.reset << " " << problems
+           << (problems == 1 ? " problem" : " problems") << " ("
+           << report.errors << (report.errors == 1 ? " error" : " errors")
            << ", " << report.warnings
            << (report.warnings == 1 ? " warning" : " warnings") << ")\n";
     }

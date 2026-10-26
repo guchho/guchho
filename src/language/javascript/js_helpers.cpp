@@ -1848,6 +1848,115 @@ namespace guchho::javascript {
     // Binary operator folding
     // -----------------------------------------------------------------------
 
+    // A double-double value, stored as `hi + lo`, carries roughly twice the
+    // precision of a double. That is enough to round an integer power to the
+    // nearest double without consulting the host libm, whose pow() may only be
+    // accurate to within one ULP (FreeBSD's, for example).
+    struct DoubleDouble {
+        double hi;
+        double lo;
+    };
+
+    // Multiplies two double-double values. The FMA recovers the exact error of
+    // the leading product; the low-order cross terms are then folded in.
+    DoubleDouble MultiplyDoubleDouble(DoubleDouble a, DoubleDouble b) {
+        const double product = a.hi * b.hi;
+        const double error =
+            std::fma(a.hi, b.hi, -product) + a.hi * b.lo + a.lo * b.hi;
+        const double hi = product + error;
+        return {hi, error - (hi - product)};
+    }
+
+    // Adds two double-double values, keeping the round-off from the leading
+    // addition so the low part remains meaningful.
+    DoubleDouble AddDoubleDouble(DoubleDouble a, DoubleDouble b) {
+        const double sum = a.hi + b.hi;
+        const double virtual_b = sum - a.hi;
+        const double error =
+            (a.hi - (sum - virtual_b)) + (b.hi - virtual_b) + a.lo + b.lo;
+        const double hi = sum + error;
+        return {hi, error - (hi - sum)};
+    }
+
+    DoubleDouble NegateDoubleDouble(DoubleDouble a) {
+        return {-a.hi, -a.lo};
+    }
+
+    // Divides two double-double values with one correction step: the first
+    // quotient is rounded to double, the residual is divided again, and the
+    // two quotients are combined.
+    DoubleDouble DivideDoubleDouble(DoubleDouble a, DoubleDouble b) {
+        const double q1 = a.hi / b.hi;
+        const DoubleDouble residual = AddDoubleDouble(
+            a, NegateDoubleDouble(MultiplyDoubleDouble({q1, 0.0}, b)));
+        const double q2 = (residual.hi + residual.lo) / b.hi;
+        const double hi = q1 + q2;
+        return {hi, (q1 - hi) + q2};
+    }
+
+    // Returns true when the integer power is comfortably inside the normal
+    // double range. Outside it, intermediate products can overflow or
+    // underflow, so FoldPower defers to std::pow, which implements those
+    // boundaries exactly.
+    bool FitsDoubleDoublePower(double base, double exponent) {
+        if (!std::isfinite(base) || base == 0.0) {
+            return false;
+        }
+        if (!std::isfinite(exponent) || exponent != std::trunc(exponent) ||
+            exponent < -1023.0 || exponent > 1023.0) {
+            return false;
+        }
+
+        int magnitude_exponent = 0;
+        std::frexp(std::fabs(base), &magnitude_exponent);
+        const double count = std::fabs(exponent);
+        // log2(|base|) lies in [magnitude_exponent - 1, magnitude_exponent).
+        const double lowest_log2 = count * (magnitude_exponent - 1);
+        const double highest_log2 = count * magnitude_exponent;
+        return lowest_log2 >= -1021.0 && highest_log2 <= 1022.0;
+    }
+
+    // Computes `base ** exponent`. Integer powers are evaluated in
+    // double-double precision so the final result is rounded exactly once,
+    // from an accurate value, instead of inheriting the host libm's pow()
+    // accuracy. The difference is observable: FreeBSD's pow() returns a value
+    // one ULP away from a correctly rounded pow() for 2.25 ** -3, and a
+    // minifier must not fold a constant to a different number depending on the
+    // OS it ran on.
+    //
+    // Non-integer exponents, values outside the safe range above, and special
+    // values still use std::pow. Those are either inexact by nature (the
+    // JavaScript specification treats "**" as implementation-approximated) or
+    // governed by libm's gradual underflow rules.
+    double FoldPower(double base, double exponent) {
+        if (!FitsDoubleDoublePower(base, exponent)) {
+            return std::pow(base, exponent);
+        }
+
+        const bool negative_exponent = exponent < 0.0;
+        std::uint64_t remaining = static_cast<std::uint64_t>(
+            negative_exponent ? -exponent : exponent);
+        const bool negative_result = base < 0.0 && (remaining & 1) != 0;
+
+        DoubleDouble result = {1.0, 0.0};
+        DoubleDouble factor = {std::fabs(base), 0.0};
+        while (remaining != 0) {
+            if ((remaining & 1) != 0) {
+                result = MultiplyDoubleDouble(result, factor);
+            }
+            remaining >>= 1;
+            if (remaining != 0) {
+                factor = MultiplyDoubleDouble(factor, factor);
+            }
+        }
+        if (negative_exponent) {
+            result = DivideDoubleDouble({1.0, 0.0}, result);
+        }
+
+        const double value = result.hi + result.lo;
+        return negative_result ? -value : value;
+    }
+
     // Attempts to constant-fold a binary expression. Returns the folded
     // result if both operands are compile-time constants, or nullopt if the
     // expression cannot be folded.
@@ -1897,7 +2006,7 @@ namespace guchho::javascript {
 
             case OpCode::kBinOpPow:
                 if (std::optional<std::pair<double, double>> nums = ExtractNumericValues(e.left, e.right)) {
-                    return Expr{std::make_shared<ENumber>(ENumber{std::pow(nums->first, nums->second)}), loc};
+                    return Expr{std::make_shared<ENumber>(ENumber{FoldPower(nums->first, nums->second)}), loc};
                 }
                 break;
 

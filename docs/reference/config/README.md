@@ -51,7 +51,7 @@ export default {
   },
   server: {
     port: 3000,
-    open: true,
+    host: 'localhost',
   },
   watch: {
     delay: 100,

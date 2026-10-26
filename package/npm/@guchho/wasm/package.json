@@ -1,6 +1,6 @@
 {
   "name": "@guchho/wasm",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Guchho bundler compiled to WebAssembly (Node + browser)",
   "repository": {
     "type": "git",

@@ -4,17 +4,22 @@ All notable changes to Guchho. Newest first. Full release notes live in
 [docs/release-notes](docs/release-notes/README.md); tags are on
 [GitHub](https://github.com/guchho/guchho/tags).
 
-## [Unreleased]
+## [1.0.9] - 2026-10-26
 
 ### Added
 
-- Optional JavaScript lint checks, off by default: `undefined` reports
-  unresolved identifier reads and `unused` reports unreferenced local
-  bindings. Enable them with `build.lint` or `--lint`, set per-check severity
-  with `--lint-level`, and silence or promote individual findings through the
-  existing `log_override` mechanism. Unused parameters are a separate opt-in
-  check. Analysis is platform-aware and stays silent in `with` scopes and
-  files containing direct `eval`.
+- `guchho lint`, a standalone JavaScript and TypeScript linter with its own
+  configuration file, fifteen rules, safe fixes, watch mode, human/stylish/JSON
+  output and a warning threshold. `--fix`, `--fix-dry-run`, `--rule`,
+  `--config` and `--max-warnings` mirror the documented command behaviour.
+- `lint()` in the `guchho` package runs the same rule set and safe fixes and
+  returns the findings as data. It works in the browser when the lint config is
+  JSON; a JavaScript config is native-only.
+- Optional build-time JavaScript lint checks, off by default, enabled through
+  `build.lint`: `undefined`, `unused`, `unused-variable` and
+  `unused-parameter`. Findings can be silenced or promoted through
+  `log_override`; analysis is platform-aware and stays silent in `with` scopes
+  and files containing direct `eval`.
 - Context-aware JavaScript syntax diagnostics: misspelled keywords and missing
   closing delimiters now carry structured suggestions while keeping the
   existing fallback message text unchanged.
@@ -27,6 +32,14 @@ All notable changes to Guchho. Newest first. Full release notes live in
   with the same default destination, format detection, overwrite rule and
   component stripping as `guchho unpack`. It is native-only; the browser entry
   exports a refusing stub because the WASM engine has no host filesystem.
+
+### Changed
+
+- Android builds target API level 24 (Android 7.0) and link the C++ runtime
+  statically, so packaged binaries start on a device without the NDK runtime
+  library.
+
+[1.0.9]: docs/release-notes/v1.0.9.md
 
 ## [1.0.8] - 2026-10-19
 

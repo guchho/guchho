@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 project(
     guchho
-    VERSION 1.0.8
+    VERSION 1.0.9
     DESCRIPTION "Fast build system for web applications."
     LANGUAGES CXX
 )

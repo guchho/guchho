@@ -58,3 +58,16 @@ when stack traces or reflection read them.
 `mangleCache` keeps a project's shortened property names stable across builds, so
 a hot-reload session does not invalidate cached files. See the
 [CLI reference](../reference/cli/build.md) for the file-backed spelling.
+
+## Other size and output controls
+
+| Option | Default | Effect |
+| --- | --- | --- |
+| `lineLimit` | `0` (no limit) | Fail the build when any output line grows past this many bytes. |
+| `charset` | `ascii` | Escape non-ASCII as `\uXXXX`; `utf8` emits the characters when the target allows it. |
+| `legalComments` | `default` | `none`, `inline`, `eof`, `linked` or `external` placement for `/*! ... */` comments. |
+| `ignoreAnnotations` | `false` | Treat `/* @__PURE__ */` and similar markers as ordinary comments. |
+| `keepNames` | `false` | Preserve function and class names, including `.name` reads. |
+
+`drop` is a list in the JavaScript API (`drop: ['console', 'debugger']`) and a
+pair of flags on the command line (`--drop:console`, `--drop:debugger`).

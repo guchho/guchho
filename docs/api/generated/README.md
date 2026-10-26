@@ -17,7 +17,7 @@ see the [API overview](../README.md). Classes live on
 
 ## Options
 
-The options a caller hands to `build`, `transform`, `lint`, `pack`, `serve`, `watch` and `analyze`, plus the sections of a configuration file. [Full page](options.md).
+The options a caller hands to `build`, `transform`, `lint`, `pack`, `unpack`, `serve`, `watch` and `analyze`, plus the sections of a configuration file. [Full page](options.md).
 
 - [`LintOptions`](options.md#lintoptions)
 - [`CommonOptions`](options.md#commonoptions)
@@ -26,12 +26,13 @@ The options a caller hands to `build`, `transform`, `lint`, `pack`, `serve`, `wa
 - [`BuildConfigSections`](options.md#buildconfigsections)
 - [`TransformOptions`](options.md#transformoptions)
 - [`PackOptions`](options.md#packoptions)
+- [`UnpackOptions`](options.md#unpackoptions)
 - [`ServeOptions`](options.md#serveoptions)
 - [`WatchOptions`](options.md#watchoptions)
 
 ## Types & results
 
-Diagnostics, files, the metafile, the loaders/formats/platforms vocabularies and the shapes a build answers with. [Full page](types.md).
+Diagnostics, files, the metafile, the lint, transform, pack and unpack results, the loaders/formats/platforms vocabularies and the shapes a build answers with. [Full page](types.md).
 
 - [`Location`](types.md#location)
 - [`Note`](types.md#note)
@@ -47,6 +48,9 @@ Diagnostics, files, the metafile, the loaders/formats/platforms vocabularies and
 - [`LintFileResult`](types.md#lintfileresult)
 - [`LintResult`](types.md#lintresult)
 - [`BuildResult`](types.md#buildresult)
+- [`TransformResult`](types.md#transformresult)
+- [`PackResult`](types.md#packresult)
+- [`UnpackResult`](types.md#unpackresult)
 - [`Loader`](types.md#loader)
 - [`Format`](types.md#format)
 - [`Platform`](types.md#platform)

@@ -22,6 +22,7 @@ export const {
     build,
     transform,
     pack,
+    lint,
     unpack,
     context,
     analyze,

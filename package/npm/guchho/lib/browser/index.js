@@ -3,7 +3,7 @@
 // The browser surface of the package.
 //
 // It publishes the same names the Node entry does, for the APIs the
-// WebAssembly engine can actually serve: build, transform, pack, analyze,
+// WebAssembly engine can actually serve: build, transform, lint, pack, analyze,
 // analyzeMetafile, context, and the three compiler stages. Every one of them
 // is the same function the Node entry uses — the orchestrators in lib/ are
 // written once — running against the transport installed here instead of a
@@ -27,6 +27,7 @@ const { build, analyzeMetafile } = require("../build");
 const { analyze } = require("../analyze");
 const { transform } = require("../transform");
 const { pack } = require("../pack");
+const { lint } = require("../lint");
 const { context, BuildContext } = require("../context");
 const { BuildFailure, ServiceError } = require("../errors");
 const { version } = require("../info");
@@ -50,6 +51,7 @@ module.exports = {
     build,
     transform,
     pack,
+    lint,
     context,
     analyze,
     analyzeMetafile,

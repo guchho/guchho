@@ -36,10 +36,11 @@ working without manual edits.
 ## Source maps
 
 For production, `linked` or `external` maps keep the `.map` files out of the
-bundle while staying fetchable:
+bundle while staying fetchable. Set `sourcesContent` to `false` to omit the
+original source text and make the maps much smaller:
 
 ```js
-build: { sourcemap: 'linked', sourcesContent: 'exclude' }
+build: { sourcemap: 'linked', sourcesContent: false }
 ```
 
 ## CI

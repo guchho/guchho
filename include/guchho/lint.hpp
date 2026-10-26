@@ -23,7 +23,6 @@
 #include "guchho/compiler.hpp"
 #include "guchho/config.hpp"
 #include "guchho/filesystem.hpp"
-#include "guchho/javascript/js_ast.hpp"
 #include "guchho/logger.hpp"
 
 namespace guchho::lint {
@@ -107,12 +106,12 @@ namespace guchho::lint {
     };
 
     struct FileReport {
-        std::string             path;
-        std::string             source;
+        std::string            source;
+        std::string            path;
         std::vector<Diagnostic> diagnostics;
-        int                     errors{};
-        int                     warnings{};
-        int                     fixes{};
+        int                    errors{};
+        int                    warnings{};
+        int                    fixes{};
     };
 
     struct Report {
@@ -134,7 +133,7 @@ namespace guchho::lint {
         bool                                      quiet{};
         bool                                      watch{};
         bool                                      json{};
-        bool                                      color{};
+        bool                                      color = true;
     };
 
     struct Project {

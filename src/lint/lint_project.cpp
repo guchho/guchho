@@ -243,6 +243,10 @@ bool LintProject(filesystem::Fs& fs, const Project& project, Report& report,
         for (Diagnostic& diagnostic : analysis.report.diagnostics) {
             diagnostic.path = display;
         }
+        if (analysis.report.source.empty() &&
+            !analysis.report.diagnostics.empty()) {
+            analysis.report.source = contents;
+        }
         analysis.report.fixes = applied;
         report.fixes += applied;
         report.files.push_back(std::move(analysis.report));

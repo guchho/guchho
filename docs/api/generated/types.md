@@ -7,7 +7,7 @@ description: The core types and result shapes of the guchho package.
 
 # Types & results
 
-Diagnostics, files, the metafile, the loaders/formats/platforms vocabularies and the shapes a build answers with.
+Diagnostics, files, the metafile, lint results, the loaders/formats/platforms vocabularies and the shapes a build answers with.
 
 In this page:
 
@@ -19,6 +19,11 @@ In this page:
 - [`OutputSummary`](#outputsummary)
 - [`InputSummary`](#inputsummary)
 - [`AnalysisReport`](#analysisreport)
+- [`LintRuleLevel`](#lintrulelevel)
+- [`LintFileMessage`](#lintfilemessage)
+- [`LintMessage`](#lintmessage)
+- [`LintFileResult`](#lintfileresult)
+- [`LintResult`](#lintresult)
 - [`BuildResult`](#buildresult)
 - [`Loader`](#loader)
 - [`Format`](#format)
@@ -169,6 +174,82 @@ export interface AnalysisReport {
   dependencies: string[]
   /** The size of the whole output tree. The sum of `outputs`. */
   totalBytes: number
+}
+```
+
+## LintRuleLevel
+
+How a lint rule behaves: silent, a warning, or an error.
+
+```ts
+export type LintRuleLevel = 'off' | 'warn' | 'warning' | 'error'
+```
+
+## LintFileMessage
+
+One lint finding as it appears inside its file's entry.
+
+```ts
+export interface LintFileMessage {
+  ruleId: string
+  severity: 'error' | 'warning'
+  message: string
+  /** 1-based */
+  line: number
+  /** 1-based */
+  column: number
+  /** 1-based */
+  endLine: number
+  /** 1-based */
+  endColumn: number
+  /** Whether the finding came from parsing rather than from a rule. */
+  syntax: boolean
+  /** The number of fixes the finding carries. */
+  fixCount: number
+}
+```
+
+## LintMessage
+
+One lint finding, with the file it belongs to.
+
+```ts
+export interface LintMessage extends LintFileMessage {
+  path: string
+}
+```
+
+## LintFileResult
+
+Every finding in one file, and that file's counts.
+
+```ts
+export interface LintFileResult {
+  path: string
+  errorCount: number
+  warningCount: number
+  messages: LintFileMessage[]
+}
+```
+
+## LintResult
+
+What lint() found, in the flat shape the command line's JSON output uses.
+
+```ts
+export interface LintResult {
+  files: LintFileResult[]
+  messages: LintMessage[]
+  errorCount: number
+  warningCount: number
+  /**
+   * Fixes applied, or fixes that would be applied when fixDryRun is true.
+   * Zero when neither was requested.
+   */
+  fixCount: number
+  filesWithProblems: number
+  /** True when maxWarnings was given and warningCount is above it. */
+  maxWarningsExceeded: boolean
 }
 ```
 

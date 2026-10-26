@@ -84,7 +84,7 @@ export interface Metafile {
   inputs: {
     [path: string]: {
       bytes: number
-      imports: { path: string; kind: string; external?: boolean }
+      imports: { path: string; kind: string; external?: boolean }[]
       format?: string
     }
   }
@@ -100,7 +100,7 @@ export interface Metafile {
        * `bundle` defaults to false, so under it a relative sibling import is
        * listed here and left alone on purpose.
        */
-      imports: { path: string; kind: string; external?: boolean }
+      imports: { path: string; kind: string; external?: boolean }[]
       exports: string[]
       entryPoint?: string
     }

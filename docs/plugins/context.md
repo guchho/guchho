@@ -6,8 +6,9 @@ description: What this is inside a plugin hook, and what a plugin can ask the bu
 # The plugin context
 
 Every hook is called with a `PluginContext` as `this` - the plugin's interface
-to the build. Through it a plugin finds out where an import points, reports a
-message, fails the build, and emits files of its own.
+to the build. Through it a plugin reports a message, fails the build, and emits
+asset files of its own. Resolution through `this.resolve` is declared but not
+wired yet in this version.
 
 ```js
 const plugin = {
@@ -21,12 +22,12 @@ const plugin = {
   async generateBundle(_, bundle) {
     for (const file of Object.values(bundle)) {
       if (!file.isEntry) continue
-      const ref = this.emitFile({
+      this.emitFile({
         type: 'asset',
         fileName: 'manifest.json',
         source: JSON.stringify(file.modules, null, 2),
       })
-      this.warn({ message: 'emitted manifest', id: this.getFileName(ref) })
+      this.warn({ message: 'emitted manifest' })
     }
   },
 }
@@ -66,6 +67,9 @@ paths, package exports - **and the same chain of plugins**. This is how a
 plugin asks where an import points without claiming it. Returns `null` when
 nothing resolves it.
 
+**Not wired yet in this version.** The method always rejects with a sentence
+naming the limitation rather than resolving to a wrong answer.
+
 `custom: true` is set on the question the engine hands down the chain, so a
 plugin that answers resolution can tell its own question from the engine's and
 decline it with `if (options.custom) return null`.
@@ -73,21 +77,15 @@ decline it with `if (options.custom) return null`.
 ### emitFile
 
 ```ts
-emitFile(file: EmittedFile): string
+emitFile(file: EmittedFile): void
 ```
 
-Adds a file to the build's output. Accepts an asset (bytes to write) or a chunk
-(a module id to bundle into a new output). Returns a reference id that names
-the file for `getFileName`, and that can be handed to another `emitFile`.
+Adds a file to the build's output. Assets only in this version; a chunk request
+is refused with an explanation rather than silently dropped. The method returns
+`void`.
 
-### getFileName
-
-```ts
-getFileName(referenceId: string): string
-```
-
-The output path a reference id from `emitFile` resolves to. Useful inside
-`generateBundle`/`writeBundle`, where the path is otherwise guessed.
+There is no `getFileName` in this version. A reference id would have no use
+without it, so `emitFile` does not return one either.
 
 ### warn
 

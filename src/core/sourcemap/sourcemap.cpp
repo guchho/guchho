@@ -196,6 +196,10 @@ std::pair<int, int> DecodeVLQ(std::string_view encoded, int start) {
     int vlq = 0;
 
     for (;;) {
+        if (start < 0 || static_cast<size_t>(start) >= encoded.size()) {
+            break;
+        }
+
         int index = Base64Index(static_cast<uint8_t>(encoded[static_cast<size_t>(start)]));
         if (index < 0) {
             break;

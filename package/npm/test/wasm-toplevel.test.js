@@ -3,9 +3,9 @@
 // The package publishes a createGuchho() factory and, beside it, a set of
 // module-level functions for the caller who wants to lex a string or run one
 // build without holding an engine: configure, loadFiles, lexer, parse, print,
-// build, request and version. They run against one shared engine, created on
-// first use, and configure() is what the in-memory tree that engine is created
-// from is set with.
+// build, pack, unpack, request and version. They run against one shared engine,
+// created on first use, and configure() is what the in-memory tree that engine
+// is created from is set with.
 //
 // The export shapes need no engine and are checked always. The behaviour behind
 // the shared engine needs the built artifacts — scripts/build-wasm.sh puts
@@ -30,10 +30,14 @@ const TOP_LEVEL = [
     "lexer",
     "loadFiles",
     "mountHost",
+    "pack",
+    "packBytes",
     "parse",
     "print",
     "request",
     "toVirtual",
+    "unpack",
+    "unpackBytes",
     "version",
 ];
 

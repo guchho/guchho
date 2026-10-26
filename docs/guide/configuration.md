@@ -106,10 +106,13 @@ A config file whose root is an object produces one build. A root as an array
 produces one build per element, each resolved independently from the same
 explicit options and defaults.
 
-Plugins may sit beside `build` on each element. The host collects the `plugins`
-of every element into one list for the run, so a plugin is shared by all the
-builds rather than scoped to the element that named it; listing the same plugin
-on several elements attaches it once.
+Plugins may sit beside `build` on each element. Since v1.0.6 the plugins on an
+element run only for that element's build: each resolved build gets its own
+group, and the same plugin named by two elements is instantiated once per
+build. A single-configuration root and a flat top-level `plugins` list still
+apply to every build in the run. From C++, the grouped form is
+`cli::RunWithPluginGroups`; `api::BuildOptions::config_plugins` carries the
+groups when a host resolves them itself.
 
 ## Full reference
 

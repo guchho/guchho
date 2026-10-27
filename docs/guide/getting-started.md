@@ -230,6 +230,40 @@ npx guchho build src/main.js --outdir=dist --format=esm --minify --sourcemap
 `--sourcemap` writes linked source maps beside it. An HTML entry point chooses
 the format its document needs, so a `--format` flag has nothing to decide there.
 
+### What kind of entry point do you have?
+
+The entry point decides how much of the graph is built:
+
+| Entry | What Guchho reads | What it writes |
+| --- | --- | --- |
+| an HTML document | the document and every local `script`, `link`, image and asset reference it contains | the document plus the files behind those references |
+| a JavaScript or TypeScript file | that file, plus its imports when bundling is on | the script, or a bundle when `--bundle` is used |
+| a CSS file | the stylesheet, its `@import`s and its `url(...)` references | the stylesheet and any assets it points at |
+
+An HTML entry point enables bundling when you do not say otherwise, because a
+document describes a whole application. A JavaScript entry point does not. This
+build transforms one module and leaves its imports alone:
+
+```bash
+npx guchho build src/main.js --outdir=dist
+```
+
+This one follows the imports and emits a bundle:
+
+```bash
+npx guchho build src/main.js --outdir=dist --bundle
+```
+
+A CSS entry point works without any JavaScript:
+
+```bash
+npx guchho build src/style.css --outdir=dist
+```
+
+That is useful when the output is consumed by another tool, or when only the
+stylesheet needs processing. It is the reason Guchho can replace a single-purpose
+CSS command as well as a full application bundler.
+
 The starter produces a document, a script and a stylesheet. The names carry a
 content hash so a changed file gets a new URL:
 
@@ -254,6 +288,17 @@ That rewrite is why an HTML entry point works without a config file. The build
 does not copy the document and leave its original `./style.css` reference
 pointing at a file that was never emitted; it follows the reference, processes
 the target, and writes the URL the browser must use.
+
+There is one graph, not a list of HTML assets beside a list of JavaScript
+imports. An image referenced from the document, a stylesheet imported by the
+script and a font referenced from that stylesheet all go through the same
+resolver and the same loader map. That is why changing the `.svg` loader affects
+an SVG in the HTML just as it affects one imported from JavaScript.
+
+Assets referenced from HTML therefore follow the same rules as any other asset:
+the extension chooses the loader, `assetNames` chooses the output pattern, and
+the URL is rewritten to the result. A `public` directory is a convention, not a
+special case; if the document points at a file, that file is in the graph.
 
 The build also follows references it finds inside JavaScript and CSS, not only
 the ones written in the document. An `import './style.css'` in the script is
@@ -524,6 +569,35 @@ server, [`context()`](../api/README.md#context) returns a `BuildContext` whose
 `rebuild()` reuses what the first build learned; for change-driven rebuilds,
 [`watch()`](../api/README.md#watch) returns a `Watcher` with `buildEnd` events.
 
+A context is the lower-level version of the same idea. Use it when you want to
+decide exactly when a build happens, rather than have a watcher or server drive
+it:
+
+```js
+import { context } from 'guchho';
+
+const ctx = await context({
+  entrypoints: ['src/index.html'],
+  outdir: 'dist',
+  minify: true,
+});
+
+try {
+  const first = await ctx.rebuild();
+  console.log(`first build: ${first.outputs.length} files`);
+
+  const second = await ctx.rebuild();
+  console.log(`second build: ${second.outputs.length} files`);
+} finally {
+  await ctx.dispose();
+}
+```
+
+`context()` prepares the build but does not write output by itself. Each
+`rebuild()` runs a build and returns a result, reusing what the context already
+resolved and parsed. `dispose()` is what releases the files the engine holds
+open; call it even when a rebuild failed.
+
 ## Check, preview and package
 
 Linting is a separate step from building, because a lint finding is reported as
@@ -550,6 +624,18 @@ npx guchho serve dist --port=8080 --open
 
 `serve` is a static file server over an already-built directory. It does not
 rebuild, so a change made after the build is not reflected; use `dev` for that.
+
+Remove generated output with `clean`. It reads the same `outdir` resolution as a
+build, so a config file and a command line agree on what is removed:
+
+```bash
+npx guchho clean --dry-run
+npx guchho clean
+```
+
+Start with `--dry-run` in an unfamiliar project. It prints what would be removed
+without deleting anything. Unlike a build, there is no diagnostic to inspect
+afterwards if the directory turns out to be the wrong one.
 
 Package the result when it is ready to move:
 
@@ -579,11 +665,46 @@ Add the common commands to `package.json` so they are one word away:
 }
 ```
 
+## When the first build fails
+
+Most first-run problems fall into a small number of categories.
+
+- **"No entry points specified".** A build needs at least one entry unless the
+  current directory has a config file that names one. Pass a path
+  (`guchho build src/index.html`) or add `build.entry` to the config.
+- **The config is not being found.** Guchho searches upward from the current
+  directory and uses the nearest config. Run `guchho info` to see the directory
+  and config it resolved. Starting the command in a subdirectory is fine if the
+  config is above it; starting it in an unrelated directory is not.
+- **A JavaScript config needs a JavaScript runtime.** Evaluating
+  `guchho.config.js` requires Node (or the runtime named by `GUCHHO_NODE_BIN`).
+  On a machine without one, write the same settings as `guchho.json` or pass
+  them as flags.
+- **A config option is reported as ignored.** The native config parser reads the
+  subset documented in the [configuration reference](../reference/config/build.md).
+  Options that belong only to the JavaScript API or a command-line flag must be
+  given there instead. A warning is better than a setting that looks applied but
+  is not.
+- **The dev server returns `404` for every path.** Check the output directory
+  and the URL. `guchho dev` serves the build; `guchho serve dist` serves the
+  directory you named. A page at `/app` is not emitted just because the router
+  understands it.
+- **The page loads but the console shows missing files.** Open the network panel
+  and compare the requested path with the output tree. A `publicPath`, a
+  hand-written absolute URL or an HTML file that was never an entry point can
+  all produce a path that the server does not have.
+
+A failed build is not a partially working build that you should deploy. Read the
+first diagnostic, fix it, and build again. Later errors are often consequences
+of the first one.
+
 ## Next
 
 - [Configuration](configuration.md) - configure a build once.
+- [HTML pipeline](html-pipeline.md) - what an HTML entry point really does.
 - [CLI overview](cli-overview.md) - every command.
 - [JavaScript API](../api/README.md) - use the engine from Node.
 - [Build a single-page app](../recipes/build-a-single-page-app.md) - an HTML
   entry from start to deployable output.
 - [Build a library](../recipes/build-a-library.md) - publish ESM and CommonJS.
+- [Deployment](deployment.md) - hashing, caching, source maps and hosting.

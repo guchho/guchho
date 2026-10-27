@@ -504,6 +504,79 @@ choco apikey add -s https://push.chocolatey.org/ -k <API_KEY>
 
 Requires the package to exist first (`bash scripts/build-chocolatey.sh`). Users install it with `choco install guchho`.
 
+### 6.8 `scripts/build-winget.sh` - Generate WinGet manifests
+
+Downloads the same official `win32-x64` release archive, inspects its layout, and writes the three WinGet manifests under `dist/winget/manifests/g/Guchho/Guchho/<version>/`. It uploads nothing: WinGet packages are submitted by pull request to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs).
+
+**Requirements:** Node.js, `curl`, `unzip`, and a SHA256 tool (`sha256sum` or `shasum`). `winget` is used for validation when it is installed.
+
+```bash
+bash scripts/build-winget.sh
+bash scripts/build-winget.sh --archive dist/guchho-1.0.9-win32-x64.zip
+bash scripts/build-winget.sh --output /tmp/winget --no-validate
+```
+
+- Fetches `https://github.com/guchho/guchho/releases/download/v<version>/guchho-<version>-win32-x64.zip`, so the `v<version>` release must exist first (see [Downloadable Windows x64 Release Archive](#downloadable-windows-x64-release-archive)). Use `--archive` to point at a copy downloaded from the workflow instead.
+- Fails if the archive has no `guchho.exe`, more than one, or no MinGW runtime DLL beside it.
+- Uses an `InstallerType: zip` installer with a nested portable `guchho.exe`; `ArchiveBinariesDependOnPath: true` keeps the runtime DLLs resolvable.
+- Test with `winget install --manifest <dir>`, then copy the version directory to `manifests/g/Guchho/Guchho/<version>/` in a fork of `microsoft/winget-pkgs` and open a pull request.
+
+Users install it with `winget install Guchho.Guchho` once the submission is merged.
+
+### 6.9 `scripts/publish-winget.sh` - Submit the WinGet manifests
+
+Submits the manifests produced by `scripts/build-winget.sh` to [`microsoft/winget-pkgs`](https://github.com/microsoft/winget-pkgs) with `wingetcreate submit`. WinGet has no feed to push to: "publishing" opens a pull request.
+
+```bash
+bash scripts/publish-winget.sh              # submit
+bash scripts/publish-winget.sh --dry-run    # validate and print the command only
+```
+
+**Requirements:** the generated manifests, `wingetcreate` (`winget install Microsoft.WingetCreate`), and a GitHub token. Prefer the environment variable, which `wingetcreate` reads itself and which keeps the token out of logs:
+
+```bash
+export WINGET_CREATE_GITHUB_TOKEN=<token>
+bash scripts/publish-winget.sh
+```
+
+- Validates the manifest directory with `winget validate` first when winget is installed (`--no-validate` to skip).
+- Fails if the version's manifest directory is missing; run `bash scripts/build-winget.sh` first.
+- Uses `--token` only when passed explicitly; the dry run prints it as `***`. An environment token is left for `wingetcreate` to pick up.
+- Optional `--pr-title <title>` overrides the pull request title; otherwise wingetcreate chooses one.
+
+### 6.10 `scripts/build_brew.sh` - Generate the Homebrew formula
+
+Downloads the official `v<version>` source tarball, computes its SHA256, and writes a source-build formula to `dist/homebrew/Formula/guchho.rb`. The recipe builds with CMake, so no macOS binary has to be published first: Homebrew supplies CMake and compiles the tag itself.
+
+**Requirements:** Node.js, `curl`, and a SHA256 tool (`sha256sum` or `shasum`). Ruby is used for the `ruby -c` syntax check when it is installed.
+
+```bash
+bash scripts/build_brew.sh
+bash scripts/build_brew.sh --tarball /tmp/guchho-1.0.9.tar.gz
+bash scripts/build_brew.sh --output /tmp/homebrew --no-validate
+```
+
+- Fetches `https://github.com/guchho/guchho/archive/refs/tags/v<version>.tar.gz`, so the `v<version>` tag must exist first. Use `--tarball` to point at a local copy instead.
+- Fails if the download is not a gzip archive (a missing tag returns HTML) or if the tarball is empty.
+- The formula declares `depends_on "cmake" => :build`, runs a `Release` CMake build with `BUILD_TESTING=OFF`, and installs with `std_cmake_args`.
+- Test the formula locally with `brew install --build-from-source dist/homebrew/Formula/guchho.rb`.
+
+### 6.11 `scripts/publish_brew.sh` - Publish the formula to a tap
+
+Homebrew has no registry to push to: publishing means committing the formula to a tap repository. The script clones the tap, installs `Formula/guchho.rb`, commits, and pushes to the tap's default branch.
+
+```bash
+bash scripts/publish_brew.sh                 # publish
+bash scripts/publish_brew.sh --dry-run       # clone and show the diff only
+```
+
+**Requirements:** the generated formula, `gh` (authenticated with `gh auth login`), and `git`.
+
+- Defaults to the `guchho/homebrew-tap` tap; override it with `--tap <owner/repo>` or `GUCHHO_HOMEBREW_TAP`.
+- A missing tap is only created with `--create-tap`; otherwise the script stops and prints the `gh repo create` command.
+- Skips the commit when the tap already has an identical formula, and shows the staged diff before pushing (or before stopping in `--dry-run`).
+- Users install with `brew install guchho/homebrew-tap/guchho` once published.
+
 
 ## 7. Manual CMake Commands
 
@@ -572,6 +645,8 @@ Special presets:
 | npm platform binary               | `package/npm/@guchho/<platform>/bin/guchho[.exe]`|
 | Chocolatey package                | `package/chocolatey/guchho/guchho-<version>.nupkg`|
 | Chocolatey embedded binary        | `package/chocolatey/guchho/tools/guchho.exe`       |
+| WinGet manifests                  | `dist/winget/manifests/g/Guchho/Guchho/<version>/` |
+| Homebrew formula                  | `dist/homebrew/Formula/guchho.rb`               |
 
 CPack generators:
 
@@ -581,6 +656,10 @@ CPack generators:
 Package file naming: `guchho-<version>-<platform>` (e.g. `guchho-1.0.9-linux-x64`).
 
 Chocolatey distribution is handled separately by `scripts/build-chocolatey.sh` and `scripts/publish-chocolatey.sh` (see [Sections 6.6/6.7](#66-scriptsbuild-chocolateysh---build-the-chocolatey-package-nupkg)); it downloads `guchho-<version>-win32-x64.zip` from the GitHub release and embeds its `bin/guchho.exe` at package-build time rather than downloading at install time.
+
+WinGet manifests are generated by `scripts/build-winget.sh` (see [Section 6.8](#68-scriptsbuild-wingetsh---generate-winget-manifests)) from the same release archive and submitted to `microsoft/winget-pkgs` by pull request with `scripts/publish-winget.sh` (see [Section 6.9](#69-scriptspublish-wingetsh---submit-the-winget-manifests)).
+
+Homebrew distribution is handled separately by `scripts/build_brew.sh` and `scripts/publish_brew.sh` (see [Sections 6.10/6.11](#610-scriptsbuild_brewsh---generate-the-homebrew-formula)). Unlike Chocolatey and WinGet, the formula builds `guchho` from the `v<version>` source tarball and is published by committing it to a tap.
 
 
 ## 9. Quick Reference - "Build Everything"

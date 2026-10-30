@@ -261,7 +261,7 @@ g++ --version       # or clang++ --version
 
 ## 5. Building for Other / npm-Distribution Platforms
 
-The npm packages (`@guchho/<platform>`) are produced by the CI workflow `.github/workflows/npm-publish.yml`, which supports multiple build methods on Ubuntu runners:
+The npm packages (`@guchho/<platform>`) are produced by the CI workflow `.github/workflows/npm-publish.yml`, which supports multiple build methods. Most run on hosted Ubuntu runners; AIX builds on a self-hosted runner:
 
 ### 5.1 Android (NDK cross-compilation)
 
@@ -363,7 +363,27 @@ The same preset works on a native FreeBSD host, where `bash
 scripts/build-npm.sh` builds and stages the binary in
 `package/npm/@guchho/freebsd-x64/bin/`.
 
-### 5.6 Installing a prebuilt npm binary (no build required)
+### 5.6 AIX PPC64 (self-hosted runner)
+
+AIX PPC64 is a platform combination of IBM's Unix operating system and the
+64-bit PowerPC processor architecture. GitHub has no hosted AIX runner, and
+there is no public Linux cross toolchain for AIX, so the `aix-ppc64` build job
+targets a self-hosted runner labelled `self-hosted`, `aix`, and `ppc64`.
+
+The runner needs CMake ≥ 3.25, Ninja, Bash, and a C++20 compiler (IBM XL C/C++
+or clang) already installed; the workflow does not install them because
+`actions/setup-*` publishes no AIX builds. Build and test on the AIX host with:
+
+```sh
+cmake --preset release-aix-ppc64 --fresh
+cmake --build --preset release-aix-ppc64 --parallel
+ctest --preset release-aix-ppc64 --output-on-failure --no-tests=error
+```
+
+The same preset works with `bash scripts/build-npm.sh`, which stages the binary
+in `package/npm/@guchho/aix-ppc64/bin/`.
+
+### 5.7 Installing a prebuilt npm binary (no build required)
 
 If you just want to use guchho, install the prebuilt npm package instead of building:
 
@@ -440,7 +460,7 @@ bash scripts/test.sh --test-verbose --log test.log            # verbose + log
 
 ### 6.3 `scripts/build-npm.sh` - Native binary → npm package
 
-Builds the current platform's native binary and copies it into `package/npm/@guchho/<platform>/bin/`. Supported platforms: `win32-x64`, `linux-x64`, `darwin-arm64`, `freebsd-x64`.
+Builds the current platform's native binary and copies it into `package/npm/@guchho/<platform>/bin/`. Supported platforms: `win32-x64`, `linux-x64`, `darwin-arm64`, `freebsd-x64`, `aix-ppc64`.
 
 ```bash
 bash scripts/build-npm.sh
@@ -448,7 +468,8 @@ bash scripts/build-npm.sh
 
 Automatically detects the platform, maps it to a preset
 (`win32-x64` → `release-win32-x64-ninja`, `linux-x64` → `release-linux-x64`,
-`darwin-arm64` → `release-darwin-arm64`), builds, strips (Unix), and copies the binary.
+`darwin-arm64` → `release-darwin-arm64`, `aix-ppc64` → `release-aix-ppc64`),
+builds, strips (Unix), and copies the binary.
 
 ### 6.4 `scripts/compile-commands.sh` - Regenerate `compile_commands.json`
 
@@ -762,6 +783,10 @@ gh workflow run npm-publish.yml -f type=android-arm64 -f dry_run=false test_run=
 gh workflow run npm-publish.yml -f type=win32-ia32 -f dry_run=false dry_run=true
 ```
 
+```bash
+gh workflow run npm-publish.yml -f type=aix-ppc64 -f dry_run=false -f test_run=true
+```
+
 Publish only the main `guchho` package:
 
 ```bash
@@ -781,6 +806,7 @@ gh workflow run npm-publish.yml -f type=all -f dry_run=false
 | `linux-x64`    | `@guchho/linux-x64`              |
 | `win32-x64`    | `@guchho/win32-x64`              |
 | `darwin-arm64` | `@guchho/darwin-arm64`           |
+| `aix-ppc64`    | `@guchho/aix-ppc64`              |
 | `guchho`       | `guchho`                         |
 | `all`          | All platform packages + `guchho` |
 

@@ -15,6 +15,7 @@ set -euo pipefail
 #   linux-x64
 #   darwin-arm64
 #   freebsd-x64
+#   aix-ppc64
 # ========================================
 
 
@@ -67,6 +68,10 @@ detect_platform() {
             os="freebsd"
             ;;
 
+        AIX*)
+            os="aix"
+            ;;
+
         MINGW*|MSYS*|CYGWIN*|Windows_NT)
             os="win32"
             ;;
@@ -76,7 +81,16 @@ detect_platform() {
             ;;
     esac
 
-    case "$(uname -m)" in
+    # AIX reports a hardware identifier from `uname -m`, not a processor name,
+    # so the architecture is taken from the platform rather than the command.
+    local machine
+    if [[ "${os}" == "aix" ]]; then
+        machine="ppc64"
+    else
+        machine="$(uname -m)"
+    fi
+
+    case "${machine}" in
         x86_64|amd64)
             arch="x64"
             ;;
@@ -85,15 +99,19 @@ detect_platform() {
             arch="arm64"
             ;;
 
+        ppc64|powerpc64)
+            arch="ppc64"
+            ;;
+
         *)
-            error "Unsupported architecture: $(uname -m)"
+            error "Unsupported architecture: ${machine}"
             ;;
     esac
 
     local platform="${os}-${arch}"
 
     case "${platform}" in
-        win32-x64|linux-x64|darwin-arm64|freebsd-x64)
+        win32-x64|linux-x64|darwin-arm64|freebsd-x64|aix-ppc64)
             echo "${platform}"
             ;;
 
@@ -128,6 +146,10 @@ platform_to_preset() {
             echo "release-freebsd-x64"
             ;;
 
+        aix-ppc64)
+            echo "release-aix-ppc64"
+            ;;
+
         *)
             error "No CMake preset configured for: ${platform}"
             ;;
@@ -147,7 +169,7 @@ platform_to_binary_name() {
             echo "guchho.exe"
             ;;
 
-        linux-x64|darwin-arm64|freebsd-x64)
+        linux-x64|darwin-arm64|freebsd-x64|aix-ppc64)
             echo "guchho"
             ;;
 

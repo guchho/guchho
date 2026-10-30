@@ -27,6 +27,11 @@ on:
           - android-x64
           - android-arm64
           - freebsd-x64
+          # AIX PPC64 is a platform combination of IBM's Unix operating system
+          # and the 64-bit PowerPC processor architecture. GitHub has no hosted
+          # AIX runner and there is no public Linux cross toolchain, so this
+          # target builds on a self-hosted AIX PPC64 runner.
+          - aix-ppc64
           - wasm
           - guchho
           - all
@@ -103,7 +108,7 @@ jobs:
           esac
 
           case "$TYPE" in
-            linux-x64|linux-arm64|linux-s390x|linux-ppc64|linux-riscv64|linux-mips64el|win32-x64|win32-arm64|win32-ia32|darwin-arm64|darwin-x64|android-x64|android-arm64|freebsd-x64)
+            linux-x64|linux-arm64|linux-s390x|linux-ppc64|linux-riscv64|linux-mips64el|win32-x64|win32-arm64|win32-ia32|darwin-arm64|darwin-x64|android-x64|android-arm64|freebsd-x64|aix-ppc64)
               PLATFORMS="$TYPE"
               PUBLISH_MAIN="false"
               PUBLISH_WASM="false"
@@ -151,6 +156,7 @@ jobs:
             {"platform":"android-x64","runner":"ubuntu-latest","method":"android","android_abi":"x86_64","android_api":24},
             {"platform":"android-arm64","runner":"ubuntu-latest","method":"android","android_abi":"arm64-v8a","android_api":24},
             {"platform":"freebsd-x64","runner":"ubuntu-latest","method":"freebsd_vm","arch":"x86_64","preset":"release-freebsd-x64"},
+            {"platform":"aix-ppc64","runner":["self-hosted","aix","ppc64"],"method":"aix","preset":"release-aix-ppc64"},
             {"platform":"win32-x64","runner":"windows-latest","method":"native","preset":"release-win32-x64-ninja"},
             {"platform":"win32-arm64","runner":"windows-latest","method":"msvc_cross","arch":"ARM64"},
             {"platform":"win32-ia32","runner":"windows-latest","method":"msvc_cross","arch":"Win32"}
@@ -607,6 +613,58 @@ jobs:
           fi
 
       # ============================================
+      # AIX PPC64 (self-hosted)
+      # ============================================
+      #
+      # AIX has no GitHub-hosted runner and no public Linux cross toolchain,
+      # so this build runs on a self-hosted AIX PPC64 runner labelled
+      # `self-hosted`, `aix`, and `ppc64`. CMake, Ninja, and a C++20 compiler
+      # (IBM XL C/C++ or clang) must already be installed there: the runner has
+      # no apt-get, and actions/setup-cmake and actions/setup-node do not
+      # publish AIX builds.
+      - name: Verify toolchain (AIX)
+        if: matrix.method == 'aix'
+        shell: bash
+        run: |
+          cmake --version
+          ninja --version
+          if command -v g++ >/dev/null 2>&1; then
+            g++ --version
+          elif command -v xlclang++ >/dev/null 2>&1; then
+            xlclang++ --version
+          else
+            echo "::error::No C++ compiler found (g++ or xlclang++)"
+            exit 1
+          fi
+
+      - name: Build (AIX)
+        if: matrix.method == 'aix'
+        shell: bash
+        run: |
+          cmake --preset ${{ matrix.preset }} --fresh
+          cmake --build --preset ${{ matrix.preset }} --parallel
+
+      - name: Test (AIX)
+        if: matrix.method == 'aix' && needs.plan.outputs.test_run == 'true'
+        shell: bash
+        run: ctest --preset ${{ matrix.preset }} --output-on-failure --no-tests=error
+
+      - name: Find binary (AIX)
+        if: matrix.method == 'aix'
+        id: find_binary_aix
+        shell: bash
+        run: |
+          FOUND="build/${{ matrix.preset }}/bin/guchho"
+
+          if [[ -f "$FOUND" ]]; then
+            echo "binary_path=${FOUND}" >> "$GITHUB_OUTPUT"
+            echo "Found: ${FOUND}"
+          else
+            echo "::error::Could not find the AIX binary at ${FOUND}"
+            exit 1
+          fi
+
+      # ============================================
       # Copy binary to package directory
       # ============================================
       - name: Prepare package directory
@@ -631,7 +689,8 @@ jobs:
             "${{ steps.find_binary_docker.outputs.binary_path }}" \
             "${{ steps.find_binary_msvc.outputs.binary_path }}" \
             "${{ steps.find_binary_android.outputs.binary_path }}" \
-            "${{ steps.find_binary_freebsd.outputs.binary_path }}"; do
+            "${{ steps.find_binary_freebsd.outputs.binary_path }}" \
+            "${{ steps.find_binary_aix.outputs.binary_path }}"; do
             if [[ -n "$step_output" && -f "$step_output" ]]; then
               BINARY_PATH="$step_output"
               break

@@ -50,7 +50,9 @@ gh workflow run npm-publish.yml -f type=win32-x64 -f dry_run=true
 ```
 
 - `type` accepts a platform (`linux-x64`, `linux-arm64`, `win32-x64`,
-  `win32-arm64`, `darwin-arm64`), `guchho` (main package only), or `all`.
+  `win32-arm64`, `darwin-arm64`, `aix-ppc64`), `guchho` (main package only),
+  or `all`. `aix-ppc64` requires a self-hosted runner labelled
+  `self-hosted`, `aix`, `ppc64`.
 - `dry_run` defaults to `true`; publishing requires `-f dry_run=false`.
 - `test_run` defaults to `true` and gates the native test step.
 - The workflow file must be on the default branch for a `type` choice value to

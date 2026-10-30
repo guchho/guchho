@@ -332,6 +332,20 @@
     },
 
     {
+      "name": "release-aix-ppc64",
+      "displayName": "AIX PPC64 Release",
+      "inherits": "base-ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "AIX"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+
+    {
       "name": "asan-linux-x64",
       "displayName": "Linux x64 ASan",
       "inherits": "debug-linux-x64",
@@ -532,6 +546,13 @@
       "name": "release-freebsd-x64",
       "displayName": "Build FreeBSD x64 Release",
       "configurePreset": "release-freebsd-x64",
+      "configuration": "Release"
+    },
+
+    {
+      "name": "release-aix-ppc64",
+      "displayName": "Build AIX PPC64 Release",
+      "configurePreset": "release-aix-ppc64",
       "configuration": "Release"
     },
 
@@ -758,6 +779,19 @@
     },
 
     {
+      "name": "release-aix-ppc64",
+      "displayName": "Test AIX PPC64 Release",
+      "configurePreset": "release-aix-ppc64",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "stopOnFailure": true
+      }
+    },
+
+    {
       "name": "asan-linux-x64",
       "displayName": "Test Linux x64 ASan",
       "configurePreset": "asan-linux-x64",
@@ -943,6 +977,24 @@
         {
           "type": "test",
           "name": "release-freebsd-x64"
+        }
+      ]
+    },
+    {
+      "name": "release-aix-ppc64",
+      "displayName": "AIX PPC64 Release Workflow",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "release-aix-ppc64"
+        },
+        {
+          "type": "build",
+          "name": "release-aix-ppc64"
+        },
+        {
+          "type": "test",
+          "name": "release-aix-ppc64"
         }
       ]
     },

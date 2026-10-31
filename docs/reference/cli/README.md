@@ -19,12 +19,17 @@ Commands:
   info                Show environment info
   transform           Transform source from stdin
   lint [files...]     Lint JavaScript and TypeScript
+  test [args...]      Run tests with @guchho/test
   pack <input...>     Create an archive
   unpack <archive>    Extract an archive
 
 Run 'guchho <command> --help' for command-specific help.
 Run 'guchho --version' for version information.
 ```
+
+The native usage text printed by `guchho --help` does not list `test` yet; the
+command is handled by the npm entry point. `guchho test --help` shows the test
+runner's own help.
 
 ## Commands
 
@@ -39,6 +44,7 @@ Run 'guchho --version' for version information.
 | `info` | [info.md](info.md) | Report environment and configuration. |
 | `transform` | [transform.md](transform.md) | Transform source read from stdin. |
 | `lint` | [lint.md](lint.md) | Lint JavaScript and TypeScript without building. |
+| `test` | [test.md](test.md) | Run tests through the optional `@guchho/test` runner. |
 | `pack` | [pack.md](pack.md) | Create a zip, tar or tar.gz archive. |
 | `unpack` | [unpack.md](unpack.md) | Extract a zip, tar or tar.gz archive. |
 
@@ -65,6 +71,21 @@ see [lint.md](lint.md).
 The optional parser checks used during a build are configured through
 `build.lint`, not command-line flags. See
 [the build options reference](../config/build.md#optional-lint-checks).
+
+## Testing
+
+`guchho test` delegates to the optional [`@guchho/test`](https://github.com/guchho/test)
+runner. Install it as a development dependency before using the command:
+
+```bash
+npm install --save-dev @guchho/test
+guchho test
+```
+
+Every argument after `test` is passed to the runner, so its commands and options
+work unchanged: `guchho test watch`, `guchho test run --bail`, and
+`guchho test src/math.test.ts` all do what the matching `guchho-test` command
+does. The runner requires Node.js 20.19 or newer; see [test.md](test.md).
 
 ## Precedence
 

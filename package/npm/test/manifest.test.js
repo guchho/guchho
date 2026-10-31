@@ -162,6 +162,15 @@ describe("guchho/package.json", () => {
         }
     });
 
+    it("offers the test runner as an optional peer, not a dependency", () => {
+        assert.equal(manifest.peerDependencies["@guchho/test"], "^0.0.1");
+        assert.equal(manifest.peerDependenciesMeta["@guchho/test"].optional, true);
+        assert.ok(
+            !manifest.dependencies || manifest.dependencies["@guchho/test"] === undefined,
+            "@guchho/test must not be a runtime dependency"
+        );
+    });
+
     it("repeats no keyword", () => {
         // Not a functional problem, and not worth a release on its own, but it
         // is the kind of thing that survives three years of copying a manifest

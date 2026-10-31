@@ -65,6 +65,23 @@ guchho build src/index.html --outdir=dist --format=esm --minify --sourcemap
 ```
 
 
+## Testing
+
+`guchho test` delegates to the optional
+[`@guchho/test`](https://github.com/guchho/test) runner. Install it in the
+project first:
+
+```bash
+npm install --save-dev @guchho/test
+npx guchho test
+```
+
+The runner requires Node.js 20.19 or newer; guchho itself continues to support
+Node.js 18. Every argument after `test` is passed through, so
+`npx guchho test watch` and `npx guchho test run --bail` behave like the matching
+`guchho-test` command.
+
+
 ## Configuration file
 
 Guchho walks up from the working directory and stops at the first directory

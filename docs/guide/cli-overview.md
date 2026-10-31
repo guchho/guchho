@@ -1,6 +1,6 @@
 ---
 title: CLI overview
-description: The eleven Guchho commands at a glance.
+description: The twelve Guchho commands at a glance.
 ---
 
 # CLI overview
@@ -18,12 +18,15 @@ Commands:
   info                Show environment info
   transform           Transform source from stdin
   lint [files...]     Lint JavaScript and TypeScript
+  test [args...]      Run tests with @guchho/test
   pack <input...>     Create an archive
   unpack <archive>    Extract an archive
 ```
 
 Run `guchho <command> --help` for command-specific help, and `guchho --version`
 for the version. With no command, `guchho` prints the usage text and exits `0`.
+The native usage text does not list `test` yet; that command is handled by the
+npm entry point and has its own help at `guchho test --help`.
 
 ## Commands at a glance
 
@@ -38,8 +41,14 @@ for the version. With no command, `guchho` prints the usage text and exits `0`.
 | `info` | Report environment and configuration | yes | no |
 | `transform` | Read stdin, write transformed source to stdout | yes | no |
 | `lint` | Standalone linter with its own config | its own | only with `--fix` |
+| `test` | Run JavaScript and TypeScript tests through `@guchho/test` | its own | snapshots, coverage |
 | `pack` | Create a zip, tar or tar.gz | no | archive |
 | `unpack` | Extract a zip, tar or tar.gz | no | extracted files |
+
+`guchho test` needs the optional `@guchho/test` package, which is not installed
+with guchho. Install it with `npm install --save-dev @guchho/test`; the runner
+requires Node.js 20.19 or newer. Every argument after `test` is passed to the
+runner. See [the `guchho test` reference](../reference/cli/test.md).
 
 ## Global flags
 
@@ -74,6 +83,7 @@ guchho dev                          # develop with live rebuilds
 guchho build --minify --sourcemap   # production build
 guchho serve                        # preview the output
 guchho lint src                     # check source without building
+guchho test                         # run tests with @guchho/test
 guchho pack dist -o release.zip     # archive it
 guchho unpack release.zip -o check  # extract a copy
 ```
@@ -169,6 +179,21 @@ guchho lint --rule no-console:error
 (`build.lint`). It runs its own rule set, applies safe fixes, and has its own
 config file (`guchho.lint.config.*`). It exits `1` when there is a lint error or
 the warning threshold is exceeded, and `2` for usage/config failures.
+
+### Testing
+
+```bash
+npm install --save-dev @guchho/test   # once per project
+guchho test                          # run all discovered tests
+guchho test watch                    # rerun affected tests on change
+guchho test src/math.test.ts         # run specific files
+guchho test run --bail --coverage    # stop early and collect coverage
+```
+
+`guchho test` passes every argument after `test` to the `@guchho/test` runner.
+It does not read guchho build configuration or start a build engine. The runner
+requires Node.js 20.19 or newer and is not installed with guchho; see
+[the `guchho test` reference](../reference/cli/test.md).
 
 ### Cleaning
 
@@ -292,6 +317,7 @@ Each command has a full page:
 - [info](../reference/cli/info.md)
 - [transform](../reference/cli/transform.md)
 - [lint](../reference/cli/lint.md)
+- [test](../reference/cli/test.md)
 - [pack](../reference/cli/pack.md)
 - [unpack](../reference/cli/unpack.md)
 

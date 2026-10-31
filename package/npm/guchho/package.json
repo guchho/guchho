@@ -56,9 +56,13 @@
   },
   "homepage": "https://guchho.js.org",
   "peerDependencies": {
+    "@guchho/test": "^0.0.1",
     "@guchho/wasm": "1.0.9"
   },
   "peerDependenciesMeta": {
+    "@guchho/test": {
+      "optional": true
+    },
     "@guchho/wasm": {
       "optional": true
     }

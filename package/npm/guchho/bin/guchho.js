@@ -3,6 +3,8 @@
 "use strict";
 
 const { execFileSync } = require("child_process");
+const fs = require("fs");
+const path = require("path");
 
 const { resolveEngine } = require("../lib/main");
 
@@ -13,6 +15,50 @@ const { resolveEngine } = require("../lib/main");
 // not — which is most projects — the engine chosen by resolveEngine runs
 // directly: the WebAssembly one in-process, or the native binary as before.
 const BUILTIN_PLUGINLESS = ["build", "dev", "serve", "watch"];
+
+function resolveTestCli() {
+  const bases = [path.join(__dirname, ".."), process.cwd()];
+  for (const base of bases) {
+    let manifestPath;
+    try {
+      manifestPath = require.resolve("@guchho/test/package.json", { paths: [base] });
+    } catch {
+      continue;
+    }
+
+    let manifest;
+    try {
+      manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    } catch {
+      continue;
+    }
+
+    const bin = manifest.bin;
+    const relative = typeof bin === "string" ? bin : bin && bin["guchho-test"];
+    if (typeof relative !== "string") {
+      continue;
+    }
+
+    const cli = path.resolve(path.dirname(manifestPath), relative);
+    if (fs.existsSync(cli)) {
+      return cli;
+    }
+  }
+  return undefined;
+}
+
+function runTest(args) {
+  const cli = resolveTestCli();
+  if (cli === undefined) {
+    process.stderr.write(
+      "guchho: `guchho test` needs the @guchho/test runner.\n" +
+        "Install it in this project (Node.js 20.19 or newer):\n" +
+        "  npm install --save-dev @guchho/test\n"
+    );
+    process.exit(1);
+  }
+  runBinary(process.execPath, [cli, ...args]);
+}
 
 function runBinary(binaryPath, args) {
   try {
@@ -92,6 +138,11 @@ async function runWithPlugins(args, pluginGroups) {
 async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
+
+  if (command === "test") {
+    runTest(args.slice(1));
+    return;
+  }
 
   if (BUILTIN_PLUGINLESS.includes(command)) {
     const pluginGroups = await configPluginGroups();

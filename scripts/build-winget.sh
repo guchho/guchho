@@ -42,7 +42,7 @@ PLATFORM="win32-x64"
 ARCHITECTURE="x64"
 MANIFEST_VERSION="1.12.0"
 
-DEFAULT_OUTDIR="${ROOT_DIR}/dist/winget"
+DEFAULT_OUTDIR="${ROOT_DIR}/package/winget"
 
 # ========================================
 # Options
@@ -361,6 +361,9 @@ NestedInstallerFiles:
 - RelativeFilePath: ${EXE_ENTRY}
   PortableCommandAlias: guchho
 ArchiveBinariesDependOnPath: true
+InstallModes:
+- silent
+- silentWithProgress
 Installers:
 - Architecture: ${ARCHITECTURE}
   InstallerUrl: ${RELEASE_URL}
@@ -376,7 +379,7 @@ PackageIdentifier: ${PACKAGE_ID}
 PackageVersion: ${VERSION}
 PackageLocale: ${PACKAGE_LOCALE}
 Publisher: Guchho
-PublisherUrl: https://github.com/guchho
+PublisherUrl: https://guchho.js.org/
 PublisherSupportUrl: https://github.com/guchho/guchho/issues
 Author: CodeHemu
 PackageName: Guchho

@@ -381,12 +381,14 @@ PackageLocale: ${PACKAGE_LOCALE}
 Publisher: Guchho
 PublisherUrl: https://guchho.js.org/
 PublisherSupportUrl: https://github.com/guchho/guchho/issues
+PrivacyUrl: https://guchho.js.org/privacy-policy/
 Author: CodeHemu
 PackageName: Guchho
 PackageUrl: https://github.com/guchho/guchho
 License: MIT
-LicenseUrl: https://github.com/guchho/guchho/blob/main/LICENSE
+# LicenseUrl: https://github.com/guchho/guchho/blob/main/LICENSE
 Copyright: Copyright (c) 2026 CodeHemu
+# CopyrightUrl: https://github.com/guchho/guchho/blob/main/LICENSE
 ShortDescription: Fast build system for web applications.
 Description: Guchho is an all-in-one bundler, compiler, and build tool. It parses HTML, JavaScript, TypeScript, JSX, CSS and assets, and produces a deployable output directory with a single command.
 Moniker: guchho
@@ -396,7 +398,11 @@ Tags:
 - javascript
 - typescript
 - web
+# ReleaseNotes:
 ReleaseNotesUrl: https://github.com/guchho/guchho/releases
+# PurchaseUrl:
+# InstallationNotes:
+# Documentations:
 ManifestType: defaultLocale
 ManifestVersion: ${MANIFEST_VERSION}
 EOF

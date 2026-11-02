@@ -1,5 +1,5 @@
 ---
-title: Configuration reference
+title: Configuration
 description: Every Guchho configuration option, grouped by section.
 ---
 

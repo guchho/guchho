@@ -1,6 +1,10 @@
 ---
 title: JavaScript / TypeScript API
 description: The programmatic surface of the guchho package.
+banner: /api-og.png
+bannerAlt: Guchho API — programmatic builds, plugins, and compiler internals
+bannerWidth: 1200
+bannerHeight: 630
 ---
 
 # JavaScript / TypeScript API

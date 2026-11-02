@@ -1,6 +1,10 @@
 ---
 title: Recipes
 description: Short, complete patterns for common Guchho tasks.
+banner: /recipes-og.png
+bannerAlt: Guchho Recipes — copy-paste solutions for real-world builds
+bannerWidth: 1200
+bannerHeight: 630
 ---
 
 # Recipes

@@ -1,6 +1,10 @@
 ---
 title: Resources
 description: Where to find the source, report issues, and look terms up.
+banner: /resources-og.png
+bannerAlt: Guchho Resources — benchmarks, guides, and community links
+bannerWidth: 1200
+bannerHeight: 630
 ---
 
 # Resources

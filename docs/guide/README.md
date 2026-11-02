@@ -1,6 +1,10 @@
 ---
 title: Guide
 description: Learning-oriented documentation for building with Guchho.
+banner: /guide-og.png
+bannerAlt: Guchho Guide — learn the fast, HTML-first build system
+bannerWidth: 1200
+bannerHeight: 630
 ---
 
 # Guide

@@ -1,6 +1,10 @@
 ---
 title: Writing plugins
 description: Extending a Guchho build with resolveId, load, transform and bundle hooks.
+banner: /plugins-og.png
+bannerAlt: Guchho Plugins — extend the build with hooks, loaders, and reporters
+bannerWidth: 1200
+bannerHeight: 630
 ---
 
 # Writing plugins

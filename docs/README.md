@@ -1,6 +1,10 @@
 ---
 title: Guchho Documentation
 description: Fast, HTML-first bundler, compiler and build tool for modern web applications.
+banner: /guchho-og.png
+bannerAlt: Guchho — fast, HTML-first JavaScript, CSS & asset bundler
+bannerWidth: 1200
+bannerHeight: 630
 ---
 
 # Guchho Documentation

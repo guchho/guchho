@@ -1,6 +1,10 @@
 ---
 title: Embedding Guchho in C++
 description: The guchho/api.hpp and guchho/cli.hpp surfaces, from linking to lifetime rules.
+banner: /embedding-og.png
+bannerAlt: Guchho Embedding — use the compiler as a C++ library
+bannerWidth: 1200
+bannerHeight: 630
 ---
 
 # Embedding Guchho in C++

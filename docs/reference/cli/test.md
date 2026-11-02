@@ -56,4 +56,4 @@ or require a build. Test configuration belongs to `@guchho/test`; see its
 ## See also
 
 - [CLI reference](README.md)
-- [`@guchho/test` CLI reference](https://github.com/guchho/test/blob/main/docs/cli.md)
+- [`@guchho/test` CLI reference](/test/cli/)

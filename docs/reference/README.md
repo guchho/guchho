@@ -1,6 +1,10 @@
 ---
 title: Reference
 description: Look-up material for every Guchho command, option, loader, format and diagnostic.
+banner: /reference-og.png
+bannerAlt: Guchho Reference — CLI, configuration, and error reference
+bannerWidth: 1200
+bannerHeight: 630
 ---
 
 # Reference

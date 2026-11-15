@@ -682,6 +682,12 @@ Expr Parser::lowerAssignmentOperator(Expr value, const std::function<Expr(Expr, 
                 Expr{std::make_shared<EIndex>(b), value.loc})));
         }
     } else if (EIdentifier *left3 = Get<EIdentifier>(value.data)) {
+        // Count the duplicate reference. Lowering "x ||= y" to "x || (x = y)"
+        // turns one reference into two, and the single-use inlining pass must
+        // not still believe "x" has only one use. Otherwise it may inline an
+        // uninitialized "let x" as "void 0" into the first reference and then
+        // remove the declaration, leaving the assignment to an undeclared name.
+        this->recordUsage(left3->ref);
         return callback(
             Expr{std::make_shared<EIdentifier>(EIdentifier{left3->ref}), value.loc},
             value);

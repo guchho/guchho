@@ -459,6 +459,33 @@ export interface PluginContext {
   warn(message: string | GuchhoLog): void
   /** Fails the build with this message. Never returns. */
   error(message: string | GuchhoLog): never
+  /**
+   * Adds a file to the build's dependencies, so a change to it triggers a
+   * rebuild. The path travels back with the current hook's answer; a hook that
+   * does not return a watch list still contributes the paths added here.
+   */
+  addWatchFile(file: string): void
+}
+
+/**
+ * What a `buildStart` hook may return.
+ *
+ * A start hook runs before any file is read, which makes it the one place a
+ * plugin can hand the build an entry point it generates in memory instead of
+ * writing to disk. Entries are merged with the configured ones; they do not
+ * replace them. Watch paths are merged into the same dependency set the
+ * resolver and loader already feed.
+ */
+export interface BuildStartResult {
+  /**
+   * Entry points to add to this build. Accepts the same spellings as the
+   * "entrypoints" option: a path, an `{ in, out }` record, or `[out, in]`.
+   */
+  entries?: EntryPoint[]
+  /** Extra files the build should watch. */
+  watchFiles?: string[]
+  /** Extra directories the build should watch. */
+  watchDirs?: string[]
 }
 
 /**
@@ -472,11 +499,14 @@ export interface Plugin {
   name: string
   /** When this plugin runs relative to the others. */
   order?: PluginOrder
-  /** Called once per build, before any file is read. */
+  /**
+   * Called once per build, before any file is read. May add entry points and
+   * watch paths; see BuildStartResult.
+   */
   buildStart?(
     this: PluginContext,
     options: BuildOptions
-  ): void | Promise<void>
+  ): void | BuildStartResult | Promise<void | BuildStartResult>
   /**
    * Asked where a specifier resolves to, for every import and entry point.
    *

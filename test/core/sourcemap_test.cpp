@@ -633,6 +633,29 @@ TEST(AddSourceMappingTest, InputSourceMapNoMapping)
     EXPECT_TRUE(chunk.buffer.data.empty());
 }
 
+// Regression: an empty line_offset_tables vector previously caused the binary
+// search to leave original_line at -1, which then indexed lot[-1] and read
+// from a null base (access violation). The mapping must now be skipped.
+TEST(AddSourceMappingTest, EmptyLineOffsetTablesDoesNotCrash)
+{
+    std::vector<LineOffsetTable> tables;
+    auto builder = MakeChunkBuilder(nullptr, tables, false);
+    builder.AddSourceMapping(Loc{0}, "", "var x = 1;");
+    auto chunk = builder.GenerateChunk("var x = 1;");
+    EXPECT_TRUE(chunk.buffer.data.empty());
+}
+
+// Regression: a location before the first line entry also yields
+// original_line == -1 and must be skipped rather than read out of bounds.
+TEST(AddSourceMappingTest, LocBeforeFirstLineDoesNotCrash)
+{
+    auto tables = GenerateLineOffsetTables("var x = 1;", 1);
+    auto builder = MakeChunkBuilder(nullptr, tables, false);
+    builder.AddSourceMapping(Loc{-1}, "", "var x = 1;");
+    auto chunk = builder.GenerateChunk("var x = 1;");
+    EXPECT_TRUE(chunk.buffer.data.empty());
+}
+
 TEST(GenerateChunkTest, ShouldIgnoreAllSemicolons)
 {
     auto tables = GenerateLineOffsetTables(";\n;", 2);

@@ -1,6 +1,6 @@
 {
   "name": "guchho",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "Fast build system for web applications",
   "bin": {
     "guchho": "bin/guchho.js"
@@ -56,8 +56,8 @@
   },
   "homepage": "https://guchho.js.org",
   "peerDependencies": {
-    "@guchho/test": "^0.0.1",
-    "@guchho/wasm": "1.0.9"
+    "@guchho/test": "1.0.10",
+    "@guchho/wasm": "1.0.10"
   },
   "peerDependenciesMeta": {
     "@guchho/test": {
@@ -68,31 +68,31 @@
     }
   },
   "optionalDependencies": {
-    "@guchho/aix-ppc64": "1.0.9",
-    "@guchho/android-arm": "1.0.9",
-    "@guchho/android-arm64": "1.0.9",
-    "@guchho/android-x64": "1.0.9",
-    "@guchho/darwin-arm64": "1.0.9",
-    "@guchho/darwin-x64": "1.0.9",
-    "@guchho/freebsd-arm64": "1.0.9",
-    "@guchho/freebsd-x64": "1.0.9",
-    "@guchho/linux-arm": "1.0.9",
-    "@guchho/linux-arm64": "1.0.9",
-    "@guchho/linux-ia32": "1.0.9",
-    "@guchho/linux-loong64": "1.0.9",
-    "@guchho/linux-mips64el": "1.0.9",
-    "@guchho/linux-ppc64": "1.0.9",
-    "@guchho/linux-riscv64": "1.0.9",
-    "@guchho/linux-s390x": "1.0.9",
-    "@guchho/linux-x64": "1.0.9",
-    "@guchho/netbsd-arm64": "1.0.9",
-    "@guchho/netbsd-x64": "1.0.9",
-    "@guchho/openbsd-arm64": "1.0.9",
-    "@guchho/openbsd-x64": "1.0.9",
-    "@guchho/openharmony-arm64": "1.0.9",
-    "@guchho/sunos-x64": "1.0.9",
-    "@guchho/win32-arm64": "1.0.9",
-    "@guchho/win32-ia32": "1.0.9",
-    "@guchho/win32-x64": "1.0.9"
+    "@guchho/aix-ppc64": "1.0.10",
+    "@guchho/android-arm": "1.0.10",
+    "@guchho/android-arm64": "1.0.10",
+    "@guchho/android-x64": "1.0.10",
+    "@guchho/darwin-arm64": "1.0.10",
+    "@guchho/darwin-x64": "1.0.10",
+    "@guchho/freebsd-arm64": "1.0.10",
+    "@guchho/freebsd-x64": "1.0.10",
+    "@guchho/linux-arm": "1.0.10",
+    "@guchho/linux-arm64": "1.0.10",
+    "@guchho/linux-ia32": "1.0.10",
+    "@guchho/linux-loong64": "1.0.10",
+    "@guchho/linux-mips64el": "1.0.10",
+    "@guchho/linux-ppc64": "1.0.10",
+    "@guchho/linux-riscv64": "1.0.10",
+    "@guchho/linux-s390x": "1.0.10",
+    "@guchho/linux-x64": "1.0.10",
+    "@guchho/netbsd-arm64": "1.0.10",
+    "@guchho/netbsd-x64": "1.0.10",
+    "@guchho/openbsd-arm64": "1.0.10",
+    "@guchho/openbsd-x64": "1.0.10",
+    "@guchho/openharmony-arm64": "1.0.10",
+    "@guchho/sunos-x64": "1.0.10",
+    "@guchho/win32-arm64": "1.0.10",
+    "@guchho/win32-ia32": "1.0.10",
+    "@guchho/win32-x64": "1.0.10"
   }
 }

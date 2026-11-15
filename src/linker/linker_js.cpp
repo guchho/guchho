@@ -585,12 +585,12 @@ namespace guchho::linker {
         bool add_source_mappings = false;
         sourcemap::SourceMapData* input_source_map = nullptr;
         std::vector<sourcemap::LineOffsetTable> line_offset_tables;
-        if (config::CanHaveSourceMap(file.input_file.loader) && options->SourceMapData != config::SourceMap::kNone) {
+        if (config::CanHaveSourceMap(file.input_file.loader) && options->SourceMapData != config::SourceMap::kNone &&
+            part_range.source_index < data_for_source_maps_list.size() &&
+            !data_for_source_maps_list[part_range.source_index].line_offset_tables.empty()) {
             add_source_mappings = true;
             input_source_map = file.input_file.input_source_map.get();
-            if (part_range.source_index < data_for_source_maps_list.size()) {
-                line_offset_tables = data_for_source_maps_list[part_range.source_index].line_offset_tables;
-            }
+            line_offset_tables = data_for_source_maps_list[part_range.source_index].line_offset_tables;
         }
 
         int indent = (options->OutputFormat == config::Format::kIIFE ||

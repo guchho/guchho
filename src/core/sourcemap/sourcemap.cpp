@@ -806,6 +806,15 @@ void ChunkBuilder::AddSourceMapping(logger::Loc original_loc, std::string_view o
 
     original_line--;
 
+    // A negative line index means the byte offset precedes the first line
+    // entry, which happens when line_offset_tables is empty or when the
+    // original location lies before the first line's start. There is no
+    // line to map to, so skip this mapping instead of indexing out of
+    // bounds.
+    if (original_line < 0) {
+        return;
+    }
+
     // Compute the column within the line by subtracting the line's byte
     // offset from the original_loc byte offset. If the line has a
     // non-ASCII column mapping, translate the raw byte column into the

@@ -186,7 +186,8 @@ namespace guchho::linker {
                 auto& file = graph.files[file_index];
                 auto* css_repr = std::get_if<std::shared_ptr<graph::CSSRepr>>(&file.input_file.repr);
 
-                if (css_repr && config::CanHaveSourceMap(file.input_file.loader) && options->SourceMapData != config::SourceMap::kNone) {
+                if (css_repr && config::CanHaveSourceMap(file.input_file.loader) && options->SourceMapData != config::SourceMap::kNone &&
+                    file_index < dfs.size() && !dfs[file_index].line_offset_tables.empty()) {
                     css_options.add_source_mappings = true;
                     css_options.input_source_map = file.input_file.input_source_map.get();
                     css_options.line_offset_tables = dfs[file_index].line_offset_tables;

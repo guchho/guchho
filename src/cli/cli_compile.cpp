@@ -1024,9 +1024,7 @@ namespace guchho::cli {
                     "parseJS needs its input as a string or as bytes");
             }
 
-            logger::Log log = NewCollectingLog();
             const std::string name = SourceNameFrom(request);
-            const logger::Source source = MakeSource(*text, name);
 
             // The parser options come from a config::Options, because
             // OptionsFromConfig is the only supported way to build them: the
@@ -1038,17 +1036,72 @@ namespace guchho::cli {
             // A default-constructed config::Options is a valid one: it is what a
             // build gets before a project has said anything, and the parser reads
             // every field of it.
-            config::Options config_options;
-            config_options.MinifyWhitespace = BoolFrom(request, "minifyWhitespace", false);
-            config_options.MinifySyntax = BoolFrom(request, "minifySyntax", false);
-            config_options.MinifyIdentifiers = BoolFrom(request, "minifyIdentifiers", false);
-            const javascript::Options js_options = javascript::OptionsFromConfig(&config_options);
+            const bool minify_whitespace = BoolFrom(request, "minifyWhitespace", false);
+            const bool minify_syntax = BoolFrom(request, "minifySyntax", false);
+            const bool minify_identifiers = BoolFrom(request, "minifyIdentifiers", false);
 
-            // Parse takes the log and the source by value and shares the log's
-            // one buffer, which is why the messages it logged are still readable
-            // from "log" afterwards.
-            const auto [ast, ok] = javascript::Parse(log, source, js_options);
-            const std::vector<logger::Msg> msgs = log.done();
+            struct Attempt {
+                javascript::AST ast;
+                bool ok{};
+                std::vector<logger::Msg> msgs;
+            };
+
+            auto attempt = [&](bool typescript, bool jsx, bool no_ambiguous_less_than) {
+                logger::Log attempt_log = NewCollectingLog();
+                config::Options options;
+                options.MinifyWhitespace = minify_whitespace;
+                options.MinifySyntax = minify_syntax;
+                options.MinifyIdentifiers = minify_identifiers;
+                options.TS.Parse = typescript;
+                options.TS.NoAmbiguousLessThan = no_ambiguous_less_than;
+                options.JSX.Parse = jsx;
+                auto [attempt_ast, attempt_ok] = javascript::Parse(
+                    attempt_log, MakeSource(*text, name), javascript::OptionsFromConfig(&options));
+                return Attempt{std::move(attempt_ast), attempt_ok, attempt_log.done()};
+            };
+
+            const bool explicit_dialect =
+                request.Find("typescript") != nullptr || request.Find("jsx") != nullptr;
+            const bool typescript_name =
+                name.ends_with(".ts") || name.ends_with(".mts")
+                || name.ends_with(".cts") || name.ends_with(".tsx");
+            const bool jsx_name = name.ends_with(".jsx") || name.ends_with(".tsx");
+            const bool js_name =
+                name.ends_with(".js") || name.ends_with(".mjs") || name.ends_with(".cjs");
+            const bool no_ambiguous_less_than =
+                name.ends_with(".mts") || name.ends_with(".cts");
+            const bool typescript = BoolFrom(request, "typescript", typescript_name);
+            const bool jsx = BoolFrom(request, "jsx", jsx_name);
+
+            auto acceptable = [](const Attempt& attempt) {
+                return attempt.ok && std::none_of(attempt.msgs.begin(), attempt.msgs.end(),
+                    [](const logger::Msg& msg) {
+                        return msg.kind == logger::MsgKind::kError;
+                    });
+            };
+
+            Attempt chosen;
+            if (explicit_dialect || typescript_name || jsx_name || js_name) {
+                chosen = attempt(typescript, jsx, no_ambiguous_less_than);
+            } else {
+                chosen = attempt(false, false, false);
+                if (!acceptable(chosen)) {
+                    Attempt ts = attempt(true, false, false);
+                    if (acceptable(ts)) {
+                        chosen = std::move(ts);
+                    } else {
+                        Attempt jsx_attempt = attempt(false, true, false);
+                        if (acceptable(jsx_attempt)) {
+                            chosen = std::move(jsx_attempt);
+                        } else {
+                            Attempt tsx = attempt(true, true, false);
+                            if (acceptable(tsx)) {
+                                chosen = std::move(tsx);
+                            }
+                        }
+                    }
+                }
+            }
 
             // The tree is described by its parts and its symbols. A part is a
             // top-level item — a statement, a declaration, an import — and a
@@ -1056,28 +1109,28 @@ namespace guchho::cli {
             // to "what did the parser make of this file" without walking a graph
             // of variant-typed expression nodes that has no useful flat form.
             std::vector<service::Value> symbols;
-            symbols.reserve(ast.symbols.size());
-            for (const compiler::Symbol& symbol : ast.symbols) {
+            symbols.reserve(chosen.ast.symbols.size());
+            for (const compiler::Symbol& symbol : chosen.ast.symbols) {
                 Object entry;
                 entry.Set("name", service::Value::String(symbol.original_name));
                 entry.Set("useCount", service::Value::Number(ToWireCount(symbol.use_count_estimate)));
                 symbols.push_back(std::move(entry).Build());
             }
 
-            const size_t part_count = ast.parts.size();
+            const size_t part_count = chosen.ast.parts.size();
 
             AstEntry registry_entry;
-            registry_entry.ast = ast;
+            registry_entry.ast = std::move(chosen.ast);
             registry_entry.language = "js";
             registry_entry.source_name = name;
             const int32_t id = AstRegistry::Instance().Put(std::move(registry_entry));
 
             Object out;
             out.Set("id", service::Value::Number(id));
-            out.Set("ok", service::Value::Bool(ok));
+            out.Set("ok", service::Value::Bool(chosen.ok));
             out.Set("partCount", service::Value::Number(ToWireCount(part_count)));
             out.Set("symbols", service::Value::Array(std::move(symbols)));
-            AppendDiagnostics(out, msgs);
+            AppendDiagnostics(out, chosen.msgs);
             return out.Build();
         }
 

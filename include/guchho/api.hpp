@@ -1396,9 +1396,18 @@ struct ResolveResult {
 // What a plugin may report from its on_start callback. Adding an error here
 // aborts the build before any file is read, which makes it the place to reject
 // a whole configuration early and cheaply.
+//
+// A start callback is also the only place a plugin can add an entry point or a
+// file it wants watched: both are read before the graph is scanned, so a plugin
+// that generates a virtual module can hand the build its entry without writing
+// anything to disk. Entries are merged with the configured ones rather than
+// replacing them.
 struct OnStartResult {
     std::vector<Message> errors;
     std::vector<Message> warnings;
+    std::vector<EntryPoint> entries;
+    std::vector<std::string> watch_files;
+    std::vector<std::string> watch_dirs;
 };
 
 // What a plugin may report from its on_end callback. The BuildResult handed to

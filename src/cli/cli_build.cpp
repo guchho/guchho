@@ -511,6 +511,7 @@ int runBuild(const std::vector<std::string>& args, bool quiet,
                     return static_cast<int>(ExitCode::kBuildFailure);
                 }
                 ctx->Watch(api::WatchOptions{.delay = extras.watch_delay});
+                ctx->Rebuild();
                 std::promise<void> p;
                 p.get_future().get();
 #endif

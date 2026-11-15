@@ -524,12 +524,20 @@ namespace guchho::cli {
         service::Value PluginCall(const std::string& plugin,
                                   const std::string& hook,
                                   service::Value args,
-                                  int config_index) {
+                                  int config_index,
+                                  bool watch_mode) {
             std::vector<std::pair<std::string, service::Value>> fields = {
                 {"plugin", service::Value::String(plugin)},
                 {"hook", service::Value::String(hook)},
                 {"args", std::move(args)},
             };
+            // Watch mode is a property of the pass, not of a hook, so it rides
+            // beside the arguments and the host puts it on this.meta. False is
+            // omitted: the host's default is false, and a one-shot build keeps
+            // the request it has always sent.
+            if (watch_mode) {
+                fields.emplace_back("watchMode", service::Value::Bool(true));
+            }
             // A grouped host is given the build's index so a name that appears
             // in more than one config element reaches the right instance. A
             // negative index means "no grouping" — a flat host — and the field
@@ -548,19 +556,57 @@ namespace guchho::cli {
         // never arrive. That check is why a plugin list attached only over the
         // service stays inert on the command line instead of hanging it.
 
-        api::OnStartResult RunJsStart(const std::string& plugin, int config_index) {
+        api::OnStartResult RunJsStart(const std::string& plugin, int config_index,
+                                      bool watch_mode) {
             api::OnStartResult result;
             if (!service::HasCallbackTransport()) return result;
 
             const service::Value response =
-                PluginCall(plugin, "buildStart", service::Value::Null(), config_index);
+                PluginCall(plugin, "buildStart", service::Value::Null(), config_index,
+                           watch_mode);
             result.errors = PluginMessages(response, "errors", plugin);
             result.warnings = PluginMessages(response, "warnings", plugin);
+
+            if (const service::Value* entries = response.Find("entries")) {
+                if (entries->IsArray()) {
+                    for (const service::Value& entry : entries->AsArray()) {
+                        if (!entry.IsObject()) continue;
+                        const service::Value* input = entry.Find("input");
+                        if (input == nullptr) input = entry.Find("in");
+                        if (input == nullptr || !input->IsString() ||
+                            input->AsString().empty()) {
+                            continue;
+                        }
+                        api::EntryPoint point;
+                        point.input_path = input->AsString();
+                        const service::Value* output = entry.Find("output");
+                        if (output == nullptr) output = entry.Find("out");
+                        if (output != nullptr && output->IsString()) {
+                            point.output_path = output->AsString();
+                        }
+                        result.entries.push_back(std::move(point));
+                    }
+                }
+            }
+            if (const service::Value* files = response.Find("watchFiles")) {
+                if (files->IsArray()) {
+                    for (const service::Value& file : files->AsArray()) {
+                        if (file.IsString()) result.watch_files.push_back(file.AsString());
+                    }
+                }
+            }
+            if (const service::Value* dirs = response.Find("watchDirs")) {
+                if (dirs->IsArray()) {
+                    for (const service::Value& dir : dirs->AsArray()) {
+                        if (dir.IsString()) result.watch_dirs.push_back(dir.AsString());
+                    }
+                }
+            }
             return result;
         }
 
         api::OnResolveResult RunJsResolve(const std::string& plugin, int config_index,
-                                          const api::OnResolveArgs& args) {
+                                          const api::OnResolveArgs& args, bool watch_mode) {
             api::OnResolveResult result;
             result.plugin_name = plugin;
             if (!service::HasCallbackTransport()) return result;
@@ -580,7 +626,7 @@ namespace guchho::cli {
                 {"kind", service::Value::String(ResolveKindName(args.kind))},
                 {"with", service::Value::Array(std::move(with))},
                 {"meta", PluginMetaValue(args.plugin_data)},
-            }), config_index);
+            }), config_index, watch_mode);
 
             result.errors = PluginMessages(response, "errors", plugin);
             result.warnings = PluginMessages(response, "warnings", plugin);
@@ -632,7 +678,7 @@ namespace guchho::cli {
         }
 
         api::OnLoadResult RunJsLoad(const std::string& plugin, int config_index,
-                                    const api::OnLoadArgs& args) {
+                                    const api::OnLoadArgs& args, bool watch_mode) {
             api::OnLoadResult result;
             result.plugin_name = plugin;
             if (!service::HasCallbackTransport()) return result;
@@ -649,7 +695,7 @@ namespace guchho::cli {
                 {"suffix", service::Value::String(args.suffix)},
                 {"with", service::Value::Array(std::move(with))},
                 {"meta", PluginMetaValue(args.plugin_data)},
-            }), config_index);
+            }), config_index, watch_mode);
 
             result.errors = PluginMessages(response, "errors", plugin);
             result.warnings = PluginMessages(response, "warnings", plugin);
@@ -707,7 +753,8 @@ namespace guchho::cli {
                                      int config_index,
                                      const std::string& hook,
                                      bool may_replace_files,
-                                     api::BuildResult& result) {
+                                     api::BuildResult& result,
+                                     bool watch_mode) {
             api::OnEndResult outcome;
             if (!service::HasCallbackTransport()) return outcome;
 
@@ -722,7 +769,7 @@ namespace guchho::cli {
 
             const service::Value response = PluginCall(plugin, hook, service::Value::Object({
                 {"outputFiles", service::Value::Array(std::move(files))},
-            }), config_index);
+            }), config_index, watch_mode);
 
             outcome.errors = PluginMessages(response, "errors", plugin);
             outcome.warnings = PluginMessages(response, "warnings", plugin);
@@ -759,9 +806,9 @@ namespace guchho::cli {
         // answer is discarded: a host's closeBundle that throws has already had
         // its say in the host's own process, and there is nothing here for the
         // engine to do about it.
-        void RunJsDispose(const std::string& plugin, int config_index) {
+        void RunJsDispose(const std::string& plugin, int config_index, bool watch_mode) {
             if (!service::HasCallbackTransport()) return;
-            PluginCall(plugin, "closeBundle", service::Value::Null(), config_index);
+            PluginCall(plugin, "closeBundle", service::Value::Null(), config_index, watch_mode);
         }
 
         // A whole plugin, built from the descriptor the host sent.
@@ -781,31 +828,41 @@ namespace guchho::cli {
             api::Plugin plugin;
             plugin.name = name;
             plugin.setup = [name, implements, config_index](api::PluginBuild& build) {
+                // The engine keeps this pointer for the life of the session and
+                // flips WatchMode on it when the caller starts watching, so a
+                // hook reads the mode of the pass that is calling it rather
+                // than the mode the session was created with.
+                const api::BuildOptions* options = build.initial_options;
+                auto watch_mode = [options]() {
+                    return options != nullptr && options->WatchMode;
+                };
                 if (implements("buildStart")) {
-                    build.on_start([name, config_index]() { return RunJsStart(name, config_index); });
+                    build.on_start([name, config_index, watch_mode]() {
+                        return RunJsStart(name, config_index, watch_mode());
+                    });
                 }
                 if (implements("resolveId")) {
                     build.on_resolve(
                         api::OnResolveOptions{.filter = ".*", .namespace_ = ""},
-                        [name, config_index](const api::OnResolveArgs& args) {
-                            return RunJsResolve(name, config_index, args);
+                        [name, config_index, watch_mode](const api::OnResolveArgs& args) {
+                            return RunJsResolve(name, config_index, args, watch_mode());
                         });
                 }
                 if (implements("load")) {
                     build.on_load(
                         api::OnLoadOptions{.filter = ".*", .namespace_ = ""},
-                        [name, config_index](const api::OnLoadArgs& args) {
-                            return RunJsLoad(name, config_index, args);
+                        [name, config_index, watch_mode](const api::OnLoadArgs& args) {
+                            return RunJsLoad(name, config_index, args, watch_mode());
                         });
                 }
                 if (implements("buildEnd") || implements("generateBundle")) {
-                    build.on_generate_bundle([name, implements, config_index](api::BuildResult& result) {
+                    build.on_generate_bundle([name, implements, config_index, watch_mode](api::BuildResult& result) {
                         // buildEnd runs first and may refuse; if it does, the
                         // bundle is not offered to generateBundle at all.
                         api::OnEndResult outcome;
                         if (implements("buildEnd")) {
-                            api::OnEndResult ended =
-                                RunJsBundle(name, config_index, "buildEnd", false, result);
+                            api::OnEndResult ended = RunJsBundle(
+                                name, config_index, "buildEnd", false, result, watch_mode());
                             outcome.errors.insert(outcome.errors.end(),
                                                   ended.errors.begin(), ended.errors.end());
                             outcome.warnings.insert(outcome.warnings.end(),
@@ -813,8 +870,8 @@ namespace guchho::cli {
                             if (!outcome.errors.empty()) return outcome;
                         }
                         if (implements("generateBundle")) {
-                            api::OnEndResult generated =
-                                RunJsBundle(name, config_index, "generateBundle", true, result);
+                            api::OnEndResult generated = RunJsBundle(
+                                name, config_index, "generateBundle", true, result, watch_mode());
                             outcome.errors.insert(outcome.errors.end(),
                                                   generated.errors.begin(), generated.errors.end());
                             outcome.warnings.insert(outcome.warnings.end(),
@@ -824,12 +881,15 @@ namespace guchho::cli {
                     });
                 }
                 if (implements("writeBundle")) {
-                    build.on_write_bundle([name, config_index](api::BuildResult& result) {
-                        return RunJsBundle(name, config_index, "writeBundle", false, result);
+                    build.on_write_bundle([name, config_index, watch_mode](api::BuildResult& result) {
+                        return RunJsBundle(
+                            name, config_index, "writeBundle", false, result, watch_mode());
                     });
                 }
                 if (implements("closeBundle")) {
-                    build.on_dispose([name, config_index]() { RunJsDispose(name, config_index); });
+                    build.on_dispose([name, config_index, watch_mode]() {
+                        return RunJsDispose(name, config_index, watch_mode());
+                    });
                 }
             };
             return plugin;

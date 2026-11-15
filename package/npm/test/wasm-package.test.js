@@ -220,6 +220,25 @@ describe("@guchho/wasm engine", () => {
         assert.match(printed.code, /const a = 1/);
     });
 
+    it("parses TypeScript through parse-js", { skip: !hasBuiltEngine() }, async () => {
+        const e = await engine();
+
+        const response = await e.request({
+            command: "parse-js",
+            input: [
+                "interface Counter {",
+                "  count: number",
+                "}",
+                "const counter: Counter = { count: 0 };",
+                "",
+            ].join("\n"),
+        });
+
+        assert.equal(response.ok, true);
+        assert.deepEqual(response.errors, []);
+        assert.ok(response.partCount > 0);
+    });
+
     it("answers a raw service request", { skip: !hasBuiltEngine() }, async () => {
         const e = await engine();
 

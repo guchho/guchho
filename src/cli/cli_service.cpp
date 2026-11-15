@@ -1871,6 +1871,13 @@ namespace guchho::cli {
                 return DispatchCommand(name, request);
             } catch (const std::exception& reason) {
                 return ErrorResponse(EngineError("internal-error", reason.what()));
+            } catch (...) {
+                // Not every engine failure carries a std::exception. A lexer
+                // panic is its own type, for example, and letting one cross the
+                // service boundary turns into an exception the host cannot read
+                // instead of a diagnostic on the request.
+                return ErrorResponse(EngineError(
+                    "internal-error", "the engine failed with an unknown exception"));
             }
         }
 

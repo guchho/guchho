@@ -2326,17 +2326,34 @@ TlaCheck Scanner::ValidateTLA(uint32_t source_index) {
         WaitGroup on_start_wait_group;
         std::vector<helpers::Thread> on_start_threads;
         std::vector<std::exception_ptr> on_start_exceptions;
+        std::vector<config::EntryPoint> start_entry_points;
+        std::vector<std::string> start_watch_files;
+        std::vector<std::string> start_watch_dirs;
+        std::mutex start_result_mutex;
         for (const config::Plugin& plugin : options.Plugins) {
             for (const config::OnStart& on_start : plugin.OnStartList) {
                 on_start_wait_group.Add(1);
                 on_start_threads.emplace_back(
                     helpers::kWorkerStackSize,
-                    [plugin, on_start, &log, &fs, &on_start_wait_group, &on_start_exceptions]() {
+                    [plugin, on_start, &log, &fs, &on_start_wait_group, &on_start_exceptions,
+                     &start_entry_points, &start_watch_files, &start_watch_dirs,
+                     &start_result_mutex]() {
                         try {
                         config::OnStartResult result = on_start.Callback();
                         LogPluginMessages(fs, log, plugin.Name, result.Msgs,
                             result.ThrownError, nullptr, Range{});
+                        std::lock_guard<std::mutex> lock(start_result_mutex);
+                        start_entry_points.insert(start_entry_points.end(),
+                            std::make_move_iterator(result.Entries.begin()),
+                            std::make_move_iterator(result.Entries.end()));
+                        start_watch_files.insert(start_watch_files.end(),
+                            std::make_move_iterator(result.AbsWatchFiles.begin()),
+                            std::make_move_iterator(result.AbsWatchFiles.end()));
+                        start_watch_dirs.insert(start_watch_dirs.end(),
+                            std::make_move_iterator(result.AbsWatchDirs.begin()),
+                            std::make_move_iterator(result.AbsWatchDirs.end()));
                         } catch (...) {
+                            std::lock_guard<std::mutex> lock(start_result_mutex);
                             on_start_exceptions.push_back(std::current_exception());
                         }
                         on_start_wait_group.Done();
@@ -2389,6 +2406,27 @@ TlaCheck Scanner::ValidateTLA(uint32_t source_index) {
         for (auto& e : on_start_exceptions) {
             if (e) std::rethrow_exception(e);
         }
+
+        // A start hook is allowed to hand the build an entry point (a virtual
+        // module, usually) and extra watch paths. The watch files are read here
+        // rather than merely recorded, because that is what puts them in the
+        // file system's watch data; the directories are scanned for the same
+        // reason. Doing this before AddEntryPoints means a contributed entry is
+        // resolved by the same rules as a configured one.
+        for (const std::string& file : start_watch_files) {
+            fs.ReadFile(file);
+        }
+        for (const std::string& dir : start_watch_dirs) {
+            auto entries_result = fs.ReadDirectory(dir);
+            if (entries_result.Ok()) {
+                entries_result.value.SortedKeys();
+            }
+        }
+
+        std::vector<config::EntryPoint> all_entry_points = entry_points;
+        all_entry_points.insert(all_entry_points.end(),
+            std::make_move_iterator(start_entry_points.begin()),
+            std::make_move_iterator(start_entry_points.end()));
         start_scope.timer = nullptr;
 
         if (timer != nullptr) {
@@ -2412,7 +2450,7 @@ TlaCheck Scanner::ValidateTLA(uint32_t source_index) {
         }
 
         std::vector<graph::EntryPoint> entry_point_meta =
-            s.AddEntryPoints(entry_points);
+            s.AddEntryPoints(all_entry_points);
 
         if (options.CancelFlagData != nullptr && options.CancelFlagData->DidCancel()) {
             s.JoinThreads();

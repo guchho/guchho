@@ -32,6 +32,11 @@ All notable changes to Guchho. Newest first. Full release notes live in
   failures as diagnostics. An interpolated template previously threw an
   unrecoverable lexer error, which the playground displayed as
   `Lex failed: [object Object]` instead of a useful answer.
+- `parse-js` now accepts TypeScript, JSX and TSX source as well as plain
+  JavaScript. The playground sends all four through `parse-js`, so the default
+  TypeScript sample previously failed with a syntax error. Requests can also
+  select a dialect with the `typescript` and `jsx` options, or with a
+  `sourcefile` extension.
 
 ### Distribution
 

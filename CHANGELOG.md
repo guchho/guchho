@@ -4,6 +4,35 @@ All notable changes to Guchho. Newest first. Full release notes live in
 [docs/release-notes](docs/release-notes/README.md); tags are on
 [GitHub](https://github.com/guchho/guchho/tags).
 
+## [1.0.10] - 2026-11-15
+
+### Added
+
+- `guchho test` delegates to the optional `@guchho/test` runner, passing every
+  argument after `test` through unchanged so `run`, `watch`, file arguments and
+  options behave like the matching `guchho-test` command. It is handled by the
+  npm entry point before any engine starts, prints an installation message when
+  the runner is missing, and requires Node.js 20.19 or newer.
+- `pack()`, `unpack()`, `packBytes()` and `unpackBytes()` in `@guchho/wasm`,
+  with the same options as the native package but paths inside the engine's
+  filesystem. `packBytes()` and `unpackBytes()` keep the archive and extracted
+  files in memory, so both directions work in the browser.
+- The browser entry of the `guchho` package now supports `pack()`.
+  `unpack()` still refuses there; use `unpackBytes()` from `@guchho/wasm`.
+
+### Fixed
+
+- Source map generation no longer reads out of bounds when a file has no line
+  offset entries or a location precedes the first line. Those mappings are
+  skipped instead of crashing the build.
+
+### Distribution
+
+- AIX PPC64 is a build and publish target, using a self-hosted runner.
+- Homebrew and WinGet packaging scripts were added.
+
+[1.0.10]: docs/release-notes/v1.0.10.md
+
 ## [1.0.9] - 2026-10-26
 
 ### Added

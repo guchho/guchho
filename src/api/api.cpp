@@ -1886,6 +1886,13 @@ struct PluginImpl {
                 api::OnStartResult response = cb();
                 result.Msgs = convert_errors_and_warnings_to_internal(
                     response.errors, response.warnings, arena);
+                result.Entries.reserve(response.entries.size());
+                for (const api::EntryPoint& entry : response.entries) {
+                    result.Entries.push_back(config::EntryPoint{
+                        entry.input_path, entry.output_path, false});
+                }
+                result.AbsWatchFiles = validate_paths_array(response.watch_files, "watch file");
+                result.AbsWatchDirs = validate_paths_array(response.watch_dirs, "watch directory");
                 return result;
             },
             plugin.Name,

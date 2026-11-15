@@ -451,6 +451,11 @@ int runDev(const std::vector<std::string>& args,
     // the only part of what that grammar returned that this function uses.
     ctx->Watch(api::WatchOptions{.delay = extras.watch_delay});
 
+    // Watch mode only records paths on passes that run after it is enabled.
+    // This opening pass gives the watcher its first set, so a save is noticed
+    // even if no browser has requested a page yet.
+    ctx->Rebuild();
+
     // Wait for Ctrl+C, by the same mechanism as in the command above: a promise
     // that nothing fulfils, so this thread parks while the server and the
     // watcher carry on. The interrupt installed at the top is recorded in a flag

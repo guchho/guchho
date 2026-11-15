@@ -809,10 +809,15 @@ namespace guchho::config {
     // OnStartResult
     // -------------
     // The result of a plugin's `onStart` hook.  Contains any error
-    // that was thrown and any diagnostic messages to emit.
+    // that was thrown and any diagnostic messages to emit.  A start
+    // hook may also contribute entry points and extra watch paths,
+    // which the scan phase merges before it reads a file.
     struct OnStartResult {
         std::string ThrownError{};
         std::vector<logger::Msg> Msgs{};
+        std::vector<EntryPoint> Entries{};
+        std::vector<std::string> AbsWatchFiles{};
+        std::vector<std::string> AbsWatchDirs{};
     };
 
     // OnResolveArgs

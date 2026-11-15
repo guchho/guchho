@@ -519,6 +519,43 @@ TEST(CliServiceCompile, JsLexesToEndOfInput) {
     EXPECT_EQ(ValueOfToken(response, 1), "a");
 }
 
+// A template substitution ends with a close brace that the lexer only knows is
+// template text after a rescan. Driving Next() without that rescan makes the
+// text after the brace look like an unterminated string, which is the failure
+// the playground saw for any interpolated template.
+TEST(CliServiceCompile, JsLexesTemplateSubstitutions) {
+    const Value response = Run("lex-js", "const x = `a${b}c${d}e`;");
+
+    EXPECT_TRUE(ErrorOf(response).empty()) << ErrorOf(response);
+    EXPECT_EQ(NumberOf(response, "count"), 9);
+    EXPECT_EQ(ValueOfToken(response, 3), "`a${");
+    EXPECT_EQ(ValueOfToken(response, 4), "b");
+    EXPECT_EQ(ValueOfToken(response, 5), "}c${");
+    EXPECT_EQ(ValueOfToken(response, 7), "}e`");
+}
+
+// Braces inside a substitution belong to the expression, and a template inside
+// one starts another substitution. Neither may be mistaken for the brace that
+// closes the outer template.
+TEST(CliServiceCompile, JsLexesNestedTemplatesAndObjectBraces) {
+    const Value response =
+        Run("lex-js", "const x = `${{ a: `b${c}d` }.a}e`;");
+
+    EXPECT_TRUE(ErrorOf(response).empty()) << ErrorOf(response);
+    EXPECT_EQ(NumberOf(response, "count"), CountOf(response, "tokens"));
+    EXPECT_EQ(ValueOfToken(response, NumberOf(response, "count") - 2), "}e`");
+}
+
+// An unrecoverable lexer error is a diagnostic, not a refusal and not a throw.
+// The tokens found before it are still part of the answer.
+TEST(CliServiceCompile, JsUnterminatedLiteralIsAnAnswer) {
+    const Value response = Run("lex-js", "const x = \"unterminated");
+
+    EXPECT_TRUE(ErrorOf(response).empty()) << "a diagnostic is not a refusal";
+    EXPECT_GE(CountOf(response, "errors"), 1);
+    EXPECT_EQ(NumberOf(response, "count"), CountOf(response, "tokens"));
+}
+
 // A parse answers with the file's top-level parts and the symbols in scope,
 // which together say what the parser made of the file without walking its
 // expression graph.

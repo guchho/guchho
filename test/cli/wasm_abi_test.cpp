@@ -123,6 +123,24 @@ TEST(WasmAbi, AnEnvelopeThatIsNotBase64IsRefused) {
     EXPECT_NE(ErrorOf(*response), std::string());
 }
 
+TEST(WasmAbi, ATemplateLiteralIsLexedRatherThanThrowing) {
+    const std::optional<Value> response = Send(
+        R"({"command":"lex-js","input":"const x = `Clicked ${count}`;"})");
+
+    ASSERT_TRUE(response.has_value());
+    EXPECT_EQ(ErrorOf(*response), std::string());
+    EXPECT_EQ(CountOf(*response, "tokens"), 7);
+}
+
+TEST(WasmAbi, AnUnterminatedLiteralComesBackAsADiagnostic) {
+    const std::optional<Value> response = Send(
+        R"({"command":"lex-js","input":"const x = \"unterminated"})");
+
+    ASSERT_TRUE(response.has_value());
+    EXPECT_EQ(ErrorOf(*response), std::string());
+    EXPECT_GE(CountOf(*response, "errors"), 1);
+}
+
 TEST(WasmAbi, ParseAndPrintAnswerThroughTheSameHandle) {
     const std::optional<Value> parsed =
         Send(R"({"command":"parse-js","input":"const a = 1;"})");

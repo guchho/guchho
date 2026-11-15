@@ -19,6 +19,14 @@ All notable changes to Guchho. Newest first. Full release notes live in
   files in memory, so both directions work in the browser.
 - The browser entry of the `guchho` package now supports `pack()`.
   `unpack()` still refuses there; use `unpackBytes()` from `@guchho/wasm`.
+- JavaScript plugins can shape a build from `buildStart`. A start hook may
+  return `entries`, `watchFiles` and `watchDirs`, and `this.addWatchFile()` now
+  adds a dependency instead of doing nothing. Contributed entries are merged
+  with the configured ones, so a plugin can supply a virtual module as an entry
+  without writing it to disk. `this.meta.watchMode` reports whether the current
+  pass is a watch rebuild, and an emitted asset with a relative name is written
+  under the output directory. From C++, `OnStartResult` gains the matching
+  `entries`, `watch_files` and `watch_dirs` fields.
 
 ### Fixed
 
@@ -37,6 +45,11 @@ All notable changes to Guchho. Newest first. Full release notes live in
   TypeScript sample previously failed with a syntax error. Requests can also
   select a dialect with the `typescript` and `jsx` options, or with a
   `sourcefile` extension.
+- `guchho watch`, `guchho build --watch` and `guchho serve` run an opening
+  build as soon as they enable watch mode. Watch mode records paths only on
+  passes that run after it is enabled, so without that pass the watcher started
+  with no paths: `serve` did not notice a change until a browser requested a
+  page, and the other commands waited for a rebuild before watching anything.
 
 ### Distribution
 

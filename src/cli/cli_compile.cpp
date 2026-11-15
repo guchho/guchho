@@ -939,7 +939,25 @@ namespace guchho::cli {
             // where the tokens end, and a loop with a count in it would have to
             // agree with the lexer about that, which is a second place for the
             // two to disagree.
+            //
+            // Template substitutions need the parser's help. The lexer emits a
+            // close brace for the "}" that ends "${...}", and the following text
+            // is only recognized as template text after that brace is rescanned.
+            // A brace depth per open template says which "}" is the end of a
+            // substitution when object literals and nested templates are inside
+            // it.
+            std::vector<size_t> template_brace_depths;
             while (lexer.token != javascript::T::kEndOfFile) {
+                if (lexer.token == javascript::T::kCloseBrace
+                    && !template_brace_depths.empty()
+                    && template_brace_depths.back() == 0) {
+                    try {
+                        lexer.RescanCloseBraceAsTemplateToken();
+                    } catch (const javascript::LexerPanic&) {
+                        break;
+                    }
+                }
+
                 const logger::Range range = lexer.Range();
                 const size_t start = static_cast<size_t>(range.loc.start);
                 const size_t length = static_cast<size_t>(range.len);
@@ -955,12 +973,38 @@ namespace guchho::cli {
                 entry.Set("length", service::Value::Number(ToWireOffset(length)));
                 tokens.push_back(std::move(entry).Build());
 
+                switch (lexer.token) {
+                    case javascript::T::kTemplateHead:
+                        template_brace_depths.push_back(0);
+                        break;
+                    case javascript::T::kTemplateTail:
+                        if (!template_brace_depths.empty()) {
+                            template_brace_depths.pop_back();
+                        }
+                        break;
+                    case javascript::T::kOpenBrace:
+                        if (!template_brace_depths.empty()) {
+                            template_brace_depths.back()++;
+                        }
+                        break;
+                    case javascript::T::kCloseBrace:
+                        if (!template_brace_depths.empty()) {
+                            template_brace_depths.back()--;
+                        }
+                        break;
+                    default:
+                        break;
+                }
+
                 // Next() can throw: a malformed literal is a LexerPanic rather
-                // than a message. The service's own dispatch catches that and
-                // turns it into a diagnostic on the request, so letting it out of
-                // here is what makes a lex failure a reported failure rather
-                // than a process that died.
-                lexer.Next();
+                // than a message. A lex failure is an answer with the tokens
+                // found so far and the error that stopped the scan, not a
+                // process that died, so the panic ends the loop here.
+                try {
+                    lexer.Next();
+                } catch (const javascript::LexerPanic&) {
+                    break;
+                }
             }
 
             const std::vector<logger::Msg> msgs = log.done();

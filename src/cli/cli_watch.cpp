@@ -321,9 +321,9 @@ int runWatch(const std::vector<std::string>& args, bool quiet,
     // -------------------------------------------------------------------------
     //
     // Context() validates the options and prepares the build, then hands back
-    // an object that is already usable — no first build is run here, and none
-    // is needed, because the first build happens as soon as the watcher
-    // starts and reports that it is watching.
+    // an object that is already usable. Watch() only enables watch mode and
+    // starts the poller, so the opening build below is what performs the first
+    // pass and hands the watcher its initial set of paths.
     //
     // A null context is a set of option combinations the grammar could not
     // reject on its own, because they involve more than one flag at a time:
@@ -398,6 +398,7 @@ int runWatch(const std::vector<std::string>& args, bool quiet,
     // session is a run of them that has not stopped.
 
     ctx->Watch(api::WatchOptions{.delay = extras.watch_delay});
+    ctx->Rebuild();
     std::promise<void> p;
     p.get_future().get();
 

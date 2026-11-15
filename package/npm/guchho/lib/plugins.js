@@ -1,5 +1,7 @@
 "use strict";
 
+const path = require("node:path");
+
 const { version } = require("./info");
 
 // The plugin host: the JavaScript side of the plugin bridge.
@@ -106,13 +108,13 @@ function entryContents(entry) {
 // The context a hook is called with, and the only place a hook can reach the
 // engine from inside a call. It is deliberately small: a hook that never touches
 // the context — which is most of them — pays nothing for it.
-function makeContext(plugin, state) {
+function makeContext(plugin, state, watchMode) {
   return {
     meta: {
       // Reported rather than omitted, because a plugin that switches on it is
       // otherwise reading undefined and taking the wrong branch silently.
       guchhoVersion: version,
-      watchMode: false,
+      watchMode: watchMode === true,
     },
 
     // A warning is collected and travels back with the hook's answer, which is
@@ -128,10 +130,13 @@ function makeContext(plugin, state) {
       throw new Error(typeof message === "string" ? message : messageOf(message));
     },
 
-    // Files the plugin wants watched. The engine does not yet take extra watch
-    // paths from a hook over the bridge, so this records the intent and does not
-    // pretend to do more.
-    addWatchFile() {},
+    // Files the plugin wants watched. A path added here travels back with the
+    // hook's answer and is merged into the build's dependencies, so a module
+    // whose contents came from somewhere other than its own file still triggers
+    // a rebuild when that other file changes.
+    addWatchFile(file) {
+      if (typeof file === "string" && file !== "") state.watchFiles.push(file);
+    },
 
     // Emitting a file is only meaningful while the bundle is being assembled,
     // and the only moment the engine hands it back is generateBundle. Emitted
@@ -149,7 +154,11 @@ function makeContext(plugin, state) {
       if (typeof name !== "string" || name === "") {
         throw new Error("an emitted asset needs a fileName or a name");
       }
-      state.emitted.push({ path: name, contents: toBuffer(emitted.source) });
+      const target =
+        state.outDir !== null && !path.isAbsolute(name)
+          ? path.join(state.outDir, name)
+          : name;
+      state.emitted.push({ path: target, contents: toBuffer(emitted.source) });
     },
 
     // Not wired yet. Present as a function that says so rather than as an
@@ -169,6 +178,74 @@ function messageOf(value) {
     return value.message;
   }
   return String(value);
+}
+
+// Entry points a start hook returns, normalized to the one shape the service
+// reads: { input, output }. The public spelling accepts the same three forms as
+// the "entrypoints" option — a path, { in, out }, or [out, in] — because a
+// plugin author already knows that vocabulary and should not have to learn a
+// second one for this hook.
+function normalizeStartEntries(entries) {
+  if (!Array.isArray(entries)) return [];
+  const normalized = [];
+  for (const entry of entries) {
+    if (typeof entry === "string") {
+      if (entry !== "") normalized.push({ input: entry, output: "" });
+      continue;
+    }
+    if (Array.isArray(entry) && entry.length === 2) {
+      const [out, input] = entry;
+      if (typeof input === "string" && input !== "") {
+        normalized.push({ input, output: typeof out === "string" ? out : "" });
+      }
+      continue;
+    }
+    if (entry !== null && typeof entry === "object") {
+      const input = entry.in !== undefined ? entry.in : entry.input;
+      if (typeof input === "string" && input !== "") {
+        const output = entry.out !== undefined ? entry.out : entry.output;
+        normalized.push({ input, output: typeof output === "string" ? output : "" });
+      }
+    }
+  }
+  return normalized;
+}
+
+// The directory the bundle is being written to, inferred from the output paths
+// the engine produced. Emitted file names are relative to this directory, the
+// same way Rollup treats them, and without it a name like "template.xml" would
+// be written beside the project instead of inside the output folder.
+function commonOutputDir(files) {
+  let common = null;
+  for (const file of files) {
+    const dir = path.dirname(file);
+    if (common === null) {
+      common = dir;
+      continue;
+    }
+    while (dir !== common && !dir.startsWith(common + path.sep)) {
+      const parent = path.dirname(common);
+      if (parent === common) return common;
+      common = parent;
+    }
+  }
+  return common;
+}
+
+// The watch paths a hook collected through this.addWatchFile, plus the ones it
+// returned by name. Returned arrays stay arrays and absent ones stay absent, so
+// the service's request for a build with no extra paths is unchanged.
+function watchFields(state, result) {
+  const files = state.watchFiles.slice();
+  const dirs = state.watchDirs.slice();
+  if (result !== null && typeof result === "object") {
+    if (Array.isArray(result.watchFiles)) files.push(...result.watchFiles.filter((file) => typeof file === "string"));
+    if (Array.isArray(result.watchDirs)) dirs.push(...result.watchDirs.filter((dir) => typeof dir === "string"));
+  }
+  const fields = {};
+  if (files.length > 0) fields.watchFiles = files;
+  if (dirs.length > 0) fields.watchDirs = dirs;
+  return fields;
 }
 
 function normalizeMessage(pluginName, message, kind) {
@@ -273,8 +350,16 @@ class PluginHost {
     if (plugin === undefined || typeof plugin[hook] !== "function") return {};
 
     const args = request.args;
-    const state = { warnings: [], emitted: null };
-    const context = makeContext(plugin, state);
+    const state = {
+      warnings: [],
+      emitted: null,
+      outDir: null,
+      watchFiles: [],
+      watchDirs: [],
+    };
+    const watchMode =
+      request !== null && typeof request === "object" ? request.watchMode : false;
+    const context = makeContext(plugin, state, watchMode);
 
     try {
       return await this._run(plugin, hook, context, state, args);
@@ -289,8 +374,17 @@ class PluginHost {
   async _run(plugin, hook, context, state, args) {
     switch (hook) {
       case "buildStart": {
-        await plugin.buildStart.call(context, {});
-        return { warnings: state.warnings };
+        const result = await plugin.buildStart.call(
+          context,
+          args !== null && typeof args === "object" ? args : {}
+        );
+        const response = { warnings: state.warnings };
+        const entries = normalizeStartEntries(
+          result !== null && typeof result === "object" ? result.entries : undefined
+        );
+        if (entries.length > 0) response.entries = entries;
+        Object.assign(response, watchFields(state, result));
+        return response;
       }
 
       case "resolveId": {
@@ -309,6 +403,7 @@ class PluginHost {
         );
 
         const response = { warnings: state.warnings };
+        Object.assign(response, watchFields(state, result));
         if (result === false) {
           response.external = true;
           return response;
@@ -326,9 +421,6 @@ class PluginHost {
             response.moduleSideEffects = result.moduleSideEffects;
           }
           if (result.meta !== undefined) response.meta = result.meta;
-          if (Array.isArray(result.watchFiles)) {
-            response.watchFiles = result.watchFiles.filter((file) => typeof file === "string");
-          }
           return response;
         }
         return response; // declined
@@ -337,22 +429,30 @@ class PluginHost {
       case "load": {
         const result = await plugin.load.call(context, args.id);
         const response = { warnings: state.warnings };
-        if (result === null || result === undefined) return response;
+        if (result === null || result === undefined) {
+          Object.assign(response, watchFields(state, result));
+          return response;
+        }
 
         if (typeof result === "string" || result instanceof Uint8Array) {
           response.code = toBuffer(result);
+          Object.assign(response, watchFields(state, result));
           return response;
         }
-        if (typeof result !== "object") return response;
+        if (typeof result !== "object") {
+          Object.assign(response, watchFields(state, result));
+          return response;
+        }
 
-        if (result.code === undefined) return response;
+        if (result.code === undefined) {
+          Object.assign(response, watchFields(state, result));
+          return response;
+        }
         response.code = toBuffer(result.code);
         if (typeof result.resolveDir === "string") response.resolveDir = result.resolveDir;
         if (typeof result.loader === "string") response.loader = result.loader;
         if (result.meta !== undefined) response.meta = result.meta;
-        if (Array.isArray(result.watchFiles)) {
-          response.watchFiles = result.watchFiles.filter((file) => typeof file === "string");
-        }
+        Object.assign(response, watchFields(state, result));
         return response;
       }
 
@@ -373,9 +473,11 @@ class PluginHost {
         }
 
         state.emitted = hook === "generateBundle" ? [] : null;
+        state.outDir = commonOutputDir(Object.keys(bundle));
 
+        const outputOptions = state.outDir === null ? {} : { dir: state.outDir };
         const isWrite = hook === "writeBundle";
-        await plugin[hook].call(context, {}, bundle, isWrite);
+        await plugin[hook].call(context, outputOptions, bundle, isWrite);
 
         const response = { warnings: state.warnings };
         if (hook === "generateBundle") {

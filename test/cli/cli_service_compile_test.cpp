@@ -89,6 +89,11 @@ int32_t NumberOf(const Value& response, const std::string& key) {
     return value->AsNumber();
 }
 
+bool OkOf(const Value& response) {
+    const Value* value = response.Find("ok");
+    return value != nullptr && value->IsBool() && value->AsBool();
+}
+
 // The text of the "kind" field of the token at "index", or "" when there is no
 // such token. Reading it by index rather than by name is deliberate: the order
 // of the stream is part of what a lexer promises, and a lookup that ignored the
@@ -583,6 +588,62 @@ TEST(CliServiceCompile, JsParseAnswersWithPartsAndSymbols) {
         if (name != nullptr && name->IsString() && name->AsString() == "answer") named = true;
     }
     EXPECT_TRUE(named) << "the declared identifier should be among the symbols";
+}
+
+TEST(CliServiceCompile, JsParseAcceptsTypeScriptSyntax) {
+    const Value response = Run("parse-js", R"TS(interface Counter {
+  count: number
+}
+
+export function greet(count: number): string {
+  return `Clicked ${count} ${count === 1 ? 'time' : 'times'}`
+}
+
+const counter: Counter = { count: 0 }
+
+document.getElementById('counter')?.addEventListener('click', () => {
+  counter.count += 1
+  console.log(greet(counter.count))
+})
+)TS");
+
+    EXPECT_TRUE(ErrorOf(response).empty()) << ErrorOf(response);
+    EXPECT_TRUE(OkOf(response));
+    EXPECT_EQ(CountOf(response, "errors"), 0);
+    EXPECT_GE(NumberOf(response, "partCount"), 1);
+}
+
+TEST(CliServiceCompile, JsParseAcceptsJsxAndTsxSyntax) {
+    const char* sources[] = {
+        R"JSX(function Button({ count }) {
+  return <button type="button">Clicked {count} times</button>
+}
+)JSX",
+        R"TSX(interface ButtonProps {
+  count: number
+}
+
+function Button({ count }: ButtonProps) {
+  return <button type="button">Clicked {count} times</button>
+}
+)TSX",
+    };
+
+    for (const char* source : sources) {
+        const Value response = Run("parse-js", source);
+        EXPECT_TRUE(ErrorOf(response).empty()) << ErrorOf(response);
+        EXPECT_TRUE(OkOf(response));
+        EXPECT_EQ(CountOf(response, "errors"), 0);
+        EXPECT_GE(NumberOf(response, "partCount"), 1);
+    }
+}
+
+TEST(CliServiceCompile, JsParseKeepsSyntaxErrorsWhenNoDialectParses) {
+    const Value response = Run("parse-js", "const answer = ;");
+
+    EXPECT_TRUE(ErrorOf(response).empty()) << ErrorOf(response);
+    EXPECT_FALSE(OkOf(response));
+    EXPECT_GE(CountOf(response, "errors"), 1);
 }
 
 // A print is the engine's printer, so the program's own text comes back, and

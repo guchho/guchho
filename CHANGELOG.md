@@ -25,6 +25,13 @@ All notable changes to Guchho. Newest first. Full release notes live in
 - Source map generation no longer reads out of bounds when a file has no line
   offset entries or a location precedes the first line. Those mappings are
   skipped instead of crashing the build.
+- The syntax minifier no longer drops the declaration of an uninitialized local
+  used by a lowered logical assignment. `let x; x ||= {}` now lowers to
+  `let x; x || (x = {});` instead of assigning to an undeclared name.
+- `lex-js` now tokenizes interpolated template literals and returns lexer
+  failures as diagnostics. An interpolated template previously threw an
+  unrecoverable lexer error, which the playground displayed as
+  `Lex failed: [object Object]` instead of a useful answer.
 
 ### Distribution
 

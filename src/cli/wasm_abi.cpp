@@ -267,22 +267,30 @@ extern "C" GUCHHO_WASM_KEEPALIVE const char* guchho_version() {
 // same {"error":...} refusal every command uses, so the host reads a refusal
 // the same way whichever side of the boundary produced it.
 extern "C" GUCHHO_WASM_KEEPALIVE const char* guchho_service(const char* request_json) {
-    if (request_json == nullptr || request_json[0] == '\0') {
-        return ServiceRefusal("guchho_service: a JSON request is required");
-    }
+    try {
+        if (request_json == nullptr || request_json[0] == '\0') {
+            return ServiceRefusal("guchho_service: a JSON request is required");
+        }
 
-    const std::optional<guchho::service::Value> document =
-        guchho::service::JSONToValue(request_json);
-    if (!document.has_value() || !document->IsObject()) {
-        return ServiceRefusal("guchho_service: the request must be a JSON object");
-    }
+        const std::optional<guchho::service::Value> document =
+            guchho::service::JSONToValue(request_json);
+        if (!document.has_value() || !document->IsObject()) {
+            return ServiceRefusal("guchho_service: the request must be a JSON object");
+        }
 
-    bool                         ok      = true;
-    const guchho::service::Value request = DecodeBytesValue(*document, ok);
-    if (!ok) {
-        return ServiceRefusal("guchho_service: __bytes__ was not valid base64");
-    }
+        bool                         ok      = true;
+        const guchho::service::Value request = DecodeBytesValue(*document, ok);
+        if (!ok) {
+            return ServiceRefusal("guchho_service: __bytes__ was not valid base64");
+        }
 
-    g_service_response = guchho::service::ValueToJSON(guchho::cli::RunServiceRequest(request));
-    return g_service_response.c_str();
+        g_service_response = guchho::service::ValueToJSON(guchho::cli::RunServiceRequest(request));
+        return g_service_response.c_str();
+    } catch (...) {
+        // A C++ exception has no useful representation at this boundary. It is
+        // also what makes a host see an opaque object instead of an answer, so
+        // anything that still escapes the engine is turned into the refusal
+        // shape the host already knows how to read.
+        return ServiceRefusal("guchho_service: the engine failed");
+    }
 }

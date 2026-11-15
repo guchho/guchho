@@ -141,6 +141,18 @@ TEST(WasmAbi, AnUnterminatedLiteralComesBackAsADiagnostic) {
     EXPECT_GE(CountOf(*response, "errors"), 1);
 }
 
+TEST(WasmAbi, ParseJsAcceptsTypeScriptSyntax) {
+    const std::optional<Value> response = Send(
+        R"({"command":"parse-js","input":"interface Counter {\n  count: number\n}\nconst counter: Counter = { count: 0 };\n"})");
+
+    ASSERT_TRUE(response.has_value());
+    EXPECT_EQ(ErrorOf(*response), std::string());
+    const Value* ok = response->Find("ok");
+    ASSERT_TRUE(ok != nullptr && ok->IsBool());
+    EXPECT_TRUE(ok->AsBool());
+    EXPECT_EQ(CountOf(*response, "errors"), 0);
+}
+
 TEST(WasmAbi, ParseAndPrintAnswerThroughTheSameHandle) {
     const std::optional<Value> parsed =
         Send(R"({"command":"parse-js","input":"const a = 1;"})");

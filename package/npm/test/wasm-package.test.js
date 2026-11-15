@@ -228,6 +228,32 @@ describe("@guchho/wasm engine", () => {
         assert.ok(response.count > 0);
     });
 
+    it("lexes template substitutions instead of throwing", { skip: !hasBuiltEngine() }, async () => {
+        const e = await engine();
+
+        const response = await e.request({
+            command: "lex-js",
+            input: "const x = `a${b}c`;",
+        });
+
+        assert.deepEqual(response.errors, []);
+        assert.equal(response.tokens[3].value, "`a${");
+        assert.equal(response.tokens[4].value, "b");
+        assert.equal(response.tokens[5].value, "}c`");
+    });
+
+    it("answers an unterminated literal with a diagnostic", { skip: !hasBuiltEngine() }, async () => {
+        const e = await engine();
+
+        const response = await e.request({
+            command: "lex-js",
+            input: 'const x = "unterminated',
+        });
+
+        assert.equal(response.error, undefined);
+        assert.ok(response.errors.length > 0, "an unterminated literal should be an error");
+    });
+
     it("builds a small project from a files map and answers with the outputs", { skip: !hasBuiltEngine() }, async () => {
         // The files map has to be given at creation: on Node the engine mounts
         // the host file system unless a files map says otherwise, and a map

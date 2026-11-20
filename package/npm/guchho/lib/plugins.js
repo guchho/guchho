@@ -20,13 +20,13 @@ const { version } = require("./info");
 // calls a hook.
 
 // The hooks this host can answer, in the order a plugin's own list is filtered
-// against them. "transform" is declared in the types and is not yet wired to the
-// engine's pipeline, so a plugin that has one is not asked to run it — it is
-// simply not among the descriptors this host advertises.
+// against them. A hook absent here is never advertised to the engine, so a plugin
+// that has one is not asked to run it and pays no round trip for it.
 const SUPPORTED_HOOKS = [
   "buildStart",
   "resolveId",
   "load",
+  "transform",
   "buildEnd",
   "generateBundle",
   "writeBundle",
@@ -108,8 +108,10 @@ function entryContents(entry) {
 // The context a hook is called with, and the only place a hook can reach the
 // engine from inside a call. It is deliberately small: a hook that never touches
 // the context — which is most of them — pays nothing for it.
-function makeContext(plugin, state, watchMode) {
+function makeContext(plugin, state, watchMode, resolve) {
   return {
+    pluginName: plugin.name,
+
     meta: {
       // Reported rather than omitted, because a plugin that switches on it is
       // otherwise reading undefined and taking the wrong branch silently.
@@ -161,13 +163,14 @@ function makeContext(plugin, state, watchMode) {
       state.emitted.push({ path: target, contents: toBuffer(emitted.source) });
     },
 
-    // Not wired yet. Present as a function that says so rather than as an
-    // absent property, because a plugin that calls it should get a sentence it
-    // can act on rather than "this.resolve is not a function".
-    resolve() {
-      return Promise.reject(
-        new Error("this.resolve is not supported yet in this version of guchho")
-      );
+    // Asks the service to resolve a specifier with the same plugin chain and
+    // resolver the build is using. The question is nested inside the callback
+    // that is currently running, so it carries the token that identifies that
+    // hook's build; the service answers it without ending the callback.
+    resolve,
+
+    addVirtualModule(module) {
+      state.virtualModules.push(normalizeVirtualModule(module));
     },
   };
 }
@@ -207,6 +210,44 @@ function normalizeStartEntries(entries) {
         normalized.push({ input, output: typeof output === "string" ? output : "" });
       }
     }
+  }
+  return normalized;
+}
+
+function normalizeVirtualModule(module) {
+  if (module === null || typeof module !== "object" || Array.isArray(module)) {
+    throw new TypeError("a virtual module must be an object");
+  }
+  if (typeof module.id !== "string" || module.id === "") {
+    throw new TypeError("a virtual module needs a non-empty id");
+  }
+  const contents = module.code !== undefined ? module.code : module.contents;
+  if (typeof contents !== "string" && !(contents instanceof Uint8Array)) {
+    throw new TypeError(`virtual module ${module.id} needs string or Uint8Array code`);
+  }
+  const normalized = {
+    id: module.id,
+    code: toBuffer(contents),
+    namespace:
+      typeof module.namespace === "string" && module.namespace !== ""
+        ? module.namespace
+        : "virtual",
+  };
+  if (typeof module.suffix === "string" && module.suffix !== "") {
+    normalized.suffix = module.suffix;
+  }
+  if (typeof module.loader === "string" && module.loader !== "") {
+    normalized.loader = module.loader;
+  }
+  if (typeof module.resolveDir === "string" && module.resolveDir !== "") {
+    normalized.resolveDir = module.resolveDir;
+  }
+  if (module.meta !== undefined) normalized.meta = module.meta;
+  if (Array.isArray(module.watchFiles)) {
+    normalized.watchFiles = module.watchFiles.filter((file) => typeof file === "string");
+  }
+  if (Array.isArray(module.watchDirs)) {
+    normalized.watchDirs = module.watchDirs.filter((dir) => typeof dir === "string");
   }
   return normalized;
 }
@@ -261,8 +302,92 @@ function normalizeMessage(pluginName, message, kind) {
 // signed 32-bit integer. Anything else the engine reads as a string and names
 // the file by, so numbers are left alone only when they are safe to send.
 function pairList(value) {
+  if (Array.isArray(value)) {
+    const pairs = [];
+    for (const item of value) {
+      if (Array.isArray(item) && item.length >= 2) {
+        pairs.push([String(item[0]), String(item[1])]);
+      } else if (item !== null && typeof item === "object") {
+        for (const [key, entry] of Object.entries(item)) pairs.push([key, String(entry)]);
+      }
+    }
+    return pairs;
+  }
   if (value === null || typeof value !== "object") return [];
   return Object.entries(value).map(([key, item]) => [key, String(item)]);
+}
+
+// The `this.resolve` function handed to one hook call.
+//
+// The host is installed on the service for the duration of the outer request,
+// so there is exactly one place to send this nested question. The token came
+// with the callback that is still in flight and names the build whose resolver
+// should answer; without it the service would have to guess from a plugin name
+// that may appear in several configuration elements.
+function makeResolve(host, plugin, request) {
+  return async function resolve(source, importer, options) {
+    if (typeof source !== "string" || source === "") {
+      throw new TypeError("this.resolve needs a non-empty source");
+    }
+    if (host.service === null || host.service === undefined) {
+      throw new Error("this.resolve is not available in this transport");
+    }
+    const token = request !== null && typeof request === "object" ? request.resolveToken : undefined;
+    if (typeof token !== "string" || token === "") {
+      throw new Error("this.resolve is not available for this callback");
+    }
+
+    const question = options !== null && typeof options === "object" ? options : {};
+    const kind =
+      typeof question.kind === "string" && question.kind !== ""
+        ? question.kind
+        : question.isEntry === true
+          ? "entry"
+          : "import-statement";
+    const from = typeof importer === "string" && importer !== "" ? importer : null;
+    const resolveDir =
+      typeof question.resolveDir === "string" && question.resolveDir !== ""
+        ? question.resolveDir
+        : from !== null
+          ? path.dirname(from)
+          : process.cwd();
+
+    const response = await host.service.call({
+      command: "pluginResolve",
+      nested: true,
+      token,
+      plugin: plugin.name,
+      source,
+      importer: from,
+      namespace:
+        typeof question.namespace === "string" && question.namespace !== ""
+          ? question.namespace
+          : "file",
+      resolveDir,
+      kind,
+      custom: question.custom !== false,
+      options: {
+        with: pairList(question.with),
+      },
+    });
+
+    if (response === null || typeof response !== "object") return null;
+    if (typeof response.id !== "string" || response.id === "") return null;
+
+    const result = {
+      id: response.id,
+      moduleSideEffects: response.sideEffects !== false,
+    };
+    if (response.external === true) result.external = true;
+    if (typeof response.namespace === "string" && response.namespace !== "") {
+      result.namespace = response.namespace;
+    }
+    if (typeof response.suffix === "string" && response.suffix !== "") {
+      result.suffix = response.suffix;
+    }
+    if (response.meta !== null && response.meta !== undefined) result.meta = response.meta;
+    return result;
+  };
 }
 
 /** Runs the plugins a caller attached to a build. */
@@ -356,10 +481,11 @@ class PluginHost {
       outDir: null,
       watchFiles: [],
       watchDirs: [],
+      virtualModules: [],
     };
     const watchMode =
       request !== null && typeof request === "object" ? request.watchMode : false;
-    const context = makeContext(plugin, state, watchMode);
+    const context = makeContext(plugin, state, watchMode, makeResolve(this, plugin, request));
 
     try {
       return await this._run(plugin, hook, context, state, args);
@@ -379,10 +505,20 @@ class PluginHost {
           args !== null && typeof args === "object" ? args : {}
         );
         const response = { warnings: state.warnings };
-        const entries = normalizeStartEntries(
-          result !== null && typeof result === "object" ? result.entries : undefined
-        );
+        const resultObject = result !== null && typeof result === "object" ? result : {};
+        const entries = normalizeStartEntries(resultObject.entries);
         if (entries.length > 0) response.entries = entries;
+        if (resultObject.virtualModules != null) {
+          if (!Array.isArray(resultObject.virtualModules)) {
+            throw new TypeError("virtualModules must be an array");
+          }
+          for (const module of resultObject.virtualModules) {
+            state.virtualModules.push(normalizeVirtualModule(module));
+          }
+        }
+        if (state.virtualModules.length > 0) {
+          response.virtualModules = state.virtualModules;
+        }
         Object.assign(response, watchFields(state, result));
         return response;
       }
@@ -391,8 +527,10 @@ class PluginHost {
         const options = {
           kind: args.kind,
           isEntry: args.kind === "entry",
-          custom: Object.fromEntries(pairList(args.with)),
+          with: Object.fromEntries(pairList(args.with)),
         };
+        if (typeof args.custom === "boolean") options.custom = args.custom;
+        if (typeof args.namespace === "string") options.namespace = args.namespace;
         if (args.meta !== null && args.meta !== undefined) options.meta = args.meta;
 
         const result = await plugin.resolveId.call(
@@ -427,7 +565,13 @@ class PluginHost {
       }
 
       case "load": {
-        const result = await plugin.load.call(context, args.id);
+        const info = {
+          namespace: args.namespace,
+          suffix: args.suffix,
+          with: Object.fromEntries(pairList(args.with)),
+        };
+        if (args.meta !== null && args.meta !== undefined) info.meta = args.meta;
+        const result = await plugin.load.call(context, args.id, info);
         const response = { warnings: state.warnings };
         if (result === null || result === undefined) {
           Object.assign(response, watchFields(state, result));
@@ -453,6 +597,37 @@ class PluginHost {
         if (typeof result.loader === "string") response.loader = result.loader;
         if (result.meta !== undefined) response.meta = result.meta;
         Object.assign(response, watchFields(state, result));
+        return response;
+      }
+
+      case "transform": {
+        const info = {
+          namespace: args.namespace,
+          suffix: args.suffix,
+          loader: args.loader,
+          with: Object.fromEntries(pairList(args.with)),
+        };
+        if (args.meta !== null && args.meta !== undefined) info.meta = args.meta;
+
+        const result = await plugin.transform.call(
+          context,
+          args.code,
+          args.id,
+          info
+        );
+        const response = { warnings: state.warnings };
+        Object.assign(response, watchFields(state, result));
+        if (result === null || result === undefined) return response;
+        if (typeof result === "string" || result instanceof Uint8Array) {
+          response.code = toBuffer(result);
+          return response;
+        }
+        if (typeof result !== "object" || result.code === undefined) {
+          return response;
+        }
+        response.code = toBuffer(result.code);
+        if (typeof result.map === "string") response.map = result.map;
+        if (result.meta !== undefined) response.meta = result.meta;
         return response;
       }
 
@@ -537,11 +712,14 @@ async function callWithPlugins(service, host, request, raw = false) {
   if (host.grouped) request.pluginGroups = host.descriptors();
   else request.plugins = host.descriptors();
   const previous = service.pluginHost;
+  const previousService = host.service;
   service.pluginHost = host;
+  host.service = service;
   try {
     return await invoke();
   } finally {
     service.pluginHost = previous;
+    host.service = previousService;
   }
 }
 

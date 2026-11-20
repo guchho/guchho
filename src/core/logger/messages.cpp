@@ -35,6 +35,9 @@ namespace guchho::logger {
         case MsgCat::kBundler_InjectedPathCannotBeExternal: return "The injected path \"{}\" cannot be marked as external";
         case MsgCat::kBundler_CouldNotResolveEntryPoint: return "Could not resolve \"{}\"";
         case MsgCat::kBundler_EntryPointCannotBeExternal: return "The entry point \"{}\" cannot be marked as external";
+        case MsgCat::kBundler_InvalidVirtualModuleId: return "Plugin \"{}\" returned a virtual module with an empty id";
+        case MsgCat::kBundler_InvalidVirtualModuleSuffix: return "Plugin \"{}\" returned invalid virtual module suffix {} (must start with \"?\" or \"#\")";
+        case MsgCat::kBundler_DuplicateVirtualModule: return "Duplicate virtual module {} in namespace {} from plugins \"{}\" and \"{}\"";
         case MsgCat::kBundler_ImportAssertionRequiresJSONLoader: return "The file \"{}\" was loaded with the \"{}\" loader";
         case MsgCat::kBundler_ImportAssertionRequiresJSONLoaderNote: return "This import assertion requires the loader to be \"json\" instead:";
         case MsgCat::kBundler_ReconfigureLoaderNote: return "Either reconfigure Guchho to use the \"json\" loader for this file, or remove this import assertion.";
@@ -744,6 +747,7 @@ namespace guchho::logger {
         case MsgCat::kAPI_KeepNamesCannotBeUsedNote: return "In this environment, the \"Function.prototype.name\" property is not configurable and assigning to it will throw an error. Either use a newer target environment or disable the \"keep names\" setting.";
         case MsgCat::kAPI_InvalidPluginFilterOnResolve: return "Invalid plug-in filter {} for onResolve plugin {}";
         case MsgCat::kAPI_InvalidPluginFilterOnLoad: return "Invalid plug-in filter {} for onLoad plugin {}";
+        case MsgCat::kAPI_InvalidPluginFilterOnTransform: return "Invalid plug-in filter {} for onTransform plugin {}";
         case MsgCat::kAPI_PluginMissingName: return "Plugin at index {} is missing a name";
         case MsgCat::kAPI_BuildCanceled: return "The build was canceled";
         case MsgCat::kAPI_UnexpectedFileCountWhenWritingToStdout: return "Internal error: did not expect to generate {} files when writing to stdout";

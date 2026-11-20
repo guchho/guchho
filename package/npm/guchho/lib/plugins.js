@@ -1,8 +1,27 @@
 "use strict";
 
-const path = require("node:path");
-
 const { version } = require("./info");
+
+function isAbsolute(file) {
+  return file.startsWith("/") || file.startsWith("\\") || /^[A-Za-z]:[\\/]/.test(file);
+}
+
+function separatorOf(value) {
+  return value.includes("\\") && !value.includes("/") ? "\\" : "/";
+}
+
+function dirname(file) {
+  const match = /^(.*)[\\/][^\\/]*$/.exec(file);
+  if (match === null) return ".";
+  if (match[1] === "" && /^[\\/]/.test(file)) return file[0];
+  return match[1];
+}
+
+function join(dir, name) {
+  if (dir === "" || dir === ".") return name;
+  if (/[\\/]$/.test(dir)) return dir + name;
+  return dir + separatorOf(dir) + name;
+}
 
 // The plugin host: the JavaScript side of the plugin bridge.
 //
@@ -157,9 +176,7 @@ function makeContext(plugin, state, watchMode, resolve) {
         throw new Error("an emitted asset needs a fileName or a name");
       }
       const target =
-        state.outDir !== null && !path.isAbsolute(name)
-          ? path.join(state.outDir, name)
-          : name;
+        state.outDir !== null && !isAbsolute(name) ? join(state.outDir, name) : name;
       state.emitted.push({ path: target, contents: toBuffer(emitted.source) });
     },
 
@@ -259,13 +276,13 @@ function normalizeVirtualModule(module) {
 function commonOutputDir(files) {
   let common = null;
   for (const file of files) {
-    const dir = path.dirname(file);
+    const dir = dirname(file);
     if (common === null) {
       common = dir;
       continue;
     }
-    while (dir !== common && !dir.startsWith(common + path.sep)) {
-      const parent = path.dirname(common);
+    while (dir !== common && !dir.startsWith(common + separatorOf(common))) {
+      const parent = dirname(common);
       if (parent === common) return common;
       common = parent;
     }
@@ -349,8 +366,8 @@ function makeResolve(host, plugin, request) {
       typeof question.resolveDir === "string" && question.resolveDir !== ""
         ? question.resolveDir
         : from !== null
-          ? path.dirname(from)
-          : process.cwd();
+      ? dirname(from)
+      : process.cwd();
 
     const response = await host.service.call({
       command: "pluginResolve",

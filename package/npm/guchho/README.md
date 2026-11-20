@@ -259,9 +259,10 @@ export default {
 
 | Hook | When it runs |
 | --- | --- |
-| `buildStart` | Once per build, before any file is read. |
+| `buildStart` | Once per build, before any file is read. May add entries, virtual modules and watch paths. |
 | `resolveId(source, importer, options)` | Where a specifier points, for every import and entry point. Return an id to claim it, `false` for external, or `null` to decline. |
-| `load(id)` | A module's contents, before the loader would read them. |
+| `load(id, info)` | A module's contents, before the loader would read them. |
+| `transform(code, id, info)` | A module's source after loading and before parsing. Every matching transform sees the previous one's output. |
 | `buildEnd` | After every module is read. |
 | `generateBundle(outputOptions, bundle)` | With the finished output, before it is written. Edit `bundle` in place to rewrite or drop files. |
 | `writeBundle(outputOptions, bundle)` | After the output is written. |
@@ -269,7 +270,7 @@ export default {
 
 `order: 'pre'` or `order: 'post'` places a plugin around the default order, and plugins with the same order run in the order they were listed. Every hook is optional and may be `async`; a hook that can decline does so by returning `null` (or nothing).
 
-Inside a hook, `this` carries `meta`, `warn(message)`, `error(message)` - which throws and ends the build - and, during `generateBundle`, `emitFile({ type: 'asset', fileName, source })`. A `transform` hook, `this.resolve` and watching plugin-declared files are declared but not yet run by the engine.
+Inside a hook, `this` carries `meta`, `warn(message)`, `error(message)` - which throws and ends the build - and `resolve(source, importer, options)`, which asks the build's own resolver without claiming the import; the calling plugin is skipped unless `custom: false` is passed. `addWatchFile(path)` adds a rebuild dependency, `addVirtualModule(module)` registers in-memory source from `buildStart`, and `emitFile({ type: 'asset', fileName, source })` adds an output file.
 
 The full reference - every hook, the plugin context, and the generated types - is at [guchho.js.org/plugins](https://guchho.js.org/plugins/).
 

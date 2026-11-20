@@ -892,6 +892,7 @@ struct BuildOptions {
     std::optional<StdinOptions>    stdin_data;
     bool         write{};
     bool         allow_overwrite{};
+    bool         WatchMode{}; // set by the engine while a context is watching
     std::vector<Plugin> plugins;
 
     // Plugins grouped by the config-file element that named them, one group per
@@ -1372,6 +1373,10 @@ struct ResolveOptions {
     std::string namespace_;  // virtual filesystem the request came from
     std::string resolve_dir; // directory relative paths resolve against
     ResolveKind kind{ResolveKind::kNone};
+    // A custom question came from a plugin's "resolve" helper rather than from
+    // the engine walking an import. The named plugin is skipped, so a plugin
+    // that rewrites imports cannot answer its own question and loop forever.
+    bool custom{};
     std::any plugin_data;                        // payload from the previous step
     std::unordered_map<std::string, std::string> with; // values passed via "with"
 };
@@ -1402,10 +1407,23 @@ struct ResolveResult {
 // that generates a virtual module can hand the build its entry without writing
 // anything to disk. Entries are merged with the configured ones rather than
 // replacing them.
+struct VirtualModule {
+    std::string id;
+    std::optional<std::string> contents;
+    std::string namespace_{"virtual"};
+    std::string suffix;
+    Loader loader{Loader::kNone};
+    std::string resolve_dir;
+    std::any plugin_data;
+    std::vector<std::string> watch_files;
+    std::vector<std::string> watch_dirs;
+};
+
 struct OnStartResult {
     std::vector<Message> errors;
     std::vector<Message> warnings;
     std::vector<EntryPoint> entries;
+    std::vector<VirtualModule> virtual_modules;
     std::vector<std::string> watch_files;
     std::vector<std::string> watch_dirs;
 };
@@ -1499,6 +1517,43 @@ struct OnLoadResult {
     std::optional<std::string> contents;
     std::string resolve_dir;
     Loader loader{Loader::kNone};
+    std::any plugin_data;
+
+    std::vector<std::string> watch_files;
+    std::vector<std::string> watch_dirs;
+};
+
+// Which paths a transform callback should see, and in which namespace.
+struct OnTransformOptions {
+    std::string filter;    // a path pattern, or "" for every path
+    std::string namespace_;
+};
+
+// The arguments of a single transform callback invocation. "code" is the
+// source as it stands after the load step and any earlier transforms, so a
+// callback replaces it rather than appending to it.
+struct OnTransformArgs {
+    std::string path;
+    std::string namespace_;
+    std::string suffix;
+    Loader loader{Loader::kNone};
+    std::any plugin_data;
+    std::unordered_map<std::string, std::string> with;
+    std::string code;
+};
+
+// What a transform callback returns. Setting "code" replaces the source for
+// the next transform and for the parser; leaving it unset declines. "map" is a
+// source map as JSON text, and is used in preference to a sourceMappingURL
+// comment when present.
+struct OnTransformResult {
+    std::string plugin_name; // set automatically to the owning plugin
+
+    std::vector<Message> errors;
+    std::vector<Message> warnings;
+
+    std::optional<std::string> code;
+    std::optional<std::string> map;
     std::any plugin_data;
 
     std::vector<std::string> watch_files;
@@ -1634,6 +1689,13 @@ struct PluginBuild {
     //         that leaves abs_resolve_dir empty resolves relative imports
     //         against the file's own directory.
     std::function<void(const OnLoadOptions& options, std::function<OnLoadResult(const OnLoadArgs&)> callback)> on_load;
+
+    // Registers a transform callback for resolved paths matching "filter".
+    // Transform callbacks run after loading and before parsing, in plugin
+    // order, and each one sees the code the previous one produced. Returning
+    // code replaces the source; declining leaves it alone. A map returned here
+    // becomes the module's input source map.
+    std::function<void(const OnTransformOptions& options, std::function<OnTransformResult(const OnTransformArgs&)> callback)> on_transform;
 
     // Registers a callback for when the build is torn down — the plugin's
     // chance to close files, flush caches or join helper threads. It runs

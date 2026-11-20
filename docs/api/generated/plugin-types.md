@@ -14,7 +14,9 @@ In this page:
 - [`PluginOrder`](#pluginorder)
 - [`ResolveIdOptions`](#resolveidoptions)
 - [`ResolvedId`](#resolvedid)
+- [`LoadHookInfo`](#loadhookinfo)
 - [`LoadResult`](#loadresult)
+- [`TransformHookInfo`](#transformhookinfo)
 - [`SourceDescription`](#sourcedescription)
 - [`OutputChunk`](#outputchunk)
 - [`OutputAsset`](#outputasset)
@@ -22,6 +24,8 @@ In this page:
 - [`NormalizedOutputOptions`](#normalizedoutputoptions)
 - [`EmittedFile`](#emittedfile)
 - [`GuchhoLog`](#guchholog)
+- [`VirtualModule`](#virtualmodule)
+- [`BuildStartResult`](#buildstartresult)
 - [`PluginContext`](#plugincontext)
 - [`Plugin`](#plugin)
 
@@ -81,7 +85,26 @@ export interface ResolvedId {
   moduleSideEffects?: boolean
   /** A virtual filesystem the id belongs to. "file" by default. */
   namespace?: string
+  /** Part of the module's identity that is not part of its name. */
+  suffix?: string
   /** A value carried to this module's `load`, so the two halves can pass state. */
+  meta?: unknown
+}
+```
+
+## LoadHookInfo
+
+Extra context handed to a `load` hook.
+
+```ts
+export interface LoadHookInfo {
+  /** The virtual filesystem the module lives in. */
+  namespace?: string
+  /** Part of the module's identity that is not part of its name. */
+  suffix?: string
+  /** Values passed by the import's attributes or `with` clause. */
+  with?: Record<string, string>
+  /** The value left by the matching `resolveId`. */
   meta?: unknown
 }
 ```
@@ -110,6 +133,25 @@ export interface LoadResult {
 }
 ```
 
+## TransformHookInfo
+
+Extra context handed to a `transform` hook.
+
+```ts
+export interface TransformHookInfo {
+  /** The virtual filesystem the module lives in. */
+  namespace?: string
+  /** Part of the module's identity that is not part of its name. */
+  suffix?: string
+  /** How the engine would interpret the source. */
+  loader?: Loader
+  /** Values passed by the import's attributes or `with` clause. */
+  with?: Record<string, string>
+  /** The value left by `resolveId` or an earlier transform. */
+  meta?: unknown
+}
+```
+
 ## SourceDescription
 
 What a `transform` hook returns.
@@ -117,12 +159,14 @@ What a `transform` hook returns.
 ```ts
 export interface SourceDescription {
   /** The transformed source. */
-  code: string
+  code: string | Uint8Array
   /**
    * A sourcemap for the transform, as JSON text. Optional; without one the
    * engine maps positions back to the original where it can.
    */
   map?: string | null
+  /** A value carried forward to later hooks for this module. */
+  meta?: unknown
   /** Extra paths this transform depends on. */
   watchFiles?: string[]
   watchDirs?: string[]
@@ -218,6 +262,44 @@ export interface GuchhoLog {
 }
 ```
 
+## VirtualModule
+
+A module whose source is supplied by a plugin instead of the file system. Register one from `buildStart` with `this.addVirtualModule()` or in the hook's `virtualModules` result.
+
+```ts
+export interface VirtualModule {
+  id: string
+  code: string | Uint8Array
+  contents?: string | Uint8Array
+  namespace?: string
+  suffix?: string
+  loader?: Loader
+  resolveDir?: string
+  meta?: unknown
+  watchFiles?: string[]
+  watchDirs?: string[]
+}
+```
+
+## BuildStartResult
+
+What a `buildStart` hook may return. Entries are merged with the configured ones; watch paths join the build's dependency set.
+
+```ts
+export interface BuildStartResult {
+  /**
+   * Entry points to add to this build. Accepts the same spellings as the
+   * "entrypoints" option: a path, an `{ in, out }` record, or `[out, in]`.
+   */
+  entries?: EntryPoint[]
+  virtualModules?: VirtualModule[]
+  /** Extra files the build should watch. */
+  watchFiles?: string[]
+  /** Extra directories the build should watch. */
+  watchDirs?: string[]
+}
+```
+
 ## PluginContext
 
 What every hook is called with as `this`.
@@ -243,11 +325,9 @@ export interface PluginContext {
    * then hands back the answer. This is how a plugin asks where an import
    * points without claiming it. Returns `null` when nothing resolves it.
    *
-   * Not wired yet in this version: always rejects with a sentence naming the
-   * limitation, rather than resolving to a wrong answer.
-   *
-   * `custom: true` is set on the question so a plugin that answers resolution
-   * can tell its own question from the engine's and decline it.
+   * `custom: true` is set on the question by default, so the calling plugin is
+   * skipped and cannot answer its own question by accident. Pass
+   * `custom: false` only when that is what is wanted.
    */
   resolve(
     source: string,
@@ -259,10 +339,17 @@ export interface PluginContext {
    * are refused with a sentence rather than silently dropped.
    */
   emitFile(file: EmittedFile): void
+  addVirtualModule(module: VirtualModule): void
   /** Reports a warning against this plugin. Does not fail the build. */
   warn(message: string | GuchhoLog): void
   /** Fails the build with this message. Never returns. */
   error(message: string | GuchhoLog): never
+  /**
+   * Adds a file to the build's dependencies, so a change to it triggers a
+   * rebuild. The path travels back with the current hook's answer; a hook that
+   * does not return a watch list still contributes the paths added here.
+   */
+  addWatchFile(file: string): void
 }
 ```
 
@@ -277,11 +364,14 @@ export interface Plugin {
   name: string
   /** When this plugin runs relative to the others. */
   order?: PluginOrder
-  /** Called once per build, before any file is read. */
+  /**
+   * Called once per build, before any file is read. May add entry points and
+   * watch paths; see BuildStartResult.
+   */
   buildStart?(
     this: PluginContext,
     options: BuildOptions
-  ): void | Promise<void>
+  ): void | BuildStartResult | Promise<void | BuildStartResult>
   /**
    * Asked where a specifier resolves to, for every import and entry point.
    *
@@ -304,20 +394,22 @@ export interface Plugin {
    */
   load?(
     this: PluginContext,
-    id: string
+    id: string,
+    info: LoadHookInfo
   ): LoadResult | string | null | undefined | Promise<
     LoadResult | string | null | undefined
   >
   /**
    * Transforms a module's source after it has been loaded and before it is
-   * parsed. `code` is the text the previous step produced.
-   *
-   * Declared but not yet run by the engine's pipeline in this version.
+   * parsed. `code` is the text the previous step produced; every matching
+   * transform sees the output of the one before it. Return a replacement
+   * `SourceDescription` (or a bare string), or `null` to decline.
    */
   transform?(
     this: PluginContext,
     code: string,
-    id: string
+    id: string,
+    info: TransformHookInfo
   ): SourceDescription | string | null | undefined | Promise<
     SourceDescription | string | null | undefined
   >

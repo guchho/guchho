@@ -693,6 +693,34 @@ static config::Loader validate_loader(api::Loader value) {
     }
 }
 
+// The reverse mapping, for hooks that need to tell a plugin how the engine
+// would interpret the source it is about to transform. The internal set has a
+// few variants with no public counterpart; those read as the nearest public
+// loader rather than as no loader at all.
+static api::Loader loader_to_public(config::Loader value) {
+    switch (value) {
+        case config::Loader::kBase64: return api::Loader::kBase64;
+        case config::Loader::kBinary: return api::Loader::kBinary;
+        case config::Loader::kCopy: return api::Loader::kCopy;
+        case config::Loader::kCSS: return api::Loader::kCSS;
+        case config::Loader::kDataURL: return api::Loader::kDataURL;
+        case config::Loader::kDefault: return api::Loader::kDefault;
+        case config::Loader::kEmpty: return api::Loader::kEmpty;
+        case config::Loader::kFile: return api::Loader::kFile;
+        case config::Loader::kGlobalCSS: return api::Loader::kGlobalCSS;
+        case config::Loader::kJS: return api::Loader::kJS;
+        case config::Loader::kJSON: return api::Loader::kJSON;
+        case config::Loader::kWithTypeJSON: return api::Loader::kJSON;
+        case config::Loader::kJSX: return api::Loader::kJSX;
+        case config::Loader::kLocalCSS: return api::Loader::kLocalCSS;
+        case config::Loader::kText: return api::Loader::kText;
+        case config::Loader::kTS: return api::Loader::kTS;
+        case config::Loader::kTSNoAmbiguousLessThan: return api::Loader::kTS;
+        case config::Loader::kTSX: return api::Loader::kTSX;
+        default: return api::Loader::kNone;
+    }
+}
+
 // Turns the three "print absolute paths" flags into the path style each part of
 // the build wants. They are separate flags because a host often wants absolute
 // paths in the log but relative ones inside a source map, so that the map stays
@@ -1880,8 +1908,9 @@ struct PluginImpl {
     // Output: an internal start callback that produces that error before the
     //         first file is read
     void on_start(std::function<api::OnStartResult()> callback) {
+        std::string plugin_name = plugin.Name;
         plugin.OnStartList.push_back(config::OnStart{
-            [this, cb = std::move(callback)]() -> config::OnStartResult {
+            [this, cb = std::move(callback), plugin_name]() -> config::OnStartResult {
                 config::OnStartResult result;
                 api::OnStartResult response = cb();
                 result.Msgs = convert_errors_and_warnings_to_internal(
@@ -1890,6 +1919,43 @@ struct PluginImpl {
                 for (const api::EntryPoint& entry : response.entries) {
                     result.Entries.push_back(config::EntryPoint{
                         entry.input_path, entry.output_path, false});
+                }
+                result.VirtualModules.reserve(response.virtual_modules.size());
+                for (const api::VirtualModule& module : response.virtual_modules) {
+                    if (module.id.empty()) {
+                        result.Msgs.push_back(logger::Msg{
+                            .data = logger::MsgData{
+                                .text = logger::FormatMsg(
+                                    logger::MsgCat::kBundler_InvalidVirtualModuleId, plugin_name),
+                            },
+                            .kind = logger::MsgKind::kError,
+                        });
+                        continue;
+                    }
+                    if (!module.suffix.empty() && module.suffix[0] != '?' && module.suffix[0] != '#') {
+                        result.Msgs.push_back(logger::Msg{
+                            .data = logger::MsgData{
+                                .text = logger::FormatMsg(
+                                    logger::MsgCat::kBundler_InvalidVirtualModuleSuffix,
+                                    plugin_name, quoted_for_log(module.suffix)),
+                            },
+                            .kind = logger::MsgKind::kError,
+                        });
+                        continue;
+                    }
+                    config::VirtualModule converted;
+                    converted.PluginName = plugin_name;
+                    converted.Id = module.id;
+                    converted.Namespace = module.namespace_.empty() ? "virtual" : module.namespace_;
+                    converted.Suffix = module.suffix;
+                    converted.Contents = module.contents.value_or("");
+                    converted.AbsResolveDir = validate_path(
+                        log, fs, module.resolve_dir, "virtual module resolve directory");
+                    converted.ResultLoader = validate_loader(module.loader);
+                    converted.PluginData = module.plugin_data;
+                    converted.AbsWatchFiles = validate_paths_array(module.watch_files, "watch file");
+                    converted.AbsWatchDirs = validate_paths_array(module.watch_dirs, "watch directory");
+                    result.VirtualModules.push_back(std::move(converted));
                 }
                 result.AbsWatchFiles = validate_paths_array(response.watch_files, "watch file");
                 result.AbsWatchDirs = validate_paths_array(response.watch_dirs, "watch directory");
@@ -2060,6 +2126,63 @@ struct PluginImpl {
             std::move(ns),
         });
     }
+
+    // Registers a transform callback behind a path filter. A transform callback
+    // runs after the load step and before parsing, and every matching callback
+    // sees the code left by the one before it. Returning code replaces the
+    // source; a map travels into the module as its input source map.
+    void on_transform(const api::OnTransformOptions& options,
+                      std::function<api::OnTransformResult(const api::OnTransformArgs&)> callback) {
+        auto filter = config::CompileFilterForPlugin(plugin.Name, "onTransform", options.filter);
+        if (filter == nullptr && !options.filter.empty()) {
+            log.AddError(nullptr, logger::Range{},
+                logger::FormatMsg(logger::MsgCat::kAPI_InvalidPluginFilterOnTransform, quoted_for_log(options.filter), quoted_for_log(plugin.Name)));
+            return;
+        }
+        if (filter == nullptr) return;
+
+        std::string ns = options.namespace_;
+        auto on_transform_cb = [this, cb = std::move(callback)](
+                config::OnTransformArgs args) -> config::OnTransformResult {
+            config::OnTransformResult result;
+            api::OnTransformArgs public_args;
+            public_args.path = args.LoadPath.text;
+            public_args.namespace_ = args.LoadPath.namespace_;
+            public_args.suffix = args.LoadPath.ignored_suffix;
+            public_args.loader = loader_to_public(args.LoaderRef);
+            public_args.plugin_data = args.PluginData;
+            public_args.with = args.With.DecodeIntoMap();
+            public_args.code = std::move(args.Code);
+
+            api::OnTransformResult response;
+            try {
+                response = cb(public_args);
+            } catch (const std::exception& e) {
+                result.ThrownError = e.what();
+                return result;
+            } catch (...) {
+                result.ThrownError = "Unknown error";
+                return result;
+            }
+
+            result.PluginName = response.plugin_name;
+            result.AbsWatchFiles = validate_paths_array(response.watch_files, "watch file");
+            result.AbsWatchDirs = validate_paths_array(response.watch_dirs, "watch directory");
+            if (response.code.has_value()) result.Code = response.code;
+            if (response.map.has_value()) result.SourceMap = response.map;
+            result.PluginData = std::move(response.plugin_data);
+
+            result.Msgs = convert_errors_and_warnings_to_internal(
+                response.errors, response.warnings, arena);
+            return result;
+        };
+        plugin.OnTransformList.push_back(config::OnTransform{
+            std::move(*filter),
+            std::move(on_transform_cb),
+            plugin.Name,
+            std::move(ns),
+        });
+    }
 };
 
 // A plugin's end-of-build callback, held separately from the other registrations
@@ -2120,6 +2243,9 @@ static void load_plugins(
 
     finalize_build_options = [plugins, options_for_resolve](config::Options& options) {
         options.Plugins = *plugins;
+        if (!options.VirtualModules) {
+            options.VirtualModules = std::make_shared<std::vector<config::VirtualModule>>();
+        }
         *options_for_resolve = &options;
     };
 
@@ -2200,12 +2326,17 @@ static void load_plugins(
             compiler::ImportKind kind = resolve_kind_to_import_kind(options.kind);
             logger::ImportAttributes attrs = logger::EncodeImportAttributes(options.with);
 
+            std::string calling_plugin = (*clone)[i].name;
+            if (!options.plugin_name.empty()) calling_plugin = options.plugin_name;
+
             auto outcome = bundler::RunOnResolvePlugins(
                 *plugins, resolver.get(), resolve_log, real_fs, caches.fs_cache,
                 nullptr, logger::Range{},
                 logger::Path{.text = options.importer, .namespace_ = options.namespace_},
                 path, attrs, kind, abs_resolve_dir,
-                options.plugin_data, options_clone.LogPathStyle);
+                options.plugin_data, options_clone.LogPathStyle,
+                options.custom ? &calling_plugin : nullptr,
+                options_clone.VirtualModules.get());
 
             auto msgs = resolve_log.done();
             api::ResolveResult result;
@@ -2221,10 +2352,8 @@ static void load_plugins(
                 result.suffix = rr.path_pair.primary.ignored_suffix;
                 result.plugin_data = rr.plugin_data;
             } else if (result.errors.empty()) {
-                std::string plugin_name = (*clone)[i].name;
-                if (!options.plugin_name.empty()) plugin_name = options.plugin_name;
                 auto info = bundler::ResolveFailureErrorTextSuggestionNotes(
-                    *resolver, path, kind, plugin_name, real_fs, abs_resolve_dir,
+                    *resolver, path, kind, calling_plugin, real_fs, abs_resolve_dir,
                     *options_for_resolve ? (*options_for_resolve)->OutputPlatform : config::Platform::kBrowser,
                     logger::PrettyPaths{}, "", options_clone.LogPathStyle);
                 api::Message msg;
@@ -2264,6 +2393,7 @@ static void load_plugins(
             .on_write_bundle = std::move(on_write_bundle_fn),
             .on_resolve = [impl](const api::OnResolveOptions& opts, std::function<api::OnResolveResult(const api::OnResolveArgs&)> cb) { impl->on_resolve(opts, std::move(cb)); },
             .on_load = [impl](const api::OnLoadOptions& opts, std::function<api::OnLoadResult(const api::OnLoadArgs&)> cb) { impl->on_load(opts, std::move(cb)); },
+            .on_transform = [impl](const api::OnTransformOptions& opts, std::function<api::OnTransformResult(const api::OnTransformArgs&)> cb) { impl->on_transform(opts, std::move(cb)); },
             .on_dispose = std::move(on_dispose_fn),
         };
 
@@ -2725,6 +2855,7 @@ struct InternalContext : public api::BuildContext {
     std::shared_ptr<BuildInProgress> active_build;
     std::unique_ptr<api::BuildResult> recent_build;
     std::unique_ptr<api::Watcher> watcher;
+    std::shared_ptr<api::BuildOptions> initial_options;
     // Set when Serve() succeeds: the way a finished pass tells the running
     // server's live-reload clients that the output changed. Read by rebuild()
     // on whichever thread ran the pass, so it is copied out under the lock
@@ -2882,6 +3013,7 @@ struct InternalContext : public api::BuildContext {
             args.log_options.color, args.log_options.path_style);
 
         args.options.WatchMode = true;
+        if (initial_options) initial_options->WatchMode = true;
         watcher->Start();
 #endif
     }
@@ -3005,7 +3137,15 @@ struct InternalContext : public api::BuildContext {
 // Output: a live session with the plugin registered, plus one error naming the
 //         bad key; or a null session and that error
 std::pair<std::unique_ptr<InternalContext>, std::vector<api::Message>>
-context_impl(api::BuildOptions build_options) {
+context_impl(api::BuildOptions build_options_in) {
+    // Plugins are handed a pointer to the options they were created with, and
+    // keep it for the life of the session. It has to name storage that lives
+    // that long: a pointer to this function's parameter would dangle as soon as
+    // the context was returned, which made the watch-mode flag a read of freed
+    // memory in every plugin hook. The context owns the options now.
+    auto initial_options = std::make_shared<api::BuildOptions>(std::move(build_options_in));
+    api::BuildOptions& build_options = *initial_options;
+
     PendingErrors pending;
     logger::OutputOptions log_options{
         .message_limit = build_options.log_limit,
@@ -3053,7 +3193,7 @@ context_impl(api::BuildOptions build_options) {
     auto plugin_impls = std::make_shared<std::vector<std::shared_ptr<PluginImpl>>>();
     std::function<void(config::Options&)> finalize_build_options;
 
-    load_plugins(&build_options, *real_fs, log, *caches_ptr,
+    load_plugins(initial_options.get(), *real_fs, log, *caches_ptr,
                  on_end_callbacks, on_generate_bundle_callbacks,
                  on_write_bundle_callbacks, on_dispose_callbacks,
                  *plugin_impls, finalize_build_options);
@@ -3091,6 +3231,12 @@ context_impl(api::BuildOptions build_options) {
     ctx->args.log_warnings = std::move(msgs);
     ctx->args.entry_points = std::move(entry_points);
     ctx->args.options = std::move(options);
+    // The plugin resolver holds a pointer to the validated options, which was
+    // set while they still lived in this function's local. That object moves
+    // into the context above, so the pointer has to be rebound to its new home
+    // before this function returns and the local dies.
+    finalize_build_options(ctx->args.options);
+    ctx->initial_options = std::move(initial_options);
     ctx->args.mangle_cache = clone_mangle_cache(build_options.mangle_cache);
     ctx->args.abs_working_dir = abs_working_dir;
     ctx->args.write = build_options.write;

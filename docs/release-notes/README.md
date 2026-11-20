@@ -10,7 +10,7 @@ using Guchho: what changed for them, and what they should do about it. The
 canonical diff for any release is the comparison on GitHub, linked from the
 page.
 
-The current version is **1.0.10**. Install or upgrade with:
+The current version is **1.1.0**. Install or upgrade with:
 
 ```bash
 npm install -g guchho
@@ -20,7 +20,7 @@ npm install -g guchho
 
 | Version | Date | Highlight |
 | --- | --- | --- |
-| [1.0.10](v1.0.10.md) | 2026-11-15 | `guchho test`, archives in `@guchho/wasm`, and plugin contributions from `buildStart`. |
+| [1.1.0](v1.1.0.md) | 2026-11-15 | `guchho test`, archives in `@guchho/wasm`, and plugin contributions from `buildStart`. |
 | [1.0.9](v1.0.9.md) | 2026-10-26 | A standalone JavaScript linter, `unpack`, and clearer syntax diagnostics. |
 | [1.0.8](v1.0.8.md) | 2026-10-19 | The compiler API - `lexer`, `parse`, `print` - on WebAssembly. |
 | [1.0.7](v1.0.7.md) | 2026-10-15 | `@guchho/wasm`, and a fix for non-executable npm binaries. |

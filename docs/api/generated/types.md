@@ -364,6 +364,7 @@ A loader name, as the grammar spells it.
 export type Loader =
   | 'js' | 'jsx' | 'ts' | 'tsx' | 'json' | 'text' | 'css' | 'html'
   | 'base64' | 'dataurl' | 'file' | 'binary' | 'copy' | 'empty'
+  | 'default' | 'global-css' | 'local-css' | 'none'
 ```
 
 ## Format

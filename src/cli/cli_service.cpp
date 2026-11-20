@@ -442,6 +442,25 @@ namespace guchho::cli {
             return "none";
         }
 
+        // The reverse of ResolveKindName, for a nested resolve question the host
+        // asks from inside a hook. An unknown name reads as "none", which the
+        // engine treats as an unspecified kind rather than as a refusal.
+        api::ResolveKind ResolveKindFromName(const std::string& name) {
+            static const std::unordered_map<std::string, api::ResolveKind> kKinds = {
+                {"entry", api::ResolveKind::kEntryPoint},
+                {"import-statement", api::ResolveKind::kJSImportStatement},
+                {"require-call", api::ResolveKind::kJSRequireCall},
+                {"dynamic-import", api::ResolveKind::kJSDynamicImport},
+                {"require-resolve", api::ResolveKind::kJSRequireResolve},
+                {"import-rule", api::ResolveKind::kCSSImportRule},
+                {"composes-from", api::ResolveKind::kCSSComposesFrom},
+                {"url-token", api::ResolveKind::kCSSURLToken},
+                {"none", api::ResolveKind::kNone},
+            };
+            const auto found = kKinds.find(name);
+            return found == kKinds.end() ? api::ResolveKind::kNone : found->second;
+        }
+
         // The name of a loader, back again. The wire carries the name rather
         // than the number because the numbers are this build's enum and would
         // become part of the protocol the moment a host stored one.
@@ -458,6 +477,31 @@ namespace guchho::cli {
             };
             const auto found = kLoaders.find(name);
             return found == kLoaders.end() ? api::Loader::kNone : found->second;
+        }
+
+        // The name of a loader, for the same reason as ResolveKindName: a host
+        // should never have to know this build's enum numbers.
+        const char* LoaderName(api::Loader loader) {
+            switch (loader) {
+                case api::Loader::kBase64: return "base64";
+                case api::Loader::kBinary: return "binary";
+                case api::Loader::kCopy: return "copy";
+                case api::Loader::kCSS: return "css";
+                case api::Loader::kDataURL: return "dataurl";
+                case api::Loader::kDefault: return "default";
+                case api::Loader::kEmpty: return "empty";
+                case api::Loader::kFile: return "file";
+                case api::Loader::kGlobalCSS: return "global-css";
+                case api::Loader::kJS: return "js";
+                case api::Loader::kJSON: return "json";
+                case api::Loader::kJSX: return "jsx";
+                case api::Loader::kLocalCSS: return "local-css";
+                case api::Loader::kText: return "text";
+                case api::Loader::kTS: return "ts";
+                case api::Loader::kTSX: return "tsx";
+                case api::Loader::kNone:
+                default: return "none";
+            }
         }
 
         // The plugin-to-plugin payload, riding as a value.
@@ -478,6 +522,85 @@ namespace guchho::cli {
 
         std::any StoredPluginMeta(service::Value value) {
             return std::any(std::make_shared<service::Value>(std::move(value)));
+        }
+
+        // A plugin's own resolver, kept just long enough for the hook that might
+        // call "this.resolve" to reach it.
+        //
+        // The resolve function is per plugin and per build: it closes over that
+        // build's file system, caches and options. A token is handed to the host
+        // with each hook call and comes back with the nested question, which is
+        // how the service finds the same function again without guessing from a
+        // plugin name that might occur in more than one configuration element.
+        using ResolveFunction =
+            std::function<api::ResolveResult(const std::string&, const api::ResolveOptions&)>;
+
+        struct ResolveRegistry {
+            std::mutex mutex;
+            std::unordered_map<std::string, ResolveFunction> functions;
+            uint64_t next_token = 0;
+        };
+
+        ResolveRegistry& GetResolveRegistry() {
+            static ResolveRegistry registry;
+            return registry;
+        }
+
+        std::string RegisterResolveFunction(ResolveFunction function) {
+            ResolveRegistry& registry = GetResolveRegistry();
+            std::lock_guard<std::mutex> lock(registry.mutex);
+            const std::string token = std::to_string(++registry.next_token);
+            registry.functions.emplace(token, std::move(function));
+            return token;
+        }
+
+        void UnregisterResolveFunction(const std::string& token) {
+            ResolveRegistry& registry = GetResolveRegistry();
+            std::lock_guard<std::mutex> lock(registry.mutex);
+            registry.functions.erase(token);
+        }
+
+        bool FindResolveFunction(const std::string& token, ResolveFunction& out) {
+            ResolveRegistry& registry = GetResolveRegistry();
+            std::lock_guard<std::mutex> lock(registry.mutex);
+            const auto found = registry.functions.find(token);
+            if (found == registry.functions.end()) return false;
+            out = found->second;
+            return true;
+        }
+
+        // The "with" values of a nested resolve question. The wire uses the same
+        // pair form the other hooks use, and an object is accepted as well so a
+        // host that has already normalised the value does not have to undo it.
+        std::unordered_map<std::string, std::string> WithFromValue(const service::Value* value) {
+            std::unordered_map<std::string, std::string> result;
+            if (value == nullptr) return result;
+            if (value->IsArray()) {
+                for (const service::Value& pair : value->AsArray()) {
+                    if (!pair.IsArray() || pair.Size() < 2) continue;
+                    const service::Value& key = *pair.At(0);
+                    const service::Value& item = *pair.At(1);
+                    if (key.IsString() && item.IsString()) {
+                        result.emplace(key.AsString(), item.AsString());
+                    }
+                }
+                return result;
+            }
+            if (value->IsObject()) {
+                for (const auto& [key, item] : value->AsObject()) {
+                    if (item.IsString()) result.emplace(key, item.AsString());
+                }
+            }
+            return result;
+        }
+
+        std::vector<service::Value> MessagesToValues(const std::vector<api::Message>& messages) {
+            std::vector<service::Value> values;
+            values.reserve(messages.size());
+            for (const api::Message& message : messages) {
+                values.push_back(service::MessageToValue(message));
+            }
+            return values;
         }
 
         // The messages a hook reported, in the shape the engine expects.
@@ -525,11 +648,13 @@ namespace guchho::cli {
                                   const std::string& hook,
                                   service::Value args,
                                   int config_index,
-                                  bool watch_mode) {
+                                  bool watch_mode,
+                                  const std::string& resolve_token) {
             std::vector<std::pair<std::string, service::Value>> fields = {
                 {"plugin", service::Value::String(plugin)},
                 {"hook", service::Value::String(hook)},
                 {"args", std::move(args)},
+                {"resolveToken", service::Value::String(resolve_token)},
             };
             // Watch mode is a property of the pass, not of a hook, so it rides
             // beside the arguments and the host puts it on this.meta. False is
@@ -557,13 +682,13 @@ namespace guchho::cli {
         // service stays inert on the command line instead of hanging it.
 
         api::OnStartResult RunJsStart(const std::string& plugin, int config_index,
-                                      bool watch_mode) {
+                                      bool watch_mode, const std::string& resolve_token) {
             api::OnStartResult result;
             if (!service::HasCallbackTransport()) return result;
 
             const service::Value response =
                 PluginCall(plugin, "buildStart", service::Value::Null(), config_index,
-                           watch_mode);
+                           watch_mode, resolve_token);
             result.errors = PluginMessages(response, "errors", plugin);
             result.warnings = PluginMessages(response, "warnings", plugin);
 
@@ -588,6 +713,59 @@ namespace guchho::cli {
                     }
                 }
             }
+            if (const service::Value* modules = response.Find("virtualModules")) {
+                if (modules->IsArray()) {
+                    for (const service::Value& item : modules->AsArray()) {
+                        if (!item.IsObject()) continue;
+                        const service::Value* id = item.Find("id");
+                        if (id == nullptr || !id->IsString() || id->AsString().empty()) continue;
+                        const service::Value* code = item.Find("code");
+                        if (code == nullptr) code = item.Find("contents");
+                        if (code == nullptr) continue;
+
+                        api::VirtualModule module;
+                        module.id = id->AsString();
+                        if (code->IsString()) {
+                            module.contents = code->AsString();
+                        } else if (code->IsBytes()) {
+                            const std::vector<uint8_t>& bytes = code->AsBytes();
+                            module.contents = std::string(
+                                reinterpret_cast<const char*>(bytes.data()), bytes.size());
+                        }
+                        const service::Value* ns = item.Find("namespace");
+                        if (ns != nullptr && ns->IsString() && !ns->AsString().empty()) {
+                            module.namespace_ = ns->AsString();
+                        }
+                        if (const service::Value* suffix = item.Find("suffix")) {
+                            if (suffix->IsString()) module.suffix = suffix->AsString();
+                        }
+                        if (const service::Value* loader = item.Find("loader")) {
+                            if (loader->IsString()) module.loader = LoaderFromName(loader->AsString());
+                        }
+                        if (const service::Value* dir = item.Find("resolveDir")) {
+                            if (dir->IsString()) module.resolve_dir = dir->AsString();
+                        }
+                        if (const service::Value* meta = item.Find("meta")) {
+                            if (!meta->IsNull()) module.plugin_data = StoredPluginMeta(*meta);
+                        }
+                        if (const service::Value* files = item.Find("watchFiles")) {
+                            if (files->IsArray()) {
+                                for (const service::Value& file : files->AsArray()) {
+                                    if (file.IsString()) module.watch_files.push_back(file.AsString());
+                                }
+                            }
+                        }
+                        if (const service::Value* dirs = item.Find("watchDirs")) {
+                            if (dirs->IsArray()) {
+                                for (const service::Value& dir : dirs->AsArray()) {
+                                    if (dir.IsString()) module.watch_dirs.push_back(dir.AsString());
+                                }
+                            }
+                        }
+                        result.virtual_modules.push_back(std::move(module));
+                    }
+                }
+            }
             if (const service::Value* files = response.Find("watchFiles")) {
                 if (files->IsArray()) {
                     for (const service::Value& file : files->AsArray()) {
@@ -606,7 +784,8 @@ namespace guchho::cli {
         }
 
         api::OnResolveResult RunJsResolve(const std::string& plugin, int config_index,
-                                          const api::OnResolveArgs& args, bool watch_mode) {
+                                          const api::OnResolveArgs& args, bool watch_mode,
+                                          const std::string& resolve_token) {
             api::OnResolveResult result;
             result.plugin_name = plugin;
             if (!service::HasCallbackTransport()) return result;
@@ -626,7 +805,7 @@ namespace guchho::cli {
                 {"kind", service::Value::String(ResolveKindName(args.kind))},
                 {"with", service::Value::Array(std::move(with))},
                 {"meta", PluginMetaValue(args.plugin_data)},
-            }), config_index, watch_mode);
+            }), config_index, watch_mode, resolve_token);
 
             result.errors = PluginMessages(response, "errors", plugin);
             result.warnings = PluginMessages(response, "warnings", plugin);
@@ -678,7 +857,8 @@ namespace guchho::cli {
         }
 
         api::OnLoadResult RunJsLoad(const std::string& plugin, int config_index,
-                                    const api::OnLoadArgs& args, bool watch_mode) {
+                                    const api::OnLoadArgs& args, bool watch_mode,
+                                    const std::string& resolve_token) {
             api::OnLoadResult result;
             result.plugin_name = plugin;
             if (!service::HasCallbackTransport()) return result;
@@ -695,7 +875,7 @@ namespace guchho::cli {
                 {"suffix", service::Value::String(args.suffix)},
                 {"with", service::Value::Array(std::move(with))},
                 {"meta", PluginMetaValue(args.plugin_data)},
-            }), config_index, watch_mode);
+            }), config_index, watch_mode, resolve_token);
 
             result.errors = PluginMessages(response, "errors", plugin);
             result.warnings = PluginMessages(response, "warnings", plugin);
@@ -739,6 +919,74 @@ namespace guchho::cli {
             return result;
         }
 
+        api::OnTransformResult RunJsTransform(const std::string& plugin, int config_index,
+                                              const api::OnTransformArgs& args, bool watch_mode,
+                                              const std::string& resolve_token) {
+            api::OnTransformResult result;
+            result.plugin_name = plugin;
+            if (!service::HasCallbackTransport()) return result;
+
+            std::vector<service::Value> with;
+            for (const auto& [key, value] : args.with) {
+                with.push_back(service::Value::Array(
+                    {service::Value::String(key), service::Value::String(value)}));
+            }
+
+            const service::Value response = PluginCall(plugin, "transform", service::Value::Object({
+                {"code", service::Value::String(args.code)},
+                {"id", service::Value::String(args.path)},
+                {"namespace", service::Value::String(args.namespace_)},
+                {"suffix", service::Value::String(args.suffix)},
+                {"loader", service::Value::String(LoaderName(args.loader))},
+                {"with", service::Value::Array(std::move(with))},
+                {"meta", PluginMetaValue(args.plugin_data)},
+            }), config_index, watch_mode, resolve_token);
+
+            result.errors = PluginMessages(response, "errors", plugin);
+            result.warnings = PluginMessages(response, "warnings", plugin);
+            if (!result.errors.empty()) return result;
+
+            const service::Value* code = response.Find("code");
+            if (code == nullptr) return result; // declined; the source stands
+            if (code->IsString()) {
+                result.code = code->AsString();
+            } else if (code->IsBytes()) {
+                const std::vector<uint8_t>& bytes = code->AsBytes();
+                result.code = std::string(
+                    reinterpret_cast<const char*>(bytes.data()), bytes.size());
+            } else {
+                return result;
+            }
+
+            if (const service::Value* map = response.Find("map")) {
+                if (map->IsString() && !map->AsString().empty()) {
+                    result.map = map->AsString();
+                } else if (map->IsBytes() && !map->AsBytes().empty()) {
+                    const std::vector<uint8_t>& bytes = map->AsBytes();
+                    result.map = std::string(
+                        reinterpret_cast<const char*>(bytes.data()), bytes.size());
+                }
+            }
+            if (const service::Value* meta = response.Find("meta")) {
+                if (!meta->IsNull()) result.plugin_data = StoredPluginMeta(*meta);
+            }
+            if (const service::Value* files = response.Find("watchFiles")) {
+                if (files->IsArray()) {
+                    for (const service::Value& file : files->AsArray()) {
+                        if (file.IsString()) result.watch_files.push_back(file.AsString());
+                    }
+                }
+            }
+            if (const service::Value* dirs = response.Find("watchDirs")) {
+                if (dirs->IsArray()) {
+                    for (const service::Value& dir : dirs->AsArray()) {
+                        if (dir.IsString()) result.watch_dirs.push_back(dir.AsString());
+                    }
+                }
+            }
+            return result;
+        }
+
         // A bundle hook: buildEnd, generateBundle or writeBundle.
         //
         // The three share a body because they share a shape — the finished files
@@ -752,9 +1000,10 @@ namespace guchho::cli {
         api::OnEndResult RunJsBundle(const std::string& plugin,
                                      int config_index,
                                      const std::string& hook,
-                                     bool may_replace_files,
-                                     api::BuildResult& result,
-                                     bool watch_mode) {
+                                      bool may_replace_files,
+                                      api::BuildResult& result,
+                                      bool watch_mode,
+                                      const std::string& resolve_token) {
             api::OnEndResult outcome;
             if (!service::HasCallbackTransport()) return outcome;
 
@@ -769,7 +1018,7 @@ namespace guchho::cli {
 
             const service::Value response = PluginCall(plugin, hook, service::Value::Object({
                 {"outputFiles", service::Value::Array(std::move(files))},
-            }), config_index, watch_mode);
+            }), config_index, watch_mode, resolve_token);
 
             outcome.errors = PluginMessages(response, "errors", plugin);
             outcome.warnings = PluginMessages(response, "warnings", plugin);
@@ -806,9 +1055,27 @@ namespace guchho::cli {
         // answer is discarded: a host's closeBundle that throws has already had
         // its say in the host's own process, and there is nothing here for the
         // engine to do about it.
-        void RunJsDispose(const std::string& plugin, int config_index, bool watch_mode) {
+        void RunJsDispose(const std::string& plugin, int config_index, bool watch_mode,
+                          const std::string& resolve_token) {
             if (!service::HasCallbackTransport()) return;
-            PluginCall(plugin, "closeBundle", service::Value::Null(), config_index, watch_mode);
+            PluginCall(plugin, "closeBundle", service::Value::Null(), config_index, watch_mode,
+                       resolve_token);
+        }
+
+        // Runs one hook with a resolver registered for its lifetime. The token
+        // travels with the callback to the host and comes back on any nested
+        // "this.resolve" question the hook asks, so the service can reach the
+        // same build's resolver without guessing which build is calling.
+        template <typename Fn>
+        auto WithResolveToken(ResolveFunction resolver, Fn fn) {
+            return [resolver = std::move(resolver), fn = std::move(fn)](auto&&... args) {
+                const std::string token = RegisterResolveFunction(resolver);
+                struct Guard {
+                    std::string token;
+                    ~Guard() { UnregisterResolveFunction(token); }
+                } guard{token};
+                return fn(token, std::forward<decltype(args)>(args)...);
+            };
         }
 
         // A whole plugin, built from the descriptor the host sent.
@@ -836,60 +1103,90 @@ namespace guchho::cli {
                 auto watch_mode = [options]() {
                     return options != nullptr && options->WatchMode;
                 };
+                // The facade itself is copied into every hook. A hook that calls
+                // this.resolve during its round trip reaches the same build's
+                // resolver, including the same plugin chain and the same caches.
+                ResolveFunction resolver = build.resolve;
                 if (implements("buildStart")) {
-                    build.on_start([name, config_index, watch_mode]() {
-                        return RunJsStart(name, config_index, watch_mode());
-                    });
+                    build.on_start(WithResolveToken(
+                        resolver, [name, config_index, watch_mode](const std::string& token) {
+                            return RunJsStart(name, config_index, watch_mode(), token);
+                        }));
                 }
                 if (implements("resolveId")) {
                     build.on_resolve(
                         api::OnResolveOptions{.filter = ".*", .namespace_ = ""},
-                        [name, config_index, watch_mode](const api::OnResolveArgs& args) {
-                            return RunJsResolve(name, config_index, args, watch_mode());
-                        });
+                        WithResolveToken(
+                            resolver,
+                            [name, config_index, watch_mode](const std::string& token,
+                                                             const api::OnResolveArgs& args) {
+                                return RunJsResolve(name, config_index, args, watch_mode(), token);
+                            }));
                 }
                 if (implements("load")) {
                     build.on_load(
                         api::OnLoadOptions{.filter = ".*", .namespace_ = ""},
-                        [name, config_index, watch_mode](const api::OnLoadArgs& args) {
-                            return RunJsLoad(name, config_index, args, watch_mode());
-                        });
+                        WithResolveToken(
+                            resolver,
+                            [name, config_index, watch_mode](const std::string& token,
+                                                             const api::OnLoadArgs& args) {
+                                return RunJsLoad(name, config_index, args, watch_mode(), token);
+                            }));
+                }
+                if (implements("transform")) {
+                    build.on_transform(
+                        api::OnTransformOptions{.filter = ".*", .namespace_ = ""},
+                        WithResolveToken(
+                            resolver,
+                            [name, config_index, watch_mode](const std::string& token,
+                                                             const api::OnTransformArgs& args) {
+                                return RunJsTransform(name, config_index, args, watch_mode(), token);
+                            }));
                 }
                 if (implements("buildEnd") || implements("generateBundle")) {
-                    build.on_generate_bundle([name, implements, config_index, watch_mode](api::BuildResult& result) {
-                        // buildEnd runs first and may refuse; if it does, the
-                        // bundle is not offered to generateBundle at all.
-                        api::OnEndResult outcome;
-                        if (implements("buildEnd")) {
-                            api::OnEndResult ended = RunJsBundle(
-                                name, config_index, "buildEnd", false, result, watch_mode());
-                            outcome.errors.insert(outcome.errors.end(),
-                                                  ended.errors.begin(), ended.errors.end());
-                            outcome.warnings.insert(outcome.warnings.end(),
-                                                    ended.warnings.begin(), ended.warnings.end());
-                            if (!outcome.errors.empty()) return outcome;
-                        }
-                        if (implements("generateBundle")) {
-                            api::OnEndResult generated = RunJsBundle(
-                                name, config_index, "generateBundle", true, result, watch_mode());
-                            outcome.errors.insert(outcome.errors.end(),
-                                                  generated.errors.begin(), generated.errors.end());
-                            outcome.warnings.insert(outcome.warnings.end(),
-                                                    generated.warnings.begin(), generated.warnings.end());
-                        }
-                        return outcome;
-                    });
+                    build.on_generate_bundle(WithResolveToken(
+                        resolver,
+                        [name, implements, config_index, watch_mode](
+                            const std::string& token, api::BuildResult& result) {
+                            // buildEnd runs first and may refuse; if it does, the
+                            // bundle is not offered to generateBundle at all.
+                            api::OnEndResult outcome;
+                            if (implements("buildEnd")) {
+                                api::OnEndResult ended = RunJsBundle(
+                                    name, config_index, "buildEnd", false, result, watch_mode(),
+                                    token);
+                                outcome.errors.insert(outcome.errors.end(),
+                                                      ended.errors.begin(), ended.errors.end());
+                                outcome.warnings.insert(outcome.warnings.end(),
+                                                        ended.warnings.begin(), ended.warnings.end());
+                                if (!outcome.errors.empty()) return outcome;
+                            }
+                            if (implements("generateBundle")) {
+                                api::OnEndResult generated = RunJsBundle(
+                                    name, config_index, "generateBundle", true, result,
+                                    watch_mode(), token);
+                                outcome.errors.insert(outcome.errors.end(),
+                                                      generated.errors.begin(), generated.errors.end());
+                                outcome.warnings.insert(outcome.warnings.end(),
+                                                        generated.warnings.begin(), generated.warnings.end());
+                            }
+                            return outcome;
+                        }));
                 }
                 if (implements("writeBundle")) {
-                    build.on_write_bundle([name, config_index, watch_mode](api::BuildResult& result) {
-                        return RunJsBundle(
-                            name, config_index, "writeBundle", false, result, watch_mode());
-                    });
+                    build.on_write_bundle(WithResolveToken(
+                        resolver,
+                        [name, config_index, watch_mode](const std::string& token,
+                                                         api::BuildResult& result) {
+                            return RunJsBundle(name, config_index, "writeBundle", false, result,
+                                               watch_mode(), token);
+                        }));
                 }
                 if (implements("closeBundle")) {
-                    build.on_dispose([name, config_index, watch_mode]() {
-                        return RunJsDispose(name, config_index, watch_mode());
-                    });
+                    build.on_dispose(WithResolveToken(
+                        resolver, [name, config_index, watch_mode](const std::string& token) {
+                            RunJsDispose(name, config_index, watch_mode(), token);
+                        }));
                 }
             };
             return plugin;
@@ -1899,6 +2196,77 @@ namespace guchho::cli {
 #endif
         }
 
+        // A nested question from a hook: resolve one specifier with the same
+        // resolver the plugin's own build is using, and hand the answer back as
+        // an ordinary reply on the nested request.
+        //
+        // The token is what ties this request to the right build. It was handed
+        // to the host with the callback that is still in flight, so a watch
+        // session with two rebuilds running cannot send its question to the
+        // other one's resolver. The marker in the reply keeps this response from
+        // ever being mistaken for the answer to the callback that is still
+        // waiting outside this call.
+        service::Value HandlePluginResolve(const service::Value& request) {
+            const service::Value* token = request.Find("token");
+            if (token == nullptr || !token->IsString() || token->AsString().empty()) {
+                return ErrorResponse(ProtocolError("a pluginResolve request needs a token"));
+            }
+
+            ResolveFunction resolver;
+            if (!FindResolveFunction(token->AsString(), resolver)) {
+                return ErrorResponse(EngineError(
+                    "plugin-resolve", "the plugin hook that asked this question has already finished"));
+            }
+
+            api::ResolveOptions options;
+            if (const service::Value* plugin = request.Find("plugin")) {
+                if (plugin->IsString()) options.plugin_name = plugin->AsString();
+            }
+            if (const service::Value* importer = request.Find("importer")) {
+                if (importer->IsString()) options.importer = importer->AsString();
+            }
+            if (const service::Value* namespace_ = request.Find("namespace")) {
+                if (namespace_->IsString()) options.namespace_ = namespace_->AsString();
+            }
+            if (const service::Value* resolve_dir = request.Find("resolveDir")) {
+                if (resolve_dir->IsString()) options.resolve_dir = resolve_dir->AsString();
+            }
+            if (const service::Value* kind = request.Find("kind")) {
+                if (kind->IsString()) options.kind = ResolveKindFromName(kind->AsString());
+            }
+            options.custom = true;
+            if (const service::Value* custom = request.Find("custom")) {
+                if (custom->IsBool()) options.custom = custom->AsBool();
+            }
+
+            const service::Value* question = request.Find("options");
+            if (question != nullptr && question->IsObject()) {
+                if (const service::Value* with = question->Find("with")) {
+                    options.with = WithFromValue(with);
+                }
+            }
+
+            const service::Value* source = request.Find("source");
+            if (source == nullptr || !source->IsString() || source->AsString().empty()) {
+                return ErrorResponse(ProtocolError("a pluginResolve request needs a source"));
+            }
+
+            const api::ResolveResult result = resolver(source->AsString(), options);
+
+            std::vector<std::pair<std::string, service::Value>> fields = {
+                {"nestedReply", service::Value::Bool(true)},
+                {"errors", service::Value::Array(MessagesToValues(result.errors))},
+                {"warnings", service::Value::Array(MessagesToValues(result.warnings))},
+                {"id", service::Value::String(result.path)},
+                {"external", service::Value::Bool(result.external)},
+                {"sideEffects", service::Value::Bool(result.side_effects)},
+                {"namespace", service::Value::String(result.namespace_)},
+                {"suffix", service::Value::String(result.suffix)},
+                {"meta", PluginMetaValue(result.plugin_data)},
+            };
+            return service::Value::Object(std::move(fields));
+        }
+
         // The command table itself, with the throws it may contain left to
         // Dispatch above.
         service::Value DispatchCommand(const std::string& name, const service::Value& request);
@@ -1951,6 +2319,7 @@ namespace guchho::cli {
             if (name == "cancel") return HandleCancel(request);
             if (name == "dispose") return HandleDispose(request);
             if (name == "transform") return HandleTransform(request);
+            if (name == "pluginResolve") return HandlePluginResolve(request);
             if (name == "lint") return HandleLint(request);
             if (name == "pack") return HandlePack(request);
             if (name == "unpack") return HandleUnpack(request);
@@ -2243,16 +2612,70 @@ namespace guchho::cli {
         // this one's callbacks use a separate space, and the direction bit is
         // what keeps the two from ever being confused.
         std::vector<service::Packet> deferred;
-        std::mutex callback_mutex;
-        uint32_t next_callback_id = 0;
+        // Reentrant on purpose: a nested "this.resolve" can reach another
+        // plugin hook before the outer hook has answered, and that inner hook is
+        // another callback on the same stream. The mutex still serialises hooks
+        // that fire on different build threads; the recursive case is the one
+        // build thread asking a question of itself.
+        std::recursive_mutex callback_mutex;
+        // The host numbers its requests from zero. Starting callbacks well above
+        // that range means a host id and a callback id cannot collide in the
+        // pending map while a nested request is in flight.
+        uint32_t next_callback_id = 1u << 30;
+
+        // The one place a request is answered, so the main loop, the callback
+        // loop and the nested-request path cannot format a reply differently.
+        auto answer = [&](const service::Packet& packet) {
+            service::Packet reply;
+            reply.is_request = false;
+            reply.id = packet.id;
+            reply.value = Dispatch(packet.value);
+
+            const std::vector<uint8_t> encoded = service::EncodePacket(reply);
+            WriteProtocolFrame(encoded);
+        };
+
+        // A nested request is an ordinary host request marked as one. It has to
+        // be answered here, inside the callback wait, because the hook that sent
+        // it is holding up the very callback this loop is waiting for.
+        auto is_nested_request = [](const service::Packet& packet) {
+            if (!packet.is_request) return false;
+            const service::Value* nested = packet.value.Find("nested");
+            return nested != nullptr && nested->IsBool() && nested->AsBool();
+        };
+
+        auto take_callback_reply = [&](uint32_t id, service::Value& value) {
+            for (auto it = deferred.begin(); it != deferred.end(); ++it) {
+                if (!it->is_request && it->id == id) {
+                    value = std::move(it->value);
+                    deferred.erase(it);
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        auto accept_packets = [&](std::vector<service::Packet>& arrived, uint32_t id,
+                                  service::Value& reply) {
+            for (service::Packet& packet : arrived) {
+                if (is_nested_request(packet)) {
+                    answer(packet);
+                    continue;
+                }
+                if (!packet.is_request && packet.id == id) {
+                    reply = std::move(packet.value);
+                    return true;
+                }
+                deferred.push_back(std::move(packet));
+            }
+            return false;
+        };
 
         service::SetCallbackTransport(
             [&](const service::Value& request) -> service::Value {
-                // One callback at a time. Two hooks that fired on different
-                // worker threads would otherwise interleave their frames and
-                // each read the other's answer; the build's plugin order is a
-                // sequence, so serialising here is also what makes it real.
-                std::lock_guard<std::mutex> lock(callback_mutex);
+                // One callback at a time across build threads; a callback that
+                // asks a nested question re-enters on this same thread.
+                std::lock_guard<std::recursive_mutex> lock(callback_mutex);
 
                 const uint32_t id = next_callback_id++;
 
@@ -2262,6 +2685,9 @@ namespace guchho::cli {
                 ask.value = request;
                 const std::vector<uint8_t> encoded = service::EncodePacket(ask);
                 WriteProtocolFrame(encoded);
+
+                service::Value reply;
+                if (take_callback_reply(id, reply)) return reply;
 
                 while (true) {
                     const long read = ReadSome(chunk.data(), chunk.size());
@@ -2277,31 +2703,9 @@ namespace guchho::cli {
                         throw std::runtime_error(reader.Error());
                     }
 
-                    for (service::Packet& packet : arrived) {
-                        // The answer, and only the answer, ends the wait. It is
-                        // matched by id as well as by direction, so an answer to
-                        // some other callback — which cannot happen while this
-                        // lock is held, but which a future protocol might allow —
-                        // would not be mistaken for this one.
-                        if (!packet.is_request && packet.id == id) {
-                            return std::move(packet.value);
-                        }
-                        deferred.push_back(std::move(packet));
-                    }
+                    if (accept_packets(arrived, id, reply)) return reply;
                 }
             });
-
-        // The one place a request is answered, so the main loop and the drain of
-        // the deferred queue cannot format a reply differently.
-        auto answer = [&](const service::Packet& packet) {
-            service::Packet reply;
-            reply.is_request = false;
-            reply.id = packet.id;
-            reply.value = Dispatch(packet.value);
-
-            const std::vector<uint8_t> encoded = service::EncodePacket(reply);
-            WriteProtocolFrame(encoded);
-        };
 
         while (true) {
             const long read = ReadSome(chunk.data(), chunk.size());

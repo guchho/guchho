@@ -4,7 +4,7 @@ All notable changes to Guchho. Newest first. Full release notes live in
 [docs/release-notes](docs/release-notes/README.md); tags are on
 [GitHub](https://github.com/guchho/guchho/tags).
 
-## [1.0.10] - 2026-11-20
+## [1.1.0] - 2026-11-20
 
 ### Added
 

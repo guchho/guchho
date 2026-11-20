@@ -38,8 +38,30 @@ namespace guchho::bundler {
         compiler::ImportKind kind,
         const std::string& abs_resolve_dir,
         const std::any& plugin_data,
-        logger::PathStyle log_path_style)
+        logger::PathStyle log_path_style,
+        const std::string* skip_plugin,
+        const std::vector<config::VirtualModule>* virtual_modules)
     {
+        if (virtual_modules != nullptr) {
+            for (const config::VirtualModule& module : *virtual_modules) {
+                const bool matches = path == module.Id ||
+                    (!module.Suffix.empty() && path == module.Id + module.Suffix);
+                if (!matches) continue;
+
+                resolver::ResolveResult resolve_result;
+                resolve_result.path_pair.primary = Path{
+                    .text = module.Id,
+                    .namespace_ = module.Namespace.empty() ? "virtual" : module.Namespace,
+                    .ignored_suffix = module.Suffix,
+                };
+                resolve_result.plugin_data = module.PluginData;
+                return OnResolveOutcome{
+                    .resolve_result = std::move(resolve_result),
+                    .did_log_error = false,
+                };
+            }
+        }
+
         config::OnResolveArgs resolver_args;
         resolver_args.PathData = path;
         resolver_args.ResolveDir = abs_resolve_dir;
@@ -52,6 +74,7 @@ namespace guchho::bundler {
         logger::LineColumnTracker tracker(import_source);
 
         for (const auto& plugin : plugins) {
+            if (skip_plugin != nullptr && plugin.Name == *skip_plugin) continue;
             for (const auto& on_resolve : plugin.OnResolveList) {
                 if (!config::PluginAppliesToPath(apply_path, on_resolve.Filter, on_resolve.Namespace)) {
                     continue;
@@ -169,11 +192,37 @@ namespace guchho::bundler {
         const std::any& plugin_data,
         bool is_watch_mode,
         logger::PathStyle log_path_style,
-        bool& ok)
+        bool& ok,
+        const std::vector<config::VirtualModule>* virtual_modules)
     {
+        if (virtual_modules != nullptr) {
+            for (const config::VirtualModule& module : *virtual_modules) {
+                if (source.key_path.text != module.Id) continue;
+                if (source.key_path.namespace_ !=
+                    (module.Namespace.empty() ? "virtual" : module.Namespace)) continue;
+                if (source.key_path.ignored_suffix != module.Suffix) continue;
+
+                source.contents = module.Contents;
+                config::Loader loader = module.ResultLoader;
+                if (loader == config::Loader::kNone) loader = config::Loader::kJS;
+                std::string resolve_dir = module.AbsResolveDir;
+                if (resolve_dir.empty() && source.key_path.namespace_ == "file") {
+                    resolve_dir = fs.Dir(source.key_path.text);
+                }
+                ok = true;
+                return LoaderPluginResult{
+                    .plugin_data = module.PluginData,
+                    .abs_resolve_dir = resolve_dir,
+                    .plugin_name = module.PluginName,
+                    .loader = loader,
+                };
+            }
+        }
+
         config::OnLoadArgs loader_args;
         loader_args.PluginData = plugin_data;
         loader_args.LoadPath = source.key_path;
+        loader_args.With = source.key_path.import_attributes;
         logger::LineColumnTracker tracker(import_source);
 
         for (const auto& plugin : plugins) {
@@ -313,6 +362,83 @@ namespace guchho::bundler {
         LoaderPluginResult result;
         result.loader = config::Loader::kNone;
         return result;
+    }
+
+    // Runs every onTransform callback matching this source, in plugin order.
+    // Each callback receives the source as it stands after the previous one, so
+    // transforms chain rather than overwrite one another. A callback that
+    // returns code claims the source for the callbacks after it; one that
+    // declines leaves it alone. Watch paths returned by any callback are read
+    // into the cache the same way load hooks' paths are, so changes trigger a
+    // rebuild even though no module imports them.
+    TransformPluginResult RunOnTransformPluginsImpl(
+        const std::vector<config::Plugin>& plugins,
+        Fs& fs,
+        cache::FSCache& fs_cache,
+        Log log,
+        Source& source,
+        const Source* import_source,
+        Range import_path_range,
+        const std::any& plugin_data,
+        config::Loader loader,
+        bool is_watch_mode,
+        bool& ok)
+    {
+        TransformPluginResult outcome;
+        outcome.plugin_data = plugin_data;
+
+        std::any current_data = plugin_data;
+        for (const auto& plugin : plugins) {
+            for (const auto& on_transform : plugin.OnTransformList) {
+                if (!config::PluginAppliesToPath(
+                        source.key_path, on_transform.Filter, on_transform.Namespace)) {
+                    continue;
+                }
+
+                config::OnTransformArgs args;
+                args.PluginData = current_data;
+                args.LoadPath = source.key_path;
+                args.With = source.key_path.import_attributes;
+                args.LoaderRef = loader;
+                args.Code = source.contents;
+
+                config::OnTransformResult result = on_transform.Callback(std::move(args));
+                std::string plugin_name = result.PluginName.empty() ? plugin.Name : result.PluginName;
+                bool did_log_error = LogPluginMessages(fs, log, plugin_name, result.Msgs,
+                    result.ThrownError, import_source, import_path_range);
+
+                for (const auto& file : result.AbsWatchFiles) {
+                    fs_cache.ReadFile(fs, file);
+                }
+                for (const auto& dir : result.AbsWatchDirs) {
+                    auto entries_result = fs.ReadDirectory(dir);
+                    if (entries_result.Ok()) {
+                        entries_result.value.SortedKeys();
+                    }
+                }
+
+                if (did_log_error) {
+                    if (is_watch_mode && source.key_path.namespace_ == "file") {
+                        fs_cache.ReadFile(fs, source.key_path.text);
+                    }
+                    ok = false;
+                    return outcome;
+                }
+
+                if (!result.Code.has_value()) continue;
+
+                source.contents = *result.Code;
+                current_data = result.PluginData;
+                outcome.plugin_data = current_data;
+                if (result.SourceMap.has_value()) outcome.source_map = result.SourceMap;
+                if (is_watch_mode && source.key_path.namespace_ == "file") {
+                    fs_cache.ReadFile(fs, source.key_path.text);
+                }
+            }
+        }
+
+        ok = true;
+        return outcome;
     }
 
     ////////////////////////////////////////////////////////////////////////////////

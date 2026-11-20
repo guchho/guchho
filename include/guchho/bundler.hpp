@@ -288,7 +288,9 @@ namespace guchho::bundler {
         compiler::ImportKind kind,
         const std::string& abs_resolve_dir,
         const std::any& plugin_data,
-        logger::PathStyle log_path_style);
+        logger::PathStyle log_path_style,
+        const std::string* skip_plugin = nullptr,
+        const std::vector<config::VirtualModule>* virtual_modules = nullptr);
 
     // Assembles the human-readable parts of an unresolvable-import error:
     // a headline naming the import and the file that requested it, a
@@ -749,6 +751,11 @@ std::string GenerateHTMLOutput(const HTMLOutputContext& context);
         config::Loader loader{config::Loader::kNone};
     };
 
+    struct TransformPluginResult {
+        std::any plugin_data;
+        std::optional<std::string> source_map;
+    };
+
 
     struct Scanner {
         Log log;
@@ -894,6 +901,19 @@ LoaderPluginResult RunOnLoadPluginsImpl(
         const std::any& plugin_data,
         bool is_watch_mode,
         logger::PathStyle log_path_style,
+        bool& ok,
+        const std::vector<config::VirtualModule>* virtual_modules = nullptr);
+    TransformPluginResult RunOnTransformPluginsImpl(
+        const std::vector<config::Plugin>& plugins,
+        Fs& fs,
+        cache::FSCache& fs_cache,
+        Log log,
+        Source& source,
+        const Source* import_source,
+        Range import_path_range,
+        const std::any& plugin_data,
+        config::Loader loader,
+        bool is_watch_mode,
         bool& ok);
 
 

@@ -86,7 +86,7 @@ All notable changes to Guchho. Newest first. Full release notes live in
 - AIX PPC64 is a build and publish target, using a self-hosted runner.
 - Homebrew and WinGet packaging scripts were added.
 
-[1.0.10]: docs/release-notes/v1.0.10.md
+[1.1.0]: docs/release-notes/v1.1.0.md
 
 ## [1.0.9] - 2026-10-26
 

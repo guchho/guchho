@@ -1073,8 +1073,8 @@ namespace guchho::cli {
             const bool typescript = BoolFrom(request, "typescript", typescript_name);
             const bool jsx = BoolFrom(request, "jsx", jsx_name);
 
-            auto acceptable = [](const Attempt& attempt) {
-                return attempt.ok && std::none_of(attempt.msgs.begin(), attempt.msgs.end(),
+            auto acceptable = [](const Attempt& candidate) {
+                return candidate.ok && std::none_of(candidate.msgs.begin(), candidate.msgs.end(),
                     [](const logger::Msg& msg) {
                         return msg.kind == logger::MsgKind::kError;
                     });

@@ -462,7 +462,8 @@ namespace guchho::bundler {
                 args.plugin_data,
                 args.options.WatchMode,
                 args.options.LogPathStyle,
-                ok);
+                ok,
+                args.options.VirtualModules.get());
             if (!ok) {
                 if (args.inject) {
                     config::InjectedFile injected;
@@ -531,11 +532,64 @@ namespace guchho::bundler {
             source.contents.clear();
         }
 
+        // Transform hooks run here, after the loader has supplied text and
+        // before any parser sees it. Each one sees the previous one's output,
+        // and a returned map is kept as the module's input source map.
+        bool transform_ok = true;
+        std::optional<std::string> transform_map;
+        if (loader != config::Loader::kCopy && loader != config::Loader::kBinary) {
+            TransformPluginResult transformed = RunOnTransformPluginsImpl(
+                args.options.Plugins,
+                *args.fs,
+                args.caches->fs_cache,
+                args.log,
+                source,
+                &args.import_source_copy,
+                args.import_path_range,
+                plugin_data,
+                loader,
+                args.options.WatchMode,
+                transform_ok);
+            if (!transform_ok) {
+                if (args.inject) {
+                    config::InjectedFile injected;
+                    injected.SourceData = source;
+                    args.inject->Send(std::move(injected));
+                }
+                args.results->Send(ParseResult{});
+                return;
+            }
+            plugin_data = std::move(transformed.plugin_data);
+            transform_map = std::move(transformed.source_map);
+        }
+
         ParseResult result;
         result.file.input_file.source = source;
         result.file.input_file.loader = loader;
         result.file.input_file.side_effects = args.side_effects;
         result.file.plugin_data = plugin_data;
+
+        if (transform_map.has_value() && !transform_map->empty() &&
+            args.options.SourceMapData != config::SourceMap::kNone)
+        {
+            Log defer_log = logger::NewDeferLog(
+                logger::DeferLogKind::kDeferLogNoVerboseOrDebug, args.log.overrides);
+            Source map_source;
+            map_source.key_path = logger::Path{
+                .text = source.key_path.text,
+                .namespace_ = source.key_path.namespace_,
+            };
+            map_source.pretty_paths = source.pretty_paths;
+            map_source.contents = *transform_map;
+            std::unique_ptr<sourcemap::SourceMapData> parsed =
+                javascript::ParseSourceMap(defer_log, map_source);
+            for (auto& msg : defer_log.done()) {
+                args.log.add_msg(msg);
+            }
+            if (parsed != nullptr) {
+                result.file.input_file.input_source_map = std::move(parsed);
+            }
+        }
 
         try {
             switch (loader) {
@@ -958,7 +1012,9 @@ logger::Msg glob_warning;
                                     record.kind,
                                     abs_resolve_dir,
                                     plugin_data,
-                                    args.options.LogPathStyle);
+                                    args.options.LogPathStyle,
+                                    nullptr,
+                                    args.options.VirtualModules.get());
                                 if (outcome.resolve_result.has_value()) {
                                     outcome.resolve_result->path_pair.primary.import_attributes = attrs;
                                     if (outcome.resolve_result->path_pair.HasSecondary()) {
@@ -1068,7 +1124,8 @@ if (record.phase != compiler::ImportPhase::kEvaluation) {
                     }
                 }
 
-                if (config::CanHaveSourceMap(loader) &&
+                if (result.file.input_file.input_source_map == nullptr &&
+                    config::CanHaveSourceMap(loader) &&
                     args.options.SourceMapData != config::SourceMap::kNone)
                 {
                     javascript::Span source_map_comment_storage;

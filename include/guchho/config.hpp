@@ -806,6 +806,19 @@ namespace guchho::config {
     };
 
 
+    struct VirtualModule {
+        std::string PluginName{};
+        std::string Id{};
+        std::string Namespace{};
+        std::string Suffix{};
+        std::string Contents{};
+        std::string AbsResolveDir{};
+        Loader ResultLoader{Loader::kNone};
+        std::any PluginData{};
+        std::vector<std::string> AbsWatchFiles{};
+        std::vector<std::string> AbsWatchDirs{};
+    };
+
     // OnStartResult
     // -------------
     // The result of a plugin's `onStart` hook.  Contains any error
@@ -816,6 +829,7 @@ namespace guchho::config {
         std::string ThrownError{};
         std::vector<logger::Msg> Msgs{};
         std::vector<EntryPoint> Entries{};
+        std::vector<VirtualModule> VirtualModules{};
         std::vector<std::string> AbsWatchFiles{};
         std::vector<std::string> AbsWatchDirs{};
     };
@@ -859,6 +873,7 @@ namespace guchho::config {
     struct OnLoadArgs {
         std::any PluginData{};
         logger::Path LoadPath{};
+        logger::ImportAttributes With{};
     };
 
     // OnLoadResult
@@ -883,9 +898,37 @@ namespace guchho::config {
     // Each hook kind has a corresponding `std::function` type that
     // plugins implement.  The callback signatures match the Args/Result
     // structs above.
+    // OnTransformArgs
+    // ---------------
+    // Input passed to a plugin's `onTransform` hook. Code is the source as it
+    // stands after loading and any earlier transforms.
+    struct OnTransformArgs {
+        std::any PluginData{};
+        logger::Path LoadPath{};
+        logger::ImportAttributes With{};
+        Loader LoaderRef{Loader::kNone};
+        std::string Code{};
+    };
+
+    // OnTransformResult
+    // -----------------
+    // Output a plugin returns from an `onTransform` hook. Code replaces the
+    // source and SourceMap carries a JSON source map for it.
+    struct OnTransformResult {
+        std::string PluginName{};
+        std::optional<std::string> Code{};
+        std::optional<std::string> SourceMap{};
+        std::any PluginData{};
+        std::vector<logger::Msg> Msgs{};
+        std::string ThrownError{};
+        std::vector<std::string> AbsWatchFiles{};
+        std::vector<std::string> AbsWatchDirs{};
+    };
+
     using OnStartCallback = std::function<OnStartResult()>;
     using OnResolveCallback = std::function<OnResolveResult(OnResolveArgs)>;
     using OnLoadCallback = std::function<OnLoadResult(OnLoadArgs)>;
+    using OnTransformCallback = std::function<OnTransformResult(OnTransformArgs)>;
 
     // OnStart
     // -------
@@ -916,6 +959,17 @@ namespace guchho::config {
     struct OnLoad {
         std::regex Filter{};
         OnLoadCallback Callback{};
+        std::string Name{};
+        std::string Namespace{};
+    };
+
+    // OnTransform
+    // -----------
+    // A registered `onTransform` hook with its filter regex, namespace and
+    // plugin name.
+    struct OnTransform {
+        std::regex Filter{};
+        OnTransformCallback Callback{};
         std::string Name{};
         std::string Namespace{};
     };
@@ -977,6 +1031,7 @@ namespace guchho::config {
         std::vector<OnStart> OnStartList{};
         std::vector<OnResolve> OnResolveList{};
         std::vector<OnLoad> OnLoadList{};
+        std::vector<OnTransform> OnTransformList{};
         TransformIndexHtmlHook TransformIndexHtml{};
     };
 
@@ -1199,6 +1254,7 @@ namespace guchho::config {
         std::vector<PathTemplate> AssetPathTemplate{};
 
         std::vector<Plugin> Plugins{};
+        std::shared_ptr<std::vector<VirtualModule>> VirtualModules{};
         std::string SourceRoot{};
         StdinInfo* Stdin{};
         JSXOptions JSX{};

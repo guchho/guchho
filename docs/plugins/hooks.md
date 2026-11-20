@@ -15,11 +15,16 @@ the order they run in is the lifecycle on the [overview page](README.md).
 ## buildStart
 
 ```ts
-buildStart?(this: PluginContext, options: BuildOptions): void | Promise<void>
+buildStart?(
+  this: PluginContext,
+  options: BuildOptions
+): void | BuildStartResult | Promise<void | BuildStartResult>
 ```
 
 Called once per build, before any file is read. The place to open a session,
-read a manifest, or look at what build is about to run.
+read a manifest, or look at what build is about to run. It may return
+`{ entries, virtualModules, watchFiles, watchDirs }` to add inputs and
+dependencies; see [virtual modules](README.md#virtual-modules).
 
 ## resolveId
 
@@ -58,12 +63,18 @@ the hook that [tree shaking](../guide/tree-shaking.md) points at.
 ## load
 
 ```ts
-load?(this: PluginContext, id: string): LoadResult | string | null | undefined | Promise<…>
+load?(
+  this: PluginContext,
+  id: string,
+  info: LoadHookInfo
+): LoadResult | string | null | undefined | Promise<…>
 ```
 
 Asked for a module's contents, before the loader would read them. Return a
 `LoadResult` (or the source as a string) to claim the module, or `null` to let
-the next plugin and then the loader have it.
+the next plugin and then the loader have it. `info` carries the module's
+`namespace`, `suffix` and import `with` values, plus the `meta` left by the
+matching `resolveId`.
 
 `LoadResult` carries `code`, the `loader` to interpret it with, a `resolveDir`
 for the module's own relative imports, a `meta` value ferried from the matching
@@ -80,17 +91,25 @@ system.
 transform?(
   this: PluginContext,
   code: string,
-  id: string
+  id: string,
+  info: TransformHookInfo
 ): SourceDescription | string | null | undefined | Promise<…>
 ```
 
 Transforms a module's source after it has been loaded and before it is parsed.
-Return the transformed source, optionally with a sourcemap for it. It is the
-place to strip a loader, rewrite imports textually, or preprocess a module that
-is not a plain JavaScript/TypeScript input.
+Return the transformed source (a string or `Uint8Array`) as a bare value or as a
+`SourceDescription`, or `null` to decline. Every matching transform sees the
+code the previous one produced, in plugin order, so a replacement is never
+appended to the text the loader supplied. It is the place to strip a loader,
+rewrite imports textually, or preprocess a module that is not a plain
+JavaScript/TypeScript input. `copy` and `binary` modules are not transformed.
 
-**Declared but not yet run by the engine's pipeline in this version.** The hook
-is accepted and typed, but the build will not call it.
+`info` carries the module's `namespace`, `suffix`, `loader` and import `with`
+values, plus the `meta` left by `resolveId` or an earlier transform. A
+`SourceDescription` may also carry a JSON `map`, `meta` for later hooks, and
+`watchFiles`/`watchDirs`. With source maps enabled, a returned map becomes the
+module's input map and is used in preference to a `sourceMappingURL` comment.
+A thrown error fails the build with the hook's own message.
 
 ## buildEnd
 

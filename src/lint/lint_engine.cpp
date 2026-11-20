@@ -1120,8 +1120,7 @@ Analysis AnalyzeSource(const std::string& path, const std::string& source,
         logger::DeferLogKind::kDeferLogNoVerboseOrDebug, {});
 
     const std::string extension = Extension(path);
-    config::Options build_options{};
-    build_options.Amd.define = "define";
+    config::Options build_options;
     build_options.BuildMode = config::Mode::kBundle;
     build_options.OutputPlatform = config.platform;
     if (extension == ".cjs" || extension == ".cts") {

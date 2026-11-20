@@ -16,7 +16,7 @@ struct LintConfig {
 };
 
 std::vector<Msg> Lint(const std::string &source, const LintConfig &lint) {
-    config::Options options{};
+    config::Options options;
     options.Lint.UndefinedVariables = lint.undefined;
     options.Lint.UnusedVariables = lint.unused;
     options.Lint.UnusedParameters = lint.parameters;

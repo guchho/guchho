@@ -23,6 +23,7 @@
 
 #include "test/guchho_test.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -548,7 +549,7 @@ TEST(CliServiceCompile, JsLexesNestedTemplatesAndObjectBraces) {
 
     EXPECT_TRUE(ErrorOf(response).empty()) << ErrorOf(response);
     EXPECT_EQ(NumberOf(response, "count"), CountOf(response, "tokens"));
-    EXPECT_EQ(ValueOfToken(response, NumberOf(response, "count") - 2), "}e`");
+    EXPECT_EQ(ValueOfToken(response, static_cast<std::size_t>(NumberOf(response, "count") - 2)), "}e`");
 }
 
 // An unrecoverable lexer error is a diagnostic, not a refusal and not a throw.

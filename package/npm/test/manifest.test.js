@@ -18,6 +18,21 @@ const { GUCHHO_DIR, platformDirs, readManifest } = require("./helpers/paths");
 
 const manifest = readManifest(GUCHHO_DIR);
 
+const SUPPORTED_PLATFORMS = [
+    "android-arm64",
+    "darwin-arm64",
+    "darwin-x64",
+    "freebsd-x64",
+    "linux-arm64",
+    "linux-ppc64",
+    "linux-riscv64",
+    "linux-s390x",
+    "linux-x64",
+    "win32-arm64",
+    "win32-ia32",
+    "win32-x64",
+];
+
 describe("guchho/package.json", () => {
     it("is a manifest at all", () => {
         assert.ok(manifest, "package/npm/guchho/package.json could not be read");
@@ -144,19 +159,24 @@ describe("guchho/package.json", () => {
         assert.ok(!fs.existsSync(binding), "a binding.gyp would make npm try to build this package");
     });
 
-    it("lists one optional dependency per platform package, at one version", () => {
+    it("lists one optional dependency per supported platform package, at one version", () => {
         // The version is pinned per platform rather than left to a range
         // because a range would let npm pair a 1.0.1 wrapper with a 1.1.0
         // binary, and the two have no way to check each other.
         //
         // @guchho/wasm sits beside these directories but is not one of them:
-        // it is opt-in rather than an optional dependency of the meta package,
-        // so platformDirs() — which leaves it out — is the list to compare.
-        const onDisk = platformDirs().map((name) => `@guchho/${name}`).sort();
+        // it is opt-in rather than an optional dependency of the meta package.
+        // Only the platforms Guchho publishes binaries for are listed; the
+        // other directories are present in the source tree but not published.
+        const onDisk = platformDirs();
+        const supported = SUPPORTED_PLATFORMS.map((name) => `@guchho/${name}`).sort();
 
         const declared = Object.keys(manifest.optionalDependencies).sort();
-        assert.deepEqual(declared, onDisk, "optionalDependencies and the platform packages disagree");
+        assert.deepEqual(declared, supported, "optionalDependencies and the supported platform packages disagree");
 
+        for (const name of SUPPORTED_PLATFORMS) {
+            assert.ok(onDisk.includes(name), `${name} is not a platform package`);
+        }
         for (const [name, version] of Object.entries(manifest.optionalDependencies)) {
             assert.equal(version, manifest.version, `${name} is pinned to ${version}, not ${manifest.version}`);
         }

@@ -313,8 +313,8 @@ verify_versions() {
         platforms=$((platforms + 1))
     done
 
-    pins_total=$(grep -cP '^\s*"@guchho/[^"]+":\s*"' "$ROOT_DIR/package/npm/guchho/package.json" || true)
-    pins_stale=$(grep -oP '^\s*"@guchho/[^"]+":\s*"\K[^"]+' "$ROOT_DIR/package/npm/guchho/package.json" | grep -cvFx "$VERSION" || true)
+    pins_total=$(grep -cP '^\s*"@guchho/(?!test")[^\"]+":\s*"' "$ROOT_DIR/package/npm/guchho/package.json" || true)
+    pins_stale=$(grep -oP '^\s*"@guchho/(?!test")[^\"]+":\s*"\K[^"]+' "$ROOT_DIR/package/npm/guchho/package.json" | grep -cvFx "$VERSION" || true)
     check_eq "@guchho/* pins in guchho/package.json" \
         "0 stale of ${pins_total}" "${pins_stale} stale of ${pins_total}"
 
@@ -395,7 +395,7 @@ if [[ -f "$MAIN_PKG" ]]; then
     sed -i '0,/"version": "'"${OLD_MAIN_VERSION}"'"/s//"version": "'"${VERSION}"'"/' "$MAIN_PKG"
 
     # Update all @guchho/* optional dependency versions
-    sed -i -E "/\"@guchho\// s/: \"[^\"]*\"/: \"${VERSION}\"/" "$MAIN_PKG"
+    sed -i -E '/"@guchho\// { /"@guchho\/test"/! s/: "[^"]*"/: "'"${VERSION}"'"/; }' "$MAIN_PKG"
 
     info "  guchho/package.json: ${OLD_MAIN_VERSION} -> ${VERSION}"
 else

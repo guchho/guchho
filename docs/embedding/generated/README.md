@@ -54,6 +54,7 @@ Configuration is input only. These structs have defaults for every member, so a 
 - [`AnalyzeMetafileOptions`](options.md#analyzemetafileoptions)
 - [`OnResolveOptions`](options.md#onresolveoptions)
 - [`OnLoadOptions`](options.md#onloadoptions)
+- [`OnTransformOptions`](options.md#ontransformoptions)
 - [`ResolveOptions`](options.md#resolveoptions)
 - [`MangleCacheResult`](options.md#manglecacheresult)
 - [`ErrorWithNote`](options.md#errorwithnote)
@@ -93,12 +94,15 @@ A plugin is a struct with a name and a setup function. Setup runs once, when the
 - [`Plugin`](plugins.md#plugin)
 - [`PluginBuild`](plugins.md#pluginbuild)
 - [`ResolveResult`](plugins.md#resolveresult)
+- [`VirtualModule`](plugins.md#virtualmodule)
 - [`OnStartResult`](plugins.md#onstartresult)
 - [`OnEndResult`](plugins.md#onendresult)
 - [`OnResolveArgs`](plugins.md#onresolveargs)
 - [`OnResolveResult`](plugins.md#onresolveresult)
 - [`OnLoadArgs`](plugins.md#onloadargs)
 - [`OnLoadResult`](plugins.md#onloadresult)
+- [`OnTransformArgs`](plugins.md#ontransformargs)
+- [`OnTransformResult`](plugins.md#ontransformresult)
 
 ## Engine functions
 

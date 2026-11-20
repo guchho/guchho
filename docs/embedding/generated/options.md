@@ -19,6 +19,7 @@ In this page:
 - [`AnalyzeMetafileOptions`](#analyzemetafileoptions)
 - [`OnResolveOptions`](#onresolveoptions)
 - [`OnLoadOptions`](#onloadoptions)
+- [`OnTransformOptions`](#ontransformoptions)
 - [`ResolveOptions`](#resolveoptions)
 - [`MangleCacheResult`](#manglecacheresult)
 - [`ErrorWithNote`](#errorwithnote)
@@ -235,6 +236,7 @@ struct BuildOptions {
     std::optional<StdinOptions>    stdin_data;
     bool         write{};
     bool         allow_overwrite{};
+    bool         WatchMode{}; // set by the engine while a context is watching
     std::vector<Plugin> plugins;
 
     // Plugins grouped by the config-file element that named them, one group per
@@ -468,6 +470,17 @@ struct OnLoadOptions {
 };
 ```
 
+## OnTransformOptions
+
+Which paths a transform callback should see, and in which namespace.
+
+```cpp
+struct OnTransformOptions {
+    std::string filter;    // a path pattern, or "" for every path
+    std::string namespace_;
+};
+```
+
 ## ResolveOptions
 
 The request handed to PluginBuild::resolve when a plugin resolves a path
@@ -483,6 +496,10 @@ struct ResolveOptions {
     std::string namespace_;  // virtual filesystem the request came from
     std::string resolve_dir; // directory relative paths resolve against
     ResolveKind kind{ResolveKind::kNone};
+    // A custom question came from a plugin's "resolve" helper rather than from
+    // the engine walking an import. The named plugin is skipped, so a plugin
+    // that rewrites imports cannot answer its own question and loop forever.
+    bool custom{};
     std::any plugin_data;                        // payload from the previous step
     std::unordered_map<std::string, std::string> with; // values passed via "with"
 };

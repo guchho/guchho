@@ -66,7 +66,9 @@ The hooks, the context every hook is called with, and the values they trade. [Fu
 - [`PluginOrder`](plugin-types.md#pluginorder)
 - [`ResolveIdOptions`](plugin-types.md#resolveidoptions)
 - [`ResolvedId`](plugin-types.md#resolvedid)
+- [`LoadHookInfo`](plugin-types.md#loadhookinfo)
 - [`LoadResult`](plugin-types.md#loadresult)
+- [`TransformHookInfo`](plugin-types.md#transformhookinfo)
 - [`SourceDescription`](plugin-types.md#sourcedescription)
 - [`OutputChunk`](plugin-types.md#outputchunk)
 - [`OutputAsset`](plugin-types.md#outputasset)
@@ -74,6 +76,8 @@ The hooks, the context every hook is called with, and the values they trade. [Fu
 - [`NormalizedOutputOptions`](plugin-types.md#normalizedoutputoptions)
 - [`EmittedFile`](plugin-types.md#emittedfile)
 - [`GuchhoLog`](plugin-types.md#guchholog)
+- [`VirtualModule`](plugin-types.md#virtualmodule)
+- [`BuildStartResult`](plugin-types.md#buildstartresult)
 - [`PluginContext`](plugin-types.md#plugincontext)
 - [`Plugin`](plugin-types.md#plugin)
 

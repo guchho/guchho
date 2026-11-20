@@ -1104,6 +1104,13 @@ namespace guchho::config {
         std::string id{};
         std::string define{"define"};
         bool force_js_extension_for_imports{};
+
+        AmdOptions()
+            : auto_id(false),
+              base_path(),
+              id(),
+              define("define"),
+              force_js_extension_for_imports(false) {}
     };
 
     // Options

@@ -578,8 +578,6 @@ add_executable(guchho
 
 target_link_libraries(guchho
     PRIVATE
-        guchho_common
-        guchho_bundler
         guchho_cli
 )
 

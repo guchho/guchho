@@ -14,12 +14,15 @@ In this page:
 - [`Plugin`](#plugin)
 - [`PluginBuild`](#pluginbuild)
 - [`ResolveResult`](#resolveresult)
+- [`VirtualModule`](#virtualmodule)
 - [`OnStartResult`](#onstartresult)
 - [`OnEndResult`](#onendresult)
 - [`OnResolveArgs`](#onresolveargs)
 - [`OnResolveResult`](#onresolveresult)
 - [`OnLoadArgs`](#onloadargs)
 - [`OnLoadResult`](#onloadresult)
+- [`OnTransformArgs`](#ontransformargs)
+- [`OnTransformResult`](#ontransformresult)
 
 ## Plugin
 
@@ -170,6 +173,13 @@ struct PluginBuild {
     //         against the file's own directory.
     std::function<void(const OnLoadOptions& options, std::function<OnLoadResult(const OnLoadArgs&)> callback)> on_load;
 
+    // Registers a transform callback for resolved paths matching "filter".
+    // Transform callbacks run after loading and before parsing, in plugin
+    // order, and each one sees the code the previous one produced. Returning
+    // code replaces the source; declining leaves it alone. A map returned here
+    // becomes the module's input source map.
+    std::function<void(const OnTransformOptions& options, std::function<OnTransformResult(const OnTransformArgs&)> callback)> on_transform;
+
     // Registers a callback for when the build is torn down - the plugin's
     // chance to close files, flush caches or join helper threads. It runs
     // during Dispose(), which is the last thing that happens to a context, so
@@ -203,16 +213,41 @@ struct ResolveResult {
 };
 ```
 
+## VirtualModule
+
+A module whose contents come from a plugin rather than the file system. A start callback may add one to `OnStartResult::virtual_modules`; it then resolves like an import in its namespace, with `contents` as its source. `suffix` is part of the module's identity without being part of its name and must start with `?` or `#`. An empty `id`, a bad suffix, or two modules with the same namespace, id and suffix fail the build.
+
+```cpp
+struct VirtualModule {
+    std::string id;
+    std::optional<std::string> contents;
+    std::string namespace_{"virtual"};
+    std::string suffix;
+    Loader loader{Loader::kNone};
+    std::string resolve_dir;
+    std::any plugin_data;
+    std::vector<std::string> watch_files;
+    std::vector<std::string> watch_dirs;
+};
+```
+
 ## OnStartResult
 
 What a plugin may report from its on_start callback. Adding an error here
 aborts the build before any file is read, which makes it the place to reject
-a whole configuration early and cheaply.
+a whole configuration early and cheaply. A start callback is also the place to
+add entries, virtual modules and watch paths: both are read before the graph is
+scanned, so a plugin can hand the build an entry it generated in memory.
+Entries are merged with the configured ones rather than replacing them.
 
 ```cpp
 struct OnStartResult {
     std::vector<Message> errors;
     std::vector<Message> warnings;
+    std::vector<EntryPoint> entries;
+    std::vector<VirtualModule> virtual_modules;
+    std::vector<std::string> watch_files;
+    std::vector<std::string> watch_dirs;
 };
 ```
 
@@ -317,6 +352,48 @@ struct OnLoadResult {
     std::optional<std::string> contents;
     std::string resolve_dir;
     Loader loader{Loader::kNone};
+    std::any plugin_data;
+
+    std::vector<std::string> watch_files;
+    std::vector<std::string> watch_dirs;
+};
+```
+
+## OnTransformArgs
+
+The arguments of a single transform callback invocation. "code" is the source
+as it stands after the load step and any earlier transforms, so a callback
+replaces it rather than appending to it. "with" holds the import's attributes,
+and "plugin_data" is the value left by resolve or an earlier transform.
+
+```cpp
+struct OnTransformArgs {
+    std::string path;
+    std::string namespace_;
+    std::string suffix;
+    Loader loader{Loader::kNone};
+    std::any plugin_data;
+    std::unordered_map<std::string, std::string> with;
+    std::string code;
+};
+```
+
+## OnTransformResult
+
+What a transform callback returns. Setting "code" replaces the source for the
+next transform and for the parser; leaving it unset declines. "map" is a source
+map as JSON text, used in preference to a `sourceMappingURL` comment when
+present. Watch paths returned here join the build's dependency set.
+
+```cpp
+struct OnTransformResult {
+    std::string plugin_name; // set automatically to the owning plugin
+
+    std::vector<Message> errors;
+    std::vector<Message> warnings;
+
+    std::optional<std::string> code;
+    std::optional<std::string> map;
     std::any plugin_data;
 
     std::vector<std::string> watch_files;

@@ -137,6 +137,64 @@ TEST(CliPlugins, AStartCallbackIsCalledOnceForABuild) {
     EXPECT_TRUE(ws.Exists("dist/entry.js"));
 }
 
+TEST(CliPlugins, AStartCallbackCanContributeAVirtualModule) {
+    CliWorkspace ws("virtual-module");
+    ws.Write("entry.js", "import { value } from \"virtual:answer\";\nconsole.log(value);\n");
+
+    Plugin generator;
+    generator.name = "generator";
+    generator.setup = [](guchho::api::PluginBuild& build) {
+        build.on_start([]() {
+            guchho::api::OnStartResult result;
+            guchho::api::VirtualModule module;
+            module.id = "virtual:answer";
+            module.namespace_ = "virtual";
+            module.loader = guchho::api::Loader::kJS;
+            module.contents = "export const value = \"from a virtual module\";\n";
+            result.virtual_modules.push_back(std::move(module));
+            return result;
+        });
+    };
+
+    const guchho::test::CliResult result =
+        RunCliWithPlugins({"build", "entry.js", "--bundle", "--outdir=dist"}, {generator});
+
+    EXPECT_EQ(result.exit_code, kSuccess) << result.err;
+    EXPECT_TRUE(OutputContains(ws.Read("dist/entry.js"), "from a virtual module"))
+        << ws.Read("dist/entry.js");
+}
+
+TEST(CliPlugins, DuplicateVirtualModulesFailTheBuild) {
+    CliWorkspace ws("duplicate-virtual-module");
+    ws.Write("entry.js", "console.log(1);\n");
+
+    auto make_plugin = [](const std::string& name) {
+        Plugin plugin;
+        plugin.name = name;
+        plugin.setup = [](guchho::api::PluginBuild& build) {
+            build.on_start([]() {
+                guchho::api::OnStartResult result;
+                guchho::api::VirtualModule module;
+                module.id = "virtual:duplicate";
+                module.namespace_ = "virtual";
+                module.contents = "export default 1;\n";
+                result.virtual_modules.push_back(std::move(module));
+                return result;
+            });
+        };
+        return plugin;
+    };
+
+    const guchho::test::CliResult result = RunCliWithPlugins(
+        {"build", "entry.js", "--outdir=dist"},
+        {make_plugin("first"), make_plugin("second")});
+
+    EXPECT_EQ(result.exit_code, kBuildFailure);
+    EXPECT_TRUE(OutputContains(result.err, "Duplicate virtual module")) << result.err;
+    EXPECT_TRUE(OutputContains(result.err, "\"first\"")) << result.err;
+    EXPECT_TRUE(OutputContains(result.err, "\"second\"")) << result.err;
+}
+
 // A plugin's messages are not kept to itself. This is how a plugin reports
 // something about a finished bundle that the engine had no reason to notice —
 // and it is the reason a host can use one at all, since a plugin that could not
@@ -284,6 +342,156 @@ TEST(CliPlugins, ASingleConfigurationUsesItsOneGroup) {
     EXPECT_EQ(result.exit_code, kSuccess);
     EXPECT_TRUE(ws.Exists("dist/entry.js")) << ws.Tree();
     EXPECT_EQ(setups.load(), 1);
+}
+
+// A transform callback sees the source after loading and before parsing. The
+// returned code is what the parser and printer see, so a change here has to show
+// up in the emitted file even though no loader or linker rule was touched.
+TEST(CliPlugins, ATransformCallbackCanReplaceTheSource) {
+    CliWorkspace ws("transform-replace");
+    ws.Write("entry.js", "console.log(42);\n");
+
+    Plugin transforming;
+    transforming.name = "transforming";
+    transforming.setup = [](guchho::api::PluginBuild& build) {
+        build.on_transform(
+            guchho::api::OnTransformOptions{.filter = ".*", .namespace_ = ""},
+            [](const guchho::api::OnTransformArgs& args) {
+                guchho::api::OnTransformResult result;
+                if (args.path.find("entry.js") != std::string::npos) {
+                    result.code = "console.log(43);\n";
+                }
+                return result;
+            });
+    };
+
+    const guchho::test::CliResult result =
+        RunCliWithPlugins({"build", "entry.js", "--outdir=dist"}, {transforming});
+
+    EXPECT_EQ(result.exit_code, kSuccess);
+    EXPECT_TRUE(OutputContains(ws.Read("dist/entry.js"), "43"));
+    EXPECT_FALSE(OutputContains(ws.Read("dist/entry.js"), "42"));
+}
+
+// Each callback sees the previous callback's output. Two simple substitutions
+// prove the chain: the second one can only find its input if the first one ran
+// and its result was handed forward.
+TEST(CliPlugins, TransformCallbacksRunInPluginOrder) {
+    CliWorkspace ws("transform-chain");
+    ws.Write("entry.js", "console.log(42);\n");
+
+    auto replacing = [](const char* name, const char* from, const char* to) {
+        Plugin plugin;
+        plugin.name = name;
+        plugin.setup = [from, to](guchho::api::PluginBuild& build) {
+            build.on_transform(
+                guchho::api::OnTransformOptions{.filter = ".*", .namespace_ = ""},
+                [from, to](const guchho::api::OnTransformArgs& args) {
+                    guchho::api::OnTransformResult result;
+                    std::string code = args.code;
+                    const std::size_t at = code.find(from);
+                    if (at != std::string::npos) {
+                        code.replace(at, std::string(from).size(), to);
+                        result.code = std::move(code);
+                    }
+                    return result;
+                });
+        };
+        return plugin;
+    };
+
+    const guchho::test::CliResult result = RunCliWithPlugins(
+        {"build", "entry.js", "--outdir=dist"},
+        {replacing("first", "42", "43"), replacing("second", "43", "44")});
+
+    EXPECT_EQ(result.exit_code, kSuccess);
+    EXPECT_TRUE(OutputContains(ws.Read("dist/entry.js"), "44"));
+    EXPECT_TRUE(ws.Exists("dist/entry.js"));
+}
+
+// An error from a transform is a build failure, and no output is written. This
+// is the same contract as an error from a start or load callback.
+TEST(CliPlugins, AnErrorFromATransformCallbackStopsTheBuild) {
+    CliWorkspace ws("transform-error");
+    ws.Write("entry.js", "console.log(42);\n");
+
+    Plugin refusing;
+    refusing.name = "refusing-transform";
+    refusing.setup = [](guchho::api::PluginBuild& build) {
+        build.on_transform(
+            guchho::api::OnTransformOptions{.filter = ".*", .namespace_ = ""},
+            [](const guchho::api::OnTransformArgs&) {
+                guchho::api::OnTransformResult result;
+                Message message;
+                message.id          = "test-transform-refused";
+                message.plugin_name = "refusing-transform";
+                message.text        = "this source was refused by a transform";
+                result.errors.push_back(std::move(message));
+                return result;
+            });
+    };
+
+    const guchho::test::CliResult result =
+        RunCliWithPlugins({"build", "entry.js", "--outdir=dist"}, {refusing});
+
+    EXPECT_EQ(result.exit_code, kBuildFailure);
+    EXPECT_TRUE(OutputContains(result.err, "refused by a transform"));
+    EXPECT_FALSE(ws.Exists("dist/entry.js"));
+}
+
+// A custom resolve question is allowed to leave the calling plugin out, which
+// is what stops a plugin that rewrites imports from answering its own question.
+// Two plugins claim the same specifier; the first one asks with its own name on
+// the question, so only the second answer is possible.
+TEST(CliPlugins, ACustomResolveSkipsTheCallingPlugin) {
+    CliWorkspace ws("resolve-custom");
+    ws.Write("entry.js", "console.log(1);\n");
+    std::atomic<int> skipped{0};
+
+    auto claim = [](const char* plugin_name, const char* answer) {
+        Plugin plugin;
+        plugin.name = plugin_name;
+        plugin.setup = [plugin_name, answer](guchho::api::PluginBuild& build) {
+            build.on_resolve(
+                guchho::api::OnResolveOptions{.filter = ".*", .namespace_ = ""},
+                [plugin_name, answer](const guchho::api::OnResolveArgs& args) {
+                    guchho::api::OnResolveResult result;
+                    if (args.path == "virtual:shared") {
+                        result.plugin_name = plugin_name;
+                        result.path = answer;
+                        result.namespace_ = "virtual";
+                    }
+                    return result;
+                });
+        };
+        return plugin;
+    };
+
+    Plugin asking = claim("asking", "virtual:asking");
+    asking.setup = [&skipped, previous = std::move(asking.setup)](
+                       guchho::api::PluginBuild& build) mutable {
+        previous(build);
+        auto resolver = build.resolve;
+        build.on_start([resolver, &skipped]() {
+            guchho::api::ResolveOptions question;
+            question.plugin_name = "asking";
+            question.kind = guchho::api::ResolveKind::kJSImportStatement;
+            question.custom = true;
+
+            const guchho::api::ResolveResult answer = resolver("virtual:shared", question);
+            if (answer.errors.empty() && answer.path == "virtual:helper") {
+                skipped.fetch_add(1);
+            }
+            return guchho::api::OnStartResult{};
+        });
+    };
+
+    const guchho::test::CliResult result = RunCliWithPlugins(
+        {"build", "entry.js", "--outdir=dist"},
+        {asking, claim("helper", "virtual:helper")});
+
+    EXPECT_EQ(result.exit_code, kSuccess);
+    EXPECT_EQ(skipped.load(), 1);
 }
 
 } // namespace cli::test

@@ -4,9 +4,36 @@ All notable changes to Guchho. Newest first. Full release notes live in
 [docs/release-notes](docs/release-notes/README.md); tags are on
 [GitHub](https://github.com/guchho/guchho/tags).
 
-## [1.0.10] - 2026-11-15
+## [1.0.10] - 2026-11-20
 
 ### Added
+
+- JavaScript plugins can rewrite module source with `transform(code, id, info)`.
+  It runs after `load` and before parsing, every matching transform sees the
+  code left by the previous one, and returning `null` declines. A result may
+  carry `code` as a string or `Uint8Array`, a JSON `map`, `meta` for later hooks,
+  and `watchFiles`/`watchDirs`. A map is used as the module's input source map
+  when source maps are enabled, in preference to a `sourceMappingURL` comment;
+  transforms are skipped for `copy` and `binary` modules. The hook's `info`
+  carries `namespace`, `suffix`, `loader`, `with` and `meta`. From C++, the same
+  hook is available as `PluginBuild::on_transform`, with `OnTransformOptions`,
+  `OnTransformArgs` and `OnTransformResult`.
+- `buildStart` can register virtual modules through `this.addVirtualModule()` or
+  a `virtualModules` array in its result. A module needs an `id` and `code`;
+  `namespace`, `suffix`, `loader`, `resolveDir`, `meta`, `watchFiles` and
+  `watchDirs` are optional. Registered modules resolve like a normal import and
+  are loaded from memory; an empty id, a suffix not starting with `?` or `#`,
+  and two modules with the same namespace, id and suffix are reported as
+  errors. From C++, `OnStartResult` gains `virtual_modules` and the matching
+  `VirtualModule` struct.
+- `this.resolve()` now answers from inside a hook using the build's own resolver
+  and plugin chain. A nested service request carries the calling build's token,
+  and the calling plugin is skipped by default (`custom: true`) so a plugin that
+  rewrites imports cannot answer its own question; pass `custom: false` to
+  allow that. `load` and `transform` hooks also receive the import attributes
+  in `info.with`.
+- The JavaScript `Loader` type now declares the internal spellings
+  `default`, `global-css`, `local-css` and `none`.
 
 - `guchho test` delegates to the optional `@guchho/test` runner, passing every
   argument after `test` through unchanged so `run`, `watch`, file arguments and
@@ -29,6 +56,9 @@ All notable changes to Guchho. Newest first. Full release notes live in
   `entries`, `watch_files` and `watch_dirs` fields.
 
 ### Fixed
+- Plugins attached to a long-lived context no longer read freed options. The
+  context owns the options handed to plugin setup, so `initial_options` stays
+  valid for the life of the session and `WatchMode` reaches hooks on rebuilds.
 
 - Source map generation no longer reads out of bounds when a file has no line
   offset entries or a location precedes the first line. Those mappings are

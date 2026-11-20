@@ -525,9 +525,11 @@ void Scanner::PreprocessInjectedFiles() {
                         import_path,
                         logger::ImportAttributes{},
                         compiler::ImportKind::kEntryPoint,
-                        inject_abs_resolve_dir,
-                        std::any{},
-                        options.LogPathStyle);
+                         inject_abs_resolve_dir,
+                         std::any{},
+                         options.LogPathStyle,
+                         nullptr,
+                         options.VirtualModules.get());
                     if (outcome.resolve_result.has_value()) {
                         if (outcome.resolve_result->path_pair.is_external) {
                             log.AddError(nullptr, Range{},
@@ -739,9 +741,11 @@ std::vector<graph::EntryPoint> Scanner::AddEntryPoints(
                         entry_point.InputPath,
                         logger::ImportAttributes{},
                         compiler::ImportKind::kEntryPoint,
-                        entry_point_abs_resolve_dir,
-                        std::any{},
-                        options.LogPathStyle);
+                         entry_point_abs_resolve_dir,
+                         std::any{},
+                         options.LogPathStyle,
+                         nullptr,
+                         options.VirtualModules.get());
                     if (outcome.resolve_result.has_value()) {
                         if (outcome.resolve_result->path_pair.is_external) {
                             log.AddError(nullptr, Range{},
@@ -2327,6 +2331,7 @@ TlaCheck Scanner::ValidateTLA(uint32_t source_index) {
         std::vector<helpers::Thread> on_start_threads;
         std::vector<std::exception_ptr> on_start_exceptions;
         std::vector<config::EntryPoint> start_entry_points;
+        std::vector<config::VirtualModule> start_virtual_modules;
         std::vector<std::string> start_watch_files;
         std::vector<std::string> start_watch_dirs;
         std::mutex start_result_mutex;
@@ -2335,9 +2340,9 @@ TlaCheck Scanner::ValidateTLA(uint32_t source_index) {
                 on_start_wait_group.Add(1);
                 on_start_threads.emplace_back(
                     helpers::kWorkerStackSize,
-                    [plugin, on_start, &log, &fs, &on_start_wait_group, &on_start_exceptions,
-                     &start_entry_points, &start_watch_files, &start_watch_dirs,
-                     &start_result_mutex]() {
+                     [plugin, on_start, &log, &fs, &on_start_wait_group, &on_start_exceptions,
+                      &start_entry_points, &start_virtual_modules, &start_watch_files,
+                      &start_watch_dirs, &start_result_mutex]() {
                         try {
                         config::OnStartResult result = on_start.Callback();
                         LogPluginMessages(fs, log, plugin.Name, result.Msgs,
@@ -2346,6 +2351,15 @@ TlaCheck Scanner::ValidateTLA(uint32_t source_index) {
                         start_entry_points.insert(start_entry_points.end(),
                             std::make_move_iterator(result.Entries.begin()),
                             std::make_move_iterator(result.Entries.end()));
+                        for (config::VirtualModule& module : result.VirtualModules) {
+                            start_watch_files.insert(start_watch_files.end(),
+                                std::make_move_iterator(module.AbsWatchFiles.begin()),
+                                std::make_move_iterator(module.AbsWatchFiles.end()));
+                            start_watch_dirs.insert(start_watch_dirs.end(),
+                                std::make_move_iterator(module.AbsWatchDirs.begin()),
+                                std::make_move_iterator(module.AbsWatchDirs.end()));
+                            start_virtual_modules.push_back(std::move(module));
+                        }
                         start_watch_files.insert(start_watch_files.end(),
                             std::make_move_iterator(result.AbsWatchFiles.begin()),
                             std::make_move_iterator(result.AbsWatchFiles.end()));
@@ -2405,6 +2419,27 @@ TlaCheck Scanner::ValidateTLA(uint32_t source_index) {
         }
         for (auto& e : on_start_exceptions) {
             if (e) std::rethrow_exception(e);
+        }
+
+        if (!options.VirtualModules) {
+            options.VirtualModules = std::make_shared<std::vector<config::VirtualModule>>();
+        }
+        options.VirtualModules->clear();
+        std::unordered_map<std::string, std::string> virtual_module_owners;
+        for (const config::VirtualModule& module : start_virtual_modules) {
+            const std::string module_namespace =
+                module.Namespace.empty() ? "virtual" : module.Namespace;
+            const std::string key = module_namespace + std::string(1, '\0') +
+                module.Id + std::string(1, '\0') + module.Suffix;
+            const auto found = virtual_module_owners.find(key);
+            if (found != virtual_module_owners.end()) {
+                log.AddError(nullptr, logger::Range{},
+                    guchho::logger::FormatMsg(guchho::logger::MsgCat::kBundler_DuplicateVirtualModule,
+                        module.Id, module_namespace, found->second, module.PluginName));
+                continue;
+            }
+            virtual_module_owners.emplace(key, module.PluginName);
+            options.VirtualModules->push_back(module);
         }
 
         // A start hook is allowed to hand the build an entry point (a virtual

@@ -6,22 +6,16 @@
 // extra names are declared alongside; where Guchho does not have an esbuild
 // option, it is left out rather than declared and refused at runtime.
 //
-// Two things are deliberately not declared:
+// One thing is deliberately not declared:
 //
 //   - buildSync and transformSync. Both would have to block the thread until a
 //     child process answers, which is the one thing a long-lived service
 //     protocol cannot do without a second process to ask. Declaring them would
 //     be a promise this package does not keep.
 //
-//   - PluginContext.getFileName. emitFile returns nothing in this version, so
-//     there is no reference id to resolve back to an output path. The name is
-//     left out rather than declared and thrown on.
-//
-// Some hooks and context methods are declared but not fully wired yet:
-// `Plugin.transform` is declared and documented but not yet run by the
-// engine's pipeline; `PluginContext.resolve` rejects with a sentence naming
-// the limitation; `PluginContext.emitFile` supports assets only. Each of
-// these fails loudly at the call site rather than silently doing nothing.
+// `Plugin.transform` runs after loading and before parsing. `PluginContext.resolve`
+// and `PluginContext.emitFile` are declared against the service protocol; see
+// their own comments for the capabilities of this version.
 //
 // The version is a string, not a function: it is read once from the manifest
 // the package was installed as, so comparing it against the runtime's
@@ -111,6 +105,7 @@ export interface Metafile {
 export type Loader =
   | 'js' | 'jsx' | 'ts' | 'tsx' | 'json' | 'text' | 'css' | 'html'
   | 'base64' | 'dataurl' | 'file' | 'binary' | 'copy' | 'empty'
+  | 'default' | 'global-css' | 'local-css' | 'none'
 
 /** The output format of a script. */
 export type Format = 'iife' | 'cjs' | 'esm' | 'umd' | 'amd' | 'system'
@@ -311,13 +306,27 @@ export interface ResolvedId {
   /** True to leave the import in the output rather than bundle it. */
   external?: boolean
   /**
-   * True to promise the module has no side effects, so it can be dropped when
-   * nothing imports from it. Only meaningful as `true`.
+   * Set to `false` to promise the module has no side effects, so it can be
+   * dropped when nothing imports from it. The default is `true`.
    */
   moduleSideEffects?: boolean
   /** A virtual filesystem the id belongs to. "file" by default. */
   namespace?: string
+  /** Part of the module's identity that is not part of its name. */
+  suffix?: string
   /** A value carried to this module's `load`, so the two halves can pass state. */
+  meta?: unknown
+}
+
+/** Extra context handed to a `load` hook. */
+export interface LoadHookInfo {
+  /** The virtual filesystem the module lives in. */
+  namespace?: string
+  /** Part of the module's identity that is not part of its name. */
+  suffix?: string
+  /** Values passed by the import's attributes or `with` clause. */
+  with?: Record<string, string>
+  /** The value left by the matching `resolveId`. */
   meta?: unknown
 }
 
@@ -343,15 +352,31 @@ export interface LoadResult {
 /** What a `transform` hook returns. */
 export interface SourceDescription {
   /** The transformed source. */
-  code: string
+  code: string | Uint8Array
   /**
    * A sourcemap for the transform, as JSON text. Optional; without one the
    * engine maps positions back to the original where it can.
    */
   map?: string | null
+  /** A value carried forward to later hooks for this module. */
+  meta?: unknown
   /** Extra paths this transform depends on. */
   watchFiles?: string[]
   watchDirs?: string[]
+}
+
+/** Extra context handed to a `transform` hook. */
+export interface TransformHookInfo {
+  /** The virtual filesystem the module lives in. */
+  namespace?: string
+  /** Part of the module's identity that is not part of its name. */
+  suffix?: string
+  /** How the engine would interpret the source. */
+  loader?: Loader
+  /** Values passed by the import's attributes or `with` clause. */
+  with?: Record<string, string>
+  /** The value left by `resolveId` or an earlier transform. */
+  meta?: unknown
 }
 
 /** One output file, as a `generateBundle`/`writeBundle` hook sees it. */
@@ -439,11 +464,9 @@ export interface PluginContext {
    * then hands back the answer. This is how a plugin asks where an import
    * points without claiming it. Returns `null` when nothing resolves it.
    *
-   * Not wired yet in this version: always rejects with a sentence naming the
-   * limitation, rather than resolving to a wrong answer.
-   *
-   * `custom: true` is set on the question so a plugin that answers resolution
-   * can tell its own question from the engine's and decline it.
+   * `custom: true` is set on the question by default, so the calling plugin is
+   * skipped and cannot answer its own question by accident. Pass
+   * `custom: false` only when that is what is wanted.
    */
   resolve(
     source: string,
@@ -455,6 +478,7 @@ export interface PluginContext {
    * are refused with a sentence rather than silently dropped.
    */
   emitFile(file: EmittedFile): void
+  addVirtualModule(module: VirtualModule): void
   /** Reports a warning against this plugin. Does not fail the build. */
   warn(message: string | GuchhoLog): void
   /** Fails the build with this message. Never returns. */
@@ -465,6 +489,19 @@ export interface PluginContext {
    * does not return a watch list still contributes the paths added here.
    */
   addWatchFile(file: string): void
+}
+
+export interface VirtualModule {
+  id: string
+  code: string | Uint8Array
+  contents?: string | Uint8Array
+  namespace?: string
+  suffix?: string
+  loader?: Loader
+  resolveDir?: string
+  meta?: unknown
+  watchFiles?: string[]
+  watchDirs?: string[]
 }
 
 /**
@@ -482,6 +519,7 @@ export interface BuildStartResult {
    * "entrypoints" option: a path, an `{ in, out }` record, or `[out, in]`.
    */
   entries?: EntryPoint[]
+  virtualModules?: VirtualModule[]
   /** Extra files the build should watch. */
   watchFiles?: string[]
   /** Extra directories the build should watch. */
@@ -529,20 +567,22 @@ export interface Plugin {
    */
   load?(
     this: PluginContext,
-    id: string
+    id: string,
+    info: LoadHookInfo
   ): LoadResult | string | null | undefined | Promise<
     LoadResult | string | null | undefined
   >
   /**
    * Transforms a module's source after it has been loaded and before it is
-   * parsed. `code` is the text the previous step produced.
-   *
-   * Declared but not yet run by the engine's pipeline in this version.
+   * parsed. `code` is the text the previous step produced; every matching
+   * transform sees the output of the one before it. Return a replacement
+   * `SourceDescription` (or a bare string), or `null` to decline.
    */
   transform?(
     this: PluginContext,
     code: string,
-    id: string
+    id: string,
+    info: TransformHookInfo
   ): SourceDescription | string | null | undefined | Promise<
     SourceDescription | string | null | undefined
   >

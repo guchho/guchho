@@ -560,6 +560,14 @@ namespace guchho::cli {
             registry.functions.erase(token);
         }
 
+        struct ResolveTokenGuard {
+            explicit ResolveTokenGuard(std::string value) : token(std::move(value)) {}
+            ~ResolveTokenGuard() { UnregisterResolveFunction(token); }
+            ResolveTokenGuard(const ResolveTokenGuard&) = delete;
+            ResolveTokenGuard& operator=(const ResolveTokenGuard&) = delete;
+            std::string token;
+        };
+
         bool FindResolveFunction(const std::string& token, ResolveFunction& out) {
             ResolveRegistry& registry = GetResolveRegistry();
             std::lock_guard<std::mutex> lock(registry.mutex);
@@ -1069,12 +1077,8 @@ namespace guchho::cli {
         template <typename Fn>
         auto WithResolveToken(ResolveFunction resolver, Fn fn) {
             return [resolver = std::move(resolver), fn = std::move(fn)](auto&&... args) {
-                const std::string token = RegisterResolveFunction(resolver);
-                struct Guard {
-                    std::string token;
-                    ~Guard() { UnregisterResolveFunction(token); }
-                } guard{token};
-                return fn(token, std::forward<decltype(args)>(args)...);
+                ResolveTokenGuard guard(RegisterResolveFunction(resolver));
+                return fn(guard.token, std::forward<decltype(args)>(args)...);
             };
         }
 

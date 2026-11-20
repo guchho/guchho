@@ -50,7 +50,8 @@ a hook that resolves is a hook the engine continues from.
 
 ## The lifecycle
 
-1. `buildStart` - once per build, before any file is read.
+1. `buildStart` - once per build, before any file is read. It may contribute
+   entries, virtual modules and extra watch paths.
 2. `resolveId` - asked where a specifier points, for every import and entry
    point.
 3. `load` - asked for a module's contents, before the loader would read them.
@@ -81,14 +82,55 @@ The exact type declarations live in the
 | `PluginContext` | `this` inside a hook. |
 | `PluginOrder` | `'pre' \| 'post'`. |
 | `ResolveIdOptions` | Where a `resolveId` was asked from. |
-| `ResolvedId` | A `resolveId` answer: `id`, `external`, `moduleSideEffects`, `namespace`, `meta`. |
+| `ResolvedId` | A `resolveId` answer: `id`, `external`, `moduleSideEffects`, `namespace`, `suffix`, `meta`. |
+| `LoadHookInfo` | Extra context for `load`: `namespace`, `suffix`, `with`, `meta`. |
 | `LoadResult` | A `load` answer: `code`, `loader`, `resolveDir`, `meta`. |
-| `SourceDescription` | A `transform` answer: `code` and an optional `map`. |
+| `TransformHookInfo` | Extra context for `transform`: `namespace`, `suffix`, `loader`, `with`, `meta`. |
+| `SourceDescription` | A `transform` answer: `code`, `map`, `meta` and watch paths. |
+| `VirtualModule` | A module registered from `buildStart`, with `id`, `code` and optional metadata. |
+| `BuildStartResult` | What `buildStart` may return: `entries`, `virtualModules`, `watchFiles`, `watchDirs`. |
 | `OutputChunk` / `OutputAsset` | One file in the bundle a bundle hook sees. |
 | `OutputBundle` | The whole bundle, keyed by file name. |
 | `NormalizedOutputOptions` | The output options a bundle hook is handed. |
 | `EmittedFile` | What `this.emitFile` puts in the output. |
 | `GuchhoLog` | The shaped object `this.warn` / `this.error` accept. |
+
+## Virtual modules
+
+A virtual module is source the plugin supplies rather than a file the engine
+reads. The classic spelling is a pair of hooks: `resolveId` claims an import in
+a non-`file` namespace and `load` answers its code.
+
+`buildStart` can instead register the whole module at once, either by returning
+`virtualModules` or by calling `this.addVirtualModule()`:
+
+```js
+const virtual = {
+  name: 'generated-config',
+  buildStart() {
+    this.addVirtualModule({
+      id: 'virtual:config',
+      namespace: 'virtual',
+      suffix: '?raw',
+      loader: 'js',
+      resolveDir: 'src',
+      code: 'export const value = 1',
+    })
+  },
+}
+```
+
+`id` and `code` are required. `code` may be a string or `Uint8Array`;
+`namespace` defaults to `"virtual"`, `loader` to `"js"`, and `resolveDir` is the
+base for the module's own relative imports. `suffix` must start with `?` or `#`
+and is part of the module's identity without being part of its name. `meta` is
+carried to the module's hooks, and `watchFiles`/`watchDirs` add dependencies.
+
+A registered module resolves when an import uses its `id` or `id + suffix`, and
+its contents come from the registration. An empty id, a malformed suffix, or
+two modules with the same namespace, id and suffix fail the build with the
+plugin names in the message. `buildStart` may also return `entries` to make a
+virtual module an entry point, so nothing has to be written to disk.
 
 ## What a plugin cannot do
 
@@ -97,16 +139,8 @@ into the calls listed above. There is no plugin that runs on the compiler's
 side of the wire, and no hook past what the engine implements is declared -
 every hook in the type has a runtime implementation behind it.
 
-Two parts of the declared surface are not wired into the pipeline yet in this
-version:
-
-- `transform` is declared but is not run by the engine's pipeline.
-- `this.resolve` always rejects with a sentence naming the limitation rather
-  than resolving to a wrong answer.
-
 `this.emitFile` accepts assets only; a chunk request is refused with an
-explanation. It returns `void`, and `getFileName` is deliberately not
-declared.
+explanation. It returns `void`, and `getFileName` is deliberately not declared.
 
 ## See also
 
